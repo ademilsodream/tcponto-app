@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Calendar, Clock, User } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, User, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { calculateDayHours } from '@/utils/timeCalculations';
 
@@ -49,9 +49,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [endDate, setEndDate] = useState('2025-05-31');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [reportData, setReportData] = useState<EmployeeDetailedReport | null>(null);
+  const [allEmployeesData, setAllEmployeesData] = useState<EmployeeDetailedReport[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
+  const [showAllEmployees, setShowAllEmployees] = useState(false);
 
-  const generateDaysInPeriod = (start: string, end: string): DayRecord[] => {
+  const generateDaysInPeriod = (start: string, end: string, employee: Employee): DayRecord[] => {
     const days: DayRecord[] = [];
     const startDateObj = new Date(start);
     const endDateObj = new Date(end);
@@ -102,8 +104,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
           totalHours: calculation.totalHours,
           normalHours: calculation.normalHours,
           overtimeHours: calculation.overtimeHours,
-          totalPay: (calculation.normalHours * employees.find(e => e.id === selectedEmployeeId)!.hourlyRate) + 
-                   (calculation.overtimeHours * employees.find(e => e.id === selectedEmployeeId)!.overtimeRate)
+          totalPay: (calculation.normalHours * employee.hourlyRate) + 
+                   (calculation.overtimeHours * employee.overtimeRate)
         };
       }
       
@@ -113,7 +115,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return days;
   };
 
-  const generateReport = () => {
+  const generateSingleEmployeeReport = () => {
     if (!startDate || !endDate || !selectedEmployeeId) {
       alert('Selecione todos os campos para gerar o relatório');
       return;
@@ -122,7 +124,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     const employee = employees.find(e => e.id === selectedEmployeeId);
     if (!employee) return;
 
-    const days = generateDaysInPeriod(startDate, endDate);
+    const days = generateDaysInPeriod(startDate, endDate, employee);
     
     const totalHours = days.reduce((sum, day) => sum + day.totalHours, 0);
     const totalNormalHours = days.reduce((sum, day) => sum + day.normalHours, 0);
@@ -138,7 +140,45 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       totalPay
     });
     
+    setShowAllEmployees(false);
     setIsGenerated(true);
+  };
+
+  const generateAllEmployeesReport = () => {
+    if (!startDate || !endDate) {
+      alert('Selecione o período para gerar o relatório');
+      return;
+    }
+
+    const allReports: EmployeeDetailedReport[] = employees.map(employee => {
+      const days = generateDaysInPeriod(startDate, endDate, employee);
+      
+      const totalHours = days.reduce((sum, day) => sum + day.totalHours, 0);
+      const totalNormalHours = days.reduce((sum, day) => sum + day.normalHours, 0);
+      const totalOvertimeHours = days.reduce((sum, day) => sum + day.overtimeHours, 0);
+      const totalPay = days.reduce((sum, day) => sum + day.totalPay, 0);
+
+      return {
+        employee,
+        days,
+        totalHours,
+        totalNormalHours,
+        totalOvertimeHours,
+        totalPay
+      };
+    });
+
+    setAllEmployeesData(allReports);
+    setShowAllEmployees(true);
+    setIsGenerated(true);
+  };
+
+  const getTotalFromAllEmployees = () => {
+    return allEmployeesData.reduce((totals, employeeData) => ({
+      totalHours: totals.totalHours + employeeData.totalHours,
+      totalPay: totals.totalPay + employeeData.totalPay,
+      totalEmployees: totals.totalEmployees + 1
+    }), { totalHours: 0, totalPay: 0, totalEmployees: 0 });
   };
 
   return (
@@ -176,7 +216,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div className="space-y-2">
                 <Label htmlFor="employee">Funcionário</Label>
                 <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
@@ -214,17 +254,27 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               </div>
 
               <Button
-                onClick={generateReport}
+                onClick={generateSingleEmployeeReport}
                 className="bg-primary-800 hover:bg-primary-700"
               >
-                Gerar Relatório
+                <User className="w-4 h-4 mr-2" />
+                Gerar Individual
+              </Button>
+
+              <Button
+                onClick={generateAllEmployeesReport}
+                variant="outline"
+                className="border-primary-300 text-primary-700 hover:bg-primary-50"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Gerar Todos
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Relatório Detalhado */}
-        {isGenerated && reportData && (
+        {/* Relatório Individual */}
+        {isGenerated && !showAllEmployees && reportData && (
           <>
             {/* Resumo do Funcionário */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -339,6 +389,107 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 </div>
               </CardContent>
             </Card>
+          </>
+        )}
+
+        {/* Relatório de Todos os Funcionários */}
+        {isGenerated && showAllEmployees && allEmployeesData.length > 0 && (
+          <>
+            {/* Resumo Geral */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Funcionários</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary-900">
+                    {getTotalFromAllEmployees().totalEmployees}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Horas</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-primary-900">
+                    {getTotalFromAllEmployees().totalHours.toFixed(1)}h
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Geral</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-accent-600">
+                    € {getTotalFromAllEmployees().totalPay.toFixed(2)}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Lista de Funcionários */}
+            {allEmployeesData.map((employeeData, index) => (
+              <Card key={employeeData.employee.id} className="mb-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    {employeeData.employee.name}
+                    <span className="text-sm font-normal text-gray-600 ml-2">
+                      ({employeeData.totalHours.toFixed(1)}h - € {employeeData.totalPay.toFixed(2)})
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Dia da Semana</TableHead>
+                          <TableHead>Entrada</TableHead>
+                          <TableHead>Saída Almoço</TableHead>
+                          <TableHead>Volta Almoço</TableHead>
+                          <TableHead>Saída</TableHead>
+                          <TableHead>Total Horas</TableHead>
+                          <TableHead>Horas Extras</TableHead>
+                          <TableHead>Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {employeeData.days.map((day) => (
+                          <TableRow key={`${employeeData.employee.id}-${day.date}`} className={day.totalHours === 0 ? 'bg-gray-50' : ''}>
+                            <TableCell className="font-medium">
+                              {new Date(day.date).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell>{day.dayOfWeek}</TableCell>
+                            <TableCell>{day.clockIn || '-'}</TableCell>
+                            <TableCell>{day.lunchStart || '-'}</TableCell>
+                            <TableCell>{day.lunchEnd || '-'}</TableCell>
+                            <TableCell>{day.clockOut || '-'}</TableCell>
+                            <TableCell>
+                              {day.totalHours > 0 ? `${day.totalHours.toFixed(1)}h` : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {day.overtimeHours > 0 ? `${day.overtimeHours.toFixed(1)}h` : '-'}
+                            </TableCell>
+                            <TableCell className="font-medium text-accent-600">
+                              {day.totalPay > 0 ? `€ ${day.totalPay.toFixed(2)}` : '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </>
         )}
       </div>
