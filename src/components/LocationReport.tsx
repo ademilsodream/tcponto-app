@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,67 +30,79 @@ interface LocationReportProps {
 }
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
-  const [locationData, setLocationData] = useState<LocationData[]>([]);
-  const [filteredData, setFilteredData] = useState<LocationData[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    console.log('LocationReport iniciado com funcionários:', employees);
-    
+  // Gerar dados de exemplo simples
+  const locationData = useMemo(() => {
     if (!employees || employees.length === 0) {
-      console.log('Nenhum funcionário disponível');
-      setLocationData([]);
-      setFilteredData([]);
-      return;
+      return [];
     }
 
-    // Gerar dados de exemplo simples
     const sampleData: LocationData[] = [];
     const addresses = [
       "Rua das Flores, 123 - Centro, São Paulo, SP",
       "Av. Paulista, 1578 - Bela Vista, São Paulo, SP", 
-      "Rua Augusta, 456 - Consolação, São Paulo, SP"
+      "Rua Augusta, 456 - Consolação, São Paulo, SP",
+      "Rua Oscar Freire, 789 - Jardins, São Paulo, SP"
     ];
 
-    employees.forEach(employee => {
-      // Dados para hoje
-      const today = new Date().toISOString().split('T')[0];
+    employees.forEach((employee, index) => {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
       
+      // Dados para hoje
       sampleData.push({
         employeeName: employee.name,
-        date: today,
+        date: today.toISOString().split('T')[0],
         type: 'Entrada',
         time: '08:00',
-        address: addresses[0],
+        address: addresses[index % addresses.length],
         coordinates: '-23.5505, -46.6333'
       });
       
       sampleData.push({
         employeeName: employee.name,
-        date: today,
+        date: today.toISOString().split('T')[0],
         type: 'Saída',
         time: '17:00',
-        address: addresses[1],
+        address: addresses[(index + 1) % addresses.length],
         coordinates: '-23.5489, -46.6388'
+      });
+
+      // Dados para ontem
+      sampleData.push({
+        employeeName: employee.name,
+        date: yesterday.toISOString().split('T')[0],
+        type: 'Entrada',
+        time: '08:15',
+        address: addresses[(index + 2) % addresses.length],
+        coordinates: '-23.5520, -46.6350'
+      });
+      
+      sampleData.push({
+        employeeName: employee.name,
+        date: yesterday.toISOString().split('T')[0],
+        type: 'Saída',
+        time: '17:30',
+        address: addresses[(index + 3) % addresses.length],
+        coordinates: '-23.5470, -46.6400'
       });
     });
 
-    console.log('Dados de localização gerados:', sampleData);
-    setLocationData(sampleData);
-    setFilteredData(sampleData);
+    return sampleData;
   }, [employees]);
 
-  useEffect(() => {
-    if (selectedEmployee) {
-      const filtered = locationData.filter(item => {
-        const employee = employees.find(emp => emp.id === selectedEmployee);
-        return employee && item.employeeName === employee.name;
-      });
-      setFilteredData(filtered);
-    } else {
-      setFilteredData(locationData);
+  // Filtrar dados por funcionário selecionado
+  const filteredData = useMemo(() => {
+    if (!selectedEmployee) {
+      return locationData;
     }
+    
+    return locationData.filter(item => {
+      const employee = employees.find(emp => emp.id === selectedEmployee);
+      return employee && item.employeeName === employee.name;
+    });
   }, [selectedEmployee, locationData, employees]);
 
   const getTypeColor = (type: string) => {
@@ -103,6 +115,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  console.log('LocationReport renderizado com:', {
+    employeesCount: employees.length,
+    locationDataCount: locationData.length,
+    filteredDataCount: filteredData.length
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -239,7 +257,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <p className="text-sm">
                     {employees.length === 0 
                       ? 'Cadastre funcionários para ver os registros de localização'
-                      : 'Os registros de localização aparecerão aqui quando os funcionários baterem o ponto'
+                      : 'Os registros de localização aparecerão aqui'
                     }
                   </p>
                 </div>
