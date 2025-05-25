@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -395,7 +396,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                   <div className={`w-3 h-3 rounded-full ${color}`} />
                   {label}
                   {location && (
-                    <MapPin className="w-3 h-3 text-green-600" title="Localização registrada" />
+                    <MapPin className="w-3 h-3 text-green-600" />
                   )}
                 </CardTitle>
               </CardHeader>
