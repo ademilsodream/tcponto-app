@@ -54,6 +54,15 @@ export const calculateWorkingHours = (
   };
 };
 
+export const calculateDayHours = (
+  workStart: string,
+  lunchStart: string,
+  lunchEnd: string,
+  workEnd: string
+) => {
+  return calculateWorkingHours(workStart, lunchStart, lunchEnd, workEnd);
+};
+
 export const calculatePay = (
   normalHours: number,
   overtimeHours: number,
