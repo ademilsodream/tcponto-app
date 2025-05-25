@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar, DollarSign, Clock, FileText } from 'lucide-react';
 import { calculateDayHours } from '@/utils/timeCalculations';
 import DetailedTimeReport from './DetailedTimeReport';
-import CurrencySelector from './CurrencySelector';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -93,14 +93,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
   const [showDetailedReport, setShowDetailedReport] = useState(false);
-  const [currency, setCurrency] = useState<'EUR' | 'BRL'>('EUR');
-
-  const formatCurrency = (value: number) => {
-    if (currency === 'BRL') {
-      return `R$ ${(value * 5.5).toFixed(2)}`;
-    }
-    return `€ ${value.toFixed(2)}`;
-  };
+  const { formatCurrency } = useCurrency();
 
   const generatePayroll = () => {
     if (!startDate || !endDate) {
@@ -161,7 +154,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             </div>
             
             <div className="flex items-center gap-4">
-              <CurrencySelector currency={currency} onCurrencyChange={setCurrency} />
               <Button
                 onClick={() => setShowDetailedReport(true)}
                 variant="outline"
