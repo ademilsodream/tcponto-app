@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +23,12 @@ interface TimeRecord {
   normalPay: number;
   overtimePay: number;
   totalPay: number;
+  locations?: {
+    clockIn?: { lat: number; lng: number; address: string; timestamp: string };
+    lunchStart?: { lat: number; lng: number; address: string; timestamp: string };
+    lunchEnd?: { lat: number; lng: number; address: string; timestamp: string };
+    clockOut?: { lat: number; lng: number; address: string; timestamp: string };
+  };
 }
 
 const Dashboard = () => {

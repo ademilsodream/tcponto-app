@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle } from 'lucide-react';
+import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface User {
@@ -28,6 +28,12 @@ interface TimeRecord {
   normalPay: number;
   overtimePay: number;
   totalPay: number;
+  locations?: {
+    clockIn?: { lat: number; lng: number; address: string; timestamp: string };
+    lunchStart?: { lat: number; lng: number; address: string; timestamp: string };
+    lunchEnd?: { lat: number; lng: number; address: string; timestamp: string };
+    clockOut?: { lat: number; lng: number; address: string; timestamp: string };
+  };
 }
 
 interface TimeRegistrationProps {
@@ -47,11 +53,58 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [message, setMessage] = useState('');
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString('pt-BR', { 
       hour: '2-digit', 
       minute: '2-digit' 
+    });
+  };
+
+  const getCurrentLocation = (): Promise<{ lat: number; lng: number; address: string }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocalização não é suportada pelo navegador'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          try {
+            // Usar Nominatim (OpenStreetMap) para reverse geocoding (gratuito)
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pt`
+            );
+            const data = await response.json();
+            
+            const address = data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            
+            resolve({
+              lat: latitude,
+              lng: longitude,
+              address
+            });
+          } catch (error) {
+            // Se falhar o reverse geocoding, usar apenas as coordenadas
+            resolve({
+              lat: latitude,
+              lng: longitude,
+              address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+            });
+          }
+        },
+        (error) => {
+          reject(new Error('Erro ao obter localização: ' + error.message));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 minutos
+        }
+      );
     });
   };
 
@@ -99,34 +152,81 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     return { totalHours, normalHours, overtimeHours };
   };
 
-  const handleRegisterTime = (field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+  const handleRegisterTime = async (field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
     const currentTime = getCurrentTime();
-    const updatedRecord = { ...record, [field]: currentTime };
-    
-    const { totalHours, normalHours, overtimeHours } = calculateHours(
-      updatedRecord.clockIn,
-      updatedRecord.lunchStart,
-      updatedRecord.lunchEnd,
-      updatedRecord.clockOut
-    );
+    setIsGettingLocation(true);
 
-    const normalPay = normalHours * user.hourlyRate;
-    const overtimePay = overtimeHours * user.hourlyRate; // Mesmo valor da hora normal
-    const totalPay = normalPay + overtimePay;
+    try {
+      const location = await getCurrentLocation();
+      const locationData = {
+        ...location,
+        timestamp: new Date().toISOString()
+      };
 
-    const finalRecord = {
-      ...updatedRecord,
-      totalHours,
-      normalHours,
-      overtimeHours,
-      normalPay,
-      overtimePay,
-      totalPay
-    };
+      const updatedRecord = { 
+        ...record, 
+        [field]: currentTime,
+        locations: {
+          ...record.locations,
+          [field]: locationData
+        }
+      };
+      
+      const { totalHours, normalHours, overtimeHours } = calculateHours(
+        updatedRecord.clockIn,
+        updatedRecord.lunchStart,
+        updatedRecord.lunchEnd,
+        updatedRecord.clockOut
+      );
 
-    onUpdate(finalRecord);
-    setMessage(`${getFieldLabel(field)} registrado: ${currentTime}`);
-    setTimeout(() => setMessage(''), 3000);
+      const normalPay = normalHours * user.hourlyRate;
+      const overtimePay = overtimeHours * user.hourlyRate;
+      const totalPay = normalPay + overtimePay;
+
+      const finalRecord = {
+        ...updatedRecord,
+        totalHours,
+        normalHours,
+        overtimeHours,
+        normalPay,
+        overtimePay,
+        totalPay
+      };
+
+      onUpdate(finalRecord);
+      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (${location.address})`);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (error) {
+      // Registrar sem localização em caso de erro
+      const updatedRecord = { ...record, [field]: currentTime };
+      
+      const { totalHours, normalHours, overtimeHours } = calculateHours(
+        updatedRecord.clockIn,
+        updatedRecord.lunchStart,
+        updatedRecord.lunchEnd,
+        updatedRecord.clockOut
+      );
+
+      const normalPay = normalHours * user.hourlyRate;
+      const overtimePay = overtimeHours * user.hourlyRate;
+      const totalPay = normalPay + overtimePay;
+
+      const finalRecord = {
+        ...updatedRecord,
+        totalHours,
+        normalHours,
+        overtimeHours,
+        normalPay,
+        overtimePay,
+        totalPay
+      };
+
+      onUpdate(finalRecord);
+      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (sem localização)`);
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setIsGettingLocation(false);
+    }
   };
 
   const handleManualTimeEntry = (field: string, value: string) => {
@@ -286,6 +386,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {timeFields.map(({ key, label, value, color }) => {
           const Icon = getFieldIcon(key);
+          const location = record.locations?.[key as keyof typeof record.locations];
           
           return (
             <Card key={key} className="hover:shadow-md transition-shadow">
@@ -293,6 +394,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${color}`} />
                   {label}
+                  {location && (
+                    <MapPin className="w-3 h-3 text-green-600" title="Localização registrada" />
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -337,6 +441,12 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                       <div className="text-2xl font-bold text-primary-900">
                         {value || '--:--'}
                       </div>
+                      {location && (
+                        <div className="text-xs text-gray-500 mt-1 truncate" title={location.address}>
+                          <MapPin className="w-3 h-3 inline mr-1" />
+                          {location.address}
+                        </div>
+                      )}
                       {(value || isHistoricalEntry) && (
                         <Button
                           size="sm"
@@ -353,10 +463,11 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                     {!value && !isHistoricalEntry && (
                       <Button
                         onClick={() => handleRegisterTime(key as any)}
+                        disabled={isGettingLocation}
                         className={`w-full ${color} hover:opacity-90 text-white`}
                       >
                         <Icon className="w-4 h-4 mr-2" />
-                        Registrar
+                        {isGettingLocation ? 'Obtendo localização...' : 'Registrar'}
                       </Button>
                     )}
 

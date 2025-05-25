@@ -1,14 +1,16 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Users, Plus, Edit, Trash2, Download, DollarSign, Monitor, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Edit, Trash2, Download, DollarSign, Monitor, CheckSquare, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import PayrollReport from './PayrollReport';
 import AdminDashboard from './AdminDashboard';
 import PendingApprovals from './PendingApprovals';
+import LocationReport from './LocationReport';
 
 interface User {
   id: string;
@@ -24,7 +26,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'payroll' | 'approvals'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'payroll' | 'approvals' | 'locations'>('dashboard');
   
   const [employees, setEmployees] = useState<User[]>([
     {
@@ -238,6 +240,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <CheckSquare className="w-4 h-4 inline-block mr-2" />
               Aprovações
             </button>
+            <button
+              onClick={() => setActiveSection('locations')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'locations'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <MapPin className="w-4 h-4 inline-block mr-2" />
+              Localizações
+            </button>
           </nav>
         </div>
       </div>
@@ -246,6 +259,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         {activeSection === 'dashboard' && <AdminDashboard employees={employees} />}
         {activeSection === 'payroll' && <PayrollReport employees={employees} onBack={() => setActiveSection('employees')} />}
         {activeSection === 'approvals' && <PendingApprovals employees={employees} />}
+        {activeSection === 'locations' && <LocationReport employees={employees} />}
         
         {activeSection === 'employees' && (
           <>
