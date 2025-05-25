@@ -5,21 +5,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar, DollarSign, Clock } from 'lucide-react';
+import { calculateDayHours } from '@/utils/timeCalculations';
 
 interface PayrollReportProps {
+  employees: Array<{
+    id: string;
+    name: string;
+    email: string;
+    hourlyRate: number;
+    overtimeRate: number;
+  }>;
   onBack: () => void;
 }
 
-interface Employee {
-  id: string;
-  name: string;
-  email: string;
-  hourlyRate: number;
-  overtimeRate: number;
-}
-
 interface PayrollData {
-  employee: Employee;
+  employee: {
+    id: string;
+    name: string;
+    email: string;
+    hourlyRate: number;
+    overtimeRate: number;
+  };
   totalHours: number;
   normalHours: number;
   overtimeHours: number;
@@ -28,29 +34,63 @@ interface PayrollData {
   totalPay: number;
 }
 
-const PayrollReport: React.FC<PayrollReportProps> = ({ onBack }) => {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+// Função para gerar dados mock de maio de 2025
+const generateMayTimeData = (employeeId: string) => {
+  const may2025 = new Date(2025, 4, 1); // Maio é mês 4 (0-indexed)
+  const daysInMay = 31;
+  const weekdays = [];
+  
+  // Gerar apenas dias úteis (segunda a sexta)
+  for (let day = 1; day <= daysInMay; day++) {
+    const date = new Date(2025, 4, day);
+    const dayOfWeek = date.getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Segunda a sexta
+      weekdays.push(day);
+    }
+  }
+  
+  let totalHours = 0;
+  let totalNormalHours = 0;
+  let totalOvertimeHours = 0;
+  
+  weekdays.forEach(day => {
+    // Gerar horários aleatórios mas realistas
+    const entryHour = 8 + Math.floor(Math.random() * 2); // Entre 8h e 9h
+    const entryMinute = Math.floor(Math.random() * 60);
+    
+    const lunchStartHour = 12 + Math.floor(Math.random() * 2); // Entre 12h e 13h
+    const lunchStartMinute = Math.floor(Math.random() * 60);
+    
+    const lunchEndHour = lunchStartHour + 1; // 1 hora de almoço
+    const lunchEndMinute = lunchStartMinute;
+    
+    const exitHour = 17 + Math.floor(Math.random() * 3); // Entre 17h e 19h
+    const exitMinute = Math.floor(Math.random() * 60);
+    
+    const workStart = `${entryHour.toString().padStart(2, '0')}:${entryMinute.toString().padStart(2, '0')}`;
+    const lunchStart = `${lunchStartHour.toString().padStart(2, '0')}:${lunchStartMinute.toString().padStart(2, '0')}`;
+    const lunchEnd = `${lunchEndHour.toString().padStart(2, '0')}:${lunchEndMinute.toString().padStart(2, '0')}`;
+    const workEnd = `${exitHour.toString().padStart(2, '0')}:${exitMinute.toString().padStart(2, '0')}`;
+    
+    const dayCalculation = calculateDayHours(workStart, lunchStart, lunchEnd, workEnd);
+    
+    totalHours += dayCalculation.totalHours;
+    totalNormalHours += dayCalculation.normalHours;
+    totalOvertimeHours += dayCalculation.overtimeHours;
+  });
+  
+  return {
+    totalHours: Math.round(totalHours * 10) / 10,
+    normalHours: Math.round(totalNormalHours * 10) / 10,
+    overtimeHours: Math.round(totalOvertimeHours * 10) / 10
+  };
+};
+
+const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
+  const [startDate, setStartDate] = useState('2025-05-01');
+  const [endDate, setEndDate] = useState('2025-05-31');
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
-
-  // Mock data para demonstração
-  const mockEmployees: Employee[] = [
-    {
-      id: '1',
-      name: 'João Silva',
-      email: 'joao@tcponto.com',
-      hourlyRate: 25,
-      overtimeRate: 37.5
-    },
-    {
-      id: '3',
-      name: 'Ana Santos',
-      email: 'ana@tcponto.com',
-      hourlyRate: 30,
-      overtimeRate: 45
-    }
-  ];
 
   const generatePayroll = () => {
     if (!startDate || !endDate) {
@@ -58,22 +98,18 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ onBack }) => {
       return;
     }
 
-    // Simulação de dados de folha de pagamento
-    const mockPayroll: PayrollData[] = mockEmployees.map(employee => {
-      // Simulando dados aleatórios para demonstração
-      const totalHours = Math.round((Math.random() * 50 + 150) * 10) / 10; // Entre 150-200h
-      const normalHours = Math.min(totalHours, 176); // 22 dias úteis * 8h
-      const overtimeHours = Math.max(0, totalHours - 176);
+    const mockPayroll: PayrollData[] = employees.map(employee => {
+      const timeData = generateMayTimeData(employee.id);
       
-      const normalPay = normalHours * employee.hourlyRate;
-      const overtimePay = overtimeHours * employee.overtimeRate;
+      const normalPay = timeData.normalHours * employee.hourlyRate;
+      const overtimePay = timeData.overtimeHours * employee.overtimeRate;
       const totalPay = normalPay + overtimePay;
 
       return {
         employee,
-        totalHours,
-        normalHours,
-        overtimeHours,
+        totalHours: timeData.totalHours,
+        normalHours: timeData.normalHours,
+        overtimeHours: timeData.overtimeHours,
         normalPay,
         overtimePay,
         totalPay
@@ -190,7 +226,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ onBack }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-accent-600">
-                    R$ {getTotalPayroll().toFixed(2)}
+                    € {getTotalPayroll().toFixed(2)}
                   </div>
                 </CardContent>
               </Card>
@@ -259,13 +295,13 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ onBack }) => {
                             {data.overtimeHours.toFixed(1)}h
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            R$ {data.normalPay.toFixed(2)}
+                            € {data.normalPay.toFixed(2)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            R$ {data.overtimePay.toFixed(2)}
+                            € {data.overtimePay.toFixed(2)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-accent-600">
-                            R$ {data.totalPay.toFixed(2)}
+                            € {data.totalPay.toFixed(2)}
                           </td>
                         </tr>
                       ))}

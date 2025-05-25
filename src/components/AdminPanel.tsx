@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,16 +30,40 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       name: 'João Silva',
       email: 'joao@tcponto.com',
       role: 'employee',
-      hourlyRate: 25,
-      overtimeRate: 37.5
+      hourlyRate: 5.00,
+      overtimeRate: 7.50
+    },
+    {
+      id: '2',
+      name: 'Maria Santos',
+      email: 'maria@tcponto.com',
+      role: 'employee',
+      hourlyRate: 5.63,
+      overtimeRate: 8.45
     },
     {
       id: '3',
-      name: 'Ana Santos',
+      name: 'Pedro Oliveira',
+      email: 'pedro@tcponto.com',
+      role: 'employee',
+      hourlyRate: 7.58,
+      overtimeRate: 11.37
+    },
+    {
+      id: '4',
+      name: 'Ana Costa',
       email: 'ana@tcponto.com',
       role: 'employee',
-      hourlyRate: 30,
-      overtimeRate: 45
+      hourlyRate: 8.25,
+      overtimeRate: 12.38
+    },
+    {
+      id: '5',
+      name: 'Carlos Ferreira',
+      email: 'carlos@tcponto.com',
+      role: 'employee',
+      hourlyRate: 6.20,
+      overtimeRate: 9.30
     }
   ]);
 
@@ -124,7 +149,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   if (activeSection === 'payroll') {
-    return <PayrollReport onBack={() => setActiveSection('employees')} />;
+    return <PayrollReport employees={employees} onBack={() => setActiveSection('employees')} />;
   }
 
   return (
@@ -252,7 +277,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="hourlyRate">Valor Hora Normal (R$)</Label>
+                  <Label htmlFor="hourlyRate">Valor Hora Normal (€)</Label>
                   <Input
                     id="hourlyRate"
                     type="number"
@@ -264,7 +289,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="overtimeRate">Valor Hora Extra (R$)</Label>
+                  <Label htmlFor="overtimeRate">Valor Hora Extra (€)</Label>
                   <Input
                     id="overtimeRate"
                     type="number"
@@ -367,10 +392,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        R$ {employee.hourlyRate.toFixed(2)}
+                        € {employee.hourlyRate.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        R$ {employee.overtimeRate.toFixed(2)}
+                        € {employee.overtimeRate.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
