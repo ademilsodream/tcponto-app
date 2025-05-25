@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,11 +41,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       case 'dashboard':
         return <AdminDashboard employees={employees} />;
       case 'approvals':
-        return <PendingApprovals />;
+        return <PendingApprovals employees={employees} />;
       case 'payroll':
-        return <PayrollReport employees={employees} />;
+        return <PayrollReport employees={employees} onBack={() => setActiveTab('dashboard')} />;
       case 'detailed':
-        return <DetailedTimeReport employees={employees} />;
+        return <DetailedTimeReport employees={employees} onBack={() => setActiveTab('dashboard')} />;
       case 'locations':
         return <LocationReport employees={employees} />;
       default:
