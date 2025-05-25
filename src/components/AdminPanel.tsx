@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +34,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const savedEmployees = localStorage.getItem('tcponto_employees');
     if (savedEmployees) {
       setEmployees(JSON.parse(savedEmployees));
+    } else {
+      // Criar funcionários de exemplo se não existirem
+      const sampleEmployees = [
+        {
+          id: 'emp1',
+          name: 'Maria Silva',
+          email: 'maria@empresa.com',
+          role: 'employee' as const,
+          hourlyRate: 15,
+          overtimeRate: 22.5
+        },
+        {
+          id: 'emp2',
+          name: 'João Santos',
+          email: 'joao@empresa.com',
+          role: 'employee' as const,
+          hourlyRate: 18,
+          overtimeRate: 27
+        },
+        {
+          id: 'emp3',
+          name: 'Ana Costa',
+          email: 'ana@empresa.com',
+          role: 'employee' as const,
+          hourlyRate: 20,
+          overtimeRate: 30
+        }
+      ];
+      
+      setEmployees(sampleEmployees);
+      localStorage.setItem('tcponto_employees', JSON.stringify(sampleEmployees));
     }
 
     // Carregar solicitações pendentes
@@ -43,73 +73,142 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       const requests = JSON.parse(savedRequests);
       setPendingRequests(requests.filter((req: any) => req.status === 'pending'));
     }
-
-    // Adicionar dados de localização de exemplo para registros existentes
-    addSampleLocationData();
   }, []);
 
+  useEffect(() => {
+    // Adicionar dados de localização e registros de exemplo quando os funcionários forem carregados
+    if (employees.length > 0) {
+      addSampleLocationData();
+    }
+  }, [employees]);
+
   const addSampleLocationData = () => {
+    const enderecos = [
+      { lat: 38.7223, lng: -9.1393, address: "Av. da Liberdade, 1250-096 Lisboa, Portugal" },
+      { lat: 41.1579, lng: -8.6291, address: "R. de Santa Catarina, 4000-447 Porto, Portugal" },
+      { lat: -23.5505, lng: -46.6333, address: "Av. Paulista, 1578 - Bela Vista, São Paulo - SP, Brasil" },
+      { lat: -22.9068, lng: -43.1729, address: "Av. Rio Branco, 1 - Centro, Rio de Janeiro - RJ, Brasil" },
+      { lat: 38.7071, lng: -9.1359, address: "Praça do Comércio, 1100-148 Lisboa, Portugal" },
+      { lat: 38.7077, lng: -9.1365, address: "Rua Augusta, 1100-053 Lisboa, Portugal" },
+      { lat: -23.5475, lng: -46.6361, address: "Rua Oscar Freire, 2500 - Jardins, São Paulo - SP, Brasil" },
+      { lat: 41.1496, lng: -8.6109, address: "Av. dos Aliados, 4000-064 Porto, Portugal" }
+    ];
+
     employees.forEach(employee => {
       const recordsKey = `tcponto_records_${employee.id}`;
-      const savedRecords = localStorage.getItem(recordsKey);
+      let records = [];
       
+      const savedRecords = localStorage.getItem(recordsKey);
       if (savedRecords) {
-        const records = JSON.parse(savedRecords);
-        const updatedRecords = records.map((record: any) => {
-          // Se o registro não tem localização, adicionar dados de exemplo
-          if (!record.locations && (record.clockIn || record.lunchStart || record.lunchEnd || record.clockOut)) {
-            const sampleLocations: any = {};
-            
-            // Localizações de exemplo para Portugal e Brasil
-            const locations = [
-              { lat: 38.7223, lng: -9.1393, address: "Av. da Liberdade, 1250-096 Lisboa, Portugal" },
-              { lat: 41.1579, lng: -8.6291, address: "R. de Santa Catarina, 4000-447 Porto, Portugal" },
-              { lat: -23.5505, lng: -46.6333, address: "Av. Paulista, 1578 - Bela Vista, São Paulo - SP, Brasil" },
-              { lat: -22.9068, lng: -43.1729, address: "Av. Rio Branco, 1 - Centro, Rio de Janeiro - RJ, Brasil" },
-              { lat: 38.7071, lng: -9.1359, address: "Praça do Comércio, 1100-148 Lisboa, Portugal" }
-            ];
-            
-            const randomLocation = locations[Math.floor(Math.random() * locations.length)];
-            
-            if (record.clockIn) {
-              sampleLocations.clockIn = {
-                ...randomLocation,
-                timestamp: new Date().toISOString()
-              };
+        records = JSON.parse(savedRecords);
+      } else {
+        // Criar registros para os últimos 20 dias do mês atual
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
+        
+        for (let day = 1; day <= today.getDate(); day++) {
+          const date = new Date(currentYear, currentMonth, day);
+          
+          // Pular fins de semana (sábado = 6, domingo = 0)
+          if (date.getDay() === 0 || date.getDay() === 6) continue;
+          
+          const dateString = date.toISOString().split('T')[0];
+          const clockIn = `${8 + Math.floor(Math.random() * 2)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`;
+          const lunchStart = `12:${Math.floor(Math.random() * 30).toString().padStart(2, '0')}`;
+          const lunchEnd = `13:${Math.floor(Math.random() * 30).toString().padStart(2, '0')}`;
+          const clockOut = `${17 + Math.floor(Math.random() * 2)}:${Math.floor(Math.random() * 60).toString().padStart(2, '0')}`;
+          
+          // Calcular horas trabalhadas
+          const totalMinutes = (17 * 60) - (8 * 60) - 60; // 8h de trabalho menos 1h de almoço
+          const totalHours = totalMinutes / 60;
+          const normalHours = Math.min(totalHours, 8);
+          const overtimeHours = Math.max(0, totalHours - 8);
+          
+          const normalPay = normalHours * employee.hourlyRate;
+          const overtimePay = overtimeHours * employee.overtimeRate;
+          const totalPay = normalPay + overtimePay;
+          
+          // Selecionar endereços aleatórios para cada registro
+          const getRandomAddress = () => enderecos[Math.floor(Math.random() * enderecos.length)];
+          
+          const record = {
+            id: `${employee.id}_${dateString}`,
+            date: dateString,
+            clockIn,
+            lunchStart,
+            lunchEnd,
+            clockOut,
+            totalHours: Math.round(totalHours * 100) / 100,
+            normalHours: Math.round(normalHours * 100) / 100,
+            overtimeHours: Math.round(overtimeHours * 100) / 100,
+            normalPay: Math.round(normalPay * 100) / 100,
+            overtimePay: Math.round(overtimePay * 100) / 100,
+            totalPay: Math.round(totalPay * 100) / 100,
+            locations: {
+              clockIn: {
+                ...getRandomAddress(),
+                timestamp: new Date(`${dateString}T${clockIn}:00`).toISOString()
+              },
+              lunchStart: {
+                ...getRandomAddress(),
+                timestamp: new Date(`${dateString}T${lunchStart}:00`).toISOString()
+              },
+              lunchEnd: {
+                ...getRandomAddress(),
+                timestamp: new Date(`${dateString}T${lunchEnd}:00`).toISOString()
+              },
+              clockOut: {
+                ...getRandomAddress(),
+                timestamp: new Date(`${dateString}T${clockOut}:00`).toISOString()
+              }
             }
-            
-            if (record.lunchStart) {
-              sampleLocations.lunchStart = {
-                ...randomLocation,
-                timestamp: new Date().toISOString()
-              };
-            }
-            
-            if (record.lunchEnd) {
-              sampleLocations.lunchEnd = {
-                ...randomLocation,
-                timestamp: new Date().toISOString()
-              };
-            }
-            
-            if (record.clockOut) {
-              sampleLocations.clockOut = {
-                ...randomLocation,
-                timestamp: new Date().toISOString()
-              };
-            }
-            
-            return {
-              ...record,
-              locations: sampleLocations
+          };
+          
+          records.push(record);
+        }
+      }
+      
+      // Garantir que todos os registros tenham localizações
+      const updatedRecords = records.map((record: any) => {
+        if (!record.locations) {
+          const getRandomAddress = () => enderecos[Math.floor(Math.random() * enderecos.length)];
+          
+          record.locations = {};
+          
+          if (record.clockIn) {
+            record.locations.clockIn = {
+              ...getRandomAddress(),
+              timestamp: new Date(`${record.date}T${record.clockIn}:00`).toISOString()
             };
           }
           
-          return record;
-        });
+          if (record.lunchStart) {
+            record.locations.lunchStart = {
+              ...getRandomAddress(),
+              timestamp: new Date(`${record.date}T${record.lunchStart}:00`).toISOString()
+            };
+          }
+          
+          if (record.lunchEnd) {
+            record.locations.lunchEnd = {
+              ...getRandomAddress(),
+              timestamp: new Date(`${record.date}T${record.lunchEnd}:00`).toISOString()
+            };
+          }
+          
+          if (record.clockOut) {
+            record.locations.clockOut = {
+              ...getRandomAddress(),
+              timestamp: new Date(`${record.date}T${record.clockOut}:00`).toISOString()
+            };
+          }
+        }
         
-        localStorage.setItem(recordsKey, JSON.stringify(updatedRecords));
-      }
+        return record;
+      });
+      
+      localStorage.setItem(recordsKey, JSON.stringify(updatedRecords));
     });
   };
 
@@ -125,8 +224,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       case 'approvals':
         return <PendingApprovals employees={employees} />;
       case 'locations':
-        return <LocationReport employees={employees} />;
+        return <LocationReport employees={employees} onBack={() => setActiveTab('overview')} />;
       default:
+        // ... keep existing code (overview tab content)
         return (
           <div className="space-y-6">
             {/* Estatísticas Gerais */}

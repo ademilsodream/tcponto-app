@@ -57,8 +57,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const getAllRecords = (): TimeRecord[] => {
     const allRecords: TimeRecord[] = [];
     
+    console.log('Carregando registros para funcionários:', employees);
+    
     employees.forEach(employee => {
       const savedRecords = localStorage.getItem(`tcponto_records_${employee.id}`);
+      console.log(`Registros para ${employee.name}:`, savedRecords);
+      
       if (savedRecords) {
         try {
           const records = JSON.parse(savedRecords) as TimeRecord[];
@@ -75,20 +79,25 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
       }
     });
 
+    console.log('Total de registros carregados:', allRecords.length);
     return allRecords;
   };
 
   const filteredRecords = useMemo(() => {
     let records = getAllRecords();
 
+    console.log('Registros antes do filtro:', records.length);
+
     // Filtrar por funcionário
     if (selectedEmployee) {
       records = records.filter(record => record.employeeId === selectedEmployee);
+      console.log('Após filtro por funcionário:', records.length);
     }
 
     // Filtrar por data específica
     if (selectedDate) {
       records = records.filter(record => record.date === selectedDate);
+      console.log('Após filtro por data específica:', records.length);
     }
 
     // Filtrar por período
@@ -99,10 +108,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         const endDate = new Date(dateRange.end);
         return recordDate >= startDate && recordDate <= endDate;
       });
+      console.log('Após filtro por período:', records.length);
     }
 
     // Filtrar apenas registros com localização
-    records = records.filter(record => record.locations && Object.keys(record.locations).length > 0);
+    records = records.filter(record => {
+      const hasLocations = record.locations && Object.keys(record.locations).length > 0;
+      return hasLocations;
+    });
+
+    console.log('Após filtro de localização:', records.length);
 
     return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [selectedEmployee, selectedDate, dateRange, employees]);
@@ -128,13 +143,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
 
     return details;
-  };
-
-  const formatCurrency = (value: number) => {
-    if (currency === 'BRL') {
-      return `R$ ${(value * 5.5).toFixed(2)}`;
-    }
-    return `€ ${value.toFixed(2)}`;
   };
 
   const exportToCSV = () => {
@@ -166,6 +174,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const clearFilters = () => {
+    setSelectedEmployee('');
+    setSelectedDate('');
+    setDateRange({ start: '', end: '' });
   };
 
   return (
@@ -259,11 +273,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <label className="text-sm font-medium">Ações</label>
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => {
-                        setSelectedEmployee('');
-                        setSelectedDate('');
-                        setDateRange({ start: '', end: '' });
-                      }}
+                      onClick={clearFilters}
                       variant="outline"
                       size="sm"
                     >
@@ -294,59 +304,72 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               <CardTitle>Registros de Localização</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Funcionário</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Horário</TableHead>
-                    <TableHead>Coordenadas</TableHead>
-                    <TableHead>Endereço</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRecords.length > 0 ? (
-                    filteredRecords.map(record => {
-                      const locationDetails = getLocationDetails(record);
-                      return locationDetails.map((detail, index) => (
-                        <TableRow key={`${record.id}-${index}`}>
-                          <TableCell>{new Date(record.date).toLocaleDateString('pt-BR')}</TableCell>
-                          <TableCell>{record.employeeName}</TableCell>
-                          <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              detail.type === 'Entrada' ? 'bg-green-100 text-green-800' :
-                              detail.type === 'Saída' ? 'bg-red-100 text-red-800' :
-                              'bg-orange-100 text-orange-800'
-                            }`}>
-                              {detail.type}
-                            </span>
-                          </TableCell>
-                          <TableCell>{detail.time}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {detail.location.lat.toFixed(6)}, {detail.location.lng.toFixed(6)}
-                          </TableCell>
-                          <TableCell className="max-w-xs">
-                            <span title={detail.location.address} className="truncate block">
-                              {detail.location.address}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ));
-                    })
-                  ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-gray-500 py-8">
-                        <div className="flex flex-col items-center gap-2">
-                          <MapPin className="w-8 h-8 text-gray-300" />
-                          <span>Nenhum registro com localização encontrado</span>
-                          <span className="text-xs">Aplique filtros ou verifique se há registros com GPS</span>
-                        </div>
-                      </TableCell>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Funcionário</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Horário</TableHead>
+                      <TableHead>Coordenadas</TableHead>
+                      <TableHead>Endereço</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRecords.length > 0 ? (
+                      filteredRecords.map(record => {
+                        const locationDetails = getLocationDetails(record);
+                        return locationDetails.map((detail, index) => (
+                          <TableRow key={`${record.id}-${index}`}>
+                            <TableCell className="whitespace-nowrap">
+                              {new Date(record.date).toLocaleDateString('pt-BR')}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {record.employeeName}
+                            </TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                                detail.type === 'Entrada' ? 'bg-green-100 text-green-800' :
+                                detail.type === 'Saída' ? 'bg-red-100 text-red-800' :
+                                'bg-orange-100 text-orange-800'
+                              }`}>
+                                {detail.type}
+                              </span>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {detail.time}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs whitespace-nowrap">
+                              {detail.location.lat.toFixed(6)}, {detail.location.lng.toFixed(6)}
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              <span title={detail.location.address} className="truncate block">
+                                {detail.location.address}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ));
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                          <div className="flex flex-col items-center gap-2">
+                            <MapPin className="w-8 h-8 text-gray-300" />
+                            <span>Nenhum registro com localização encontrado</span>
+                            <span className="text-xs">
+                              {employees.length === 0 
+                                ? 'Nenhum funcionário cadastrado' 
+                                : 'Aplique filtros ou verifique se há registros com GPS'
+                              }
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </div>
