@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { MapPin, ArrowLeft, Search } from 'lucide-react';
@@ -34,111 +33,60 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const [locationData, setLocationData] = useState<LocationData[]>([]);
   const [filteredData, setFilteredData] = useState<LocationData[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-
-  // Endereços de exemplo para demonstração
-  const sampleAddresses = [
-    "Rua das Flores, 123 - Centro, São Paulo, SP",
-    "Av. Paulista, 1578 - Bela Vista, São Paulo, SP", 
-    "Rua Augusta, 456 - Consolação, São Paulo, SP",
-    "Av. Faria Lima, 789 - Itaim Bibi, São Paulo, SP",
-    "Rua Oscar Freire, 321 - Jardins, São Paulo, SP",
-    "Av. Brigadeiro Faria Lima, 654 - Vila Olímpia, São Paulo, SP"
-  ];
-
-  const generateSampleLocationData = () => {
-    const data: LocationData[] = [];
-    const today = new Date();
-    
-    employees.forEach(employee => {
-      // Gerar dados para os últimos 7 dias
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        // Gerar coordenadas aleatórias (região de São Paulo)
-        const lat = -23.5505 + (Math.random() - 0.5) * 0.1;
-        const lng = -46.6333 + (Math.random() - 0.5) * 0.1;
-        
-        // Entrada
-        data.push({
-          employeeName: employee.name,
-          date: dateStr,
-          type: 'Entrada',
-          time: '08:00',
-          address: sampleAddresses[Math.floor(Math.random() * sampleAddresses.length)],
-          coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-        });
-        
-        // Saída para almoço
-        data.push({
-          employeeName: employee.name,
-          date: dateStr,
-          type: 'Início Almoço',
-          time: '12:00',
-          address: sampleAddresses[Math.floor(Math.random() * sampleAddresses.length)],
-          coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-        });
-        
-        // Retorno do almoço
-        data.push({
-          employeeName: employee.name,
-          date: dateStr,
-          type: 'Fim Almoço', 
-          time: '13:00',
-          address: sampleAddresses[Math.floor(Math.random() * sampleAddresses.length)],
-          coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-        });
-        
-        // Saída
-        data.push({
-          employeeName: employee.name,
-          date: dateStr,
-          type: 'Saída',
-          time: '17:00',
-          address: sampleAddresses[Math.floor(Math.random() * sampleAddresses.length)],
-          coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-        });
-      }
-    });
-    
-    return data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  };
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.log('LocationReport: Carregando dados de localização...');
-    console.log('LocationReport: Funcionários recebidos:', employees);
+    console.log('LocationReport iniciado com funcionários:', employees);
     
-    try {
-      if (employees && employees.length > 0) {
-        const data = generateSampleLocationData();
-        console.log('LocationReport: Dados de localização gerados:', data.length, 'registros');
-        setLocationData(data);
-        setFilteredData(data);
-      } else {
-        console.log('LocationReport: Nenhum funcionário encontrado');
-        setLocationData([]);
-        setFilteredData([]);
-      }
-    } catch (error) {
-      console.error('LocationReport: Erro ao gerar dados:', error);
+    if (!employees || employees.length === 0) {
+      console.log('Nenhum funcionário disponível');
       setLocationData([]);
       setFilteredData([]);
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    // Gerar dados de exemplo simples
+    const sampleData: LocationData[] = [];
+    const addresses = [
+      "Rua das Flores, 123 - Centro, São Paulo, SP",
+      "Av. Paulista, 1578 - Bela Vista, São Paulo, SP", 
+      "Rua Augusta, 456 - Consolação, São Paulo, SP"
+    ];
+
+    employees.forEach(employee => {
+      // Dados para hoje
+      const today = new Date().toISOString().split('T')[0];
+      
+      sampleData.push({
+        employeeName: employee.name,
+        date: today,
+        type: 'Entrada',
+        time: '08:00',
+        address: addresses[0],
+        coordinates: '-23.5505, -46.6333'
+      });
+      
+      sampleData.push({
+        employeeName: employee.name,
+        date: today,
+        type: 'Saída',
+        time: '17:00',
+        address: addresses[1],
+        coordinates: '-23.5489, -46.6388'
+      });
+    });
+
+    console.log('Dados de localização gerados:', sampleData);
+    setLocationData(sampleData);
+    setFilteredData(sampleData);
   }, [employees]);
 
   useEffect(() => {
-    console.log('LocationReport: Aplicando filtro por funcionário:', selectedEmployee);
-    
     if (selectedEmployee) {
       const filtered = locationData.filter(item => {
         const employee = employees.find(emp => emp.id === selectedEmployee);
         return employee && item.employeeName === employee.name;
       });
-      console.log('LocationReport: Dados filtrados:', filtered.length, 'registros');
       setFilteredData(filtered);
     } else {
       setFilteredData(locationData);
@@ -151,25 +99,10 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return 'bg-green-100 text-green-800';
       case 'Saída':
         return 'bg-red-100 text-red-800';
-      case 'Início Almoço':
-        return 'bg-orange-100 text-orange-800';
-      case 'Fim Almoço':
-        return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p>Carregando relatório de localizações...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -190,11 +123,11 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 </Button>
               )}
               <div>
-                <h1 className="text-xl font-semibold text-primary-900 flex items-center gap-2">
+                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <MapPin className="w-5 h-5" />
                   Relatório de Localizações
                 </h1>
-                <p className="text-sm text-gray-600">Visualize onde os funcionários registraram seus horários</p>
+                <p className="text-sm text-gray-600">Localizações dos registros de ponto</p>
               </div>
             </div>
           </div>
@@ -219,7 +152,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os funcionários" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border shadow-lg z-50">
+                    <SelectContent>
                       <SelectItem value="">Todos os funcionários</SelectItem>
                       {employees.map(employee => (
                         <SelectItem key={employee.id} value={employee.id}>
@@ -232,14 +165,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Total de Registros</label>
-                  <div className="text-2xl font-bold text-primary-900">
+                  <div className="text-2xl font-bold text-blue-600">
                     {filteredData.length}
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Funcionários Ativos</label>
-                  <div className="text-2xl font-bold text-primary-900">
+                  <label className="text-sm font-medium">Funcionários</label>
+                  <div className="text-2xl font-bold text-blue-600">
                     {employees.length}
                   </div>
                 </div>
@@ -269,27 +202,25 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     <TableBody>
                       {filteredData.map((item, index) => (
                         <TableRow key={index}>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell>
                             {new Date(item.date).toLocaleDateString('pt-BR')}
                           </TableCell>
                           <TableCell className="font-medium">
                             {item.employeeName}
                           </TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${getTypeColor(item.type)}`}>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(item.type)}`}>
                               {item.type}
                             </span>
                           </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell>
                             {item.time}
                           </TableCell>
-                          <TableCell className="font-mono text-xs whitespace-nowrap">
+                          <TableCell className="font-mono text-xs">
                             {item.coordinates}
                           </TableCell>
-                          <TableCell className="max-w-xs">
-                            <span title={item.address} className="truncate block">
-                              {item.address}
-                            </span>
+                          <TableCell>
+                            {item.address}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -299,13 +230,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               ) : (
                 <div className="text-center text-gray-500 py-12">
                   <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Nenhum registro encontrado</h3>
+                  <h3 className="text-lg font-medium mb-2">
+                    {employees.length === 0 
+                      ? 'Nenhum funcionário cadastrado' 
+                      : 'Nenhum registro de localização'
+                    }
+                  </h3>
                   <p className="text-sm">
                     {employees.length === 0 
-                      ? 'Nenhum funcionário cadastrado no sistema'
-                      : selectedEmployee 
-                        ? 'Nenhum registro de localização para o funcionário selecionado'
-                        : 'Nenhum registro de localização disponível'
+                      ? 'Cadastre funcionários para ver os registros de localização'
+                      : 'Os registros de localização aparecerão aqui quando os funcionários baterem o ponto'
                     }
                   </p>
                 </div>
