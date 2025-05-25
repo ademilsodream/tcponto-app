@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -39,6 +40,7 @@ interface TimeRegistrationProps {
 const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, user }) => {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [editReason, setEditReason] = useState('');
   const [message, setMessage] = useState('');
 
   const getCurrentTime = () => {
@@ -63,7 +65,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
 
     let totalHours = clockOutHours - clockInHours;
 
-    // Subtrair tempo de almoço se ambos estiverem definidos
     if (lunchStart && lunchEnd && lunchEndHours > lunchStartHours) {
       totalHours -= (lunchEndHours - lunchStartHours);
     }
@@ -80,7 +81,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
     const currentTime = getCurrentTime();
     const updatedRecord = { ...record, [field]: currentTime };
     
-    // Recalcular horas e valores
     const { totalHours, normalHours, overtimeHours } = calculateHours(
       updatedRecord.clockIn,
       updatedRecord.lunchStart,
@@ -110,45 +110,55 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
   const handleEdit = (field: string, value?: string) => {
     setEditingField(field);
     setEditValue(value || '');
+    setEditReason('');
   };
 
   const handleSaveEdit = () => {
-    if (!editingField) return;
+    if (!editingField || !editReason.trim()) {
+      setMessage('Por favor, informe o motivo da alteração');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
 
-    const updatedRecord = { ...record, [editingField]: editValue };
+    const currentValue = record[editingField as keyof TimeRecord] as string || '';
     
-    // Recalcular horas e valores
-    const { totalHours, normalHours, overtimeHours } = calculateHours(
-      updatedRecord.clockIn,
-      updatedRecord.lunchStart,
-      updatedRecord.lunchEnd,
-      updatedRecord.clockOut
-    );
+    if (currentValue === editValue) {
+      setMessage('O novo valor deve ser diferente do atual');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
 
-    const normalPay = normalHours * user.hourlyRate;
-    const overtimePay = overtimeHours * user.overtimeRate;
-    const totalPay = normalPay + overtimePay;
-
-    const finalRecord = {
-      ...updatedRecord,
-      totalHours,
-      normalHours,
-      overtimeHours,
-      normalPay,
-      overtimePay,
-      totalPay
+    // Criar solicitação de edição
+    const editRequest = {
+      id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      employeeId: user.id,
+      employeeName: user.name,
+      date: record.date,
+      field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+      oldValue: currentValue,
+      newValue: editValue,
+      reason: editReason,
+      timestamp: new Date().toISOString(),
+      status: 'pending' as const
     };
 
-    onUpdate(finalRecord);
+    // Salvar solicitação no localStorage
+    const existingRequests = localStorage.getItem('tcponto_edit_requests');
+    const requests = existingRequests ? JSON.parse(existingRequests) : [];
+    requests.push(editRequest);
+    localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
+
     setEditingField(null);
     setEditValue('');
-    setMessage(`${getFieldLabel(editingField)} atualizado`);
-    setTimeout(() => setMessage(''), 3000);
+    setEditReason('');
+    setMessage('Solicitação de alteração enviada para aprovação administrativa');
+    setTimeout(() => setMessage(''), 5000);
   };
 
   const handleCancelEdit = () => {
     setEditingField(null);
     setEditValue('');
+    setEditReason('');
   };
 
   const getFieldLabel = (field: string) => {
@@ -210,6 +220,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
                       onChange={(e) => setEditValue(e.target.value)}
                       className="text-center"
                     />
+                    <Textarea
+                      placeholder="Motivo da alteração (obrigatório)"
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      className="text-sm"
+                      rows={2}
+                    />
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -242,7 +259,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
                           className="mt-1 text-xs text-gray-500 hover:text-gray-700"
                         >
                           <Edit2 className="w-3 h-3 mr-1" />
-                          Editar
+                          Solicitar Edição
                         </Button>
                       )}
                     </div>

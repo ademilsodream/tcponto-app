@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Users, Plus, Edit, Trash2, Download, DollarSign } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Edit, Trash2, Download, DollarSign, Monitor, CheckSquare } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import PayrollReport from './PayrollReport';
+import AdminDashboard from './AdminDashboard';
+import PendingApprovals from './PendingApprovals';
 
 interface User {
   id: string;
@@ -22,7 +24,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
-  const [showPayroll, setShowPayroll] = useState(false);
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'payroll' | 'approvals'>('dashboard');
   
   const [employees, setEmployees] = useState<User[]>([
     {
@@ -153,10 +155,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setTimeout(() => setMessage(''), 3000);
   };
 
-  if (showPayroll) {
-    return <PayrollReport employees={employees} onBack={() => setShowPayroll(false)} />;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -197,9 +195,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
             <button
-              onClick={() => setShowPayroll(false)}
+              onClick={() => setActiveSection('dashboard')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                !showPayroll
+                activeSection === 'dashboard'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Monitor className="w-4 h-4 inline-block mr-2" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveSection('employees')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'employees'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -208,9 +217,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               Funcionários
             </button>
             <button
-              onClick={() => setShowPayroll(true)}
+              onClick={() => setActiveSection('payroll')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                showPayroll
+                activeSection === 'payroll'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -218,209 +227,226 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <DollarSign className="w-4 h-4 inline-block mr-2" />
               Folha de Pagamento
             </button>
+            <button
+              onClick={() => setActiveSection('approvals')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'approvals'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <CheckSquare className="w-4 h-4 inline-block mr-2" />
+              Aprovações
+            </button>
           </nav>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {message && (
-          <Alert className="mb-6 border-accent-200 bg-accent-50">
-            <AlertDescription className="text-accent-800">
-              {message}
-            </AlertDescription>
-          </Alert>
-        )}
+        {activeSection === 'dashboard' && <AdminDashboard employees={employees} />}
+        {activeSection === 'payroll' && <PayrollReport employees={employees} onBack={() => setActiveSection('employees')} />}
+        {activeSection === 'approvals' && <PendingApprovals employees={employees} />}
+        
+        {activeSection === 'employees' && (
+          <>
+            {message && (
+              <Alert className="mb-6 border-accent-200 bg-accent-50">
+                <AlertDescription className="text-accent-800">
+                  {message}
+                </AlertDescription>
+              </Alert>
+            )}
 
-        {/* Formulário de Adicionar/Editar */}
-        {showAddForm && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="w-5 h-5" />
-                {editingEmployee ? 'Editar Funcionário' : 'Adicionar Funcionário'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Digite o nome completo"
-                  />
+            {/* Formulário de Adicionar/Editar */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="w-5 h-5" />
+                  {editingEmployee ? 'Editar Funcionário' : 'Adicionar Funcionário'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome Completo</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Digite o nome completo"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="Digite o e-mail"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Perfil</Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value: 'admin' | 'employee') => 
+                        setFormData({ ...formData, role: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="employee">Funcionário</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="hourlyRate">Valor Hora (€)</Label>
+                    <Input
+                      id="hourlyRate"
+                      type="number"
+                      step="0.01"
+                      value={formData.hourlyRate}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setFormData({ 
+                          ...formData, 
+                          hourlyRate: value,
+                          overtimeRate: value // Hora extra igual à normal
+                        });
+                      }}
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Hora extra será automaticamente o mesmo valor
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="Digite o e-mail"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">Perfil</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value: 'admin' | 'employee') => 
-                      setFormData({ ...formData, role: value })
-                    }
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    onClick={editingEmployee ? handleUpdateEmployee : handleAddEmployee}
+                    className="bg-primary-800 hover:bg-primary-700"
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Funcionário</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="hourlyRate">Valor Hora (€)</Label>
-                  <Input
-                    id="hourlyRate"
-                    type="number"
-                    step="0.01"
-                    value={formData.hourlyRate}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value) || 0;
-                      setFormData({ 
-                        ...formData, 
-                        hourlyRate: value,
-                        overtimeRate: value // Hora extra igual à normal
+                    {editingEmployee ? 'Atualizar' : 'Adicionar'} Funcionário
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setEditingEmployee(null);
+                      setFormData({
+                        name: '',
+                        email: '',
+                        role: 'employee',
+                        hourlyRate: 0,
+                        overtimeRate: 0
                       });
                     }}
-                    placeholder="0.00"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Hora extra será automaticamente o mesmo valor
-                  </p>
+                  >
+                    Cancelar
+                  </Button>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="flex gap-3 mt-6">
-                <Button
-                  onClick={editingEmployee ? handleUpdateEmployee : handleAddEmployee}
-                  className="bg-primary-800 hover:bg-primary-700"
-                >
-                  {editingEmployee ? 'Atualizar' : 'Adicionar'} Funcionário
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setEditingEmployee(null);
-                    setFormData({
-                      name: '',
-                      email: '',
-                      role: 'employee',
-                      hourlyRate: 0,
-                      overtimeRate: 0
-                    });
-                  }}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            {/* Lista de Funcionários */}
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    Funcionários ({employees.length})
+                  </CardTitle>
+                  <Button
+                    onClick={() => setShowAddForm(true)}
+                    className="bg-accent-600 hover:bg-accent-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Novo Funcionário
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Nome
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          E-mail
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Perfil
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Valor Hora
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Ações
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {employees.map((employee) => (
+                        <tr key={employee.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {employee.name}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{employee.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              employee.role === 'admin' 
+                                ? 'bg-primary-100 text-primary-800' 
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {employee.role === 'admin' ? 'Admin' : 'Funcionário'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            € {employee.hourlyRate.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditEmployee(employee)}
+                                className="text-primary-600 hover:text-primary-800"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteEmployee(employee.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
-
-        {/* Lista de Funcionários */}
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Funcionários ({employees.length})
-              </CardTitle>
-              <Button
-                onClick={() => setShowAddForm(true)}
-                className="bg-accent-600 hover:bg-accent-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Funcionário
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Nome
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      E-mail
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Perfil
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Valor Hora
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {employees.map((employee) => (
-                    <tr key={employee.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {employee.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{employee.email}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          employee.role === 'admin' 
-                            ? 'bg-primary-100 text-primary-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {employee.role === 'admin' ? 'Admin' : 'Funcionário'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        € {employee.hourlyRate.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditEmployee(employee)}
-                            className="text-primary-600 hover:text-primary-800"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteEmployee(employee.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
