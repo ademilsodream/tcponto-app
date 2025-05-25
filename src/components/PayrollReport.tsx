@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar, DollarSign, Clock, FileText } from 'lucide-react';
 import { calculateDayHours } from '@/utils/timeCalculations';
 import DetailedTimeReport from './DetailedTimeReport';
+import CurrencySelector from './CurrencySelector';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -92,6 +93,14 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
   const [showDetailedReport, setShowDetailedReport] = useState(false);
+  const [currency, setCurrency] = useState<'EUR' | 'BRL'>('EUR');
+
+  const formatCurrency = (value: number) => {
+    if (currency === 'BRL') {
+      return `R$ ${(value * 5.5).toFixed(2)}`;
+    }
+    return `€ ${value.toFixed(2)}`;
+  };
 
   const generatePayroll = () => {
     if (!startDate || !endDate) {
@@ -151,15 +160,18 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
               </div>
             </div>
             
-            <Button
-              onClick={() => setShowDetailedReport(true)}
-              variant="outline"
-              size="sm"
-              className="text-primary-700 border-primary-200 hover:bg-primary-50"
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Relatório Detalhado
-            </Button>
+            <div className="flex items-center gap-4">
+              <CurrencySelector currency={currency} onCurrencyChange={setCurrency} />
+              <Button
+                onClick={() => setShowDetailedReport(true)}
+                variant="outline"
+                size="sm"
+                className="text-primary-700 border-primary-200 hover:bg-primary-50"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Relatório Detalhado
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -241,7 +253,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-accent-600">
-                    € {getTotalPayroll().toFixed(2)}
+                    {formatCurrency(getTotalPayroll())}
                   </div>
                 </CardContent>
               </Card>
@@ -310,13 +322,13 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                             {data.overtimeHours.toFixed(1)}h
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            € {data.normalPay.toFixed(2)}
+                            {formatCurrency(data.normalPay)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            € {data.overtimePay.toFixed(2)}
+                            {formatCurrency(data.overtimePay)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-accent-600">
-                            € {data.totalPay.toFixed(2)}
+                            {formatCurrency(data.totalPay)}
                           </td>
                         </tr>
                       ))}

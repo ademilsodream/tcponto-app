@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { MapPin, Calendar, User, Search, Download, ArrowLeft } from 'lucide-react';
+import CurrencySelector from './CurrencySelector';
 
 interface User {
   id: string;
@@ -51,6 +52,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     start: '',
     end: ''
   });
+  const [currency, setCurrency] = useState<'EUR' | 'BRL'>('EUR');
 
   const getAllRecords = (): TimeRecord[] => {
     const allRecords: TimeRecord[] = [];
@@ -128,6 +130,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     return details;
   };
 
+  const formatCurrency = (value: number) => {
+    if (currency === 'BRL') {
+      return `R$ ${(value * 5.5).toFixed(2)}`;
+    }
+    return `€ ${value.toFixed(2)}`;
+  };
+
   const exportToCSV = () => {
     const csvData: string[] = ['Data,Funcionário,Tipo,Horário,Latitude,Longitude,Endereço'];
     
@@ -185,6 +194,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <p className="text-sm text-gray-600">Visualize onde os funcionários registraram seus horários</p>
               </div>
             </div>
+            
+            <CurrencySelector currency={currency} onCurrencyChange={setCurrency} />
           </div>
         </div>
       </header>
@@ -206,7 +217,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os funcionários" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white border shadow-lg z-50">
                       <SelectItem value="">Todos os funcionários</SelectItem>
                       {employees.map(employee => (
                         <SelectItem key={employee.id} value={employee.id}>
