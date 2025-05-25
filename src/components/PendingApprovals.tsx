@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertCircle, Unlock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface EditRequest {
@@ -49,6 +48,20 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
     
     return () => clearInterval(interval);
   }, []);
+
+  const clearFieldRequestMark = (employeeId: string, date: string, field: string) => {
+    const key = `tcponto_edit_requested_${employeeId}_${date}`;
+    const savedFields = localStorage.getItem(key);
+    if (savedFields) {
+      const fields = new Set(JSON.parse(savedFields));
+      fields.delete(field);
+      if (fields.size === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(Array.from(fields)));
+      }
+    }
+  };
 
   const handleApproval = (requestId: string, approved: boolean) => {
     const request = editRequests.find(r => r.id === requestId);
@@ -106,6 +119,9 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
     } else {
       setMessage(`Edição de ${getFieldLabel(request.field)} rejeitada para ${request.employeeName}`);
     }
+
+    // Limpar a marcação de campo solicitado (tanto para aprovado quanto rejeitado)
+    clearFieldRequestMark(request.employeeId, request.date, request.field);
     
     setTimeout(() => setMessage(''), 3000);
   };
@@ -182,6 +198,10 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       <h4 className="font-medium text-gray-900">{request.employeeName}</h4>
                       <p className="text-sm text-gray-600">
                         {new Date(request.date).toLocaleDateString('pt-BR')} - {getFieldLabel(request.field)}
+                      </p>
+                      <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                        <Unlock className="w-3 h-3" />
+                        Campo será desbloqueado após decisão
                       </p>
                     </div>
                     <Badge variant="secondary">

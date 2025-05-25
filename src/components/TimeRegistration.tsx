@@ -1,10 +1,9 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin } from 'lucide-react';
+import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface User {
@@ -55,6 +54,31 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [editReason, setEditReason] = useState('');
   const [message, setMessage] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
+
+  // Carregar campos já solicitados para edição
+  useEffect(() => {
+    const key = `tcponto_edit_requested_${user.id}_${record.date}`;
+    const savedFields = localStorage.getItem(key);
+    if (savedFields) {
+      setEditRequestedFields(new Set(JSON.parse(savedFields)));
+    }
+  }, [user.id, record.date]);
+
+  // Verificar se um campo já foi solicitado para edição
+  const isFieldEditRequested = (field: string): boolean => {
+    return editRequestedFields.has(field);
+  };
+
+  // Marcar campo como solicitado para edição
+  const markFieldAsRequested = (field: string) => {
+    const newSet = new Set(editRequestedFields);
+    newSet.add(field);
+    setEditRequestedFields(newSet);
+    
+    const key = `tcponto_edit_requested_${user.id}_${record.date}`;
+    localStorage.setItem(key, JSON.stringify(Array.from(newSet)));
+  };
 
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString('pt-BR', { 
@@ -274,7 +298,14 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       setEditValue(value || '');
       setEditReason('');
     } else {
-      // Para registros do dia atual, criar solicitação de edição
+      // Para registros do dia atual, verificar se já foi solicitado
+      if (isFieldEditRequested(field)) {
+        setMessage('Este campo já foi solicitado para edição e aguarda aprovação administrativa');
+        setTimeout(() => setMessage(''), 5000);
+        return;
+      }
+      
+      // Criar solicitação de edição
       setEditingField(field);
       setEditValue(value || '');
       setEditReason('');
@@ -303,6 +334,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         return;
       }
 
+      // Marcar campo como solicitado
+      markFieldAsRequested(editingField);
+
       // Criar solicitação de edição
       const editRequest = {
         id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -326,7 +360,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       setEditingField(null);
       setEditValue('');
       setEditReason('');
-      setMessage('Solicitação de alteração enviada para aprovação administrativa');
+      setMessage('Solicitação de alteração enviada para aprovação administrativa. Este campo não pode mais ser editado.');
       setTimeout(() => setMessage(''), 5000);
     }
   };
@@ -388,6 +422,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         {timeFields.map(({ key, label, value, color }) => {
           const Icon = getFieldIcon(key);
           const location = record.locations?.[key as keyof typeof record.locations];
+          const isRequested = isFieldEditRequested(key);
           
           return (
             <Card key={key} className="hover:shadow-md transition-shadow">
@@ -397,6 +432,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                   {label}
                   {location && (
                     <MapPin className="w-3 h-3 text-green-600" />
+                  )}
+                  {isRequested && !isHistoricalEntry && (
+                    <Lock className="w-3 h-3 text-amber-600" title="Edição já solicitada" />
                   )}
                 </CardTitle>
               </CardHeader>
@@ -448,7 +486,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           {location.address}
                         </div>
                       )}
-                      {(value || isHistoricalEntry) && (
+                      {isRequested && !isHistoricalEntry && (
+                        <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Aguardando aprovação
+                        </div>
+                      )}
+                      {(value || isHistoricalEntry) && !isRequested && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -457,6 +501,17 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                         >
                           <Edit2 className="w-3 h-3 mr-1" />
                           {isHistoricalEntry ? 'Definir' : 'Solicitar Edição'}
+                        </Button>
+                      )}
+                      {(value || isHistoricalEntry) && isRequested && !isHistoricalEntry && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled
+                          className="mt-1 text-xs text-gray-400 cursor-not-allowed"
+                        >
+                          <Lock className="w-3 h-3 mr-1" />
+                          Edição solicitada
                         </Button>
                       )}
                     </div>
