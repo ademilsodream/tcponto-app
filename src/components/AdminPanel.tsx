@@ -25,6 +25,7 @@ type ActiveSection = 'employees' | 'payroll';
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [activeSection, setActiveSection] = useState<ActiveSection>('employees');
+  
   const [employees, setEmployees] = useState<User[]>([
     {
       id: '1',
