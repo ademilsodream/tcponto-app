@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Calendar, Clock, User, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { calculateDayHours } from '@/utils/timeCalculations';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface Employee {
   id: string;
@@ -45,6 +45,8 @@ interface EmployeeDetailedReport {
 }
 
 const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBack }) => {
+  const { formatCurrency } = useCurrency();
+  
   const [startDate, setStartDate] = useState('2025-05-01');
   const [endDate, setEndDate] = useState('2025-05-31');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
@@ -288,7 +290,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                     {reportData.employee.name}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    € {reportData.employee.hourlyRate.toFixed(2)}/hora
+                    {formatCurrency(reportData.employee.hourlyRate)}/hora
                   </p>
                 </CardContent>
               </Card>
@@ -330,7 +332,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-accent-600">
-                    € {reportData.totalPay.toFixed(2)}
+                    {formatCurrency(reportData.totalPay)}
                   </div>
                 </CardContent>
               </Card>
@@ -380,7 +382,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                             {day.overtimeHours > 0 ? `${day.overtimeHours.toFixed(1)}h` : '-'}
                           </TableCell>
                           <TableCell className="font-medium text-accent-600">
-                            {day.totalPay > 0 ? `€ ${day.totalPay.toFixed(2)}` : '-'}
+                            {day.totalPay > 0 ? formatCurrency(day.totalPay) : '-'}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -428,7 +430,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-accent-600">
-                    € {getTotalFromAllEmployees().totalPay.toFixed(2)}
+                    {formatCurrency(getTotalFromAllEmployees().totalPay)}
                   </div>
                 </CardContent>
               </Card>
@@ -442,7 +444,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                     <User className="w-5 h-5" />
                     {employeeData.employee.name}
                     <span className="text-sm font-normal text-gray-600 ml-2">
-                      ({employeeData.totalHours.toFixed(1)}h - € {employeeData.totalPay.toFixed(2)})
+                      ({employeeData.totalHours.toFixed(1)}h - {formatCurrency(employeeData.totalPay)})
                     </span>
                   </CardTitle>
                 </CardHeader>
@@ -480,7 +482,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                               {day.overtimeHours > 0 ? `${day.overtimeHours.toFixed(1)}h` : '-'}
                             </TableCell>
                             <TableCell className="font-medium text-accent-600">
-                              {day.totalPay > 0 ? `€ ${day.totalPay.toFixed(2)}` : '-'}
+                              {day.totalPay > 0 ? formatCurrency(day.totalPay) : '-'}
                             </TableCell>
                           </TableRow>
                         ))}

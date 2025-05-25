@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import TimeRegistration from '../components/TimeRegistration';
 import AdminPanel from '../components/AdminPanel';
 import { calculateMonthlyStats } from '../utils/timeCalculations';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface TimeRecord {
   id: string;
@@ -33,6 +33,7 @@ interface TimeRecord {
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
+  const { formatCurrency } = useCurrency();
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [currentRecord, setCurrentRecord] = useState<TimeRecord | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -242,7 +243,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-accent-600">
-                  R$ {monthStats.totalPay.toFixed(2)}
+                  {formatCurrency(monthStats.totalPay)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Este mês
@@ -260,7 +261,7 @@ const Dashboard = () => {
                   {monthStats.absentDays}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  -R$ {monthStats.absenceDeduction.toFixed(2)}
+                  -{formatCurrency(monthStats.absenceDeduction)}
                 </p>
               </CardContent>
             </Card>
@@ -275,7 +276,7 @@ const Dashboard = () => {
                   {timeRecords.find(r => r.date === today)?.totalHours.toFixed(1) || '0'}h
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  R$ {timeRecords.find(r => r.date === today)?.totalPay.toFixed(2) || '0.00'}
+                  {formatCurrency(timeRecords.find(r => r.date === today)?.totalPay || 0)}
                 </p>
               </CardContent>
             </Card>
@@ -338,7 +339,7 @@ const Dashboard = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-accent-600">
-                          R$ {record.totalPay.toFixed(2)}
+                          {formatCurrency(record.totalPay)}
                         </td>
                       </tr>
                     ))}
