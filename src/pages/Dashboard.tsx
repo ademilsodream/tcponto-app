@@ -82,6 +82,20 @@ const Dashboard = () => {
   };
 
   const getCurrentMonthStats = () => {
+    // Calcular dias úteis do mês atual (segunda a sexta)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    let workDays = 0;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(currentYear, currentMonth, day);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Segunda a sexta
+        workDays++;
+      }
+    }
+
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     
@@ -90,11 +104,34 @@ const Dashboard = () => {
       return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
     });
 
-    const totalHours = monthRecords.reduce((sum, record) => sum + record.totalHours, 0);
-    const totalOvertimeHours = monthRecords.reduce((sum, record) => sum + record.overtimeHours, 0);
-    const totalPay = monthRecords.reduce((sum, record) => sum + record.totalPay, 0);
+    // Dias com registro completo (entrada e saída)
+    const daysWithRecords = monthRecords.filter(record => 
+      record.clockIn && record.clockOut
+    ).length;
 
-    return { totalHours, totalOvertimeHours, totalPay };
+    // Calcular faltas
+    const absentDays = Math.max(0, workDays - daysWithRecords);
+
+    // Somar horas trabalhadas
+    const totalWorkedHours = monthRecords.reduce((sum, record) => sum + record.totalHours, 0);
+    const totalOvertimeHours = monthRecords.reduce((sum, record) => sum + record.overtimeHours, 0);
+    const totalWorkedPay = monthRecords.reduce((sum, record) => sum + record.totalPay, 0);
+
+    // Subtrair 8 horas por cada falta
+    const hoursLostToAbsence = absentDays * 8;
+    const effectiveTotalHours = Math.max(0, totalWorkedHours - hoursLostToAbsence);
+    
+    // Calcular desconto por faltas
+    const absenceDeduction = absentDays * 8 * (user?.hourlyRate || 0);
+    const effectiveTotalPay = Math.max(0, totalWorkedPay - absenceDeduction);
+
+    return { 
+      totalHours: effectiveTotalHours, 
+      totalOvertimeHours, 
+      totalPay: effectiveTotalPay,
+      absentDays,
+      absenceDeduction
+    };
   };
 
   const monthStats = getCurrentMonthStats();
@@ -208,7 +245,7 @@ const Dashboard = () => {
         {/* Resumo do Mês */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Resumo do Mês</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Horas Trabalhadas</CardTitle>
@@ -235,6 +272,21 @@ const Dashboard = () => {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Este mês
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Faltas</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {monthStats.absentDays}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  -R$ {monthStats.absenceDeduction.toFixed(2)}
                 </p>
               </CardContent>
             </Card>

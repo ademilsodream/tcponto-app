@@ -60,24 +60,41 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
 
     const parseTime = (timeStr: string) => {
       const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours + minutes / 60;
+      return hours * 60 + minutes;
     };
 
-    const clockInHours = parseTime(clockIn);
-    const clockOutHours = parseTime(clockOut);
-    const lunchStartHours = lunchStart ? parseTime(lunchStart) : 0;
-    const lunchEndHours = lunchEnd ? parseTime(lunchEnd) : 0;
+    const clockInMinutes = parseTime(clockIn);
+    const clockOutMinutes = parseTime(clockOut);
+    const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : 0;
+    const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : 0;
 
-    let totalHours = clockOutHours - clockInHours;
-
-    if (lunchStart && lunchEnd && lunchEndHours > lunchStartHours) {
-      totalHours -= (lunchEndHours - lunchStartHours);
+    // Calcular intervalo de almoço
+    let lunchBreakMinutes = 0;
+    if (lunchStart && lunchEnd && lunchEndMinutes > lunchStartMinutes) {
+      lunchBreakMinutes = lunchEndMinutes - lunchStartMinutes;
     }
 
-    totalHours = Math.max(0, totalHours);
+    // Total de minutos trabalhados
+    const totalWorkedMinutes = clockOutMinutes - clockInMinutes - lunchBreakMinutes;
+    let effectiveWorkedMinutes = totalWorkedMinutes;
 
-    const normalHours = Math.min(totalHours, 8);
-    const overtimeHours = Math.max(0, totalHours - 8);
+    // Aplicar tolerância de 15 minutos apenas se for exatamente 15 minutos ou menos
+    const extraMinutes = totalWorkedMinutes - 480; // 480 = 8 horas em minutos
+    if (extraMinutes > 0 && extraMinutes <= 15) {
+      // Se tiver entre 1 e 15 minutos extras, considerar como 8 horas exatas
+      effectiveWorkedMinutes = 480;
+    }
+
+    const totalHours = Math.max(0, effectiveWorkedMinutes / 60);
+
+    // Calcular horas normais e extras
+    let normalHours = Math.min(totalHours, 8);
+    let overtimeHours = 0;
+
+    if (totalHours > 8) {
+      overtimeHours = totalHours - 8;
+      normalHours = 8;
+    }
 
     return { totalHours, normalHours, overtimeHours };
   };
