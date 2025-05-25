@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,8 +21,10 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
+type ActiveSection = 'employees' | 'payroll';
+
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
-  const [activeSection, setActiveSection] = useState<'employees' | 'payroll'>('employees');
+  const [activeSection, setActiveSection] = useState<ActiveSection>('employees');
   const [employees, setEmployees] = useState<User[]>([
     {
       id: '1',
