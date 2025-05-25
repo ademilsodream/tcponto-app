@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, Calendar, DollarSign, Users, LogOut, Edit } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Clock, Calendar, DollarSign, Users, LogOut, Edit, CalendarDays } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import TimeRegistration from '../components/TimeRegistration';
 import AdminPanel from '../components/AdminPanel';
@@ -27,10 +27,13 @@ const Dashboard = () => {
   const { user, logout } = useAuth();
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [currentRecord, setCurrentRecord] = useState<TimeRecord | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
   const [showAdminPanel, setShowAdminPanel] = useState(false);
 
   useEffect(() => {
-    // Carregar registros do localStorage ou criar registro do dia atual
+    // Carregar registros do localStorage
     const savedRecords = localStorage.getItem(`tcponto_records_${user?.id}`);
     let records: TimeRecord[] = [];
     
@@ -38,13 +41,17 @@ const Dashboard = () => {
       records = JSON.parse(savedRecords);
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    let todayRecord = records.find(r => r.date === today);
+    setTimeRecords(records);
+  }, [user?.id]);
 
-    if (!todayRecord) {
-      todayRecord = {
-        id: `${user?.id}_${today}`,
-        date: today,
+  useEffect(() => {
+    // Encontrar ou criar registro para a data selecionada
+    let selectedRecord = timeRecords.find(r => r.date === selectedDate);
+
+    if (!selectedRecord) {
+      selectedRecord = {
+        id: `${user?.id}_${selectedDate}`,
+        date: selectedDate,
         totalHours: 0,
         normalHours: 0,
         overtimeHours: 0,
@@ -52,18 +59,23 @@ const Dashboard = () => {
         overtimePay: 0,
         totalPay: 0
       };
-      records.push(todayRecord);
-      localStorage.setItem(`tcponto_records_${user?.id}`, JSON.stringify(records));
     }
 
-    setTimeRecords(records);
-    setCurrentRecord(todayRecord);
-  }, [user?.id]);
+    setCurrentRecord(selectedRecord);
+  }, [selectedDate, timeRecords, user?.id]);
 
   const updateTimeRecord = (updatedRecord: TimeRecord) => {
-    const updatedRecords = timeRecords.map(record => 
-      record.id === updatedRecord.id ? updatedRecord : record
-    );
+    const existingRecordIndex = timeRecords.findIndex(record => record.id === updatedRecord.id);
+    let updatedRecords: TimeRecord[];
+    
+    if (existingRecordIndex !== -1) {
+      updatedRecords = timeRecords.map(record => 
+        record.id === updatedRecord.id ? updatedRecord : record
+      );
+    } else {
+      updatedRecords = [...timeRecords, updatedRecord];
+    }
+    
     setTimeRecords(updatedRecords);
     setCurrentRecord(updatedRecord);
     localStorage.setItem(`tcponto_records_${user?.id}`, JSON.stringify(updatedRecords));
@@ -86,6 +98,8 @@ const Dashboard = () => {
   };
 
   const monthStats = getCurrentMonthStats();
+  const today = new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === today;
 
   if (!user) return null;
 
@@ -138,14 +152,55 @@ const Dashboard = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Seletor de Data */}
+        <div className="mb-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarDays className="w-5 h-5" />
+                Selecionar Data para Registro
+              </CardTitle>
+              <CardDescription>
+                Escolha o dia para registrar ou visualizar os pontos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-auto"
+                />
+                <Button
+                  onClick={() => setSelectedDate(today)}
+                  variant="outline"
+                  size="sm"
+                >
+                  Hoje
+                </Button>
+                {!isToday && (
+                  <div className="text-sm text-amber-600 flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    Registrando dia anterior
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Registro de Ponto */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Registro de Ponto</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">
+            Registro de Ponto - {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+          </h2>
           {currentRecord && (
             <TimeRegistration
               record={currentRecord}
               onUpdate={updateTimeRecord}
               user={user}
+              isHistoricalEntry={!isToday}
             />
           )}
         </div>
@@ -191,10 +246,10 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary-900">
-                  {currentRecord?.totalHours.toFixed(1) || '0'}h
+                  {timeRecords.find(r => r.date === today)?.totalHours.toFixed(1) || '0'}h
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  R$ {currentRecord?.totalPay.toFixed(2) || '0.00'}
+                  R$ {timeRecords.find(r => r.date === today)?.totalPay.toFixed(2) || '0.00'}
                 </p>
               </CardContent>
             </Card>

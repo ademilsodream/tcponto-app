@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X } from 'lucide-react';
+import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface User {
@@ -35,9 +34,15 @@ interface TimeRegistrationProps {
   record: TimeRecord;
   onUpdate: (record: TimeRecord) => void;
   user: User;
+  isHistoricalEntry?: boolean;
 }
 
-const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, user }) => {
+const TimeRegistration: React.FC<TimeRegistrationProps> = ({ 
+  record, 
+  onUpdate, 
+  user, 
+  isHistoricalEntry = false 
+}) => {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -89,7 +94,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
     );
 
     const normalPay = normalHours * user.hourlyRate;
-    const overtimePay = overtimeHours * user.overtimeRate;
+    const overtimePay = overtimeHours * user.hourlyRate; // Mesmo valor da hora normal
     const totalPay = normalPay + overtimePay;
 
     const finalRecord = {
@@ -107,52 +112,105 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
     setTimeout(() => setMessage(''), 3000);
   };
 
+  const handleManualTimeEntry = (field: string, value: string) => {
+    if (!value.trim()) {
+      setMessage('Por favor, informe um horário válido');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    const updatedRecord = { ...record, [field]: value };
+    
+    const { totalHours, normalHours, overtimeHours } = calculateHours(
+      updatedRecord.clockIn,
+      updatedRecord.lunchStart,
+      updatedRecord.lunchEnd,
+      updatedRecord.clockOut
+    );
+
+    const normalPay = normalHours * user.hourlyRate;
+    const overtimePay = overtimeHours * user.hourlyRate;
+    const totalPay = normalPay + overtimePay;
+
+    const finalRecord = {
+      ...updatedRecord,
+      totalHours,
+      normalHours,
+      overtimeHours,
+      normalPay,
+      overtimePay,
+      totalPay
+    };
+
+    onUpdate(finalRecord);
+    setEditingField(null);
+    setEditValue('');
+    setMessage(`${getFieldLabel(field)} definido: ${value}`);
+    setTimeout(() => setMessage(''), 3000);
+  };
+
   const handleEdit = (field: string, value?: string) => {
-    setEditingField(field);
-    setEditValue(value || '');
-    setEditReason('');
+    if (isHistoricalEntry) {
+      // Para registros históricos, permitir edição direta
+      setEditingField(field);
+      setEditValue(value || '');
+      setEditReason('');
+    } else {
+      // Para registros do dia atual, criar solicitação de edição
+      setEditingField(field);
+      setEditValue(value || '');
+      setEditReason('');
+    }
   };
 
   const handleSaveEdit = () => {
-    if (!editingField || !editReason.trim()) {
-      setMessage('Por favor, informe o motivo da alteração');
-      setTimeout(() => setMessage(''), 3000);
-      return;
+    if (!editingField) return;
+
+    if (isHistoricalEntry) {
+      // Edição direta para registros históricos
+      handleManualTimeEntry(editingField, editValue);
+    } else {
+      // Criar solicitação para registros do dia atual
+      if (!editReason.trim()) {
+        setMessage('Por favor, informe o motivo da alteração');
+        setTimeout(() => setMessage(''), 3000);
+        return;
+      }
+
+      const currentValue = record[editingField as keyof TimeRecord] as string || '';
+      
+      if (currentValue === editValue) {
+        setMessage('O novo valor deve ser diferente do atual');
+        setTimeout(() => setMessage(''), 3000);
+        return;
+      }
+
+      // Criar solicitação de edição
+      const editRequest = {
+        id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        employeeId: user.id,
+        employeeName: user.name,
+        date: record.date,
+        field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+        oldValue: currentValue,
+        newValue: editValue,
+        reason: editReason,
+        timestamp: new Date().toISOString(),
+        status: 'pending' as const
+      };
+
+      // Salvar solicitação no localStorage
+      const existingRequests = localStorage.getItem('tcponto_edit_requests');
+      const requests = existingRequests ? JSON.parse(existingRequests) : [];
+      requests.push(editRequest);
+      localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
+
+      setEditingField(null);
+      setEditValue('');
+      setEditReason('');
+      setMessage('Solicitação de alteração enviada para aprovação administrativa');
+      setTimeout(() => setMessage(''), 5000);
     }
-
-    const currentValue = record[editingField as keyof TimeRecord] as string || '';
-    
-    if (currentValue === editValue) {
-      setMessage('O novo valor deve ser diferente do atual');
-      setTimeout(() => setMessage(''), 3000);
-      return;
-    }
-
-    // Criar solicitação de edição
-    const editRequest = {
-      id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      employeeId: user.id,
-      employeeName: user.name,
-      date: record.date,
-      field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
-      oldValue: currentValue,
-      newValue: editValue,
-      reason: editReason,
-      timestamp: new Date().toISOString(),
-      status: 'pending' as const
-    };
-
-    // Salvar solicitação no localStorage
-    const existingRequests = localStorage.getItem('tcponto_edit_requests');
-    const requests = existingRequests ? JSON.parse(existingRequests) : [];
-    requests.push(editRequest);
-    localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
-
-    setEditingField(null);
-    setEditValue('');
-    setEditReason('');
-    setMessage('Solicitação de alteração enviada para aprovação administrativa');
-    setTimeout(() => setMessage(''), 5000);
   };
 
   const handleCancelEdit = () => {
@@ -199,6 +257,15 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
         </Alert>
       )}
 
+      {isHistoricalEntry && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-amber-800">
+            Você está registrando horários de um dia anterior. Os horários podem ser definidos manualmente.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {timeFields.map(({ key, label, value, color }) => {
           const Icon = getFieldIcon(key);
@@ -220,13 +287,15 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
                       onChange={(e) => setEditValue(e.target.value)}
                       className="text-center"
                     />
-                    <Textarea
-                      placeholder="Motivo da alteração (obrigatório)"
-                      value={editReason}
-                      onChange={(e) => setEditReason(e.target.value)}
-                      className="text-sm"
-                      rows={2}
-                    />
+                    {!isHistoricalEntry && (
+                      <Textarea
+                        placeholder="Motivo da alteração (obrigatório)"
+                        value={editReason}
+                        onChange={(e) => setEditReason(e.target.value)}
+                        className="text-sm"
+                        rows={2}
+                      />
+                    )}
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -251,7 +320,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
                       <div className="text-2xl font-bold text-primary-900">
                         {value || '--:--'}
                       </div>
-                      {value && (
+                      {(value || isHistoricalEntry) && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -259,18 +328,29 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ record, onUpdate, u
                           className="mt-1 text-xs text-gray-500 hover:text-gray-700"
                         >
                           <Edit2 className="w-3 h-3 mr-1" />
-                          Solicitar Edição
+                          {isHistoricalEntry ? 'Definir' : 'Solicitar Edição'}
                         </Button>
                       )}
                     </div>
                     
-                    {!value && (
+                    {!value && !isHistoricalEntry && (
                       <Button
                         onClick={() => handleRegisterTime(key as any)}
                         className={`w-full ${color} hover:opacity-90 text-white`}
                       >
                         <Icon className="w-4 h-4 mr-2" />
                         Registrar
+                      </Button>
+                    )}
+
+                    {!value && isHistoricalEntry && (
+                      <Button
+                        onClick={() => handleEdit(key)}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        Definir Horário
                       </Button>
                     )}
                   </>
