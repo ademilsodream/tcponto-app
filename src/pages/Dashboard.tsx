@@ -7,6 +7,7 @@ import { Clock, Calendar, DollarSign, Users, LogOut, Edit, CalendarDays } from '
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import TimeRegistration from '../components/TimeRegistration';
 import AdminPanel from '../components/AdminPanel';
+import { calculateMonthlyStats } from '../utils/timeCalculations';
 
 interface TimeRecord {
   id: string;
@@ -96,42 +97,8 @@ const Dashboard = () => {
       }
     }
 
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    const monthRecords = timeRecords.filter(record => {
-      const recordDate = new Date(record.date);
-      return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
-    });
-
-    // Dias com registro completo (entrada e saída)
-    const daysWithRecords = monthRecords.filter(record => 
-      record.clockIn && record.clockOut
-    ).length;
-
-    // Calcular faltas
-    const absentDays = Math.max(0, workDays - daysWithRecords);
-
-    // Somar horas trabalhadas
-    const totalWorkedHours = monthRecords.reduce((sum, record) => sum + record.totalHours, 0);
-    const totalOvertimeHours = monthRecords.reduce((sum, record) => sum + record.overtimeHours, 0);
-    const totalWorkedPay = monthRecords.reduce((sum, record) => sum + record.totalPay, 0);
-
-    // Subtrair 8 horas por cada falta
-    const hoursLostToAbsence = absentDays * 8;
-    const effectiveTotalHours = Math.max(0, totalWorkedHours - hoursLostToAbsence);
-    
-    // Calcular desconto por faltas
-    const absenceDeduction = absentDays * 8 * (user?.hourlyRate || 0);
-    const effectiveTotalPay = Math.max(0, totalWorkedPay - absenceDeduction);
-
-    return { 
-      totalHours: effectiveTotalHours, 
-      totalOvertimeHours, 
-      totalPay: effectiveTotalPay,
-      absentDays,
-      absenceDeduction
-    };
+    // Usar a função utilitária para calcular estatísticas
+    return calculateMonthlyStats(timeRecords, workDays, user?.hourlyRate || 0);
   };
 
   const monthStats = getCurrentMonthStats();
