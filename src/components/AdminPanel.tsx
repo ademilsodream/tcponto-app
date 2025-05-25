@@ -1,12 +1,12 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Users, Plus, Edit, Trash2, Download } from 'lucide-react';
+import { ArrowLeft, Users, Plus, Edit, Trash2, Download, DollarSign } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import PayrollReport from './PayrollReport';
 
 interface User {
   id: string;
@@ -22,6 +22,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
+  const [activeSection, setActiveSection] = useState<'employees' | 'payroll'>('employees');
   const [employees, setEmployees] = useState<User[]>([
     {
       id: '1',
@@ -118,10 +119,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   const exportReport = () => {
-    // Simular exportação de relatório
     setMessage('Relatório exportado com sucesso');
     setTimeout(() => setMessage(''), 3000);
   };
+
+  if (activeSection === 'payroll') {
+    return <PayrollReport onBack={() => setActiveSection('employees')} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -141,7 +145,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               </Button>
               <div>
                 <h1 className="text-xl font-semibold text-primary-900">Painel Administrativo</h1>
-                <p className="text-sm text-gray-600">Gerenciamento de funcionários</p>
+                <p className="text-sm text-gray-600">Gerenciamento do sistema</p>
               </div>
             </div>
             
@@ -157,6 +161,36 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
           </div>
         </div>
       </header>
+
+      {/* Menu de Navegação */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setActiveSection('employees')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'employees'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Users className="w-4 h-4 inline-block mr-2" />
+              Funcionários
+            </button>
+            <button
+              onClick={() => setActiveSection('payroll')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'payroll'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <DollarSign className="w-4 h-4 inline-block mr-2" />
+              Folha de Pagamento
+            </button>
+          </nav>
+        </div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {message && (
