@@ -55,6 +55,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [message, setMessage] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
+  const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
 
   // Carregar campos já solicitados para edição
   useEffect(() => {
@@ -65,12 +66,31 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     if (savedFields) {
       setEditRequestedFields(new Set(JSON.parse(savedFields)));
     }
+
+    // Carregar campos que já foram editados com aprovação
+    const approvedKey = `tcponto_approved_edits_${user.id}_${record.date}`;
+    const savedApprovedFields = localStorage.getItem(approvedKey);
+    if (savedApprovedFields) {
+      setApprovedEditedFields(new Set(JSON.parse(savedApprovedFields)));
+    }
   }, [user.id, record.date, isHistoricalEntry]);
 
   // Verificar se um campo já foi solicitado para edição
   const isFieldEditRequested = (field: string): boolean => {
     if (isHistoricalEntry) return false; // Para registros históricos, sempre permitir edição
     return editRequestedFields.has(field);
+  };
+
+  // Verificar se um campo já foi editado com aprovação
+  const isFieldApprovedEdited = (field: string): boolean => {
+    if (isHistoricalEntry) return false; // Para registros históricos, sempre permitir edição
+    return approvedEditedFields.has(field);
+  };
+
+  // Verificar se um campo pode ser editado
+  const canEditField = (field: string): boolean => {
+    if (isHistoricalEntry) return true; // Registros históricos sempre podem ser editados
+    return !isFieldEditRequested(field) && !isFieldApprovedEdited(field);
   };
 
   // Marcar campo como solicitado para edição
@@ -303,9 +323,15 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       setEditValue(value || '');
       setEditReason('');
     } else {
-      // Para registros do dia atual, verificar se já foi solicitado
+      // Para registros do dia atual, verificar se pode editar
+      if (isFieldApprovedEdited(field)) {
+        setMessage('Este campo já foi editado com aprovação administrativa e não pode ser alterado novamente.');
+        setTimeout(() => setMessage(''), 5000);
+        return;
+      }
+
       if (isFieldEditRequested(field)) {
-        setMessage('Este campo já foi solicitado para edição e não pode ser alterado novamente. Aguarde a aprovação administrativa.');
+        setMessage('Este campo já foi solicitado para edição e aguarda aprovação administrativa.');
         setTimeout(() => setMessage(''), 5000);
         return;
       }
@@ -339,9 +365,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         return;
       }
 
-      // Verificar novamente se já foi solicitado (segurança extra)
-      if (isFieldEditRequested(editingField)) {
-        setMessage('Este campo já foi solicitado para edição anteriormente');
+      // Verificar novamente se pode editar (segurança extra)
+      if (!canEditField(editingField)) {
+        setMessage('Este campo não pode mais ser editado');
         setTimeout(() => setMessage(''), 5000);
         setEditingField(null);
         setEditValue('');
@@ -438,6 +464,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
           const Icon = getFieldIcon(key);
           const location = record.locations?.[key as keyof typeof record.locations];
           const isRequested = isFieldEditRequested(key);
+          const isApprovedEdited = isFieldApprovedEdited(key);
+          const canEdit = canEditField(key);
           
           return (
             <Card key={key} className="hover:shadow-md transition-shadow">
@@ -448,7 +476,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                   {location && (
                     <MapPin className="w-3 h-3 text-green-600" />
                   )}
-                  {isRequested && !isHistoricalEntry && (
+                  {(isRequested || isApprovedEdited) && !isHistoricalEntry && (
                     <Lock className="w-3 h-3 text-amber-600" />
                   )}
                 </CardTitle>
@@ -501,13 +529,22 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           {location.address}
                         </div>
                       )}
-                      {isRequested && !isHistoricalEntry && (
-                        <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
+                      
+                      {isApprovedEdited && !isHistoricalEntry && (
+                        <div className="text-xs text-red-600 mt-1 flex items-center justify-center gap-1">
                           <Lock className="w-3 h-3" />
-                          Edição já solicitada
+                          Campo editado - bloqueado
                         </div>
                       )}
-                      {(value || isHistoricalEntry) && !isRequested && (
+                      
+                      {isRequested && !isApprovedEdited && !isHistoricalEntry && (
+                        <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
+                          <Lock className="w-3 h-3" />
+                          Aguardando aprovação
+                        </div>
+                      )}
+                      
+                      {(value || isHistoricalEntry) && canEdit && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -518,7 +555,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           {isHistoricalEntry ? 'Definir' : 'Solicitar Edição'}
                         </Button>
                       )}
-                      {isRequested && !isHistoricalEntry && (
+                      
+                      {!canEdit && !isHistoricalEntry && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -526,7 +564,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           className="mt-1 text-xs text-gray-400 cursor-not-allowed"
                         >
                           <Lock className="w-3 h-3 mr-1" />
-                          Campo bloqueado
+                          {isApprovedEdited ? 'Campo bloqueado' : 'Aguardando aprovação'}
                         </Button>
                       )}
                     </div>

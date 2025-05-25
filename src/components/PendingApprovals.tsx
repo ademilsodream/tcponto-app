@@ -63,6 +63,14 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
     }
   };
 
+  const markFieldAsApprovedEdited = (employeeId: string, date: string, field: string) => {
+    const key = `tcponto_approved_edits_${employeeId}_${date}`;
+    const savedFields = localStorage.getItem(key);
+    const fields = savedFields ? new Set(JSON.parse(savedFields)) : new Set();
+    fields.add(field);
+    localStorage.setItem(key, JSON.stringify(Array.from(fields)));
+  };
+
   const handleApproval = (requestId: string, approved: boolean) => {
     const request = editRequests.find(r => r.id === requestId);
     if (!request) return;
@@ -114,16 +122,19 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           localStorage.setItem(`tcponto_records_${request.employeeId}`, JSON.stringify(records));
         }
       }
+
+      // Marcar campo como editado com aprovação (bloquear futuras edições)
+      markFieldAsApprovedEdited(request.employeeId, request.date, request.field);
       
-      setMessage(`Edição de ${getFieldLabel(request.field)} aprovada para ${request.employeeName}`);
+      setMessage(`Edição de ${getFieldLabel(request.field)} aprovada para ${request.employeeName}. Campo bloqueado para futuras edições.`);
     } else {
-      setMessage(`Edição de ${getFieldLabel(request.field)} rejeitada para ${request.employeeName}`);
+      setMessage(`Edição de ${getFieldLabel(request.field)} rejeitada para ${request.employeeName}. Funcionário pode solicitar nova edição.`);
     }
 
     // Limpar a marcação de campo solicitado (tanto para aprovado quanto rejeitado)
     clearFieldRequestMark(request.employeeId, request.date, request.field);
     
-    setTimeout(() => setMessage(''), 3000);
+    setTimeout(() => setMessage(''), 5000);
   };
 
   const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
@@ -201,7 +212,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       </p>
                       <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                         <Unlock className="w-3 h-3" />
-                        Campo será desbloqueado após decisão
+                        Campo será desbloqueado ou bloqueado após decisão
                       </p>
                     </div>
                     <Badge variant="secondary">
@@ -235,7 +246,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
-                      Aprovar
+                      Aprovar (Bloquear Campo)
                     </Button>
                     <Button
                       size="sm"
@@ -243,7 +254,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       onClick={() => handleApproval(request.id, false)}
                     >
                       <XCircle className="w-4 h-4 mr-1" />
-                      Rejeitar
+                      Rejeitar (Permitir Nova Edição)
                     </Button>
                   </div>
                 </div>
@@ -295,7 +306,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                          {request.status === 'approved' ? 'Aprovado (Bloqueado)' : 'Rejeitado'}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
