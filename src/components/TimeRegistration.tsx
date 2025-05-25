@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface User {
   id: string;
@@ -56,6 +57,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
+  const { formatCurrency } = useCurrency();
 
   // Carregar campos já solicitados para edição
   useEffect(() => {
@@ -639,7 +641,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                 {record.normalHours.toFixed(1)}h
               </p>
               <p className="text-sm text-accent-600">
-                R$ {record.normalPay.toFixed(2)}
+                {formatCurrency(record.normalPay)}
               </p>
             </div>
             
@@ -649,7 +651,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                 {record.overtimeHours.toFixed(1)}h
               </p>
               <p className="text-sm text-accent-600">
-                R$ {record.overtimePay.toFixed(2)}
+                {formatCurrency(record.overtimePay)}
               </p>
             </div>
             
@@ -663,7 +665,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
             <div>
               <p className="text-sm text-gray-600">Total Ganho</p>
               <p className="text-xl font-bold text-accent-600">
-                R$ {record.totalPay.toFixed(2)}
+                {formatCurrency(record.totalPay)}
               </p>
             </div>
           </div>

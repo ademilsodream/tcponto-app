@@ -33,7 +33,18 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const formatCurrency = (value: number) => {
     const symbol = getCurrencySymbol();
-    return `${symbol} ${value.toFixed(2)}`;
+    
+    // Formatação específica por moeda
+    switch (currency) {
+      case 'BRL':
+        return `${symbol} ${value.toFixed(2).replace('.', ',')}`;
+      case 'EUR':
+        return `${value.toFixed(2)} ${symbol}`;
+      case 'USD':
+        return `${symbol} ${value.toFixed(2)}`;
+      default:
+        return `${value.toFixed(2)} €`;
+    }
   };
 
   return (
