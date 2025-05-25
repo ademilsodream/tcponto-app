@@ -21,10 +21,8 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
-type ActiveSection = 'employees' | 'payroll';
-
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
-  const [activeSection, setActiveSection] = useState<ActiveSection>('employees');
+  const [showPayroll, setShowPayroll] = useState(false);
   
   const [employees, setEmployees] = useState<User[]>([
     {
@@ -150,8 +148,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     setTimeout(() => setMessage(''), 3000);
   };
 
-  if (activeSection === 'payroll') {
-    return <PayrollReport employees={employees} onBack={() => setActiveSection('employees')} />;
+  if (showPayroll) {
+    return <PayrollReport employees={employees} onBack={() => setShowPayroll(false)} />;
   }
 
   return (
@@ -194,9 +192,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8">
             <button
-              onClick={() => setActiveSection('employees')}
+              onClick={() => setShowPayroll(false)}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'employees'
+                !showPayroll
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
@@ -205,9 +203,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               Funcionários
             </button>
             <button
-              onClick={() => setActiveSection('payroll')}
+              onClick={() => setShowPayroll(true)}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'payroll'
+                showPayroll
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
