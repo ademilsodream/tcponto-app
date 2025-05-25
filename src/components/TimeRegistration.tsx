@@ -58,20 +58,25 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
 
   // Carregar campos já solicitados para edição
   useEffect(() => {
+    if (isHistoricalEntry) return; // Para registros históricos, não aplicar restrições
+    
     const key = `tcponto_edit_requested_${user.id}_${record.date}`;
     const savedFields = localStorage.getItem(key);
     if (savedFields) {
       setEditRequestedFields(new Set(JSON.parse(savedFields)));
     }
-  }, [user.id, record.date]);
+  }, [user.id, record.date, isHistoricalEntry]);
 
   // Verificar se um campo já foi solicitado para edição
   const isFieldEditRequested = (field: string): boolean => {
+    if (isHistoricalEntry) return false; // Para registros históricos, sempre permitir edição
     return editRequestedFields.has(field);
   };
 
   // Marcar campo como solicitado para edição
   const markFieldAsRequested = (field: string) => {
+    if (isHistoricalEntry) return; // Não marcar para registros históricos
+    
     const newSet = new Set(editRequestedFields);
     newSet.add(field);
     setEditRequestedFields(newSet);
@@ -293,14 +298,14 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
 
   const handleEdit = (field: string, value?: string) => {
     if (isHistoricalEntry) {
-      // Para registros históricos, permitir edição direta
+      // Para registros históricos, permitir edição direta sempre
       setEditingField(field);
       setEditValue(value || '');
       setEditReason('');
     } else {
       // Para registros do dia atual, verificar se já foi solicitado
       if (isFieldEditRequested(field)) {
-        setMessage('Este campo já foi solicitado para edição e aguarda aprovação administrativa');
+        setMessage('Este campo já foi solicitado para edição e não pode ser alterado novamente. Aguarde a aprovação administrativa.');
         setTimeout(() => setMessage(''), 5000);
         return;
       }
@@ -334,7 +339,17 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         return;
       }
 
-      // Marcar campo como solicitado
+      // Verificar novamente se já foi solicitado (segurança extra)
+      if (isFieldEditRequested(editingField)) {
+        setMessage('Este campo já foi solicitado para edição anteriormente');
+        setTimeout(() => setMessage(''), 5000);
+        setEditingField(null);
+        setEditValue('');
+        setEditReason('');
+        return;
+      }
+
+      // Marcar campo como solicitado ANTES de criar a solicitação
       markFieldAsRequested(editingField);
 
       // Criar solicitação de edição
@@ -489,7 +504,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                       {isRequested && !isHistoricalEntry && (
                         <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
                           <Lock className="w-3 h-3" />
-                          Aguardando aprovação
+                          Edição já solicitada
                         </div>
                       )}
                       {(value || isHistoricalEntry) && !isRequested && (
@@ -503,7 +518,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           {isHistoricalEntry ? 'Definir' : 'Solicitar Edição'}
                         </Button>
                       )}
-                      {(value || isHistoricalEntry) && isRequested && !isHistoricalEntry && (
+                      {isRequested && !isHistoricalEntry && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -511,7 +526,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           className="mt-1 text-xs text-gray-400 cursor-not-allowed"
                         >
                           <Lock className="w-3 h-3 mr-1" />
-                          Edição solicitada
+                          Campo bloqueado
                         </Button>
                       )}
                     </div>
