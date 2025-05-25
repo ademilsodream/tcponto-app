@@ -119,11 +119,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const renderContent = () => {
     switch (activeTab) {
       case 'payroll':
-        return <PayrollReport employees={employees} />;
+        return <PayrollReport employees={employees} onBack={() => setActiveTab('overview')} />;
       case 'detailed':
-        return <DetailedTimeReport employees={employees} />;
+        return <DetailedTimeReport employees={employees} onBack={() => setActiveTab('overview')} />;
       case 'approvals':
-        return <PendingApprovals />;
+        return <PendingApprovals employees={employees} />;
       case 'locations':
         return <LocationReport employees={employees} />;
       default:
