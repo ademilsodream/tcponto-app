@@ -35,6 +35,8 @@ interface TimeRecord {
     lunchEnd?: { lat: number; lng: number; address: string; timestamp: string };
     clockOut?: { lat: number; lng: number; address: string; timestamp: string };
   };
+  employeeId?: string;
+  employeeName?: string;
 }
 
 interface LocationReportProps {
@@ -55,15 +57,18 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
     employees.forEach(employee => {
       const savedRecords = localStorage.getItem(`tcponto_records_${employee.id}`);
       if (savedRecords) {
-        const records = JSON.parse(savedRecords) as TimeRecord[];
-        // Adicionar informação do funcionário aos registros
-        records.forEach(record => {
-          allRecords.push({
-            ...record,
-            employeeId: employee.id,
-            employeeName: employee.name
-          } as any);
-        });
+        try {
+          const records = JSON.parse(savedRecords) as TimeRecord[];
+          records.forEach(record => {
+            allRecords.push({
+              ...record,
+              employeeId: employee.id,
+              employeeName: employee.name
+            });
+          });
+        } catch (error) {
+          console.error(`Erro ao carregar registros do funcionário ${employee.name}:`, error);
+        }
       }
     });
 
@@ -75,7 +80,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
 
     // Filtrar por funcionário
     if (selectedEmployee) {
-      records = records.filter(record => (record as any).employeeId === selectedEmployee);
+      records = records.filter(record => record.employeeId === selectedEmployee);
     }
 
     // Filtrar por data específica
@@ -94,10 +99,10 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
     }
 
     // Filtrar apenas registros com localização
-    records = records.filter(record => record.locations);
+    records = records.filter(record => record.locations && Object.keys(record.locations).length > 0);
 
     return records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [selectedEmployee, selectedDate, dateRange]);
+  }, [selectedEmployee, selectedDate, dateRange, employees]);
 
   const getLocationDetails = (record: TimeRecord) => {
     const details: Array<{
@@ -126,7 +131,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
     const csvData: string[] = ['Data,Funcionário,Tipo,Horário,Latitude,Longitude,Endereço'];
     
     filteredRecords.forEach(record => {
-      const employeeName = (record as any).employeeName;
+      const employeeName = record.employeeName || 'N/A';
       const locationDetails = getLocationDetails(record);
       
       locationDetails.forEach(detail => {
@@ -252,24 +257,27 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRecords.map(record => {
-                const locationDetails = getLocationDetails(record);
-                return locationDetails.map((detail, index) => (
-                  <TableRow key={`${record.id}-${index}`}>
-                    <TableCell>{new Date(record.date).toLocaleDateString('pt-BR')}</TableCell>
-                    <TableCell>{(record as any).employeeName}</TableCell>
-                    <TableCell>{detail.type}</TableCell>
-                    <TableCell>{detail.time}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {detail.location.lat.toFixed(6)}, {detail.location.lng.toFixed(6)}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate" title={detail.location.address}>
-                      {detail.location.address}
-                    </TableCell>
-                  </TableRow>
-                ));
-              })}
-              {filteredRecords.length === 0 && (
+              {filteredRecords.length > 0 ? (
+                filteredRecords.map(record => {
+                  const locationDetails = getLocationDetails(record);
+                  return locationDetails.map((detail, index) => (
+                    <TableRow key={`${record.id}-${index}`}>
+                      <TableCell>{new Date(record.date).toLocaleDateString('pt-BR')}</TableCell>
+                      <TableCell>{record.employeeName}</TableCell>
+                      <TableCell>{detail.type}</TableCell>
+                      <TableCell>{detail.time}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {detail.location.lat.toFixed(6)}, {detail.location.lng.toFixed(6)}
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        <span title={detail.location.address}>
+                          {detail.location.address}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ));
+                })
+              ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-gray-500 py-8">
                     Nenhum registro com localização encontrado
