@@ -434,7 +434,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                     <MapPin className="w-3 h-3 text-green-600" />
                   )}
                   {isRequested && !isHistoricalEntry && (
-                    <Lock className="w-3 h-3 text-amber-600" title="Edição já solicitada" />
+                    <Lock className="w-3 h-3 text-amber-600" />
                   )}
                 </CardTitle>
               </CardHeader>
@@ -481,7 +481,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                         {value || '--:--'}
                       </div>
                       {location && (
-                        <div className="text-xs text-gray-500 mt-1 truncate" title={location.address}>
+                        <div className="text-xs text-gray-500 mt-1 truncate">
                           <MapPin className="w-3 h-3 inline mr-1" />
                           {location.address}
                         </div>
