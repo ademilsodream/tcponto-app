@@ -27,7 +27,7 @@ const mockUsers: User[] = [
     email: 'joao@tcponto.com',
     role: 'employee',
     hourlyRate: 25,
-    overtimeRate: 37.5
+    overtimeRate: 25 // Mesmo valor da hora normal
   },
   {
     id: '2',
@@ -35,7 +35,7 @@ const mockUsers: User[] = [
     email: 'admin@tcponto.com',
     role: 'admin',
     hourlyRate: 50,
-    overtimeRate: 75
+    overtimeRate: 50 // Mesmo valor da hora normal
   }
 ];
 

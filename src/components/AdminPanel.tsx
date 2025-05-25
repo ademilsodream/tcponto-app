@@ -31,7 +31,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       email: 'joao@tcponto.com',
       role: 'employee',
       hourlyRate: 5.00,
-      overtimeRate: 7.50
+      overtimeRate: 5.00 // Mesmo valor da hora normal
     },
     {
       id: '2',
@@ -39,7 +39,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       email: 'maria@tcponto.com',
       role: 'employee',
       hourlyRate: 5.63,
-      overtimeRate: 8.45
+      overtimeRate: 5.63 // Mesmo valor da hora normal
     },
     {
       id: '3',
@@ -47,7 +47,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       email: 'pedro@tcponto.com',
       role: 'employee',
       hourlyRate: 7.58,
-      overtimeRate: 11.37
+      overtimeRate: 7.58 // Mesmo valor da hora normal
     },
     {
       id: '4',
@@ -55,7 +55,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       email: 'ana@tcponto.com',
       role: 'employee',
       hourlyRate: 8.25,
-      overtimeRate: 12.38
+      overtimeRate: 8.25 // Mesmo valor da hora normal
     },
     {
       id: '5',
@@ -63,7 +63,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       email: 'carlos@tcponto.com',
       role: 'employee',
       hourlyRate: 6.20,
-      overtimeRate: 9.30
+      overtimeRate: 6.20 // Mesmo valor da hora normal
     }
   ]);
 
@@ -86,7 +86,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     const newEmployee: User = {
       id: Date.now().toString(),
-      ...formData
+      ...formData,
+      overtimeRate: formData.hourlyRate // Garantir que hora extra seja igual à normal
     };
 
     setEmployees([...employees, newEmployee]);
@@ -118,7 +119,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     if (!editingEmployee) return;
 
     const updatedEmployees = employees.map(emp =>
-      emp.id === editingEmployee.id ? { ...editingEmployee, ...formData } : emp
+      emp.id === editingEmployee.id ? { 
+        ...editingEmployee, 
+        ...formData,
+        overtimeRate: formData.hourlyRate // Garantir que hora extra seja igual à normal
+      } : emp
     );
 
     setEmployees(updatedEmployees);
@@ -277,27 +282,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="hourlyRate">Valor Hora Normal (€)</Label>
+                  <Label htmlFor="hourlyRate">Valor Hora (€)</Label>
                   <Input
                     id="hourlyRate"
                     type="number"
                     step="0.01"
                     value={formData.hourlyRate}
-                    onChange={(e) => setFormData({ ...formData, hourlyRate: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      setFormData({ 
+                        ...formData, 
+                        hourlyRate: value,
+                        overtimeRate: value // Hora extra igual à normal
+                      });
+                    }}
                     placeholder="0.00"
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="overtimeRate">Valor Hora Extra (€)</Label>
-                  <Input
-                    id="overtimeRate"
-                    type="number"
-                    step="0.01"
-                    value={formData.overtimeRate}
-                    onChange={(e) => setFormData({ ...formData, overtimeRate: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
-                  />
+                  <p className="text-xs text-gray-500">
+                    Hora extra será automaticamente o mesmo valor
+                  </p>
                 </div>
               </div>
 
@@ -361,10 +364,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       Perfil
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Hora Normal
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Hora Extra
+                      Valor Hora
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ações
@@ -393,9 +393,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         € {employee.hourlyRate.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        € {employee.overtimeRate.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">

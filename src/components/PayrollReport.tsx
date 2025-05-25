@@ -1,11 +1,11 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Calendar, DollarSign, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, Clock, FileText } from 'lucide-react';
 import { calculateDayHours } from '@/utils/timeCalculations';
+import DetailedTimeReport from './DetailedTimeReport';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -91,6 +91,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [endDate, setEndDate] = useState('2025-05-31');
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
+  const [showDetailedReport, setShowDetailedReport] = useState(false);
 
   const generatePayroll = () => {
     if (!startDate || !endDate) {
@@ -124,6 +125,10 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     return payrollData.reduce((sum, data) => sum + data.totalPay, 0);
   };
 
+  if (showDetailedReport) {
+    return <DetailedTimeReport employees={employees} onBack={() => setShowDetailedReport(false)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -145,6 +150,16 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                 <p className="text-sm text-gray-600">Relatório de pagamentos por período</p>
               </div>
             </div>
+            
+            <Button
+              onClick={() => setShowDetailedReport(true)}
+              variant="outline"
+              size="sm"
+              className="text-primary-700 border-primary-200 hover:bg-primary-50"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Relatório Detalhado
+            </Button>
           </div>
         </div>
       </header>
