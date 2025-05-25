@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MapPin, Calendar, User, Search, Download } from 'lucide-react';
+import { MapPin, Calendar, User, Search, Download, ArrowLeft } from 'lucide-react';
 
 interface User {
   id: string;
@@ -41,9 +41,10 @@ interface TimeRecord {
 
 interface LocationReportProps {
   employees: User[];
+  onBack?: () => void;
 }
 
-const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
+const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
@@ -159,135 +160,186 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5" />
-            Relatório de Localizações
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Funcionário</label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os funcionários" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Todos os funcionários</SelectItem>
-                  {employees.map(employee => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Específica</label>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Início</label>
-              <Input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Data Fim</label>
-              <Input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ações</label>
-              <div className="flex gap-2">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              {onBack && (
                 <Button
-                  onClick={() => {
-                    setSelectedEmployee('');
-                    setSelectedDate('');
-                    setDateRange({ start: '', end: '' });
-                  }}
-                  variant="outline"
+                  onClick={onBack}
+                  variant="ghost"
                   size="sm"
+                  className="text-gray-600 hover:text-gray-800"
                 >
-                  <Search className="w-4 h-4 mr-1" />
-                  Limpar
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Voltar
                 </Button>
-                <Button
-                  onClick={exportToCSV}
-                  variant="outline"
-                  size="sm"
-                  disabled={filteredRecords.length === 0}
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  CSV
-                </Button>
+              )}
+              <div>
+                <h1 className="text-xl font-semibold text-primary-900 flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Relatório de Localizações
+                </h1>
+                <p className="text-sm text-gray-600">Visualize onde os funcionários registraram seus horários</p>
               </div>
             </div>
           </div>
+        </div>
+      </header>
 
-          <div className="text-sm text-gray-600 mb-4">
-            {filteredRecords.length} registro(s) encontrado(s) com localização
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Filtros de Busca
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Funcionário</label>
+                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os funcionários" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todos os funcionários</SelectItem>
+                      {employees.map(employee => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Funcionário</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Horário</TableHead>
-                <TableHead>Coordenadas</TableHead>
-                <TableHead>Endereço</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRecords.length > 0 ? (
-                filteredRecords.map(record => {
-                  const locationDetails = getLocationDetails(record);
-                  return locationDetails.map((detail, index) => (
-                    <TableRow key={`${record.id}-${index}`}>
-                      <TableCell>{new Date(record.date).toLocaleDateString('pt-BR')}</TableCell>
-                      <TableCell>{record.employeeName}</TableCell>
-                      <TableCell>{detail.type}</TableCell>
-                      <TableCell>{detail.time}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {detail.location.lat.toFixed(6)}, {detail.location.lng.toFixed(6)}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        <span title={detail.location.address}>
-                          {detail.location.address}
-                        </span>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Específica</label>
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Início</label>
+                  <Input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Fim</label>
+                  <Input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Ações</label>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setSelectedEmployee('');
+                        setSelectedDate('');
+                        setDateRange({ start: '', end: '' });
+                      }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Search className="w-4 h-4 mr-1" />
+                      Limpar
+                    </Button>
+                    <Button
+                      onClick={exportToCSV}
+                      variant="outline"
+                      size="sm"
+                      disabled={filteredRecords.length === 0}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      CSV
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-sm text-gray-600 mb-4">
+                {filteredRecords.length} registro(s) encontrado(s) com localização
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Registros de Localização</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Funcionário</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Horário</TableHead>
+                    <TableHead>Coordenadas</TableHead>
+                    <TableHead>Endereço</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredRecords.length > 0 ? (
+                    filteredRecords.map(record => {
+                      const locationDetails = getLocationDetails(record);
+                      return locationDetails.map((detail, index) => (
+                        <TableRow key={`${record.id}-${index}`}>
+                          <TableCell>{new Date(record.date).toLocaleDateString('pt-BR')}</TableCell>
+                          <TableCell>{record.employeeName}</TableCell>
+                          <TableCell>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              detail.type === 'Entrada' ? 'bg-green-100 text-green-800' :
+                              detail.type === 'Saída' ? 'bg-red-100 text-red-800' :
+                              'bg-orange-100 text-orange-800'
+                            }`}>
+                              {detail.type}
+                            </span>
+                          </TableCell>
+                          <TableCell>{detail.time}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {detail.location.lat.toFixed(6)}, {detail.location.lng.toFixed(6)}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            <span title={detail.location.address} className="truncate block">
+                              {detail.location.address}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ));
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <MapPin className="w-8 h-8 text-gray-300" />
+                          <span>Nenhum registro com localização encontrado</span>
+                          <span className="text-xs">Aplique filtros ou verifique se há registros com GPS</span>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ));
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-gray-500 py-8">
-                    Nenhum registro com localização encontrado
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
