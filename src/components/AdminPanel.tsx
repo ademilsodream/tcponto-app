@@ -1,14 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Users, Plus, Edit, Trash2, Download, DollarSign, Monitor, CheckSquare, MapPin } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Users, Clock, FileText, MapPin, Calendar, DollarSign } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import PayrollReport from './PayrollReport';
-import AdminDashboard from './AdminDashboard';
+import DetailedTimeReport from './DetailedTimeReport';
 import PendingApprovals from './PendingApprovals';
 import LocationReport from './LocationReport';
 
@@ -26,135 +26,219 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'payroll' | 'approvals' | 'locations'>('dashboard');
-  
-  const [employees, setEmployees] = useState<User[]>([
-    {
-      id: '1',
-      name: 'João Silva',
-      email: 'joao@tcponto.com',
-      role: 'employee',
-      hourlyRate: 5.00,
-      overtimeRate: 5.00 // Mesmo valor da hora normal
-    },
-    {
-      id: '2',
-      name: 'Maria Santos',
-      email: 'maria@tcponto.com',
-      role: 'employee',
-      hourlyRate: 5.63,
-      overtimeRate: 5.63 // Mesmo valor da hora normal
-    },
-    {
-      id: '3',
-      name: 'Pedro Oliveira',
-      email: 'pedro@tcponto.com',
-      role: 'employee',
-      hourlyRate: 7.58,
-      overtimeRate: 7.58 // Mesmo valor da hora normal
-    },
-    {
-      id: '4',
-      name: 'Ana Costa',
-      email: 'ana@tcponto.com',
-      role: 'employee',
-      hourlyRate: 8.25,
-      overtimeRate: 8.25 // Mesmo valor da hora normal
-    },
-    {
-      id: '5',
-      name: 'Carlos Ferreira',
-      email: 'carlos@tcponto.com',
-      role: 'employee',
-      hourlyRate: 6.20,
-      overtimeRate: 6.20 // Mesmo valor da hora normal
-    }
-  ]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [employees, setEmployees] = useState<User[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: 'employee' as 'admin' | 'employee',
-    hourlyRate: 0,
-    overtimeRate: 0
-  });
-  const [message, setMessage] = useState('');
-
-  const handleAddEmployee = () => {
-    if (!formData.name || !formData.email || !formData.hourlyRate) {
-      setMessage('Preencha todos os campos obrigatórios');
-      return;
+  useEffect(() => {
+    // Carregar funcionários
+    const savedEmployees = localStorage.getItem('tcponto_employees');
+    if (savedEmployees) {
+      setEmployees(JSON.parse(savedEmployees));
     }
 
-    const newEmployee: User = {
-      id: Date.now().toString(),
-      ...formData,
-      overtimeRate: formData.hourlyRate // Garantir que hora extra seja igual à normal
-    };
-
-    setEmployees([...employees, newEmployee]);
-    setFormData({
-      name: '',
-      email: '',
-      role: 'employee',
-      hourlyRate: 0,
-      overtimeRate: 0
-    });
-    setShowAddForm(false);
-    setMessage('Funcionário adicionado com sucesso');
-    setTimeout(() => setMessage(''), 3000);
-  };
-
-  const handleEditEmployee = (employee: User) => {
-    setEditingEmployee(employee);
-    setFormData({
-      name: employee.name,
-      email: employee.email,
-      role: employee.role,
-      hourlyRate: employee.hourlyRate,
-      overtimeRate: employee.overtimeRate
-    });
-    setShowAddForm(true);
-  };
-
-  const handleUpdateEmployee = () => {
-    if (!editingEmployee) return;
-
-    const updatedEmployees = employees.map(emp =>
-      emp.id === editingEmployee.id ? { 
-        ...editingEmployee, 
-        ...formData,
-        overtimeRate: formData.hourlyRate // Garantir que hora extra seja igual à normal
-      } : emp
-    );
-
-    setEmployees(updatedEmployees);
-    setEditingEmployee(null);
-    setShowAddForm(false);
-    setFormData({
-      name: '',
-      email: '',
-      role: 'employee',
-      hourlyRate: 0,
-      overtimeRate: 0
-    });
-    setMessage('Funcionário atualizado com sucesso');
-    setTimeout(() => setMessage(''), 3000);
-  };
-
-  const handleDeleteEmployee = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este funcionário?')) {
-      setEmployees(employees.filter(emp => emp.id !== id));
-      setMessage('Funcionário excluído com sucesso');
-      setTimeout(() => setMessage(''), 3000);
+    // Carregar solicitações pendentes
+    const savedRequests = localStorage.getItem('tcponto_edit_requests');
+    if (savedRequests) {
+      const requests = JSON.parse(savedRequests);
+      setPendingRequests(requests.filter((req: any) => req.status === 'pending'));
     }
+
+    // Adicionar dados de localização de exemplo para registros existentes
+    addSampleLocationData();
+  }, []);
+
+  const addSampleLocationData = () => {
+    employees.forEach(employee => {
+      const recordsKey = `tcponto_records_${employee.id}`;
+      const savedRecords = localStorage.getItem(recordsKey);
+      
+      if (savedRecords) {
+        const records = JSON.parse(savedRecords);
+        const updatedRecords = records.map((record: any) => {
+          // Se o registro não tem localização, adicionar dados de exemplo
+          if (!record.locations && (record.clockIn || record.lunchStart || record.lunchEnd || record.clockOut)) {
+            const sampleLocations: any = {};
+            
+            // Localizações de exemplo para Portugal e Brasil
+            const locations = [
+              { lat: 38.7223, lng: -9.1393, address: "Av. da Liberdade, 1250-096 Lisboa, Portugal" },
+              { lat: 41.1579, lng: -8.6291, address: "R. de Santa Catarina, 4000-447 Porto, Portugal" },
+              { lat: -23.5505, lng: -46.6333, address: "Av. Paulista, 1578 - Bela Vista, São Paulo - SP, Brasil" },
+              { lat: -22.9068, lng: -43.1729, address: "Av. Rio Branco, 1 - Centro, Rio de Janeiro - RJ, Brasil" },
+              { lat: 38.7071, lng: -9.1359, address: "Praça do Comércio, 1100-148 Lisboa, Portugal" }
+            ];
+            
+            const randomLocation = locations[Math.floor(Math.random() * locations.length)];
+            
+            if (record.clockIn) {
+              sampleLocations.clockIn = {
+                ...randomLocation,
+                timestamp: new Date().toISOString()
+              };
+            }
+            
+            if (record.lunchStart) {
+              sampleLocations.lunchStart = {
+                ...randomLocation,
+                timestamp: new Date().toISOString()
+              };
+            }
+            
+            if (record.lunchEnd) {
+              sampleLocations.lunchEnd = {
+                ...randomLocation,
+                timestamp: new Date().toISOString()
+              };
+            }
+            
+            if (record.clockOut) {
+              sampleLocations.clockOut = {
+                ...randomLocation,
+                timestamp: new Date().toISOString()
+              };
+            }
+            
+            return {
+              ...record,
+              locations: sampleLocations
+            };
+          }
+          
+          return record;
+        });
+        
+        localStorage.setItem(recordsKey, JSON.stringify(updatedRecords));
+      }
+    });
   };
 
-  const exportReport = () => {
-    setMessage('Relatório exportado com sucesso');
-    setTimeout(() => setMessage(''), 3000);
+  const totalEmployees = employees.length;
+  const totalPendingRequests = pendingRequests.length;
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'payroll':
+        return <PayrollReport employees={employees} />;
+      case 'detailed':
+        return <DetailedTimeReport employees={employees} />;
+      case 'approvals':
+        return <PendingApprovals />;
+      case 'locations':
+        return <LocationReport employees={employees} />;
+      default:
+        return (
+          <div className="space-y-6">
+            {/* Estatísticas Gerais */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total de Funcionários</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalEmployees}</div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Solicitações Pendentes</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalPendingRequests}</div>
+                  {totalPendingRequests > 0 && (
+                    <Badge variant="destructive" className="mt-1">
+                      Requer atenção
+                    </Badge>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Registros Hoje</CardTitle>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {employees.reduce((total, emp) => {
+                      const todayRecords = localStorage.getItem(`tcponto_records_${emp.id}`);
+                      if (todayRecords) {
+                        const records = JSON.parse(todayRecords);
+                        const today = new Date().toISOString().split('T')[0];
+                        return total + (records.filter((r: any) => r.date === today).length > 0 ? 1 : 0);
+                      }
+                      return total;
+                    }, 0)}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Horas Mês</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {employees.reduce((total, emp) => {
+                      const records = localStorage.getItem(`tcponto_records_${emp.id}`);
+                      if (records) {
+                        const parsedRecords = JSON.parse(records);
+                        const currentMonth = new Date().getMonth();
+                        const currentYear = new Date().getFullYear();
+                        
+                        return total + parsedRecords
+                          .filter((r: any) => {
+                            const recordDate = new Date(r.date);
+                            return recordDate.getMonth() === currentMonth && 
+                                   recordDate.getFullYear() === currentYear;
+                          })
+                          .reduce((sum: number, r: any) => sum + r.totalHours, 0);
+                      }
+                      return total;
+                    }, 0).toFixed(1)}h
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Lista de Funcionários */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Funcionários Ativos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {employees.map((employee) => (
+                    <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-medium">{employee.name}</h3>
+                        <p className="text-sm text-gray-500">{employee.email}</p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={employee.role === 'admin' ? 'default' : 'secondary'}>
+                          {employee.role === 'admin' ? 'Administrador' : 'Funcionário'}
+                        </Badge>
+                        <p className="text-sm text-gray-500 mt-1">
+                          R$ {employee.hourlyRate.toFixed(2)}/h
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {employees.length === 0 && (
+                    <p className="text-gray-500 text-center py-8">
+                      Nenhum funcionário cadastrado
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+    }
   };
 
   return (
@@ -175,292 +259,72 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               </Button>
               <div>
                 <h1 className="text-xl font-semibold text-primary-900">Painel Administrativo</h1>
-                <p className="text-sm text-gray-600">Gerenciamento do sistema</p>
+                <p className="text-sm text-gray-600">Gestão de funcionários e relatórios</p>
               </div>
             </div>
-            
-            <Button
-              onClick={exportReport}
-              variant="outline"
-              size="sm"
-              className="text-primary-700 border-primary-200 hover:bg-primary-50"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Exportar Relatório
-            </Button>
           </div>
         </div>
       </header>
 
-      {/* Menu de Navegação */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
-            <button
-              onClick={() => setActiveSection('dashboard')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'dashboard'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation Tabs */}
+        <div className="mb-8">
+          <nav className="flex space-x-1 bg-white rounded-lg p-1 shadow-sm">
+            <Button
+              onClick={() => setActiveTab('overview')}
+              variant={activeTab === 'overview' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex items-center gap-2"
             >
-              <Monitor className="w-4 h-4 inline-block mr-2" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveSection('employees')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'employees'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              <Users className="w-4 h-4" />
+              Visão Geral
+            </Button>
+            <Button
+              onClick={() => setActiveTab('payroll')}
+              variant={activeTab === 'payroll' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex items-center gap-2"
             >
-              <Users className="w-4 h-4 inline-block mr-2" />
-              Funcionários
-            </button>
-            <button
-              onClick={() => setActiveSection('payroll')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'payroll'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <DollarSign className="w-4 h-4 inline-block mr-2" />
+              <DollarSign className="w-4 h-4" />
               Folha de Pagamento
-            </button>
-            <button
-              onClick={() => setActiveSection('approvals')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'approvals'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+            </Button>
+            <Button
+              onClick={() => setActiveTab('detailed')}
+              variant={activeTab === 'detailed' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex items-center gap-2"
             >
-              <CheckSquare className="w-4 h-4 inline-block mr-2" />
-              Aprovações
-            </button>
-            <button
-              onClick={() => setActiveSection('locations')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'locations'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              <FileText className="w-4 h-4" />
+              Relatório Detalhado
+            </Button>
+            <Button
+              onClick={() => setActiveTab('locations')}
+              variant={activeTab === 'locations' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex items-center gap-2"
             >
-              <MapPin className="w-4 h-4 inline-block mr-2" />
+              <MapPin className="w-4 h-4" />
               Localizações
-            </button>
+            </Button>
+            <Button
+              onClick={() => setActiveTab('approvals')}
+              variant={activeTab === 'approvals' ? 'default' : 'ghost'}
+              size="sm"
+              className="flex items-center gap-2 relative"
+            >
+              <Clock className="w-4 h-4" />
+              Aprovações
+              {totalPendingRequests > 0 && (
+                <Badge variant="destructive" className="ml-1 px-1 py-0 text-xs">
+                  {totalPendingRequests}
+                </Badge>
+              )}
+            </Button>
           </nav>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeSection === 'dashboard' && <AdminDashboard employees={employees} />}
-        {activeSection === 'payroll' && <PayrollReport employees={employees} onBack={() => setActiveSection('employees')} />}
-        {activeSection === 'approvals' && <PendingApprovals employees={employees} />}
-        {activeSection === 'locations' && <LocationReport employees={employees} />}
-        
-        {activeSection === 'employees' && (
-          <>
-            {message && (
-              <Alert className="mb-6 border-accent-200 bg-accent-50">
-                <AlertDescription className="text-accent-800">
-                  {message}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Formulário de Adicionar/Editar */}
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Plus className="w-5 h-5" />
-                  {editingEmployee ? 'Editar Funcionário' : 'Adicionar Funcionário'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Digite o nome completo"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="Digite o e-mail"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Perfil</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value: 'admin' | 'employee') => 
-                        setFormData({ ...formData, role: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="employee">Funcionário</SelectItem>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="hourlyRate">Valor Hora (€)</Label>
-                    <Input
-                      id="hourlyRate"
-                      type="number"
-                      step="0.01"
-                      value={formData.hourlyRate}
-                      onChange={(e) => {
-                        const value = parseFloat(e.target.value) || 0;
-                        setFormData({ 
-                          ...formData, 
-                          hourlyRate: value,
-                          overtimeRate: value // Hora extra igual à normal
-                        });
-                      }}
-                      placeholder="0.00"
-                    />
-                    <p className="text-xs text-gray-500">
-                      Hora extra será automaticamente o mesmo valor
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <Button
-                    onClick={editingEmployee ? handleUpdateEmployee : handleAddEmployee}
-                    className="bg-primary-800 hover:bg-primary-700"
-                  >
-                    {editingEmployee ? 'Atualizar' : 'Adicionar'} Funcionário
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setEditingEmployee(null);
-                      setFormData({
-                        name: '',
-                        email: '',
-                        role: 'employee',
-                        hourlyRate: 0,
-                        overtimeRate: 0
-                      });
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Lista de Funcionários */}
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    Funcionários ({employees.length})
-                  </CardTitle>
-                  <Button
-                    onClick={() => setShowAddForm(true)}
-                    className="bg-accent-600 hover:bg-accent-700"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Novo Funcionário
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Nome
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          E-mail
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Perfil
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Valor Hora
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Ações
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {employees.map((employee) => (
-                        <tr key={employee.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {employee.name}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{employee.email}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              employee.role === 'admin' 
-                                ? 'bg-primary-100 text-primary-800' 
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {employee.role === 'admin' ? 'Admin' : 'Funcionário'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            € {employee.hourlyRate.toFixed(2)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex space-x-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleEditEmployee(employee)}
-                                className="text-primary-600 hover:text-primary-800"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteEmployee(employee.id)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
+        {/* Content */}
+        {renderContent()}
       </div>
     </div>
   );
