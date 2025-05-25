@@ -57,7 +57,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
 
-  // Carregar campos já solicitados para edição (para todos os tipos de registro)
+  // Carregar campos já solicitados para edição
   useEffect(() => {
     const key = `tcponto_edit_requested_${user.id}_${record.date}`;
     const savedFields = localStorage.getItem(key);
@@ -98,6 +98,15 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     localStorage.setItem(key, JSON.stringify(Array.from(newSet)));
   };
 
+  // Determinar qual campo deve aparecer para registro
+  const getCurrentFieldToShow = () => {
+    if (!record.clockIn) return 'clockIn';
+    if (!record.lunchStart) return 'lunchStart';
+    if (!record.lunchEnd) return 'lunchEnd';
+    if (!record.clockOut) return 'clockOut';
+    return 'completed';
+  };
+
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString('pt-BR', { 
       hour: '2-digit', 
@@ -117,7 +126,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
           const { latitude, longitude } = position.coords;
           
           try {
-            // Usar Nominatim (OpenStreetMap) para reverse geocoding (gratuito)
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=pt`
             );
@@ -131,7 +139,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
               address
             });
           } catch (error) {
-            // Se falhar o reverse geocoding, usar apenas as coordenadas
             resolve({
               lat: latitude,
               lng: longitude,
@@ -145,12 +152,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         {
           enableHighAccuracy: true,
           timeout: 10000,
-          maximumAge: 300000 // 5 minutos
+          maximumAge: 300000
         }
       );
     });
   };
 
+  // Calcular horas trabalhadas
   const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
     if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
 
@@ -164,26 +172,21 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : 0;
     const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : 0;
 
-    // Calcular intervalo de almoço
     let lunchBreakMinutes = 0;
     if (lunchStart && lunchEnd && lunchEndMinutes > lunchStartMinutes) {
       lunchBreakMinutes = lunchEndMinutes - lunchStartMinutes;
     }
 
-    // Total de minutos trabalhados
     const totalWorkedMinutes = clockOutMinutes - clockInMinutes - lunchBreakMinutes;
     let effectiveWorkedMinutes = totalWorkedMinutes;
 
-    // Aplicar tolerância de 15 minutos apenas se for exatamente 15 minutos ou menos
-    const extraMinutes = totalWorkedMinutes - 480; // 480 = 8 horas em minutos
+    const extraMinutes = totalWorkedMinutes - 480;
     if (extraMinutes > 0 && extraMinutes <= 15) {
-      // Se tiver entre 1 e 15 minutos extras, considerar como 8 horas exatas
       effectiveWorkedMinutes = 480;
     }
 
     const totalHours = Math.max(0, effectiveWorkedMinutes / 60);
 
-    // Calcular horas normais e extras
     let normalHours = Math.min(totalHours, 8);
     let overtimeHours = 0;
 
@@ -240,7 +243,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (${location.address})`);
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
-      // Registrar sem localização em caso de erro
       const updatedRecord = { ...record, [field]: currentTime };
       
       const { totalHours, normalHours, overtimeHours } = calculateHours(
@@ -310,21 +312,18 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   };
 
   const handleEdit = (field: string, value?: string) => {
-    // Verificar se campo já foi editado com aprovação
     if (isFieldApprovedEdited(field)) {
       setMessage('Este campo já foi editado com aprovação administrativa e não pode ser alterado novamente.');
       setTimeout(() => setMessage(''), 5000);
       return;
     }
 
-    // Verificar se campo já foi solicitado para edição
     if (isFieldEditRequested(field)) {
       setMessage('Este campo já foi solicitado para edição e aguarda aprovação administrativa.');
       setTimeout(() => setMessage(''), 5000);
       return;
     }
     
-    // Permitir criar solicitação de edição para qualquer registro
     setEditingField(field);
     setEditValue(value || '');
     setEditReason('');
@@ -333,7 +332,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const handleSaveEdit = () => {
     if (!editingField) return;
 
-    // Para todos os registros, sempre exigir motivo da alteração
     if (!editReason.trim()) {
       setMessage('Por favor, informe o motivo da alteração');
       setTimeout(() => setMessage(''), 3000);
@@ -348,7 +346,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       return;
     }
 
-    // Verificar novamente se pode editar (segurança extra)
     if (!canEditField(editingField)) {
       setMessage('Este campo não pode mais ser editado');
       setTimeout(() => setMessage(''), 5000);
@@ -358,10 +355,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       return;
     }
 
-    // Marcar campo como solicitado ANTES de criar a solicitação
     markFieldAsRequested(editingField);
 
-    // Criar solicitação de edição para todos os tipos de registro
     const editRequest = {
       id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       employeeId: user.id,
@@ -375,7 +370,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       status: 'pending' as const
     };
 
-    // Salvar solicitação no localStorage
     const existingRequests = localStorage.getItem('tcponto_edit_requests');
     const requests = existingRequests ? JSON.parse(existingRequests) : [];
     requests.push(editRequest);
@@ -416,12 +410,193 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     }
   };
 
-  const timeFields = [
-    { key: 'clockIn', label: 'Entrada', value: record.clockIn, color: 'bg-green-500' },
-    { key: 'lunchStart', label: 'Início Almoço', value: record.lunchStart, color: 'bg-orange-500' },
-    { key: 'lunchEnd', label: 'Fim Almoço', value: record.lunchEnd, color: 'bg-orange-500' },
-    { key: 'clockOut', label: 'Saída', value: record.clockOut, color: 'bg-red-500' }
-  ];
+  const getFieldColor = (field: string) => {
+    switch (field) {
+      case 'clockIn': return 'bg-green-500';
+      case 'lunchStart': return 'bg-orange-500';
+      case 'lunchEnd': return 'bg-orange-500';
+      case 'clockOut': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const currentFieldToShow = getCurrentFieldToShow();
+
+  const renderCurrentField = () => {
+    if (currentFieldToShow === 'completed') {
+      return (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader className="text-center">
+            <CardTitle className="text-green-700">
+              ✅ Registro do Dia Completo
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-green-600">
+              Todos os registros do dia foram preenchidos com sucesso!
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    const field = currentFieldToShow;
+    const Icon = getFieldIcon(field);
+    const value = record[field as keyof TimeRecord] as string;
+    const location = record.locations?.[field as keyof typeof record.locations];
+    const isRequested = isFieldEditRequested(field);
+    const isApprovedEdited = isFieldApprovedEdited(field);
+    const canEdit = canEditField(field);
+    const color = getFieldColor(field);
+
+    return (
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-medium flex items-center gap-2 justify-center">
+            <div className={`w-4 h-4 rounded-full ${color}`} />
+            {getFieldLabel(field)}
+            {location && <MapPin className="w-4 h-4 text-green-600" />}
+            {(isRequested || isApprovedEdited) && <Lock className="w-4 h-4 text-amber-600" />}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {editingField === field ? (
+            <div className="space-y-3">
+              <Input
+                type="time"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="text-center"
+              />
+              <Textarea
+                placeholder="Motivo da alteração (obrigatório)"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                className="text-sm"
+                rows={2}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveEdit}
+                  className="flex-1 bg-accent-600 hover:bg-accent-700"
+                >
+                  <Check className="w-3 h-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  className="flex-1"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary-900 mb-2">
+                  {value || '--:--'}
+                </div>
+                {location && (
+                  <div className="text-sm text-gray-500 mb-2 truncate">
+                    <MapPin className="w-3 h-3 inline mr-1" />
+                    {location.address}
+                  </div>
+                )}
+                
+                {isApprovedEdited && (
+                  <div className="text-sm text-red-600 mb-2 flex items-center justify-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Campo editado - bloqueado
+                  </div>
+                )}
+                
+                {isRequested && !isApprovedEdited && (
+                  <div className="text-sm text-amber-600 mb-2 flex items-center justify-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Aguardando aprovação
+                  </div>
+                )}
+              </div>
+              
+              {!value && !isHistoricalEntry && (
+                <Button
+                  onClick={() => handleRegisterTime(field as any)}
+                  disabled={isGettingLocation}
+                  className={`w-full ${color} hover:opacity-90 text-white`}
+                  size="lg"
+                >
+                  <Icon className="w-5 h-5 mr-2" />
+                  {isGettingLocation ? 'Obtendo localização...' : `Registrar ${getFieldLabel(field)}`}
+                </Button>
+              )}
+
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleEdit(field, value)}
+                  className="w-full"
+                >
+                  <Edit2 className="w-3 h-3 mr-1" />
+                  Solicitar Edição
+                </Button>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Renderizar todos os campos já preenchidos (somente leitura)
+  const renderCompletedFields = () => {
+    const completedFields = [];
+    const allFields = ['clockIn', 'lunchStart', 'lunchEnd', 'clockOut'];
+    
+    for (const field of allFields) {
+      const value = record[field as keyof TimeRecord] as string;
+      if (value && field !== currentFieldToShow) {
+        const Icon = getFieldIcon(field);
+        const location = record.locations?.[field as keyof typeof record.locations];
+        
+        completedFields.push(
+          <div key={field} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Icon className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                {getFieldLabel(field)}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-bold text-gray-900">{value}</div>
+              {location && (
+                <div className="text-xs text-gray-500 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  Localização registrada
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+
+    return completedFields.length > 0 ? (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium text-gray-700">
+            Registros Já Realizados
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {completedFields}
+        </CardContent>
+      </Card>
+    ) : null;
+  };
 
   return (
     <div className="space-y-6">
@@ -443,142 +618,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {timeFields.map(({ key, label, value, color }) => {
-          const Icon = getFieldIcon(key);
-          const location = record.locations?.[key as keyof typeof record.locations];
-          const isRequested = isFieldEditRequested(key);
-          const isApprovedEdited = isFieldApprovedEdited(key);
-          const canEdit = canEditField(key);
-          
-          return (
-            <Card key={key} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${color}`} />
-                  {label}
-                  {location && (
-                    <MapPin className="w-3 h-3 text-green-600" />
-                  )}
-                  {(isRequested || isApprovedEdited) && (
-                    <Lock className="w-3 h-3 text-amber-600" />
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {editingField === key ? (
-                  <div className="space-y-2">
-                    <Input
-                      type="time"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      className="text-center"
-                    />
-                    <Textarea
-                      placeholder="Motivo da alteração (obrigatório)"
-                      value={editReason}
-                      onChange={(e) => setEditReason(e.target.value)}
-                      className="text-sm"
-                      rows={2}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        className="flex-1 bg-accent-600 hover:bg-accent-700"
-                      >
-                        <Check className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleCancelEdit}
-                        className="flex-1"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary-900">
-                        {value || '--:--'}
-                      </div>
-                      {location && (
-                        <div className="text-xs text-gray-500 mt-1 truncate">
-                          <MapPin className="w-3 h-3 inline mr-1" />
-                          {location.address}
-                        </div>
-                      )}
-                      
-                      {isApprovedEdited && (
-                        <div className="text-xs text-red-600 mt-1 flex items-center justify-center gap-1">
-                          <Lock className="w-3 h-3" />
-                          Campo editado - bloqueado
-                        </div>
-                      )}
-                      
-                      {isRequested && !isApprovedEdited && (
-                        <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
-                          <Lock className="w-3 h-3" />
-                          Aguardando aprovação
-                        </div>
-                      )}
-                      
-                      {canEdit && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(key, value)}
-                          className="mt-1 text-xs text-gray-500 hover:text-gray-700"
-                        >
-                          <Edit2 className="w-3 h-3 mr-1" />
-                          Solicitar Edição
-                        </Button>
-                      )}
-                      
-                      {!canEdit && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled
-                          className="mt-1 text-xs text-gray-400 cursor-not-allowed"
-                        >
-                          <Lock className="w-3 h-3 mr-1" />
-                          {isApprovedEdited ? 'Campo bloqueado' : 'Aguardando aprovação'}
-                        </Button>
-                      )}
-                    </div>
-                    
-                    {!value && !isHistoricalEntry && (
-                      <Button
-                        onClick={() => handleRegisterTime(key as any)}
-                        disabled={isGettingLocation}
-                        className={`w-full ${color} hover:opacity-90 text-white`}
-                      >
-                        <Icon className="w-4 h-4 mr-2" />
-                        {isGettingLocation ? 'Obtendo localização...' : 'Registrar'}
-                      </Button>
-                    )}
-
-                    {!value && isHistoricalEntry && (
-                      <Button
-                        onClick={() => handleEdit(key)}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        <Icon className="w-4 h-4 mr-2" />
-                        Solicitar Definição
-                      </Button>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+      {/* Campo Atual para Registro */}
+      <div className="max-w-md mx-auto">
+        {renderCurrentField()}
       </div>
+
+      {/* Campos Já Preenchidos */}
+      {renderCompletedFields()}
 
       {/* Resumo do Dia */}
       <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
