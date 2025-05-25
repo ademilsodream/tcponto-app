@@ -57,10 +57,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
 
-  // Carregar campos já solicitados para edição
+  // Carregar campos já solicitados para edição (para todos os tipos de registro)
   useEffect(() => {
-    if (isHistoricalEntry) return; // Para registros históricos, não aplicar restrições
-    
     const key = `tcponto_edit_requested_${user.id}_${record.date}`;
     const savedFields = localStorage.getItem(key);
     if (savedFields) {
@@ -73,30 +71,25 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     if (savedApprovedFields) {
       setApprovedEditedFields(new Set(JSON.parse(savedApprovedFields)));
     }
-  }, [user.id, record.date, isHistoricalEntry]);
+  }, [user.id, record.date]);
 
   // Verificar se um campo já foi solicitado para edição
   const isFieldEditRequested = (field: string): boolean => {
-    if (isHistoricalEntry) return false; // Para registros históricos, sempre permitir edição
     return editRequestedFields.has(field);
   };
 
   // Verificar se um campo já foi editado com aprovação
   const isFieldApprovedEdited = (field: string): boolean => {
-    if (isHistoricalEntry) return false; // Para registros históricos, sempre permitir edição
     return approvedEditedFields.has(field);
   };
 
   // Verificar se um campo pode ser editado
   const canEditField = (field: string): boolean => {
-    if (isHistoricalEntry) return true; // Registros históricos sempre podem ser editados
     return !isFieldEditRequested(field) && !isFieldApprovedEdited(field);
   };
 
   // Marcar campo como solicitado para edição
   const markFieldAsRequested = (field: string) => {
-    if (isHistoricalEntry) return; // Não marcar para registros históricos
-    
     const newSet = new Set(editRequestedFields);
     newSet.add(field);
     setEditRequestedFields(newSet);
@@ -317,93 +310,84 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   };
 
   const handleEdit = (field: string, value?: string) => {
-    if (isHistoricalEntry) {
-      // Para registros históricos, permitir edição direta sempre
-      setEditingField(field);
-      setEditValue(value || '');
-      setEditReason('');
-    } else {
-      // Para registros do dia atual, verificar se pode editar
-      if (isFieldApprovedEdited(field)) {
-        setMessage('Este campo já foi editado com aprovação administrativa e não pode ser alterado novamente.');
-        setTimeout(() => setMessage(''), 5000);
-        return;
-      }
-
-      if (isFieldEditRequested(field)) {
-        setMessage('Este campo já foi solicitado para edição e aguarda aprovação administrativa.');
-        setTimeout(() => setMessage(''), 5000);
-        return;
-      }
-      
-      // Criar solicitação de edição
-      setEditingField(field);
-      setEditValue(value || '');
-      setEditReason('');
+    // Verificar se campo já foi editado com aprovação
+    if (isFieldApprovedEdited(field)) {
+      setMessage('Este campo já foi editado com aprovação administrativa e não pode ser alterado novamente.');
+      setTimeout(() => setMessage(''), 5000);
+      return;
     }
+
+    // Verificar se campo já foi solicitado para edição
+    if (isFieldEditRequested(field)) {
+      setMessage('Este campo já foi solicitado para edição e aguarda aprovação administrativa.');
+      setTimeout(() => setMessage(''), 5000);
+      return;
+    }
+    
+    // Permitir criar solicitação de edição para qualquer registro
+    setEditingField(field);
+    setEditValue(value || '');
+    setEditReason('');
   };
 
   const handleSaveEdit = () => {
     if (!editingField) return;
 
-    if (isHistoricalEntry) {
-      // Edição direta para registros históricos
-      handleManualTimeEntry(editingField, editValue);
-    } else {
-      // Criar solicitação para registros do dia atual
-      if (!editReason.trim()) {
-        setMessage('Por favor, informe o motivo da alteração');
-        setTimeout(() => setMessage(''), 3000);
-        return;
-      }
+    // Para todos os registros, sempre exigir motivo da alteração
+    if (!editReason.trim()) {
+      setMessage('Por favor, informe o motivo da alteração');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
 
-      const currentValue = record[editingField as keyof TimeRecord] as string || '';
-      
-      if (currentValue === editValue) {
-        setMessage('O novo valor deve ser diferente do atual');
-        setTimeout(() => setMessage(''), 3000);
-        return;
-      }
+    const currentValue = record[editingField as keyof TimeRecord] as string || '';
+    
+    if (currentValue === editValue) {
+      setMessage('O novo valor deve ser diferente do atual');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
 
-      // Verificar novamente se pode editar (segurança extra)
-      if (!canEditField(editingField)) {
-        setMessage('Este campo não pode mais ser editado');
-        setTimeout(() => setMessage(''), 5000);
-        setEditingField(null);
-        setEditValue('');
-        setEditReason('');
-        return;
-      }
-
-      // Marcar campo como solicitado ANTES de criar a solicitação
-      markFieldAsRequested(editingField);
-
-      // Criar solicitação de edição
-      const editRequest = {
-        id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        employeeId: user.id,
-        employeeName: user.name,
-        date: record.date,
-        field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
-        oldValue: currentValue,
-        newValue: editValue,
-        reason: editReason,
-        timestamp: new Date().toISOString(),
-        status: 'pending' as const
-      };
-
-      // Salvar solicitação no localStorage
-      const existingRequests = localStorage.getItem('tcponto_edit_requests');
-      const requests = existingRequests ? JSON.parse(existingRequests) : [];
-      requests.push(editRequest);
-      localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
-
+    // Verificar novamente se pode editar (segurança extra)
+    if (!canEditField(editingField)) {
+      setMessage('Este campo não pode mais ser editado');
+      setTimeout(() => setMessage(''), 5000);
       setEditingField(null);
       setEditValue('');
       setEditReason('');
-      setMessage('Solicitação de alteração enviada para aprovação administrativa. Este campo não pode mais ser editado.');
-      setTimeout(() => setMessage(''), 5000);
+      return;
     }
+
+    // Marcar campo como solicitado ANTES de criar a solicitação
+    markFieldAsRequested(editingField);
+
+    // Criar solicitação de edição para todos os tipos de registro
+    const editRequest = {
+      id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      employeeId: user.id,
+      employeeName: user.name,
+      date: record.date,
+      field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+      oldValue: currentValue,
+      newValue: editValue,
+      reason: editReason,
+      timestamp: new Date().toISOString(),
+      status: 'pending' as const
+    };
+
+    // Salvar solicitação no localStorage
+    const existingRequests = localStorage.getItem('tcponto_edit_requests');
+    const requests = existingRequests ? JSON.parse(existingRequests) : [];
+    requests.push(editRequest);
+    localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
+
+    setEditingField(null);
+    setEditValue('');
+    setEditReason('');
+    
+    const dateType = isHistoricalEntry ? 'registro histórico' : 'registro do dia';
+    setMessage(`Solicitação de alteração para ${dateType} enviada para aprovação administrativa. Este campo não pode mais ser editado.`);
+    setTimeout(() => setMessage(''), 5000);
   };
 
   const handleCancelEdit = () => {
@@ -454,7 +438,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         <Alert className="border-amber-200 bg-amber-50">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="text-amber-800">
-            Você está registrando horários de um dia anterior. Os horários podem ser definidos manualmente.
+            Você está registrando horários de um dia anterior. Todas as alterações precisarão de aprovação administrativa.
           </AlertDescription>
         </Alert>
       )}
@@ -476,7 +460,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                   {location && (
                     <MapPin className="w-3 h-3 text-green-600" />
                   )}
-                  {(isRequested || isApprovedEdited) && !isHistoricalEntry && (
+                  {(isRequested || isApprovedEdited) && (
                     <Lock className="w-3 h-3 text-amber-600" />
                   )}
                 </CardTitle>
@@ -490,15 +474,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                       onChange={(e) => setEditValue(e.target.value)}
                       className="text-center"
                     />
-                    {!isHistoricalEntry && (
-                      <Textarea
-                        placeholder="Motivo da alteração (obrigatório)"
-                        value={editReason}
-                        onChange={(e) => setEditReason(e.target.value)}
-                        className="text-sm"
-                        rows={2}
-                      />
-                    )}
+                    <Textarea
+                      placeholder="Motivo da alteração (obrigatório)"
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      className="text-sm"
+                      rows={2}
+                    />
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -530,21 +512,21 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                         </div>
                       )}
                       
-                      {isApprovedEdited && !isHistoricalEntry && (
+                      {isApprovedEdited && (
                         <div className="text-xs text-red-600 mt-1 flex items-center justify-center gap-1">
                           <Lock className="w-3 h-3" />
                           Campo editado - bloqueado
                         </div>
                       )}
                       
-                      {isRequested && !isApprovedEdited && !isHistoricalEntry && (
+                      {isRequested && !isApprovedEdited && (
                         <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
                           <Lock className="w-3 h-3" />
                           Aguardando aprovação
                         </div>
                       )}
                       
-                      {(value || isHistoricalEntry) && canEdit && (
+                      {canEdit && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -552,11 +534,11 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                           className="mt-1 text-xs text-gray-500 hover:text-gray-700"
                         >
                           <Edit2 className="w-3 h-3 mr-1" />
-                          {isHistoricalEntry ? 'Definir' : 'Solicitar Edição'}
+                          Solicitar Edição
                         </Button>
                       )}
                       
-                      {!canEdit && !isHistoricalEntry && (
+                      {!canEdit && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -587,7 +569,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
                         className="w-full"
                       >
                         <Icon className="w-4 h-4 mr-2" />
-                        Definir Horário
+                        Solicitar Definição
                       </Button>
                     )}
                   </>
