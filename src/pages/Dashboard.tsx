@@ -1,0 +1,275 @@
+
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Clock, Calendar, DollarSign, Users, LogOut, Edit } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import TimeRegistration from '../components/TimeRegistration';
+import AdminPanel from '../components/AdminPanel';
+
+interface TimeRecord {
+  id: string;
+  date: string;
+  clockIn?: string;
+  lunchStart?: string;
+  lunchEnd?: string;
+  clockOut?: string;
+  totalHours: number;
+  normalHours: number;
+  overtimeHours: number;
+  normalPay: number;
+  overtimePay: number;
+  totalPay: number;
+}
+
+const Dashboard = () => {
+  const { user, logout } = useAuth();
+  const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
+  const [currentRecord, setCurrentRecord] = useState<TimeRecord | null>(null);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+
+  useEffect(() => {
+    // Carregar registros do localStorage ou criar registro do dia atual
+    const savedRecords = localStorage.getItem(`tcponto_records_${user?.id}`);
+    let records: TimeRecord[] = [];
+    
+    if (savedRecords) {
+      records = JSON.parse(savedRecords);
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    let todayRecord = records.find(r => r.date === today);
+
+    if (!todayRecord) {
+      todayRecord = {
+        id: `${user?.id}_${today}`,
+        date: today,
+        totalHours: 0,
+        normalHours: 0,
+        overtimeHours: 0,
+        normalPay: 0,
+        overtimePay: 0,
+        totalPay: 0
+      };
+      records.push(todayRecord);
+      localStorage.setItem(`tcponto_records_${user?.id}`, JSON.stringify(records));
+    }
+
+    setTimeRecords(records);
+    setCurrentRecord(todayRecord);
+  }, [user?.id]);
+
+  const updateTimeRecord = (updatedRecord: TimeRecord) => {
+    const updatedRecords = timeRecords.map(record => 
+      record.id === updatedRecord.id ? updatedRecord : record
+    );
+    setTimeRecords(updatedRecords);
+    setCurrentRecord(updatedRecord);
+    localStorage.setItem(`tcponto_records_${user?.id}`, JSON.stringify(updatedRecords));
+  };
+
+  const getCurrentMonthStats = () => {
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    const monthRecords = timeRecords.filter(record => {
+      const recordDate = new Date(record.date);
+      return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+    });
+
+    const totalHours = monthRecords.reduce((sum, record) => sum + record.totalHours, 0);
+    const totalOvertimeHours = monthRecords.reduce((sum, record) => sum + record.overtimeHours, 0);
+    const totalPay = monthRecords.reduce((sum, record) => sum + record.totalPay, 0);
+
+    return { totalHours, totalOvertimeHours, totalPay };
+  };
+
+  const monthStats = getCurrentMonthStats();
+
+  if (!user) return null;
+
+  if (user.role === 'admin' && showAdminPanel) {
+    return <AdminPanel onBack={() => setShowAdminPanel(false)} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <img 
+                src="/lovable-uploads/4b2c75fc-26d4-4be4-9e7e-3a415e06b623.png" 
+                alt="TCPonto" 
+                className="w-10 h-10 rounded-full"
+              />
+              <div>
+                <h1 className="text-xl font-semibold text-primary-900">TCPonto</h1>
+                <p className="text-sm text-gray-600">Olá, {user.name}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              {user.role === 'admin' && (
+                <Button
+                  onClick={() => setShowAdminPanel(true)}
+                  variant="outline"
+                  size="sm"
+                  className="text-primary-700 border-primary-200 hover:bg-primary-50"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Admin
+                </Button>
+              )}
+              <Button
+                onClick={logout}
+                variant="outline"
+                size="sm"
+                className="text-gray-600 hover:text-gray-800"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Registro de Ponto */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Registro de Ponto</h2>
+          {currentRecord && (
+            <TimeRegistration
+              record={currentRecord}
+              onUpdate={updateTimeRecord}
+              user={user}
+            />
+          )}
+        </div>
+
+        {/* Resumo do Mês */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Resumo do Mês</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Horas Trabalhadas</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary-900">
+                  {monthStats.totalHours.toFixed(1)}h
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  +{monthStats.totalOvertimeHours.toFixed(1)}h extras
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-accent-600">
+                  R$ {monthStats.totalPay.toFixed(2)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Este mês
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Hoje</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary-900">
+                  {currentRecord?.totalHours.toFixed(1) || '0'}h
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  R$ {currentRecord?.totalPay.toFixed(2) || '0.00'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Histórico Recente */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Histórico Recente</h2>
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Data
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Entrada
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Almoço
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Saída
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Valor
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {timeRecords.slice(-10).reverse().map((record) => (
+                      <tr key={record.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {new Date(record.date).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.clockIn || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.lunchStart && record.lunchEnd 
+                            ? `${record.lunchStart} - ${record.lunchEnd}` 
+                            : '-'
+                          }
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.clockOut || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {record.totalHours.toFixed(1)}h
+                          {record.overtimeHours > 0 && (
+                            <span className="text-accent-600 ml-1">
+                              (+{record.overtimeHours.toFixed(1)}h)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-accent-600">
+                          R$ {record.totalPay.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
