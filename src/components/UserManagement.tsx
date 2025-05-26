@@ -20,11 +20,7 @@ interface User {
   overtimeRate: number;
 }
 
-interface UserManagementProps {
-  employees: User[];
-}
-
-const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmployees }) => {
+const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -35,8 +31,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     email: '',
     password: '',
     role: 'user' as 'admin' | 'user',
-    hourlyRate: '',
-    overtimeRate: ''
+    hourlyRate: '50',
+    overtimeRate: '75'
   });
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
@@ -48,7 +44,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
   const loadUsers = async () => {
     try {
       setLoading(true);
-      console.log('Carregando usuários...');
       
       const { data, error } = await supabase
         .from('profiles')
@@ -56,16 +51,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         .order('name');
 
       if (error) {
-        console.error('Error loading users:', error);
         toast({
           title: "Erro",
-          description: "Erro ao carregar usuários: " + error.message,
+          description: "Erro ao carregar usuários",
           variant: "destructive"
         });
         return;
       }
-
-      console.log('Usuários carregados:', data);
 
       const formattedUsers = data?.map(profile => ({
         id: profile.id,
@@ -113,15 +105,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       return;
     }
 
-    if (!editingUser && formData.password.length < 6) {
-      toast({
-        title: "Erro",
-        description: "A senha deve ter pelo menos 6 caracteres",
-        variant: "destructive"
-      });
-      return;
-    }
-
     const hourlyRate = parseFloat(formData.hourlyRate) || 50;
 
     try {
@@ -129,8 +112,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
 
       if (editingUser) {
         // Atualizar usuário existente
-        console.log('Atualizando usuário:', editingUser.id);
-        
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -143,7 +124,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
           .eq('id', editingUser.id);
 
         if (error) {
-          console.error('Erro ao atualizar usuário:', error);
           throw error;
         }
 
@@ -153,22 +133,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         });
       } else {
         // Criar novo usuário
-        console.log('Criando novo usuário:', formData.email);
-        
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
-          options: {
-            data: {
-              name: formData.name,
-              role: formData.role
-            }
-          }
         });
 
         if (authError) {
-          console.error('Erro de autenticação:', authError);
-          
           if (authError.message.includes('already registered')) {
             toast({
               title: "Erro",
@@ -186,23 +156,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         }
 
         if (authData.user) {
-          console.log('Usuário criado com sucesso:', authData.user.id);
-          
-          // Aguardar para dar tempo do trigger criar o perfil
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Atualizar o perfil com os dados corretos
-          const { error: updateError } = await supabase
+          // Criar perfil diretamente
+          const { error: profileError } = await supabase
             .from('profiles')
-            .update({
+            .insert({
+              id: authData.user.id,
               name: formData.name,
+              email: formData.email,
               role: formData.role,
               hourly_rate: hourlyRate
-            })
-            .eq('id', authData.user.id);
+            });
 
-          if (updateError) {
-            console.error('Erro ao atualizar perfil:', updateError);
+          if (profileError) {
+            console.error('Erro ao criar perfil:', profileError);
           }
 
           toast({
@@ -219,7 +185,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       console.error('Erro ao salvar usuário:', error);
       toast({
         title: "Erro",
-        description: "Erro ao salvar usuário: " + (error as any).message,
+        description: "Erro ao salvar usuário",
         variant: "destructive"
       });
     } finally {
@@ -241,22 +207,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
   };
 
   const handleDelete = async (userId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) {
+    if (!confirm('Tem certeza que deseja excluir este usuário?')) {
       return;
     }
 
     try {
-      console.log('Deletando usuário:', userId);
-      
-      // Deletar o perfil
-      const { error: profileError } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .delete()
         .eq('id', userId);
 
-      if (profileError) {
-        console.error('Erro ao deletar perfil:', profileError);
-        throw profileError;
+      if (error) {
+        throw error;
       }
 
       await loadUsers();
@@ -268,7 +230,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       console.error('Erro ao excluir usuário:', error);
       toast({
         title: "Erro",
-        description: "Erro ao excluir usuário: " + (error as any).message,
+        description: "Erro ao excluir usuário",
         variant: "destructive"
       });
     }

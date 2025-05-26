@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -24,29 +24,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Configurar listener de mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        await loadUserData(session.user);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    });
-
-    // Verificar sessão existente
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        loadUserData(session.user);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    checkAuth();
   }, []);
 
-  const loadUserData = async (authUser: SupabaseUser) => {
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        await loadUserProfile(session.user);
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar autenticação:', error);
+      setLoading(false);
+    }
+  };
+
+  const loadUserProfile = async (authUser: SupabaseUser) => {
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -54,13 +50,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', authUser.id)
         .single();
 
-      if (error) {
-        console.error('Erro ao carregar perfil:', error);
-        setLoading(false);
-        return;
-      }
+      if (error || !profile) {
+        // Se não encontrou o perfil, cria um novo
+        const newProfile = {
+          id: authUser.id,
+          name: authUser.email?.split('@')[0] || 'Usuário',
+          email: authUser.email || '',
+          role: authUser.email === 'admin@tcponto.com' ? 'admin' : 'user',
+          hourly_rate: 50.00
+        };
 
-      if (profile) {
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(newProfile);
+
+        if (!insertError) {
+          setUser({
+            id: newProfile.id,
+            name: newProfile.name,
+            email: newProfile.email,
+            role: newProfile.role as 'admin' | 'user'
+          });
+        }
+      } else {
         setUser({
           id: profile.id,
           name: profile.name,
@@ -68,9 +80,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: profile.role === 'admin' ? 'admin' : 'user'
         });
       }
-      setLoading(false);
     } catch (error) {
-      console.error('Erro ao carregar dados do usuário:', error);
+      console.error('Erro ao carregar perfil:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -79,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -92,6 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? 'E-mail ou senha inválidos'
             : 'Erro ao fazer login'
         };
+      }
+
+      if (data.user) {
+        await loadUserProfile(data.user);
       }
 
       return { success: true };
