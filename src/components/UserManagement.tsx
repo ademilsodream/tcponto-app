@@ -118,7 +118,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       return;
     }
 
-    const hourlyRate = parseFloat(formData.hourlyRate) || 0;
+    const hourlyRate = parseFloat(formData.hourlyRate) || 50;
 
     try {
       setSubmitting(true);
@@ -136,7 +136,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
           })
           .eq('id', editingUser.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Erro ao atualizar usuário:', error);
+          throw error;
+        }
 
         toast({
           title: "Sucesso",
@@ -179,53 +182,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         if (authData.user) {
           console.log('Usuário criado com sucesso:', authData.user.id);
           
-          // Aguardar um pouco para o trigger criar o perfil
-          setTimeout(async () => {
-            try {
-              // Verificar se o perfil foi criado
-              const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', authData.user!.id)
-                .single();
+          // Aguardar para dar tempo do trigger criar o perfil
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Atualizar o perfil com o valor por hora correto
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({
+              hourly_rate: hourlyRate
+            })
+            .eq('id', authData.user.id);
 
-              if (profileError || !profile) {
-                console.log('Perfil não encontrado, criando manualmente...');
-                // Se o perfil não foi criado pelo trigger, criar manualmente
-                const { error: createError } = await supabase
-                  .from('profiles')
-                  .insert({
-                    id: authData.user!.id,
-                    name: formData.name,
-                    email: formData.email,
-                    role: formData.role,
-                    hourly_rate: hourlyRate
-                  });
-
-                if (createError) {
-                  console.error('Erro ao criar perfil:', createError);
-                }
-              } else {
-                // Atualizar o perfil com os dados corretos
-                const { error: updateError } = await supabase
-                  .from('profiles')
-                  .update({
-                    name: formData.name,
-                    role: formData.role,
-                    hourly_rate: hourlyRate
-                  })
-                  .eq('id', authData.user!.id);
-
-                if (updateError) {
-                  console.error('Erro ao atualizar perfil:', updateError);
-                }
-              }
-
-              await loadUsers();
-            } catch (error) {
-              console.error('Erro ao processar perfil:', error);
-            }
-          }, 1000);
+          if (updateError) {
+            console.error('Erro ao atualizar valor por hora:', updateError);
+          }
 
           toast({
             title: "Sucesso",
@@ -268,7 +238,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     }
 
     try {
-      // Primeiro deletar o perfil
+      // Deletar o perfil (o trigger deve cuidar do resto)
       const { error: profileError } = await supabase
         .from('profiles')
         .delete()
@@ -346,7 +316,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
-                  disabled={submitting}
+                  disabled={submitting || !!editingUser}
                 />
               </div>
 

@@ -18,7 +18,7 @@ export const initializeApp = async () => {
 
     // Se já existem usuários, não fazer nada
     if (profiles && profiles.length > 0) {
-      console.log('Usuários já existem no sistema, total:', profiles.length);
+      console.log('Usuários já existem no sistema');
       return;
     }
 
