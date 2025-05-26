@@ -66,8 +66,13 @@ export const useSupabaseAuth = () => {
       
       if (error) {
         console.error('Erro ao carregar perfil:', error);
-      } else {
-        setProfile(profileData);
+      } else if (profileData) {
+        // Type assertion para garantir que role seja do tipo correto
+        const profile: Profile = {
+          ...profileData,
+          role: profileData.role as 'user' | 'admin'
+        };
+        setProfile(profile);
       }
     } catch (error) {
       console.error('Erro ao buscar perfil:', error);
