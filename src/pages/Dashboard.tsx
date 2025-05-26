@@ -8,21 +8,27 @@ import { CalendarIcon, LogOut, Settings, Users, BarChart3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import SupabaseTimeRegistration from '@/components/SupabaseTimeRegistration';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import TimeRegistration from '@/components/TimeRegistration';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
 import AdminPanel from '@/components/AdminPanel';
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const { user, profile, signOut } = useSupabaseAuth();
 
-  const handleSignOut = async () => {
-    await signOut();
+  // Simular usuário logado (você pode ajustar depois)
+  const currentUser = {
+    name: 'João Silva',
+    email: 'joao@tcponto.com',
+    role: 'employee' // ou 'admin'
   };
 
-  const isAdmin = profile?.role === 'admin';
+  const handleSignOut = () => {
+    // Implementar logout depois
+    console.log('Logout');
+  };
+
+  const isAdmin = currentUser.role === 'admin';
 
   if (showAdminPanel) {
     return <AdminPanel onBack={() => setShowAdminPanel(false)} />;
@@ -71,7 +77,7 @@ const Dashboard = () => {
               )}
 
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-gray-600">Olá, {profile?.name || user?.email}</span>
+                <span className="text-gray-600">Olá, {currentUser.name}</span>
                 {isAdmin && <span className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs">Admin</span>}
               </div>
 
@@ -175,7 +181,7 @@ const Dashboard = () => {
 
             {/* Right Column - Time Registration */}
             <div className="lg:col-span-2">
-              <SupabaseTimeRegistration 
+              <TimeRegistration 
                 selectedDate={format(selectedDate, 'yyyy-MM-dd')}
               />
             </div>

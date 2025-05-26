@@ -8,54 +8,8 @@ import { CurrencyProvider } from "./contexts/CurrencyContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
-import { useSupabaseAuth } from "./hooks/useSupabaseAuth";
 
 const queryClient = new QueryClient();
-
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useSupabaseAuth();
-  
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
-  }
-  
-  return user ? <>{children}</> : <Navigate to="/login" />;
-};
-
-const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useSupabaseAuth();
-  
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
-  }
-  
-  return !user ? <>{children}</> : <Navigate to="/dashboard" />;
-};
-
-const AppRoutes = () => {
-  return (
-    <Routes>
-      <Route 
-        path="/login" 
-        element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        } 
-      />
-      <Route 
-        path="/dashboard" 
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } 
-      />
-      <Route path="/" element={<Navigate to="/dashboard" />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -64,7 +18,12 @@ const App = () => (
       <Sonner />
       <CurrencyProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </BrowserRouter>
       </CurrencyProvider>
     </TooltipProvider>
