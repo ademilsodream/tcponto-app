@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,7 +88,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     }
 
     const hourlyRate = parseFloat(formData.hourlyRate) || 0;
-    const overtimeRate = parseFloat(formData.overtimeRate) || hourlyRate * 1.5;
+    const overtimeRate = parseFloat(formData.overtimeRate) || 0;
 
     try {
       if (editingUser) {
@@ -106,15 +105,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
 
         if (error) throw error;
       } else {
-        // Create new user
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // Create new user using admin API
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email: formData.email,
           password: formData.password,
-          options: {
-            data: {
-              name: formData.name,
-              role: formData.role
-            }
+          user_metadata: {
+            name: formData.name,
+            role: formData.role
           }
         });
 
@@ -123,7 +120,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         if (authData.user) {
           const { error: profileError } = await supabase
             .from('profiles')
-            .upsert({
+            .insert({
               id: authData.user.id,
               name: formData.name,
               email: formData.email,
@@ -256,7 +253,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   id="hourlyRate"
                   type="number"
                   step="0.01"
-                  min="0"
                   value={formData.hourlyRate}
                   onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                   required
@@ -269,12 +265,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   id="overtimeRate"
                   type="number"
                   step="0.01"
-                  min="0"
                   value={formData.overtimeRate}
                   onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
-                  placeholder="Padrão: 1.5x o valor da hora normal"
+                  placeholder="Aceita qualquer valor"
                 />
-                <p className="text-xs text-gray-500">Pode ser qualquer valor, inclusive igual ou menor que a hora normal</p>
+                <p className="text-xs text-gray-500">Aceita qualquer valor, inclusive igual ou menor que a hora normal</p>
               </div>
 
               <div className="flex justify-end space-x-2">
