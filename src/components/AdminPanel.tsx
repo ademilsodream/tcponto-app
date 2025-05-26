@@ -1,11 +1,10 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, UserPlus } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { UserPlus } from 'lucide-react';
 import AdminDashboard from './AdminDashboard';
 import UserManagement from './UserManagement';
-import GlobalCurrencySelector from './GlobalCurrencySelector';
 
 interface User {
   id: string;
@@ -46,64 +45,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={onBack}
-                variant="ghost"
-                size="sm"
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold text-primary-900">Painel Administrativo</h1>
-                <p className="text-sm text-gray-600">Gestão de funcionários e relatórios</p>
-              </div>
-            </div>
-            
-            <GlobalCurrencySelector />
-          </div>
-        </div>
-      </header>
+    <div className="space-y-6">
+      {/* Navigation Tabs */}
+      <div className="mb-8">
+        <nav className="flex space-x-8 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
+              activeTab === 'dashboard'
+                ? 'bg-primary-100 text-primary-700'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Dashboard em Tempo Real
+          </button>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation Tabs */}
-        <div className="mb-8">
-          <nav className="flex space-x-8 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'dashboard'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Users className="w-4 h-4 mr-2" />
-              Dashboard
-            </button>
-
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'users'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Usuários
-            </button>
-          </nav>
-        </div>
-
-        {/* Content */}
-        {renderContent()}
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
+              activeTab === 'users'
+                ? 'bg-primary-100 text-primary-700'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Gerenciar Usuários
+          </button>
+        </nav>
       </div>
+
+      {/* Content */}
+      {renderContent()}
     </div>
   );
 };

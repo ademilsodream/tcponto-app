@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, LogOut, Settings, Users, BarChart3, Clock, FileText, MapPin } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [activeTab, setActiveTab] = useState('timeRegistration');
+  const [activeTab, setActiveTab] = useState('adminDashboard');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -42,10 +42,44 @@ const Dashboard = () => {
 
   const employees = getEmployees();
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'timeRegistration':
-        return (
+  // Layout para funcionário comum
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                <img 
+                  src="/lovable-uploads/4b2c75fc-26d4-4be4-9e7e-3a415e06b623.png" 
+                  alt="TCPonto Logo" 
+                  className="w-10 h-10 rounded-full"
+                />
+                <div>
+                  <h1 className="text-xl font-semibold text-primary-900">TCPonto</h1>
+                  <p className="text-sm text-gray-600">Sistema de Controle de Ponto</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <GlobalCurrencySelector />
+
+                <div className="flex items-center space-x-2 text-sm">
+                  <span className="text-gray-600">Olá, {userName}</span>
+                </div>
+
+                <Button variant="outline" size="sm" onClick={handleSignOut}>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sair
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content para Funcionário */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column - Date Selection */}
             <div className="lg:col-span-1">
@@ -102,17 +136,24 @@ const Dashboard = () => {
               />
             </div>
           </div>
-        );
+        </main>
+      </div>
+    );
+  }
+
+  // Layout para Admin
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'adminDashboard':
+        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
       case 'monthlyControl':
         return <MonthlyControl employees={employees} />;
       case 'payrollReport':
-        return <PayrollReport employees={employees} onBack={() => setActiveTab('timeRegistration')} />;
+        return <PayrollReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       case 'locationReport':
         return <LocationReport employees={employees} />;
-      case 'adminPanel':
-        return <AdminPanel onBack={() => setActiveTab('timeRegistration')} />;
       default:
-        return null;
+        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
     }
   };
 
@@ -139,13 +180,8 @@ const Dashboard = () => {
 
               <div className="flex items-center space-x-2 text-sm">
                 <span className="text-gray-600">Olá, {userName}</span>
-                {isAdmin && <span className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs">Admin</span>}
+                <span className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs">Admin</span>
               </div>
-
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4 mr-2" />
-                Configurações
-              </Button>
 
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
@@ -156,20 +192,20 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs - apenas para Admin */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8 overflow-x-auto">
             <button
-              onClick={() => setActiveTab('timeRegistration')}
+              onClick={() => setActiveTab('adminDashboard')}
               className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
-                activeTab === 'timeRegistration'
+                activeTab === 'adminDashboard'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Clock className="w-4 h-4 mr-2" />
-              Registro de Ponto
+              <Users className="w-4 h-4 mr-2" />
+              Dashboard
             </button>
 
             <button
@@ -207,27 +243,11 @@ const Dashboard = () => {
               <MapPin className="w-4 h-4 mr-2" />
               Relatório de Localização
             </button>
-
-            {isAdmin && (
-              <>
-                <button
-                  onClick={() => setActiveTab('adminPanel')}
-                  className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
-                    activeTab === 'adminPanel'
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  Painel Admin
-                </button>
-              </>
-            )}
           </nav>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content para Admin */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {renderTabContent()}
       </main>
