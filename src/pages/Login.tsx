@@ -22,14 +22,20 @@ const Login = () => {
     setError('');
     setIsLoading(true);
 
+    console.log('Form submitted with:', { email, password: '***' });
+
     try {
       const success = await login(email, password);
+      console.log('Login success:', success);
+      
       if (success) {
+        console.log('Redirecting to dashboard');
         navigate('/dashboard');
       } else {
         setError('E-mail ou senha inválidos');
       }
     } catch (err) {
+      console.error('Login form error:', err);
       setError('Erro ao fazer login');
     } finally {
       setIsLoading(false);
@@ -115,6 +121,12 @@ const Login = () => {
                 <p><strong>Funcionário:</strong> joao@tcponto.com</p>
                 <p><strong>Admin:</strong> admin@tcponto.com</p>
                 <p className="text-primary-600"><strong>Senha:</strong> 123456</p>
+              </div>
+              
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-yellow-800 text-xs">
+                  <strong>Debug:</strong> Verifique o console do navegador para logs de debug do login.
+                </p>
               </div>
             </div>
           </CardContent>
