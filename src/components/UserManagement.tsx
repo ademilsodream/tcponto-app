@@ -89,7 +89,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     }
 
     const hourlyRate = parseFloat(formData.hourlyRate) || 0;
-    const overtimeRate = parseFloat(formData.overtimeRate) || 0; // Aceita qualquer valor, mesmo 0
+    const overtimeRate = parseFloat(formData.overtimeRate) || 0;
 
     try {
       if (editingUser) {
@@ -248,6 +248,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   id="hourlyRate"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.hourlyRate}
                   onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                 />
@@ -259,9 +260,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   id="overtimeRate"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.overtimeRate}
                   onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
+                  placeholder="Aceita qualquer valor"
                 />
+                <p className="text-xs text-gray-500">Pode ser igual ou menor que o valor da hora normal</p>
               </div>
 
               <div className="flex justify-end space-x-2">

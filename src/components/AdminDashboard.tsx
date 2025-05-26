@@ -30,7 +30,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
 
   useEffect(() => {
     loadDashboardData();
-    const interval = setInterval(loadDashboardData, 30000); // Atualiza a cada 30 segundos
+    const interval = setInterval(loadDashboardData, 5000); // Atualiza a cada 5 segundos para tempo real
     return () => clearInterval(interval);
   }, [employees]);
 
@@ -40,30 +40,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
       setTotalEmployees(employees.length);
       setTotalAdmins(employees.filter(employee => employee.role === 'admin').length);
 
-      // Simulação de dados de horas e ganhos (substitua pela lógica real)
-      const simulatedTotalHours = employees.reduce((acc, employee) => acc + 40, 0); // 40 horas por funcionário
-      const simulatedTotalEarnings = employees.reduce((acc, employee) => acc + (employee.hourlyRate * 40), 0); // Taxa horária * 40 horas
+      // Simulação de dados de horas e ganhos
+      const simulatedTotalHours = employees.reduce((acc, employee) => acc + 40, 0);
+      const simulatedTotalEarnings = employees.reduce((acc, employee) => acc + (employee.hourlyRate * 40), 0);
 
       setTotalHours(simulatedTotalHours);
       setTotalEarnings(simulatedTotalEarnings);
 
-      // Verificar em tempo real quem está trabalhando
+      // Verificar em tempo real quem está trabalhando através dos registros do Supabase
       const today = new Date().toISOString().split('T')[0];
       const working: User[] = [];
       const notWorking: User[] = [];
 
       for (const employee of employees) {
-        if (employee.role === 'user') { // Apenas funcionários, não admins
-          const todayRecord = localStorage.getItem(`tcponto_record_${today}`);
-          if (todayRecord) {
-            const record = JSON.parse(todayRecord);
-            // Se tem entrada mas não tem saída, está trabalhando
-            if (record.clockIn && !record.clockOut) {
-              working.push(employee);
+        if (employee.role === 'user') {
+          try {
+            const { data: todayRecord, error } = await supabase
+              .from('time_records')
+              .select('*')
+              .eq('user_id', employee.id)
+              .eq('date', today)
+              .single();
+
+            if (!error && todayRecord) {
+              // Se tem entrada mas não tem saída, está trabalhando
+              if (todayRecord.clock_in && !todayRecord.clock_out) {
+                working.push(employee);
+              } else {
+                notWorking.push(employee);
+              }
             } else {
               notWorking.push(employee);
             }
-          } else {
+          } catch (error) {
             notWorking.push(employee);
           }
         }
@@ -141,21 +150,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             <CardTitle className="flex items-center gap-2 text-green-600">
               <UserCheck className="w-5 h-5" />
               Funcionários Trabalhando Agora
+              <span className="text-sm bg-green-100 px-2 py-1 rounded-full">Em Tempo Real</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600 mb-4">
               {workingEmployees.length}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-40 overflow-y-auto">
               {workingEmployees.map((employee) => (
-                <div key={employee.id} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
-                  <span className="font-medium">{employee.name}</span>
-                  <span className="text-sm text-green-600">Trabalhando</span>
+                <div key={employee.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                  <span className="font-medium text-green-800">{employee.name}</span>
+                  <span className="text-sm text-green-600 bg-green-200 px-2 py-1 rounded">Trabalhando</span>
                 </div>
               ))}
               {workingEmployees.length === 0 && (
-                <p className="text-gray-500 text-sm">Nenhum funcionário trabalhando no momento</p>
+                <div className="text-center py-8">
+                  <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Nenhum funcionário trabalhando no momento</p>
+                </div>
               )}
             </div>
           </CardContent>
@@ -166,21 +179,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             <CardTitle className="flex items-center gap-2 text-red-600">
               <UserX className="w-5 h-5" />
               Funcionários Não Trabalhando
+              <span className="text-sm bg-red-100 px-2 py-1 rounded-full">Em Tempo Real</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600 mb-4">
               {notWorkingEmployees.length}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-40 overflow-y-auto">
               {notWorkingEmployees.map((employee) => (
-                <div key={employee.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg">
-                  <span className="font-medium">{employee.name}</span>
-                  <span className="text-sm text-red-600">Fora do expediente</span>
+                <div key={employee.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                  <span className="font-medium text-red-800">{employee.name}</span>
+                  <span className="text-sm text-red-600 bg-red-200 px-2 py-1 rounded">Fora do expediente</span>
                 </div>
               ))}
               {notWorkingEmployees.length === 0 && (
-                <p className="text-gray-500 text-sm">Todos os funcionários estão trabalhando</p>
+                <div className="text-center py-8">
+                  <UserCheck className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Todos os funcionários estão trabalhando</p>
+                </div>
               )}
             </div>
           </CardContent>
