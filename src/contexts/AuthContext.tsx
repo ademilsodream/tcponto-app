@@ -24,8 +24,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const fetchUserProfile = async (userId: string): Promise<User | null> => {
     try {
@@ -64,63 +64,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateAuthState = async (session: Session | null) => {
+    console.log('Updating auth state, session exists:', !!session);
+    
+    if (session?.user) {
+      const userData = await fetchUserProfile(session.user.id);
+      if (userData) {
+        setUser(userData);
+        setIsAuthenticated(true);
+        console.log('User authenticated successfully:', userData.role);
+      } else {
+        console.error('Failed to load user profile');
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    } else {
+      console.log('No session, clearing user state');
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+    
+    setLoading(false);
+  };
+
   useEffect(() => {
     console.log('AuthProvider initializing...');
+    
+    let mounted = true;
 
-    // Configurar listener de mudanças de autenticação
+    // Setup auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
         
-        if (session?.user) {
-          console.log('User session found, fetching profile...');
-          const userData = await fetchUserProfile(session.user.id);
-          
-          if (userData) {
-            setUser(userData);
-            setIsAuthenticated(true);
-            console.log('User authenticated successfully:', userData.role);
-          } else {
-            console.error('Failed to load user profile');
-            setUser(null);
-            setIsAuthenticated(false);
-          }
-        } else {
-          console.log('No session, clearing user state');
-          setUser(null);
-          setIsAuthenticated(false);
+        if (mounted) {
+          await updateAuthState(session);
         }
-        
-        setLoading(false);
       }
     );
 
-    // Verificar sessão existente
+    // Check for existing session
     const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error getting session:', error);
-          setLoading(false);
+          if (mounted) {
+            setLoading(false);
+          }
           return;
         }
         
         console.log('Initial session check:', session?.user?.email || 'No session');
         
-        if (!session) {
-          setLoading(false);
+        if (mounted) {
+          await updateAuthState(session);
         }
-        // Se há sessão, o onAuthStateChange vai processar
       } catch (error) {
         console.error('Error in initializeAuth:', error);
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
     initializeAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -145,8 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
-        console.log('Login successful, waiting for auth state change...');
-        // O estado será atualizado pelo onAuthStateChange
+        console.log('Login successful for:', data.user.email);
+        // Auth state will be updated by onAuthStateChange
         return { success: true };
       }
 
@@ -163,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Logging out...');
       await supabase.auth.signOut();
-      // O estado será limpo pelo onAuthStateChange
+      // Auth state will be cleared by onAuthStateChange
     } catch (error) {
       console.error('Error during logout:', error);
     }

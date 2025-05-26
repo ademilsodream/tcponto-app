@@ -19,11 +19,11 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirecionamento simples e direto
+  // Handle redirection when user becomes authenticated
   useEffect(() => {
     console.log('Login page - Auth status:', { isAuthenticated, authLoading, userRole: user?.role });
     
-    if (isAuthenticated && !authLoading && user) {
+    if (!authLoading && isAuthenticated && user) {
       console.log('User is authenticated, redirecting to dashboard...');
       toast({
         title: "Login realizado com sucesso!",
@@ -36,14 +36,14 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (isLoading) return;
+    if (isLoading || authLoading) return;
     
     setError('');
     setIsLoading(true);
 
     console.log('Login form submitted for:', email);
 
-    // Validações básicas
+    // Basic validations
     if (!email.trim() || !password.trim()) {
       setError('Por favor, preencha todos os campos');
       setIsLoading(false);
@@ -61,12 +61,10 @@ const Login = () => {
       
       console.log('Login result:', result);
       
-      if (result.success) {
-        console.log('Login successful, waiting for redirect...');
-        // O redirecionamento será feito pelo useEffect quando o estado mudar
-      } else {
+      if (!result.success) {
         setError(result.error || 'Erro ao fazer login');
       }
+      // If successful, redirection will be handled by useEffect
     } catch (err) {
       console.error('Login form error:', err);
       setError('Erro inesperado. Tente novamente.');
@@ -75,7 +73,7 @@ const Login = () => {
     }
   };
 
-  // Loading durante verificação inicial
+  // Show loading during initial auth check
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">

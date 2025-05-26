@@ -13,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   console.log('ProtectedRoute - Auth status:', { isAuthenticated, loading });
 
-  // Mostrar loading enquanto verifica autenticação
+  // Show loading while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center">
@@ -25,13 +25,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  // Redirecionar para login se não autenticado
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     console.log('User not authenticated, redirecting to login');
     return <Navigate to="/login" replace />;
   }
 
-  // Usuário autenticado, mostrar conteúdo
+  // User authenticated, show content
   return <>{children}</>;
 };
 
