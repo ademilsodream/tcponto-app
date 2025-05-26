@@ -30,8 +30,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
 
   useEffect(() => {
     loadDashboardData();
-    const interval = setInterval(loadDashboardData, 5000); // Atualiza a cada 5 segundos para tempo real
-    return () => clearInterval(interval);
   }, [employees]);
 
   const loadDashboardData = async () => {
@@ -40,12 +38,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
       setTotalEmployees(employees.length);
       setTotalAdmins(employees.filter(employee => employee.role === 'admin').length);
 
-      // Simulação de dados de horas e ganhos
-      const simulatedTotalHours = employees.reduce((acc, employee) => acc + 40, 0);
-      const simulatedTotalEarnings = employees.reduce((acc, employee) => acc + (employee.hourlyRate * 40), 0);
+      // Buscar dados reais de horas e ganhos do banco de dados
+      const { data: timeRecords, error } = await supabase
+        .from('time_records')
+        .select('total_hours, total_pay');
 
-      setTotalHours(simulatedTotalHours);
-      setTotalEarnings(simulatedTotalEarnings);
+      if (error) {
+        console.error('Error loading time records:', error);
+        setTotalHours(0);
+        setTotalEarnings(0);
+      } else {
+        const calculatedTotalHours = timeRecords.reduce((acc, record) => acc + Number(record.total_hours || 0), 0);
+        const calculatedTotalEarnings = timeRecords.reduce((acc, record) => acc + Number(record.total_pay || 0), 0);
+        
+        setTotalHours(calculatedTotalHours);
+        setTotalEarnings(calculatedTotalEarnings);
+      }
 
       // Verificar em tempo real quem está trabalhando através dos registros do Supabase
       const today = new Date().toISOString().split('T')[0];
@@ -122,11 +130,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-500" />
-              Total de Horas Trabalhadas (Simulado)
+              Total de Horas Trabalhadas
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalHours}</div>
+            <div className="text-2xl font-bold">{totalHours.toFixed(1)}</div>
           </CardContent>
         </Card>
 
@@ -134,7 +142,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-500" />
-              Total de Ganhos (Simulado)
+              Total de Ganhos
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -109,15 +109,6 @@ const Login = () => {
                 )}
               </Button>
             </form>
-
-            <div className="mt-6 pt-6 border-t text-center text-sm text-gray-600">
-              <p className="mb-2"><strong>Contas de demonstração:</strong></p>
-              <div className="space-y-1">
-                <p><strong>Funcionário:</strong> joao@tcponto.com</p>
-                <p><strong>Admin:</strong> admin@tcponto.com</p>
-                <p className="text-primary-600"><strong>Senha:</strong> 123456</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
