@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import AdminPanel from '@/components/AdminPanel';
 import PayrollReport from '@/components/PayrollReport';
 import LocationReport from '@/components/LocationReport';
 import MonthlyControl from '@/components/MonthlyControl';
-import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
+import DetailedTimeReport from '@/components/DetailedTimeReport';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -90,7 +91,7 @@ const Dashboard = () => {
       case 'payrollReport':
         return <PayrollReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       case 'detailedReport':
-        return <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => setActiveTab('adminDashboard')} />;
+        return <DetailedTimeReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       case 'locationReport':
         return <LocationReport employees={employees} />;
       default:
