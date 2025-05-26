@@ -8,78 +8,48 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated, loading: authLoading, user } = useAuth();
+  const { login, user, loading } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
-  // Handle redirection when user becomes authenticated
+  // Redirecionar se já estiver logado
   useEffect(() => {
-    console.log('Login page - Auth status:', { isAuthenticated, authLoading, userRole: user?.role });
-    
-    if (!authLoading && isAuthenticated && user) {
-      console.log('User is authenticated, redirecting to dashboard...');
-      toast({
-        title: "Login realizado com sucesso!",
-        description: `Bem-vindo, ${user.name}`
-      });
+    if (!loading && user) {
       navigate('/dashboard', { replace: true });
     }
-  }, [isAuthenticated, authLoading, user, navigate, toast]);
+  }, [user, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (isLoading || authLoading) return;
-    
     setError('');
     setIsLoading(true);
 
-    console.log('Login form submitted for:', email);
-
-    // Basic validations
-    if (!email.trim() || !password.trim()) {
-      setError('Por favor, preencha todos os campos');
+    if (!email || !password) {
+      setError('Preencha todos os campos');
       setIsLoading(false);
       return;
     }
 
-    if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres');
-      setIsLoading(false);
-      return;
+    const result = await login(email, password);
+    
+    if (!result.success) {
+      setError(result.error || 'Erro ao fazer login');
     }
-
-    try {
-      const result = await login(email.trim(), password);
-      
-      console.log('Login result:', result);
-      
-      if (!result.success) {
-        setError(result.error || 'Erro ao fazer login');
-      }
-      // If successful, redirection will be handled by useEffect
-    } catch (err) {
-      console.error('Login form error:', err);
-      setError('Erro inesperado. Tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
+    
+    setIsLoading(false);
   };
 
-  // Show loading during initial auth check
-  if (authLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center">
         <div className="text-center text-white">
           <Clock className="w-8 h-8 animate-spin mx-auto mb-4" />
-          <p>Verificando autenticação...</p>
+          <p>Carregando...</p>
         </div>
       </div>
     );
@@ -88,7 +58,7 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8 animate-fade-in">
+        <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
             <img 
               src="/lovable-uploads/4b2c75fc-26d4-4be4-9e7e-3a415e06b623.png" 
@@ -100,14 +70,14 @@ const Login = () => {
           <p className="text-primary-100">Sistema de Controle de Ponto</p>
         </div>
 
-        <Card className="shadow-2xl border-0 animate-fade-in">
+        <Card className="shadow-2xl border-0">
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center gap-2 text-primary-900">
               <LogIn className="w-5 h-5" />
               Entrar no Sistema
             </CardTitle>
             <CardDescription>
-              Digite suas credenciais para acessar o sistema
+              Digite suas credenciais para acessar
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -120,8 +90,6 @@ const Login = () => {
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary-500"
                   disabled={isLoading}
                 />
               </div>
@@ -134,9 +102,6 @@ const Login = () => {
                   placeholder="Digite sua senha"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-primary-500"
                   disabled={isLoading}
                 />
               </div>
@@ -149,7 +114,7 @@ const Login = () => {
 
               <Button 
                 type="submit" 
-                className="w-full bg-primary-800 hover:bg-primary-700 text-white"
+                className="w-full bg-primary-800 hover:bg-primary-700"
                 disabled={isLoading}
               >
                 {isLoading ? (

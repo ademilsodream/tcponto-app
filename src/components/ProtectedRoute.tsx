@@ -9,29 +9,23 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { user, loading } = useAuth();
 
-  console.log('ProtectedRoute - Auth status:', { isAuthenticated, loading });
-
-  // Show loading while checking authentication
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center">
         <div className="text-center">
           <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-600" />
-          <p className="text-primary-600">Verificando acesso...</p>
+          <p className="text-primary-600">Carregando...</p>
         </div>
       </div>
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    console.log('User not authenticated, redirecting to login');
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // User authenticated, show content
   return <>{children}</>;
 };
 
