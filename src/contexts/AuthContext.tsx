@@ -36,6 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
+    // Verificar sessão existente
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadUserData(session.user);
+      } else {
+        setLoading(false);
+      }
+    });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -51,6 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Erro ao carregar perfil:', error);
+        setLoading(false);
         return;
       }
 
@@ -63,8 +73,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: profile.role === 'admin' ? 'admin' : 'user'
         });
       }
+      setLoading(false);
     } catch (error) {
       console.error('Erro ao carregar dados do usuário:', error);
+      setLoading(false);
     }
   };
 
