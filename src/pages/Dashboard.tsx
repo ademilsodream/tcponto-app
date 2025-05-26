@@ -11,24 +11,22 @@ import { cn } from '@/lib/utils';
 import TimeRegistration from '@/components/TimeRegistration';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
 import AdminPanel from '@/components/AdminPanel';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const { user, profile, signOut } = useSupabaseAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (!error) {
-      navigate('/login');
-    }
+  const handleSignOut = () => {
+    logout();
+    navigate('/login');
   };
 
-  const isAdmin = profile?.role === 'admin';
-  const userName = profile?.name || user?.email || 'Usuário';
+  const isAdmin = user?.role === 'admin';
+  const userName = user?.name || user?.email || 'Usuário';
 
   if (showAdminPanel) {
     return <AdminPanel onBack={() => setShowAdminPanel(false)} />;

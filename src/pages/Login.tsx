@@ -7,14 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
-import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useSupabaseAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,11 +23,11 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await signIn(email, password);
-      if (error) {
-        setError('E-mail ou senha inválidos');
-      } else {
+      const success = await login(email, password);
+      if (success) {
         navigate('/dashboard');
+      } else {
+        setError('E-mail ou senha inválidos');
       }
     } catch (err) {
       setError('Erro ao fazer login');
