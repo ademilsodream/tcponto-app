@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { initializeApp } from '@/utils/initializeApp';
-import { useToast } = '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
