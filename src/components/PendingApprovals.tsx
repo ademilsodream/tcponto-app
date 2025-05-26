@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Clock, AlertCircle, Unlock } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Clock, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  hourlyRate: number;
+  overtimeRate: number;
+}
 
 interface EditRequest {
   id: string;
@@ -24,7 +31,7 @@ interface PendingApprovalsProps {
     id: string;
     name: string;
     email: string;
-    role: 'admin' | 'employee';
+    role: 'admin' | 'user';
     hourlyRate: number;
     overtimeRate: number;
   }>;
