@@ -11,9 +11,11 @@ import { cn } from '@/lib/utils';
 import SupabaseTimeRegistration from '@/components/SupabaseTimeRegistration';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
+import AdminPanel from '@/components/AdminPanel';
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const { user, profile, signOut } = useSupabaseAuth();
 
   const handleSignOut = async () => {
@@ -21,6 +23,10 @@ const Dashboard = () => {
   };
 
   const isAdmin = profile?.role === 'admin';
+
+  if (showAdminPanel) {
+    return <AdminPanel onBack={() => setShowAdminPanel(false)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50">
@@ -45,11 +51,19 @@ const Dashboard = () => {
               
               {isAdmin && (
                 <div className="flex space-x-2">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowAdminPanel(true)}
+                  >
                     <Users className="w-4 h-4 mr-2" />
                     Usuários
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowAdminPanel(true)}
+                  >
                     <BarChart3 className="w-4 h-4 mr-2" />
                     Relatórios
                   </Button>
