@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -77,6 +76,27 @@ const Dashboard = () => {
 
   const isAdmin = user?.role === 'admin';
   const userName = user?.name || user?.email || 'Usuário';
+
+  const renderTabContent = () => {
+    if (loading) {
+      return <div>Carregando...</div>;
+    }
+
+    switch (activeTab) {
+      case 'adminDashboard':
+        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
+      case 'monthlyControl':
+        return <MonthlyControl employees={employees} />;
+      case 'payrollReport':
+        return <PayrollReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
+      case 'detailedReport':
+        return <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => setActiveTab('adminDashboard')} />;
+      case 'locationReport':
+        return <LocationReport employees={employees} />;
+      default:
+        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
+    }
+  };
 
   // Layout para funcionário comum
   if (!isAdmin) {
@@ -174,28 +194,6 @@ const Dashboard = () => {
       </div>
     );
   }
-
-  // Layout para Admin
-  const renderTabContent = () => {
-    if (loading) {
-      return <div>Carregando...</div>;
-    }
-
-    switch (activeTab) {
-      case 'adminDashboard':
-        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
-      case 'monthlyControl':
-        return <MonthlyControl employees={employees} />;
-      case 'payrollReport':
-        return <PayrollReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
-      case 'detailedReport':
-        return <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => setActiveTab('detailedReport')} />;
-      case 'locationReport':
-        return <LocationReport employees={employees} />;
-      default:
-        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50">
