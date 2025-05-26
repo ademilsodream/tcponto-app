@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { calculateWorkingHours } from '@/utils/timeCalculations';
 
 interface TimeRecord {
   id: string;
@@ -36,6 +37,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
 }) => {
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hourlyRate, setHourlyRate] = useState(50);
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
 
@@ -53,11 +55,41 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     return dates;
   };
 
+  // Função para calcular valores (hora extra = hora normal)
+  const calculatePay = (normalHours: number, overtimeHours: number, hourlyRate: number) => {
+    const normalPay = normalHours * hourlyRate;
+    const overtimePay = overtimeHours * hourlyRate; // Hora extra com mesmo valor da hora normal
+    const totalPay = normalPay + overtimePay;
+    
+    return { normalPay, overtimePay, totalPay };
+  };
+
   useEffect(() => {
     if (user) {
       loadRecords();
+      loadUserProfile();
     }
   }, [selectedMonth, user]);
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('hourly_rate')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setHourlyRate(Number(data.hourly_rate));
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
 
   const loadRecords = async () => {
     if (!user) return;
@@ -77,7 +109,65 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         .order('date');
 
       if (error) throw error;
-      setRecords(data || []);
+
+      // Gerar todas as datas do mês
+      const allDates = generateMonthDates(selectedMonth);
+      
+      // Criar um mapa dos registros por data
+      const recordsMap = (data || []).reduce((acc, record) => {
+        acc[record.date] = record;
+        return acc;
+      }, {} as Record<string, any>);
+
+      // Combinar todas as datas com os registros existentes
+      const completeRecords: TimeRecord[] = allDates.map(dateString => {
+        const record = recordsMap[dateString];
+        
+        if (record) {
+          // Usar a função padronizada com tolerância de 15 minutos
+          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
+            record.clock_in || '',
+            record.lunch_start || '',
+            record.lunch_end || '',
+            record.clock_out || ''
+          );
+          
+          // Calcular valores com hora extra igual à hora normal
+          const { normalPay, overtimePay, totalPay } = calculatePay(
+            normalHours,
+            overtimeHours,
+            hourlyRate
+          );
+
+          return {
+            id: record.id,
+            date: record.date,
+            clock_in: record.clock_in,
+            lunch_start: record.lunch_start,
+            lunch_end: record.lunch_end,
+            clock_out: record.clock_out,
+            total_hours: totalHours,
+            normal_hours: normalHours,
+            overtime_hours: overtimeHours,
+            normal_pay: normalPay,
+            overtime_pay: overtimePay,
+            total_pay: totalPay
+          };
+        }
+
+        return {
+          id: `empty-${dateString}`,
+          date: dateString,
+          total_hours: 0,
+          normal_hours: 0,
+          overtime_hours: 0,
+          normal_pay: 0,
+          overtime_pay: 0,
+          total_pay: 0
+        };
+      });
+
+      setRecords(completeRecords);
     } catch (error) {
       console.error('Error loading records:', error);
     } finally {
@@ -89,15 +179,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     const date = new Date(dateString);
     return format(date, 'EEEE', { locale: ptBR });
   };
-
-  // Gerar todas as datas do mês
-  const allDates = generateMonthDates(selectedMonth);
-  
-  // Criar um mapa dos registros por data
-  const recordsMap = records.reduce((acc, record) => {
-    acc[record.date] = record;
-    return acc;
-  }, {} as Record<string, TimeRecord>);
 
   const totals = records.reduce((acc, record) => ({
     totalHours: acc.totalHours + Number(record.total_hours),
@@ -150,21 +231,20 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allDates.map((dateString) => {
-                const record = recordsMap[dateString];
-                const dayOfWeek = getDayOfWeek(dateString);
+              {records.map((record) => {
+                const dayOfWeek = getDayOfWeek(record.date);
                 
                 return (
-                  <TableRow key={dateString}>
-                    <TableCell>{format(new Date(dateString), 'dd/MM/yyyy')}</TableCell>
+                  <TableRow key={record.id}>
+                    <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>{dayOfWeek}</TableCell>
-                    <TableCell>{record?.clock_in || '-'}</TableCell>
-                    <TableCell>{record?.lunch_start || '-'}</TableCell>
-                    <TableCell>{record?.lunch_end || '-'}</TableCell>
-                    <TableCell>{record?.clock_out || '-'}</TableCell>
-                    <TableCell>{record ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                    <TableCell>{record ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                    <TableCell>{record ? formatCurrency(Number(record.total_pay)) : '-'}</TableCell>
+                    <TableCell>{record.clock_in || '-'}</TableCell>
+                    <TableCell>{record.lunch_start || '-'}</TableCell>
+                    <TableCell>{record.lunch_end || '-'}</TableCell>
+                    <TableCell>{record.clock_out || '-'}</TableCell>
+                    <TableCell>{record.total_hours > 0 ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                    <TableCell>{record.overtime_hours > 0 ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                    <TableCell>{record.total_pay > 0 ? formatCurrency(Number(record.total_pay)) : '-'}</TableCell>
                   </TableRow>
                 );
               })}

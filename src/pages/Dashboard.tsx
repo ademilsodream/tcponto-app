@@ -170,6 +170,18 @@ const Dashboard = () => {
                         onSelect={(date) => date && setSelectedDate(date)}
                         initialFocus
                         locale={ptBR}
+                        disabled={(date) => {
+                          const today = new Date();
+                          const currentMonth = today.getMonth();
+                          const currentYear = today.getFullYear();
+                          
+                          // Desabilitar datas futuras e data atual
+                          if (date >= today) return true;
+                          
+                          // Só permitir datas do mês atual
+                          return date.getMonth() !== currentMonth || date.getFullYear() !== currentYear;
+                        }}
+                        className="pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>

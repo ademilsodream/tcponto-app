@@ -99,21 +99,6 @@ export type Database = {
         }
         Relationships: []
       }
-      tcponto: {
-        Row: {
-          created_at: string
-          id: number
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-        }
-        Update: {
-          created_at?: string
-          id?: number
-        }
-        Relationships: []
-      }
       time_records: {
         Row: {
           approved_at: string | null

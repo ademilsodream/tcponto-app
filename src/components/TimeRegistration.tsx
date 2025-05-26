@@ -495,7 +495,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       await saveTimeRecord(finalRecord, needsApproval);
       
       setRecord(finalRecord);
-      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (${location.address})${needsApproval ? ' - Aguardando aprovação administrativa' : ''}`);
+      setMessage(`${getFieldLabel(field)} registrado: ${currentTime}${needsApproval ? ' - Aguardando aprovação administrativa' : ''}`);
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
       console.error('Error registering time:', error);
@@ -765,30 +765,43 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           })}
         </div>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="space-y-4">
-              <Textarea
-                placeholder="Motivo da alteração (obrigatório para todos os registros)"
-                value={batchEditReason}
-                onChange={(e) => setBatchEditReason(e.target.value)}
-                className="text-sm"
-                rows={3}
-              />
-              <Button
-                onClick={handleBatchSubmit}
-                disabled={isSubmittingBatch || 
-                  !batchEditValues.clockIn || !batchEditValues.lunchStart || 
-                  !batchEditValues.lunchEnd || !batchEditValues.clockOut ||
-                  !batchEditReason.trim()}
-                className="w-full bg-primary-600 hover:bg-primary-700"
-                size="lg"
-              >
-                {isSubmittingBatch ? 'Enviando...' : 'Enviar Solicitação de Ajustes'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {!editRequestedFields.has('clockIn') && !editRequestedFields.has('lunchStart') && 
+         !editRequestedFields.has('lunchEnd') && !editRequestedFields.has('clockOut') && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <Textarea
+                  placeholder="Motivo da alteração (obrigatório para todos os registros)"
+                  value={batchEditReason}
+                  onChange={(e) => setBatchEditReason(e.target.value)}
+                  className="text-sm"
+                  rows={3}
+                />
+                <Button
+                  onClick={handleBatchSubmit}
+                  disabled={isSubmittingBatch || 
+                    !batchEditValues.clockIn || !batchEditValues.lunchStart || 
+                    !batchEditValues.lunchEnd || !batchEditValues.clockOut ||
+                    !batchEditReason.trim()}
+                  className="w-full bg-primary-600 hover:bg-primary-700"
+                  size="lg"
+                >
+                  {isSubmittingBatch ? 'Enviando...' : 'Enviar Solicitação de Ajustes'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {(editRequestedFields.has('clockIn') || editRequestedFields.has('lunchStart') || 
+          editRequestedFields.has('lunchEnd') || editRequestedFields.has('clockOut')) && (
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-amber-800">
+              Solicitação de alteração enviada. Aguardando aprovação administrativa.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
     );
   };
