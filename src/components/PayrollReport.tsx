@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [endDate, setEndDate] = useState('2025-05-31');
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
-  const [showDetailedReport, setShowDetailedReport] = useState(false);
   const [loading, setLoading] = useState(false);
   const { formatCurrency } = useCurrency();
 
@@ -180,12 +180,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     return payrollData.reduce((sum, data) => sum + data.totalPay, 0);
   };
 
-  if (showDetailedReport) {
-    // Converter dados dos funcionários do banco para o formato esperado
-    const employeesForReport = payrollData.map(data => data.employee);
-    return <DetailedTimeReport employees={employeesForReport} onBack={() => setShowDetailedReport(false)} />;
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -206,18 +200,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                 <h1 className="text-xl font-semibold text-primary-900">Folha de Pagamento</h1>
                 <p className="text-sm text-gray-600">Relatório de pagamentos por período</p>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={() => setShowDetailedReport(true)}
-                variant="outline"
-                size="sm"
-                className="text-primary-700 border-primary-200 hover:bg-primary-50"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                Relatório Detalhado
-              </Button>
             </div>
           </div>
         </div>
