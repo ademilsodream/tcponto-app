@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface TimeRecord {
@@ -54,23 +55,22 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const { formatCurrency } = useCurrency();
+  const { user } = useAuth();
 
-  // Usuário simulado - em produção seria obtido do contexto de autenticação
-  const user = {
-    id: 'user_1',
-    name: 'João Silva',
-    email: 'joao@tcponto.com',
-    role: 'employee' as const,
-    hourlyRate: 50,
-    overtimeRate: 75
-  };
+  // Taxa horária padrão para funcionário
+  const hourlyRate = 50;
+  const overtimeRate = 75;
 
   // Carregar dados do Supabase quando a data muda
   useEffect(() => {
-    loadTimeRecord();
-  }, [selectedDate]);
+    if (user) {
+      loadTimeRecord();
+    }
+  }, [selectedDate, user]);
 
   const loadTimeRecord = async () => {
+    if (!user) return;
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -141,6 +141,10 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   };
 
   const saveTimeRecord = async (updatedRecord: TimeRecord, needsApproval = false) => {
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
+
     try {
       const today = new Date().toISOString().split('T')[0];
       const isToday = selectedDate === today;
@@ -208,6 +212,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   };
 
   const markFieldAsRequested = (field: string) => {
+    if (!user) return;
+    
     const newSet = new Set(editRequestedFields);
     newSet.add(field);
     setEditRequestedFields(newSet);
@@ -315,6 +321,12 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   };
 
   const handleRegisterTime = async (field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    if (!user) {
+      setMessage('Erro: Usuário não autenticado');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
     const currentTime = getCurrentTime();
     setIsGettingLocation(true);
 
@@ -341,8 +353,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         updatedRecord.clockOut
       );
 
-      const normalPay = normalHours * user.hourlyRate;
-      const overtimePay = overtimeHours * user.overtimeRate;
+      const normalPay = normalHours * hourlyRate;
+      const overtimePay = overtimeHours * overtimeRate;
       const totalPay = normalPay + overtimePay;
 
       const finalRecord = {
@@ -379,8 +391,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         updatedRecord.clockOut
       );
 
-      const normalPay = normalHours * user.hourlyRate;
-      const overtimePay = overtimeHours * user.overtimeRate;
+      const normalPay = normalHours * hourlyRate;
+      const overtimePay = overtimeHours * overtimeRate;
       const totalPay = normalPay + overtimePay;
 
       const finalRecord = {
@@ -420,7 +432,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   };
 
   const handleSaveEdit = async () => {
-    if (!editingField) return;
+    if (!editingField || !user) return;
 
     if (!editReason.trim()) {
       setMessage('Por favor, informe o motivo da alteração');
@@ -451,7 +463,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       // Salvar solicitação de edição no banco
       const editRequest = {
         employee_id: user.id,
-        employee_name: user.name,
+        employee_name: user.name || user.email,
         date: record.date,
         field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
         old_value: currentValue,
@@ -479,7 +491,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       const editRequest = {
         id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         employeeId: user.id,
-        employeeName: user.name,
+        employeeName: user.name || user.email,
         date: record.date,
         field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
         oldValue: currentValue,
@@ -543,6 +555,14 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-lg">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-lg text-red-600">Por favor, faça login para acessar o sistema de ponto.</div>
       </div>
     );
   }
