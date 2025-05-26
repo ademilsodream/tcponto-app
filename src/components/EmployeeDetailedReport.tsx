@@ -2,17 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText, CalendarIcon } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { cn } from '@/lib/utils';
 
 interface TimeRecord {
   id: string;
@@ -41,22 +40,39 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   const [loading, setLoading] = useState(true);
   const [hourlyRate, setHourlyRate] = useState(50);
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [startDate, setStartDate] = useState<Date>(new Date());
-  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [startDate, setStartDate] = useState('2025-05-01');
+  const [endDate, setEndDate] = useState('2025-05-31');
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
 
   // Função para gerar todas as datas do período EXATO
-  const generateDateRange = (start: Date, end: Date) => {
+  const generateDateRange = (start: string, end: string) => {
     const dates = [];
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    
+    console.log('Gerando datas do período:', start, 'até', end);
+    console.log('Start date object:', startDate);
+    console.log('End date object:', endDate);
     
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const dateString = format(date, 'yyyy-MM-dd');
       dates.push(dateString);
     }
+    
+    console.log('Datas geradas:', dates);
     return dates;
+  };
+
+  // Função para validar se uma data está dentro do período
+  const isDateInPeriod = (dateStr: string, start: string, end: string) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    
+    const isValid = date >= startDate && date <= endDate;
+    console.log(`Data ${dateStr} está no período ${start} a ${end}?`, isValid);
+    return isValid;
   };
 
   // Função para calcular valores (hora extra = hora normal)
@@ -115,36 +131,45 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   const loadRecords = async () => {
     if (!user || !profileLoaded || !startDate || !endDate) return;
 
+    console.log('=== INÍCIO CARREGAMENTO REGISTROS ===');
+    console.log('Período selecionado:', startDate, 'até', endDate);
     console.log('Carregando registros com valor da hora:', hourlyRate);
+    
     setLoading(true);
     try {
-      const startDateStr = format(startDate, 'yyyy-MM-dd');
-      const endDateStr = format(endDate, 'yyyy-MM-dd');
-
-      console.log('Buscando registros entre:', startDateStr, 'e', endDateStr);
+      // Gerar APENAS as datas do período selecionado
+      const dateRange = generateDateRange(startDate, endDate);
+      console.log('Range de datas gerado:', dateRange);
 
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
         .eq('user_id', user.id)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr)
+        .gte('date', startDate)
+        .lte('date', endDate)
         .eq('status', 'active')
         .order('date');
 
       if (error) throw error;
 
-      // Gerar todas as datas do período selecionado
-      const allDates = generateDateRange(startDate, endDate);
-      
+      console.log('Registros encontrados na consulta:', data);
+
       // Criar um mapa dos registros por data
       const recordsMap = (data || []).reduce((acc, record) => {
-        acc[record.date] = record;
+        // Validar se a data do registro está REALMENTE no período
+        if (isDateInPeriod(record.date, startDate, endDate)) {
+          acc[record.date] = record;
+          console.log('Registro adicionado ao mapa:', record.date, record);
+        } else {
+          console.log('Registro REJEITADO (fora do período):', record.date);
+        }
         return acc;
       }, {} as Record<string, any>);
 
-      // Combinar todas as datas com os registros existentes
-      const completeRecords: TimeRecord[] = allDates.map(dateString => {
+      console.log('Mapa de registros válidos:', recordsMap);
+
+      // Combinar APENAS as datas do período com os registros existentes
+      const completeRecords: TimeRecord[] = dateRange.map(dateString => {
         const record = recordsMap[dateString];
         
         if (record) {
@@ -193,6 +218,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         };
       });
 
+      console.log('Registros completos para exibição:', completeRecords);
+      console.log('Total de datas no resultado:', completeRecords.length);
       setRecords(completeRecords);
     } catch (error) {
       console.error('Error loading records:', error);
@@ -202,7 +229,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   };
 
   const getDayOfWeek = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = new Date(dateString + 'T00:00:00');
     return format(date, 'EEEE', { locale: ptBR });
   };
 
@@ -245,57 +272,23 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
           <h3 className="text-lg font-semibold mb-4">Seletor de Período</h3>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Data Inicial</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data inicial</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => date && setStartDate(date)}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label className="text-sm font-medium text-gray-700">Data Inicial</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-10"
+              />
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-2">Data Final</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data final</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={(date) => date && setEndDate(date)}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label className="text-sm font-medium text-gray-700">Data Final</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="h-10"
+              />
             </div>
           </div>
           
@@ -329,7 +322,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
                 
                 return (
                   <TableRow key={record.id}>
-                    <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>{dayOfWeek}</TableCell>
                     <TableCell>{record.clock_in || '-'}</TableCell>
                     <TableCell>{record.lunch_start || '-'}</TableCell>
