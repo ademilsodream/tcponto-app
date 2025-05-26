@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,10 @@ interface TimeRecord {
   lunch_end?: string;
   clock_out?: string;
   total_hours?: number;
+  normal_hours?: number;
   overtime_hours?: number;
+  normal_pay?: number;
+  overtime_pay?: number;
   total_pay?: number;
   profiles?: {
     id: string;
@@ -70,6 +74,42 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const getDayOfWeek = (dateString: string) => {
     const date = new Date(dateString);
     return format(date, 'EEEE', { locale: ptBR });
+  };
+
+  // Função para calcular horas trabalhadas
+  const calculateHours = (clockIn: string, lunchStart: string, lunchEnd: string, clockOut: string) => {
+    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
+
+    const parseTime = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours + minutes / 60;
+    };
+
+    const clockInHours = parseTime(clockIn);
+    const clockOutHours = parseTime(clockOut);
+    const lunchStartHours = lunchStart ? parseTime(lunchStart) : 0;
+    const lunchEndHours = lunchEnd ? parseTime(lunchEnd) : 0;
+
+    // Calcular tempo de almoço
+    const lunchHours = (lunchStart && lunchEnd) ? (lunchEndHours - lunchStartHours) : 0;
+    
+    // Calcular total de horas trabalhadas
+    const totalHours = clockOutHours - clockInHours - lunchHours;
+    
+    // Calcular horas normais e extras (considerando 8h como jornada normal)
+    const normalHours = Math.min(totalHours, 8);
+    const overtimeHours = Math.max(0, totalHours - 8);
+
+    return { totalHours, normalHours, overtimeHours };
+  };
+
+  // Função para calcular valores
+  const calculatePay = (normalHours: number, overtimeHours: number, hourlyRate: number) => {
+    const normalPay = normalHours * hourlyRate;
+    const overtimePay = overtimeHours * hourlyRate * 1.5; // 50% adicional para horas extras
+    const totalPay = normalPay + overtimePay;
+    
+    return { normalPay, overtimePay, totalPay };
   };
 
   const generateSingleEmployeeReport = async () => {
@@ -121,9 +161,40 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return acc;
       }, {} as Record<string, any>);
 
-      // Combinar todas as datas com os registros existentes
+      // Combinar todas as datas com os registros existentes e calcular valores
       const completeRecords: TimeRecord[] = dateRange.map(date => {
         const record = recordsMap[date];
+        
+        if (record && profileData) {
+          // Calcular horas se os dados estão disponíveis
+          const { totalHours, normalHours, overtimeHours } = calculateHours(
+            record.clock_in || '',
+            record.lunch_start || '',
+            record.lunch_end || '',
+            record.clock_out || ''
+          );
+          
+          // Calcular valores
+          const { normalPay, overtimePay, totalPay } = calculatePay(
+            normalHours,
+            overtimeHours,
+            Number(profileData.hourly_rate)
+          );
+
+          return {
+            date,
+            user_id: selectedEmployeeId,
+            profiles: profileData,
+            ...record,
+            total_hours: totalHours,
+            normal_hours: normalHours,
+            overtime_hours: overtimeHours,
+            normal_pay: normalPay,
+            overtime_pay: overtimePay,
+            total_pay: totalPay
+          };
+        }
+
         return {
           date,
           user_id: selectedEmployeeId,
@@ -202,12 +273,41 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
           const key = `${profile.id}-${date}`;
           const record = recordsMap[key];
           
-          completeRecords.push({
-            date,
-            user_id: profile.id,
-            profiles: profile,
-            ...record
-          });
+          if (record) {
+            // Calcular horas se os dados estão disponíveis
+            const { totalHours, normalHours, overtimeHours } = calculateHours(
+              record.clock_in || '',
+              record.lunch_start || '',
+              record.lunch_end || '',
+              record.clock_out || ''
+            );
+            
+            // Calcular valores
+            const { normalPay, overtimePay, totalPay } = calculatePay(
+              normalHours,
+              overtimeHours,
+              Number(profile.hourly_rate)
+            );
+
+            completeRecords.push({
+              date,
+              user_id: profile.id,
+              profiles: profile,
+              ...record,
+              total_hours: totalHours,
+              normal_hours: normalHours,
+              overtime_hours: overtimeHours,
+              normal_pay: normalPay,
+              overtime_pay: overtimePay,
+              total_pay: totalPay
+            });
+          } else {
+            completeRecords.push({
+              date,
+              user_id: profile.id,
+              profiles: profile
+            });
+          }
         });
       });
 
@@ -418,7 +518,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                               <TableCell>{formatTime(record.clock_out || '')}</TableCell>
                               <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
                               <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                              <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
+                              <TableCell>{formatCurrency(Number(record.total_pay || 0))}</TableCell>
                             </TableRow>
                           );
                         })}
