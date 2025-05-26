@@ -45,6 +45,46 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [loading, setLoading] = useState(false);
   const { formatCurrency } = useCurrency();
 
+  const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
+    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
+
+    const parseTime = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const clockInMinutes = parseTime(clockIn);
+    const clockOutMinutes = parseTime(clockOut);
+    const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : 0;
+    const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : 0;
+
+    let lunchBreakMinutes = 0;
+    if (lunchStart && lunchEnd && lunchEndMinutes > lunchStartMinutes) {
+      lunchBreakMinutes = lunchEndMinutes - lunchStartMinutes;
+    }
+
+    const totalWorkedMinutes = clockOutMinutes - clockInMinutes - lunchBreakMinutes;
+    let effectiveWorkedMinutes = totalWorkedMinutes;
+
+    // Se trabalhou mais de 8h, mas menos de 8h15min, considera apenas 8h
+    const extraMinutes = totalWorkedMinutes - 480; // 480 min = 8h
+    if (extraMinutes > 0 && extraMinutes <= 15) {
+      effectiveWorkedMinutes = 480;
+    }
+
+    const totalHours = Math.max(0, effectiveWorkedMinutes / 60);
+
+    let normalHours = Math.min(totalHours, 8);
+    let overtimeHours = 0;
+
+    if (totalHours > 8) {
+      overtimeHours = totalHours - 8;
+      normalHours = 8;
+    }
+
+    return { totalHours, normalHours, overtimeHours };
+  };
+
   const generatePayroll = async () => {
     if (!startDate || !endDate) {
       alert('Selecione o período para gerar a folha de pagamento');
@@ -86,17 +126,28 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
         console.log(`Registros para ${employee.name}:`, timeRecords);
 
-        // Calcular totais
-        const totalHours = timeRecords?.reduce((sum, record) => sum + Number(record.total_hours || 0), 0) || 0;
-        const normalHours = timeRecords?.reduce((sum, record) => sum + Number(record.normal_hours || 0), 0) || 0;
-        const overtimeHours = timeRecords?.reduce((sum, record) => sum + Number(record.overtime_hours || 0), 0) || 0;
+        let totalHours = 0;
+        let totalNormalHours = 0;
+        let totalOvertimeHours = 0;
+
+        // Calcular horas usando a mesma função do relatório detalhado
+        if (timeRecords && timeRecords.length > 0) {
+          timeRecords.forEach(record => {
+            const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
+              calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+            
+            totalHours += dayTotalHours;
+            totalNormalHours += dayNormalHours;
+            totalOvertimeHours += dayOvertimeHours;
+          });
+        }
 
         // Usar o hourly_rate do banco de dados
         const hourlyRate = Number(employee.hourly_rate) || 0;
         
         // Calcular pagamentos - hora extra com mesmo valor da hora normal
-        const normalPay = normalHours * hourlyRate;
-        const overtimePay = overtimeHours * hourlyRate; // Mesmo valor da hora normal
+        const normalPay = totalNormalHours * hourlyRate;
+        const overtimePay = totalOvertimeHours * hourlyRate; // Mesmo valor da hora normal
         const totalPay = normalPay + overtimePay;
 
         payrollResults.push({
@@ -108,8 +159,8 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             overtimeRate: hourlyRate // Mesmo valor da hora normal
           },
           totalHours: Math.round(totalHours * 10) / 10,
-          normalHours: Math.round(normalHours * 10) / 10,
-          overtimeHours: Math.round(overtimeHours * 10) / 10,
+          normalHours: Math.round(totalNormalHours * 10) / 10,
+          overtimeHours: Math.round(totalOvertimeHours * 10) / 10,
           normalPay,
           overtimePay,
           totalPay
