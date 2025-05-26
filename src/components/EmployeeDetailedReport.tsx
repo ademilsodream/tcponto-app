@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -229,7 +228,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
             </Button>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              {user?.name} ({totals.totalHours.toFixed(1)}h - {formatCurrency(totals.totalPay)}) - R${hourlyRate}/h
+              {user?.name}
             </CardTitle>
           </div>
         </CardHeader>
