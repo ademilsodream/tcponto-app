@@ -116,11 +116,14 @@ export type Database = {
       }
       time_records: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           clock_in: string | null
           clock_out: string | null
           created_at: string
           date: string
           id: string
+          is_pending_approval: boolean | null
           locations: Json | null
           lunch_end: string | null
           lunch_start: string | null
@@ -128,17 +131,21 @@ export type Database = {
           normal_pay: number
           overtime_hours: number
           overtime_pay: number
+          status: string | null
           total_hours: number
           total_pay: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           clock_in?: string | null
           clock_out?: string | null
           created_at?: string
           date: string
           id?: string
+          is_pending_approval?: boolean | null
           locations?: Json | null
           lunch_end?: string | null
           lunch_start?: string | null
@@ -146,17 +153,21 @@ export type Database = {
           normal_pay?: number
           overtime_hours?: number
           overtime_pay?: number
+          status?: string | null
           total_hours?: number
           total_pay?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           clock_in?: string | null
           clock_out?: string | null
           created_at?: string
           date?: string
           id?: string
+          is_pending_approval?: boolean | null
           locations?: Json | null
           lunch_end?: string | null
           lunch_start?: string | null
@@ -164,12 +175,21 @@ export type Database = {
           normal_pay?: number
           overtime_hours?: number
           overtime_pay?: number
+          status?: string | null
           total_hours?: number
           total_pay?: number
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "time_records_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_sessions: {
         Row: {

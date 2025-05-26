@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, Lock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TimeRecord {
   id: string;
@@ -51,9 +52,10 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
   const { formatCurrency } = useCurrency();
 
-  // Usuário simulado
+  // Usuário simulado - em produção seria obtido do contexto de autenticação
   const user = {
     id: 'user_1',
     name: 'João Silva',
@@ -63,47 +65,134 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     overtimeRate: 75
   };
 
-  // Carregar dados do localStorage quando a data muda
+  // Carregar dados do Supabase quando a data muda
   useEffect(() => {
-    const savedRecord = localStorage.getItem(`tcponto_record_${selectedDate}`);
-    if (savedRecord) {
-      setRecord(JSON.parse(savedRecord));
-    } else {
-      setRecord({
-        id: `record_${selectedDate}`,
-        date: selectedDate,
-        totalHours: 0,
-        normalHours: 0,
-        overtimeHours: 0,
-        normalPay: 0,
-        overtimePay: 0,
-        totalPay: 0
-      });
-    }
+    loadTimeRecord();
+  }, [selectedDate]);
 
-    // Carregar campos já solicitados para edição
-    const key = `tcponto_edit_requested_${user.id}_${selectedDate}`;
-    const savedFields = localStorage.getItem(key);
-    if (savedFields) {
-      setEditRequestedFields(new Set(JSON.parse(savedFields)));
-    } else {
-      setEditRequestedFields(new Set());
-    }
+  const loadTimeRecord = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('date', selectedDate)
+        .single();
 
-    // Carregar campos que já foram editados com aprovação
-    const approvedKey = `tcponto_approved_edits_${user.id}_${selectedDate}`;
-    const savedApprovedFields = localStorage.getItem(approvedKey);
-    if (savedApprovedFields) {
-      setApprovedEditedFields(new Set(JSON.parse(savedApprovedFields)));
-    } else {
-      setApprovedEditedFields(new Set());
-    }
-  }, [selectedDate, user.id]);
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading time record:', error);
+        return;
+      }
 
-  // Salvar no localStorage sempre que o record muda
-  const updateRecord = (newRecord: TimeRecord) => {
-    setRecord(newRecord);
-    localStorage.setItem(`tcponto_record_${selectedDate}`, JSON.stringify(newRecord));
+      if (data) {
+        const loadedRecord: TimeRecord = {
+          id: data.id,
+          date: data.date,
+          clockIn: data.clock_in || undefined,
+          lunchStart: data.lunch_start || undefined,
+          lunchEnd: data.lunch_end || undefined,
+          clockOut: data.clock_out || undefined,
+          totalHours: Number(data.total_hours),
+          normalHours: Number(data.normal_hours),
+          overtimeHours: Number(data.overtime_hours),
+          normalPay: Number(data.normal_pay),
+          overtimePay: Number(data.overtime_pay),
+          totalPay: Number(data.total_pay),
+          locations: data.locations as any || undefined
+        };
+        setRecord(loadedRecord);
+      } else {
+        // Registro não existe, manter o estado inicial
+        setRecord({
+          id: `record_${selectedDate}`,
+          date: selectedDate,
+          totalHours: 0,
+          normalHours: 0,
+          overtimeHours: 0,
+          normalPay: 0,
+          overtimePay: 0,
+          totalPay: 0
+        });
+      }
+
+      // Carregar campos já solicitados para edição do localStorage
+      const key = `tcponto_edit_requested_${user.id}_${selectedDate}`;
+      const savedFields = localStorage.getItem(key);
+      if (savedFields) {
+        setEditRequestedFields(new Set(JSON.parse(savedFields)));
+      } else {
+        setEditRequestedFields(new Set());
+      }
+
+      // Carregar campos que já foram editados com aprovação do localStorage
+      const approvedKey = `tcponto_approved_edits_${user.id}_${selectedDate}`;
+      const savedApprovedFields = localStorage.getItem(approvedKey);
+      if (savedApprovedFields) {
+        setApprovedEditedFields(new Set(JSON.parse(savedApprovedFields)));
+      } else {
+        setApprovedEditedFields(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading time record:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveTimeRecord = async (updatedRecord: TimeRecord, needsApproval = false) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = selectedDate === today;
+
+      const recordData = {
+        user_id: user.id,
+        date: updatedRecord.date,
+        clock_in: updatedRecord.clockIn || null,
+        lunch_start: updatedRecord.lunchStart || null,
+        lunch_end: updatedRecord.lunchEnd || null,
+        clock_out: updatedRecord.clockOut || null,
+        total_hours: updatedRecord.totalHours,
+        normal_hours: updatedRecord.normalHours,
+        overtime_hours: updatedRecord.overtimeHours,
+        normal_pay: updatedRecord.normalPay,
+        overtime_pay: updatedRecord.overtimePay,
+        total_pay: updatedRecord.totalPay,
+        locations: updatedRecord.locations || null,
+        is_pending_approval: needsApproval,
+        status: 'active'
+      };
+
+      // Verificar se já existe um registro
+      const { data: existingRecord } = await supabase
+        .from('time_records')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', selectedDate)
+        .single();
+
+      if (existingRecord) {
+        // Atualizar registro existente
+        const { error } = await supabase
+          .from('time_records')
+          .update(recordData)
+          .eq('id', existingRecord.id);
+
+        if (error) throw error;
+      } else {
+        // Criar novo registro
+        const { error } = await supabase
+          .from('time_records')
+          .insert(recordData);
+
+        if (error) throw error;
+      }
+
+      console.log(`Time record ${needsApproval ? 'saved with pending approval' : 'saved directly'}`);
+    } catch (error) {
+      console.error('Error saving time record:', error);
+      throw error;
+    }
   };
 
   const isFieldEditRequested = (field: string): boolean => {
@@ -266,10 +355,21 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         totalPay
       };
 
-      updateRecord(finalRecord);
-      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (${location.address})`);
+      // Determinar se precisa de aprovação
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = selectedDate === today;
+      const needsApproval = !isToday;
+
+      // Salvar no banco de dados
+      await saveTimeRecord(finalRecord, needsApproval);
+      
+      setRecord(finalRecord);
+      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (${location.address})${needsApproval ? ' - Aguardando aprovação administrativa' : ''}`);
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
+      console.error('Error registering time:', error);
+      
+      // Em caso de erro, salvar localmente como fallback
       const updatedRecord = { ...record, [field]: currentTime };
       
       const { totalHours, normalHours, overtimeHours } = calculateHours(
@@ -293,8 +393,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         totalPay
       };
 
-      updateRecord(finalRecord);
-      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (sem localização)`);
+      setRecord(finalRecord);
+      setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (erro ao salvar no servidor)`);
       setTimeout(() => setMessage(''), 3000);
     } finally {
       setIsGettingLocation(false);
@@ -319,7 +419,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     setEditReason('');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingField) return;
 
     if (!editReason.trim()) {
@@ -345,32 +445,62 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       return;
     }
 
-    markFieldAsRequested(editingField);
+    try {
+      markFieldAsRequested(editingField);
 
-    const editRequest = {
-      id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      employeeId: user.id,
-      employeeName: user.name,
-      date: record.date,
-      field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
-      oldValue: currentValue,
-      newValue: editValue,
-      reason: editReason,
-      timestamp: new Date().toISOString(),
-      status: 'pending' as const
-    };
+      // Salvar solicitação de edição no banco
+      const editRequest = {
+        employee_id: user.id,
+        employee_name: user.name,
+        date: record.date,
+        field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+        old_value: currentValue,
+        new_value: editValue,
+        reason: editReason,
+        status: 'pending'
+      };
 
-    const existingRequests = localStorage.getItem('tcponto_edit_requests');
-    const requests = existingRequests ? JSON.parse(existingRequests) : [];
-    requests.push(editRequest);
-    localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
+      const { error } = await supabase
+        .from('edit_requests')
+        .insert(editRequest);
 
-    setEditingField(null);
-    setEditValue('');
-    setEditReason('');
-    
-    setMessage(`Solicitação de alteração enviada para aprovação administrativa. Este campo não pode mais ser editado.`);
-    setTimeout(() => setMessage(''), 5000);
+      if (error) throw error;
+
+      setEditingField(null);
+      setEditValue('');
+      setEditReason('');
+      
+      setMessage(`Solicitação de alteração enviada para aprovação administrativa. Este campo não pode mais ser editado.`);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (error) {
+      console.error('Error saving edit request:', error);
+      
+      // Fallback para localStorage em caso de erro
+      const editRequest = {
+        id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        employeeId: user.id,
+        employeeName: user.name,
+        date: record.date,
+        field: editingField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+        oldValue: currentValue,
+        newValue: editValue,
+        reason: editReason,
+        timestamp: new Date().toISOString(),
+        status: 'pending' as const
+      };
+
+      const existingRequests = localStorage.getItem('tcponto_edit_requests');
+      const requests = existingRequests ? JSON.parse(existingRequests) : [];
+      requests.push(editRequest);
+      localStorage.setItem('tcponto_edit_requests', JSON.stringify(requests));
+
+      setEditingField(null);
+      setEditValue('');
+      setEditReason('');
+      
+      setMessage(`Solicitação de alteração enviada (salva localmente). Este campo não pode mais ser editado.`);
+      setTimeout(() => setMessage(''), 5000);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -408,6 +538,14 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       default: return 'bg-gray-500';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-lg">Carregando...</div>
+      </div>
+    );
+  }
 
   const today = new Date();
   const selectedDateObj = new Date(selectedDate);
