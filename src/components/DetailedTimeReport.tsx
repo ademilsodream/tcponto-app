@@ -56,6 +56,77 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [isGenerated, setIsGenerated] = useState(false);
   const [showAllEmployees, setShowAllEmployees] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dbEmployees, setDbEmployees] = useState<Employee[]>([]);
+
+  // Carregar funcionários do banco de dados
+  useEffect(() => {
+    loadEmployeesFromDB();
+  }, []);
+
+  const loadEmployeesFromDB = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('email', 'admin@tcponto.com');
+
+      if (error) {
+        console.error('Erro ao carregar funcionários:', error);
+        return;
+      }
+
+      const employeesData = data.map(emp => ({
+        id: emp.id,
+        name: emp.name,
+        email: emp.email,
+        hourlyRate: Number(emp.hourly_rate) || 0,
+        overtimeRate: Number(emp.hourly_rate) || 0 // Mesmo valor da hora normal
+      }));
+
+      setDbEmployees(employeesData);
+    } catch (error) {
+      console.error('Erro ao carregar funcionários:', error);
+    }
+  };
+
+  const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
+    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
+
+    const parseTime = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const clockInMinutes = parseTime(clockIn);
+    const clockOutMinutes = parseTime(clockOut);
+    const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : 0;
+    const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : 0;
+
+    let lunchBreakMinutes = 0;
+    if (lunchStart && lunchEnd && lunchEndMinutes > lunchStartMinutes) {
+      lunchBreakMinutes = lunchEndMinutes - lunchStartMinutes;
+    }
+
+    const totalWorkedMinutes = clockOutMinutes - clockInMinutes - lunchBreakMinutes;
+    let effectiveWorkedMinutes = totalWorkedMinutes;
+
+    const extraMinutes = totalWorkedMinutes - 480;
+    if (extraMinutes > 0 && extraMinutes <= 15) {
+      effectiveWorkedMinutes = 480;
+    }
+
+    const totalHours = Math.max(0, effectiveWorkedMinutes / 60);
+
+    let normalHours = Math.min(totalHours, 8);
+    let overtimeHours = 0;
+
+    if (totalHours > 8) {
+      overtimeHours = totalHours - 8;
+      normalHours = 8;
+    }
+
+    return { totalHours, normalHours, overtimeHours };
+  };
 
   const generateDaysInPeriod = async (start: string, end: string, employee: Employee): Promise<DayRecord[]> => {
     const days: DayRecord[] = [];
@@ -102,10 +173,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       };
       
       if (record) {
-        // Calcular valores com base nas horas e no hourlyRate do funcionário
-        const totalHours = Number(record.total_hours || 0);
-        const normalHours = Number(record.normal_hours || 0);
-        const overtimeHours = Number(record.overtime_hours || 0);
+        // Usar os cálculos corretos
+        const { totalHours, normalHours, overtimeHours } = calculateHours(
+          record.clock_in, 
+          record.lunch_start, 
+          record.lunch_end, 
+          record.clock_out
+        );
         
         const normalPay = normalHours * employee.hourlyRate;
         const overtimePay = overtimeHours * employee.hourlyRate; // Mesmo valor da hora normal
@@ -140,7 +214,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
     
     try {
-      const employee = employees.find(e => e.id === selectedEmployeeId);
+      const employee = dbEmployees.find(e => e.id === selectedEmployeeId);
       if (!employee) return;
 
       const days = await generateDaysInPeriod(startDate, endDate, employee);
@@ -180,7 +254,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     try {
       const allReports: EmployeeDetailedReport[] = [];
 
-      for (const employee of employees) {
+      for (const employee of dbEmployees) {
         const days = await generateDaysInPeriod(startDate, endDate, employee);
         
         const totalHours = days.reduce((sum, day) => sum + day.totalHours, 0);
@@ -260,7 +334,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                     <SelectValue placeholder="Selecione o funcionário" />
                   </SelectTrigger>
                   <SelectContent>
-                    {employees.map((employee) => (
+                    {dbEmployees.map((employee) => (
                       <SelectItem key={employee.id} value={employee.id}>
                         {employee.name}
                       </SelectItem>

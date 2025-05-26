@@ -56,12 +56,21 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     try {
       const payrollResults: PayrollData[] = [];
 
-      // Filtrar apenas funcionários que não são administradores
-      const nonAdminEmployees = employees.filter(employee => 
-        employee.email !== 'admin@tcponto.com'
-      );
+      // Buscar todos os funcionários do banco, excluindo administradores
+      const { data: dbEmployees, error: employeesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('email', 'admin@tcponto.com');
 
-      for (const employee of nonAdminEmployees) {
+      if (employeesError) {
+        console.error('Erro ao buscar funcionários:', employeesError);
+        alert('Erro ao buscar funcionários');
+        return;
+      }
+
+      console.log('Funcionários encontrados:', dbEmployees);
+
+      for (const employee of dbEmployees) {
         // Buscar registros do funcionário no período
         const { data: timeRecords, error } = await supabase
           .from('time_records')
@@ -82,13 +91,22 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         const normalHours = timeRecords?.reduce((sum, record) => sum + Number(record.normal_hours || 0), 0) || 0;
         const overtimeHours = timeRecords?.reduce((sum, record) => sum + Number(record.overtime_hours || 0), 0) || 0;
 
+        // Usar o hourly_rate do banco de dados
+        const hourlyRate = Number(employee.hourly_rate) || 0;
+        
         // Calcular pagamentos - hora extra com mesmo valor da hora normal
-        const normalPay = normalHours * employee.hourlyRate;
-        const overtimePay = overtimeHours * employee.hourlyRate; // Mesmo valor da hora normal
+        const normalPay = normalHours * hourlyRate;
+        const overtimePay = overtimeHours * hourlyRate; // Mesmo valor da hora normal
         const totalPay = normalPay + overtimePay;
 
         payrollResults.push({
-          employee,
+          employee: {
+            id: employee.id,
+            name: employee.name,
+            email: employee.email,
+            hourlyRate: hourlyRate,
+            overtimeRate: hourlyRate // Mesmo valor da hora normal
+          },
           totalHours: Math.round(totalHours * 10) / 10,
           normalHours: Math.round(normalHours * 10) / 10,
           overtimeHours: Math.round(overtimeHours * 10) / 10,
@@ -114,7 +132,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   };
 
   if (showDetailedReport) {
-    return <DetailedTimeReport employees={employees.filter(emp => emp.email !== 'admin@tcponto.com')} onBack={() => setShowDetailedReport(false)} />;
+    // Converter dados dos funcionários do banco para o formato esperado
+    const employeesForReport = payrollData.map(data => data.employee);
+    return <DetailedTimeReport employees={employeesForReport} onBack={() => setShowDetailedReport(false)} />;
   }
 
   return (
@@ -259,6 +279,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                           Funcionário
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Valor/Hora
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Total de Horas
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -290,6 +313,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                                 {data.employee.email}
                               </div>
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatCurrency(data.employee.hourlyRate)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {data.totalHours.toFixed(1)}h
