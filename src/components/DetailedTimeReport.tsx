@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -58,12 +59,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   const generateDaysInPeriod = async (start: string, end: string, employee: Employee): Promise<DayRecord[]> => {
     const days: DayRecord[] = [];
-    const startDateObj = new Date(start);
-    const endDateObj = new Date(end);
+    const startDateObj = new Date(start + 'T00:00:00');
+    const endDateObj = new Date(end + 'T23:59:59');
     
     const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     
-    // Buscar registros do funcionário no período
+    // Buscar registros do funcionário no período exato
     const { data: timeRecords, error } = await supabase
       .from('time_records')
       .select('*')
@@ -75,15 +76,19 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.error('Erro ao buscar registros:', error);
     }
 
+    console.log(`Registros para ${employee.name} no período ${start} a ${end}:`, timeRecords);
+
     // Criar mapa de registros por data
     const recordsMap = new Map();
     timeRecords?.forEach(record => {
       recordsMap.set(record.date, record);
     });
     
-    for (let date = new Date(startDateObj); date <= endDateObj; date.setDate(date.getDate() + 1)) {
-      const dateStr = date.toISOString().split('T')[0];
-      const dayOfWeek = dayNames[date.getDay()];
+    // Gerar apenas os dias do período selecionado
+    const currentDate = new Date(startDateObj);
+    while (currentDate <= endDateObj) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const dayOfWeek = dayNames[currentDate.getDay()];
       
       const record = recordsMap.get(dateStr);
       
@@ -97,21 +102,30 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       };
       
       if (record) {
-        // Usar dados reais do banco
+        // Calcular valores com base nas horas e no hourlyRate do funcionário
+        const totalHours = Number(record.total_hours || 0);
+        const normalHours = Number(record.normal_hours || 0);
+        const overtimeHours = Number(record.overtime_hours || 0);
+        
+        const normalPay = normalHours * employee.hourlyRate;
+        const overtimePay = overtimeHours * employee.hourlyRate; // Mesmo valor da hora normal
+        const totalPay = normalPay + overtimePay;
+
         dayRecord = {
           ...dayRecord,
           clockIn: record.clock_in || undefined,
           lunchStart: record.lunch_start || undefined,
           lunchEnd: record.lunch_end || undefined,
           clockOut: record.clock_out || undefined,
-          totalHours: Number(record.total_hours || 0),
-          normalHours: Number(record.normal_hours || 0),
-          overtimeHours: Number(record.overtime_hours || 0),
-          totalPay: Number(record.total_pay || 0)
+          totalHours: Math.round(totalHours * 10) / 10,
+          normalHours: Math.round(normalHours * 10) / 10,
+          overtimeHours: Math.round(overtimeHours * 10) / 10,
+          totalPay: Math.round(totalPay * 100) / 100
         };
       }
       
       days.push(dayRecord);
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     
     return days;
@@ -139,10 +153,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       setReportData({
         employee,
         days,
-        totalHours,
-        totalNormalHours,
-        totalOvertimeHours,
-        totalPay
+        totalHours: Math.round(totalHours * 10) / 10,
+        totalNormalHours: Math.round(totalNormalHours * 10) / 10,
+        totalOvertimeHours: Math.round(totalOvertimeHours * 10) / 10,
+        totalPay: Math.round(totalPay * 100) / 100
       });
       
       setShowAllEmployees(false);
@@ -177,10 +191,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         allReports.push({
           employee,
           days,
-          totalHours,
-          totalNormalHours,
-          totalOvertimeHours,
-          totalPay
+          totalHours: Math.round(totalHours * 10) / 10,
+          totalNormalHours: Math.round(totalNormalHours * 10) / 10,
+          totalOvertimeHours: Math.round(totalOvertimeHours * 10) / 10,
+          totalPay: Math.round(totalPay * 100) / 100
         });
       }
 
@@ -390,7 +404,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       {reportData.days.map((day) => (
                         <TableRow key={day.date} className={day.totalHours === 0 ? 'bg-gray-50' : ''}>
                           <TableCell className="font-medium">
-                            {new Date(day.date).toLocaleDateString('pt-BR')}
+                            {new Date(day.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                           </TableCell>
                           <TableCell>{day.dayOfWeek}</TableCell>
                           <TableCell>{day.clockIn || '-'}</TableCell>
@@ -490,7 +504,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                         {employeeData.days.map((day) => (
                           <TableRow key={`${employeeData.employee.id}-${day.date}`} className={day.totalHours === 0 ? 'bg-gray-50' : ''}>
                             <TableCell className="font-medium">
-                              {new Date(day.date).toLocaleDateString('pt-BR')}
+                              {new Date(day.date + 'T00:00:00').toLocaleDateString('pt-BR')}
                             </TableCell>
                             <TableCell>{day.dayOfWeek}</TableCell>
                             <TableCell>{day.clockIn || '-'}</TableCell>

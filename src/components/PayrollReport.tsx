@@ -56,7 +56,12 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     try {
       const payrollResults: PayrollData[] = [];
 
-      for (const employee of employees) {
+      // Filtrar apenas funcionários que não são administradores
+      const nonAdminEmployees = employees.filter(employee => 
+        employee.email !== 'admin@tcponto.com'
+      );
+
+      for (const employee of nonAdminEmployees) {
         // Buscar registros do funcionário no período
         const { data: timeRecords, error } = await supabase
           .from('time_records')
@@ -69,6 +74,8 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           console.error('Erro ao buscar registros:', error);
           continue;
         }
+
+        console.log(`Registros para ${employee.name}:`, timeRecords);
 
         // Calcular totais
         const totalHours = timeRecords?.reduce((sum, record) => sum + Number(record.total_hours || 0), 0) || 0;
@@ -91,6 +98,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         });
       }
 
+      console.log('Dados da folha de pagamento:', payrollResults);
       setPayrollData(payrollResults);
       setIsGenerated(true);
     } catch (error) {
@@ -106,7 +114,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   };
 
   if (showDetailedReport) {
-    return <DetailedTimeReport employees={employees} onBack={() => setShowDetailedReport(false)} />;
+    return <DetailedTimeReport employees={employees.filter(emp => emp.email !== 'admin@tcponto.com')} onBack={() => setShowDetailedReport(false)} />;
   }
 
   return (
