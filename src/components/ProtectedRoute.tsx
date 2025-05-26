@@ -1,21 +1,14 @@
 
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
 
-const Index = () => {
-  const navigate = useNavigate();
-  const { user, loading } = useSupabaseAuth();
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+}
 
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        navigate('/dashboard');
-      } else {
-        navigate('/login');
-      }
-    }
-  }, [user, loading, navigate]);
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { user, loading } = useSupabaseAuth();
 
   if (loading) {
     return (
@@ -28,7 +21,11 @@ const Index = () => {
     );
   }
 
-  return null;
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  return <>{children}</>;
 };
 
-export default Index;
+export default ProtectedRoute;

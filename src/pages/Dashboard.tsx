@@ -11,24 +11,24 @@ import { cn } from '@/lib/utils';
 import TimeRegistration from '@/components/TimeRegistration';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
 import AdminPanel from '@/components/AdminPanel';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const { user, profile, signOut } = useSupabaseAuth();
+  const navigate = useNavigate();
 
-  // Simular usuário logado (você pode ajustar depois)
-  const currentUser = {
-    name: 'João Silva',
-    email: 'joao@tcponto.com',
-    role: 'employee' // ou 'admin'
+  const handleSignOut = async () => {
+    const { error } = await signOut();
+    if (!error) {
+      navigate('/login');
+    }
   };
 
-  const handleSignOut = () => {
-    // Implementar logout depois
-    console.log('Logout');
-  };
-
-  const isAdmin = currentUser.role === 'admin';
+  const isAdmin = profile?.role === 'admin';
+  const userName = profile?.name || user?.email || 'Usuário';
 
   if (showAdminPanel) {
     return <AdminPanel onBack={() => setShowAdminPanel(false)} />;
@@ -77,7 +77,7 @@ const Dashboard = () => {
               )}
 
               <div className="flex items-center space-x-2 text-sm">
-                <span className="text-gray-600">Olá, {currentUser.name}</span>
+                <span className="text-gray-600">Olá, {userName}</span>
                 {isAdmin && <span className="bg-primary-100 text-primary-800 px-2 py-1 rounded-full text-xs">Admin</span>}
               </div>
 
