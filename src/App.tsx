@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
 import AuthPage from "./components/AuthPage";
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import { useSupabaseAuth } from "./hooks/useSupabaseAuth";
@@ -40,6 +41,14 @@ const AppRoutes = () => {
         element={
           <PublicRoute>
             <AuthPage />
+          </PublicRoute>
+        } 
+      />
+      <Route 
+        path="/login" 
+        element={
+          <PublicRoute>
+            <Login />
           </PublicRoute>
         } 
       />
