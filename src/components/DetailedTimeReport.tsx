@@ -122,7 +122,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filtros */}
+        {/* Card com filtros */}
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -131,77 +131,84 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap items-end gap-4">
-              {/* Funcionário */}
-              <div className="min-w-[200px] flex-1">
-                <Label htmlFor="employee" className="block text-sm font-medium text-gray-700 mb-1">
-                  Funcionário
-                </Label>
-                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Selecione o funcionário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dbEmployees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-6">
+              {/* Labels em linha */}
+              <div className="grid grid-cols-5 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Funcionário</Label>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Data Inicial</Label>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Data Final</Label>
+                </div>
+                <div></div>
+                <div></div>
               </div>
 
-              {/* Data Inicial */}
-              <div className="min-w-[150px]">
-                <Label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Inicial
-                </Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="h-10"
-                />
-              </div>
+              {/* Inputs e botões em linha */}
+              <div className="grid grid-cols-5 gap-4 items-center">
+                {/* Select Funcionário */}
+                <div>
+                  <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Selecione o funcionário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dbEmployees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* Data Final */}
-              <div className="min-w-[150px]">
-                <Label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Final
-                </Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="h-10"
-                />
-              </div>
+                {/* Data Inicial */}
+                <div>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
 
-              {/* Botão Gerar Individual */}
-              <div>
-                <Button
-                  onClick={generateSingleEmployeeReport}
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white h-10 px-6"
-                >
-                  <User className="w-4 h-4 mr-2" />
-                  {loading ? 'Gerando...' : 'Gerar Individual'}
-                </Button>
-              </div>
+                {/* Data Final */}
+                <div>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
 
-              {/* Botão Gerar Todos */}
-              <div>
-                <Button
-                  onClick={generateAllEmployeesReport}
-                  disabled={loading}
-                  variant="outline"
-                  className="border-blue-600 text-blue-600 hover:bg-blue-50 h-10 px-6"
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  {loading ? 'Gerando...' : 'Gerar Todos'}
-                </Button>
+                {/* Botão Gerar Individual */}
+                <div>
+                  <Button
+                    onClick={generateSingleEmployeeReport}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white h-10 w-full"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    {loading ? 'Gerando...' : 'Gerar Individual'}
+                  </Button>
+                </div>
+
+                {/* Botão Gerar Todos */}
+                <div>
+                  <Button
+                    onClick={generateAllEmployeesReport}
+                    disabled={loading}
+                    variant="outline"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50 h-10 w-full"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    {loading ? 'Gerando...' : 'Gerar Todos'}
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
