@@ -7,7 +7,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
 }
@@ -49,9 +49,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               id: profile.id,
               name: profile.name,
               email: profile.email,
-              role: profile.role as 'admin' | 'employee',
+              role: profile.role as 'admin' | 'user',
               hourlyRate: Number(profile.hourly_rate),
-              overtimeRate: Number(profile.hourly_rate) * 1.5 // Default overtime calculation
+              overtimeRate: Number(profile.hourly_rate) * 1.5
             };
             console.log('Setting user data:', userData);
             setUser(userData);
@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: session.user.id,
                 email: session.user.email || '',
                 name: session.user.email || 'Usuário',
-                role: 'employee',
+                role: 'user',
                 hourly_rate: 50.00
               })
               .select()
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: newProfile.id,
                 name: newProfile.name,
                 email: newProfile.email,
-                role: newProfile.role as 'admin' | 'employee',
+                role: newProfile.role as 'admin' | 'user',
                 hourlyRate: Number(newProfile.hourly_rate),
                 overtimeRate: Number(newProfile.hourly_rate) * 1.5
               };

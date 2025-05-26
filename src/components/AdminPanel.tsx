@@ -11,7 +11,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
 }
@@ -42,7 +42,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
         id: profile.id,
         name: profile.name,
         email: profile.email,
-        role: profile.role as 'admin' | 'employee',
+        role: profile.role as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate),
         overtimeRate: Number(profile.hourly_rate) * 1.5
       }));

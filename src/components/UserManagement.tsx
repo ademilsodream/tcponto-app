@@ -13,7 +13,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
 }
@@ -31,7 +31,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     name: '',
     email: '',
     password: '',
-    role: 'employee' as 'admin' | 'employee',
+    role: 'user' as 'admin' | 'user',
     hourlyRate: '',
     overtimeRate: ''
   });
@@ -54,7 +54,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         id: profile.id,
         name: profile.name,
         email: profile.email,
-        role: profile.role as 'admin' | 'employee',
+        role: profile.role as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate),
         overtimeRate: Number(profile.hourly_rate) * 1.5
       }));
@@ -72,7 +72,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       name: '',
       email: '',
       password: '',
-      role: 'employee',
+      role: 'user',
       hourlyRate: '',
       overtimeRate: ''
     });
@@ -229,12 +229,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
 
               <div className="space-y-2">
                 <Label htmlFor="role">Cargo/Nível</Label>
-                <Select value={formData.role} onValueChange={(value: 'admin' | 'employee') => setFormData({ ...formData, role: value })}>
+                <Select value={formData.role} onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="employee">Funcionário</SelectItem>
+                    <SelectItem value="user">Funcionário</SelectItem>
                     <SelectItem value="admin">Administrador</SelectItem>
                   </SelectContent>
                 </Select>
