@@ -409,8 +409,12 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     }
   };
 
-  const currentFieldToShow = getCurrentFieldToShow();
-  const isHistoricalEntry = new Date(selectedDate) < new Date(new Date().toDateString());
+  const today = new Date();
+  const selectedDateObj = new Date(selectedDate);
+  
+  // Comparar apenas as datas (sem horário) para determinar se é dia anterior
+  const todayDateString = today.toISOString().split('T')[0];
+  const isHistoricalEntry = selectedDate < todayDateString;
 
   const renderCurrentField = () => {
     if (currentFieldToShow === 'completed') {
