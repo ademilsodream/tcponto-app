@@ -40,11 +40,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single();
+            .maybeSingle();
           
           console.log('Profile fetch result:', { profile, error });
           
-          if (profile) {
+          if (profile && !error) {
             const userData: User = {
               id: profile.id,
               name: profile.name,
@@ -56,10 +56,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('Setting user data:', userData);
             setUser(userData);
             setIsAuthenticated(true);
-          } else {
-            console.error('No profile found for user:', session.user.id);
+          } else if (error) {
+            console.error('Error fetching profile:', error);
             setUser(null);
             setIsAuthenticated(false);
+          } else {
+            console.error('No profile found for user:', session.user.id);
+            // Create a basic profile if it doesn't exist
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: session.user.id,
+                email: session.user.email || '',
+                name: session.user.email || 'Usuário',
+                role: 'employee',
+                hourly_rate: 50.00
+              })
+              .select()
+              .single();
+            
+            if (newProfile && !createError) {
+              const userData: User = {
+                id: newProfile.id,
+                name: newProfile.name,
+                email: newProfile.email,
+                role: newProfile.role as 'admin' | 'employee',
+                hourlyRate: Number(newProfile.hourly_rate),
+                overtimeRate: Number(newProfile.hourly_rate) * 1.5
+              };
+              console.log('Created and set new user profile:', userData);
+              setUser(userData);
+              setIsAuthenticated(true);
+            } else {
+              console.error('Failed to create profile:', createError);
+              setUser(null);
+              setIsAuthenticated(false);
+            }
           }
         } else {
           console.log('No session, clearing user');
