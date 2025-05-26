@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { initializeApp } from '@/utils/initializeApp';
 import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
@@ -15,26 +15,9 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  useEffect(() => {
-    // Inicializar app em background sem bloquear o login
-    const initialize = async () => {
-      try {
-        setIsInitializing(true);
-        await initializeApp();
-      } catch (error) {
-        console.error('Initialization error:', error);
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-    
-    initialize();
-  }, []);
 
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
@@ -172,22 +155,9 @@ const Login = () => {
             </form>
 
             <div className="mt-6 pt-6 border-t text-center text-sm text-gray-600">
-              <p className="mb-2"><strong>Contas de demonstração:</strong></p>
-              <div className="space-y-1">
-                <p><strong>Funcionário:</strong> joao@tcponto.com</p>
-                <p><strong>Admin:</strong> admin@tcponto.com</p>
-                <p className="text-primary-600"><strong>Senha:</strong> 123456</p>
-              </div>
-              
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                <p className="text-blue-800 text-xs">
-                  {isInitializing ? (
-                    <><Clock className="w-3 h-3 animate-spin inline mr-1" />Inicializando sistema...</>
-                  ) : (
-                    <><strong>✓ Sistema pronto!</strong> Use as credenciais acima para testar.</>
-                  )}
-                </p>
-              </div>
+              <p className="text-gray-500">
+                Use suas credenciais existentes para fazer login
+              </p>
             </div>
           </CardContent>
         </Card>
