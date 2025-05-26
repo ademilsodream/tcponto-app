@@ -40,7 +40,7 @@ const Login = () => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
             <img 
-              src="/lovable-uploads/4b2c75fc-26d4-4be4-9e7e-3a415e06b623.png" 
+              src="/lovable-uploads/1ea2338e-6964-4692-b0b5-aaa8ae3f6a58.png" 
               alt="TCPonto Logo" 
               className="w-20 h-20 rounded-full shadow-lg"
             />

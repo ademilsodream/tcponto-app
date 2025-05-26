@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, Lock } from 'lucide-react';
+import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, Lock, Calendar } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import EmployeeMonthlySummary from './EmployeeMonthlySummary';
+import EmployeeDetailedReport from './EmployeeDetailedReport';
 
 interface TimeRecord {
   id: string;
@@ -54,6 +56,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [hourlyRate, setHourlyRate] = useState(50);
+  const [showMonthlySummary, setShowMonthlySummary] = useState(false);
+  const [showDetailedReport, setShowDetailedReport] = useState(false);
   
   // Estados para edição em lote (dias anteriores)
   const [batchEditValues, setBatchEditValues] = useState({
@@ -69,15 +74,35 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const { user } = useAuth();
 
   // Taxa horária padrão para funcionário
-  const hourlyRate = 50;
-  const overtimeRate = 75;
+  const overtimeRate = hourlyRate;
 
   // Carregar dados do Supabase quando a data muda
   useEffect(() => {
     if (user) {
       loadTimeRecord();
+      loadUserProfile();
     }
   }, [selectedDate, user]);
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('hourly_rate')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setHourlyRate(Number(data.hourly_rate));
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
 
   const loadTimeRecord = async () => {
     if (!user) return;
@@ -658,6 +683,16 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     );
   }
 
+  // Se está visualizando o relatório detalhado
+  if (showDetailedReport) {
+    return (
+      <EmployeeDetailedReport
+        selectedMonth={new Date(selectedDate)}
+        onBack={() => setShowDetailedReport(false)}
+      />
+    );
+  }
+
   const today = new Date();
   const selectedDateObj = new Date(selectedDate);
   
@@ -942,6 +977,40 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
             {message}
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Resumo Mensal */}
+      {!showMonthlySummary && (
+        <Card className="bg-gradient-to-r from-blue-50 to-blue-100">
+          <CardContent className="p-4">
+            <Button
+              onClick={() => setShowMonthlySummary(true)}
+              variant="outline"
+              className="w-full"
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Ver Resumo Mensal
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {showMonthlySummary && (
+        <div>
+          <EmployeeMonthlySummary
+            selectedMonth={new Date(selectedDate)}
+            onShowDetailedReport={() => setShowDetailedReport(true)}
+          />
+          <div className="mt-4">
+            <Button
+              onClick={() => setShowMonthlySummary(false)}
+              variant="outline"
+              size="sm"
+            >
+              Ocultar Resumo Mensal
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Se for dia anterior, mostrar interface de edição em lote */}
