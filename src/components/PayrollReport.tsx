@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Calendar, DollarSign, Clock } from 'lucide-react';
+import { Calendar, DollarSign, Clock } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -182,29 +182,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={onBack}
-                variant="ghost"
-                size="sm"
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold text-primary-900">Folha de Pagamento</h1>
-                <p className="text-sm text-gray-600">Relatório de pagamentos por período</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros de Período */}
         <Card className="mb-8">

@@ -1,15 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Calendar, User, Users, FileDown } from 'lucide-react';
+import { Calendar, User, Users, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -360,29 +360,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <Button
-                onClick={onBack}
-                variant="ghost"
-                size="sm"
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold text-primary-900">Relatório Detalhado de Horas</h1>
-                <p className="text-sm text-gray-600">Relatório diário por funcionário</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Card com filtros */}
         <Card className="mb-8">
