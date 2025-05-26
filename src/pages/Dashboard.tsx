@@ -88,7 +88,7 @@ const Dashboard = () => {
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-4">
                 <img 
-                  src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                  src="/lovable-uploads/b5d5fceb-c36e-4ff4-96fc-8d4e95996a58.png" 
                   alt="TCPonto Logo" 
                   className="w-10 h-10 rounded-full"
                 />
@@ -189,7 +189,7 @@ const Dashboard = () => {
       case 'payrollReport':
         return <PayrollReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       case 'detailedReport':
-        return <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => setActiveTab('adminDashboard')} />;
+        return <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => setActiveTab('detailedReport')} />;
       case 'locationReport':
         return <LocationReport employees={employees} />;
       default:
@@ -205,7 +205,7 @@ const Dashboard = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <img 
-                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                src="/lovable-uploads/b5d5fceb-c36e-4ff4-96fc-8d4e95996a58.png" 
                 alt="TCPonto Logo" 
                 className="w-10 h-10 rounded-full"
               />
