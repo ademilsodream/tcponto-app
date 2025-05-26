@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Calendar, User, Users } from 'lucide-react';
-import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Employee {
@@ -24,8 +22,6 @@ interface DetailedTimeReportProps {
 }
 
 const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBack }) => {
-  const { formatCurrency } = useCurrency();
-  
   const [startDate, setStartDate] = useState('2025-05-01');
   const [endDate, setEndDate] = useState('2025-05-31');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
@@ -72,7 +68,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
     
     try {
-      // Aqui você implementará a lógica de gerar relatório individual
       console.log('Gerando relatório individual para:', selectedEmployeeId);
       // Implementar lógica aqui
     } catch (error) {
@@ -92,7 +87,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
 
     try {
-      // Aqui você implementará a lógica de gerar relatório de todos
       console.log('Gerando relatório de todos os funcionários');
       // Implementar lógica aqui
     } catch (error) {
@@ -178,7 +172,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               <Button
                 onClick={generateSingleEmployeeReport}
                 disabled={loading}
-                className="bg-primary-800 hover:bg-primary-700"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <User className="w-4 h-4 mr-2" />
                 {loading ? 'Gerando...' : 'Gerar Individual'}
@@ -188,7 +182,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 onClick={generateAllEmployeesReport}
                 disabled={loading}
                 variant="outline"
-                className="border-primary-300 text-primary-700 hover:bg-primary-50"
+                className="border-blue-300 text-blue-600 hover:bg-blue-50"
               >
                 <Users className="w-4 h-4 mr-2" />
                 {loading ? 'Gerando...' : 'Gerar Todos'}
@@ -202,4 +196,3 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 };
 
 export default DetailedTimeReport;
-
