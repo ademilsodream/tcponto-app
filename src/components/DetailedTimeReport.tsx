@@ -464,7 +464,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <User className="w-5 h-5" />
-                      {employeeName} ({totals.totalHours.toFixed(1)}h - {totals.overtimeHours.toFixed(1)}h extras - {formatCurrency(totals.totalPay)})
+                      {employeeName}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
