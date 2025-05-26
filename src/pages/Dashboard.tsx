@@ -109,7 +109,7 @@ const Dashboard = () => {
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-4">
                 <img 
-                  src="/lovable-uploads/b5d5fceb-c36e-4ff4-96fc-8d4e95996a58.png" 
+                  src="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" 
                   alt="TCPonto Logo" 
                   className="w-10 h-10 rounded-full"
                 />
@@ -204,7 +204,7 @@ const Dashboard = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <img 
-                src="/lovable-uploads/b5d5fceb-c36e-4ff4-96fc-8d4e95996a58.png" 
+                src="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" 
                 alt="TCPonto Logo" 
                 className="w-10 h-10 rounded-full"
               />
