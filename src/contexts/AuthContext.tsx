@@ -14,7 +14,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   isAuthenticated: boolean;
   loading: boolean;
@@ -24,87 +24,106 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const fetchUserProfile = async (userId: string): Promise<User | null> => {
+    try {
+      console.log('Fetching profile for user:', userId);
+      
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return null;
+      }
+      
+      if (!profile) {
+        console.error('No profile found for user:', userId);
+        return null;
+      }
+
+      const userData: User = {
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role === 'admin' ? 'admin' : 'user',
+        hourlyRate: Number(profile.hourly_rate) || 50,
+        overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
+      };
+
+      console.log('Profile loaded successfully:', userData);
+      return userData;
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
+    console.log('AuthProvider initializing...');
+
     // Configurar listener de mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
-        setSession(session);
         
         if (session?.user) {
-          console.log('User authenticated, fetching profile for:', session.user.id);
-          // Buscar perfil do usuário
-          try {
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            
-            console.log('Profile fetch result:', { profile, error });
-            
-            if (error) {
-              console.error('Error fetching profile:', error);
-              setUser(null);
-              setIsAuthenticated(false);
-            } else if (profile) {
-              const userData: User = {
-                id: profile.id,
-                name: profile.name,
-                email: profile.email,
-                role: profile.role === 'admin' ? 'admin' : 'user',
-                hourlyRate: Number(profile.hourly_rate) || 50,
-                overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
-              };
-              console.log('Setting user data:', userData);
-              setUser(userData);
-              setIsAuthenticated(true);
-            }
-          } catch (error) {
-            console.error('Error in profile fetch:', error);
+          console.log('User session found, fetching profile...');
+          const userData = await fetchUserProfile(session.user.id);
+          
+          if (userData) {
+            setUser(userData);
+            setIsAuthenticated(true);
+            console.log('User authenticated successfully:', userData.role);
+          } else {
+            console.error('Failed to load user profile');
             setUser(null);
             setIsAuthenticated(false);
           }
         } else {
-          console.log('No session, clearing user');
+          console.log('No session, clearing user state');
           setUser(null);
           setIsAuthenticated(false);
         }
+        
         setLoading(false);
       }
     );
 
     // Verificar sessão existente
-    const checkSession = async () => {
+    const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
+        
         if (error) {
           console.error('Error getting session:', error);
           setLoading(false);
           return;
         }
         
-        console.log('Initial session check:', session?.user?.email);
-        // Se há sessão, o onAuthStateChange será chamado automaticamente
+        console.log('Initial session check:', session?.user?.email || 'No session');
+        
         if (!session) {
           setLoading(false);
         }
+        // Se há sessão, o onAuthStateChange vai processar
       } catch (error) {
-        console.error('Error in checkSession:', error);
+        console.error('Error in initializeAuth:', error);
         setLoading(false);
       }
     };
 
-    checkSession();
+    initializeAuth();
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       console.log('Attempting login for:', email);
       setLoading(true);
@@ -114,37 +133,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
       });
 
-      console.log('Login result:', { data: data?.user?.email, error });
-
       if (error) {
         console.error('Login error:', error);
         setLoading(false);
-        return false;
+        return { 
+          success: false, 
+          error: error.message === 'Invalid login credentials' 
+            ? 'E-mail ou senha inválidos'
+            : 'Erro ao fazer login. Tente novamente.'
+        };
       }
 
       if (data.user) {
-        console.log('Login successful, auth state will change automatically');
-        // O estado será atualizado automaticamente pelo onAuthStateChange
-        return true;
+        console.log('Login successful, waiting for auth state change...');
+        // O estado será atualizado pelo onAuthStateChange
+        return { success: true };
       }
 
       setLoading(false);
-      return false;
+      return { success: false, error: 'Erro inesperado no login' };
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login exception:', error);
       setLoading(false);
-      return false;
+      return { success: false, error: 'Erro ao fazer login. Tente novamente.' };
     }
   };
 
   const logout = async () => {
     try {
-      console.log('Logging out');
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Logout error:', error);
-      }
-      // O estado será limpo automaticamente pelo onAuthStateChange
+      console.log('Logging out...');
+      await supabase.auth.signOut();
+      // O estado será limpo pelo onAuthStateChange
     } catch (error) {
       console.error('Error during logout:', error);
     }

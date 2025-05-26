@@ -15,27 +15,36 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated, loading: authLoading } = useAuth();
+  const { login, isAuthenticated, loading: authLoading, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirecionar se já estiver autenticado
+  // Redirecionamento simples e direto
   useEffect(() => {
-    console.log('Login effect - isAuthenticated:', isAuthenticated, 'authLoading:', authLoading);
-    if (isAuthenticated && !authLoading) {
-      console.log('User is authenticated, redirecting to dashboard');
+    console.log('Login page - Auth status:', { isAuthenticated, authLoading, userRole: user?.role });
+    
+    if (isAuthenticated && !authLoading && user) {
+      console.log('User is authenticated, redirecting to dashboard...');
+      toast({
+        title: "Login realizado com sucesso!",
+        description: `Bem-vindo, ${user.name}`
+      });
       navigate('/dashboard', { replace: true });
     }
-  }, [isAuthenticated, authLoading, navigate]);
+  }, [isAuthenticated, authLoading, user, navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isLoading) return;
+    
     setError('');
     setIsLoading(true);
 
-    console.log('Form submitted with:', { email, password: '***' });
+    console.log('Login form submitted for:', email);
 
-    if (!email || !password) {
+    // Validações básicas
+    if (!email.trim() || !password.trim()) {
       setError('Por favor, preencha todos os campos');
       setIsLoading(false);
       return;
@@ -48,28 +57,25 @@ const Login = () => {
     }
 
     try {
-      const success = await login(email, password);
-      console.log('Login success:', success);
+      const result = await login(email.trim(), password);
       
-      if (success) {
-        console.log('Login successful');
-        toast({
-          title: "Sucesso",
-          description: "Login realizado com sucesso!"
-        });
-        // A navegação será feita pelo useEffect quando isAuthenticated mudar
+      console.log('Login result:', result);
+      
+      if (result.success) {
+        console.log('Login successful, waiting for redirect...');
+        // O redirecionamento será feito pelo useEffect quando o estado mudar
       } else {
-        setError('E-mail ou senha inválidos. Verifique suas credenciais e tente novamente.');
+        setError(result.error || 'Erro ao fazer login');
       }
     } catch (err) {
       console.error('Login form error:', err);
-      setError('Erro ao fazer login. Tente novamente.');
+      setError('Erro inesperado. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Mostrar loading durante verificação inicial de autenticação
+  // Loading durante verificação inicial
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
@@ -149,11 +155,16 @@ const Login = () => {
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <Clock className="w-4 h-4 animate-spin mr-2" />
+                  <>
+                    <Clock className="w-4 h-4 animate-spin mr-2" />
+                    Entrando...
+                  </>
                 ) : (
-                  <LogIn className="w-4 h-4 mr-2" />
+                  <>
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Entrar
+                  </>
                 )}
-                {isLoading ? 'Entrando...' : 'Entrar'}
               </Button>
             </form>
 
