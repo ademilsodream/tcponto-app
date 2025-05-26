@@ -29,28 +29,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Auth state change:', event, session?.user?.email);
       
       if (session?.user) {
-        await loadUserData(session.user);
+        // Defer a busca do perfil para evitar loops
+        setTimeout(async () => {
+          await loadUserData(session.user);
+        }, 0);
       } else {
         setUser(null);
       }
       setLoading(false);
     });
-
-    // Verificar sessão inicial
-    const checkInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await loadUserData(session.user);
-        }
-      } catch (error) {
-        console.error('Erro ao verificar sessão inicial:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkInitialSession();
 
     return () => subscription.unsubscribe();
   }, []);
