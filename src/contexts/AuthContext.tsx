@@ -46,8 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               name: profile.name,
               email: profile.email,
               role: profile.role as 'admin' | 'employee',
-              hourlyRate: parseFloat(profile.hourly_rate),
-              overtimeRate: parseFloat(profile.hourly_rate) * 1.5 // Default overtime calculation
+              hourlyRate: Number(profile.hourly_rate),
+              overtimeRate: Number(profile.hourly_rate) * 1.5 // Default overtime calculation
             };
             setUser(userData);
             setIsAuthenticated(true);

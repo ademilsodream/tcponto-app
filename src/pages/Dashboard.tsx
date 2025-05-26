@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,8 +56,8 @@ const Dashboard = () => {
         name: profile.name,
         email: profile.email,
         role: profile.role as 'admin' | 'employee',
-        hourlyRate: parseFloat(profile.hourly_rate),
-        overtimeRate: parseFloat(profile.hourly_rate) * 1.5
+        hourlyRate: Number(profile.hourly_rate),
+        overtimeRate: Number(profile.hourly_rate) * 1.5
       }));
 
       setEmployees(formattedEmployees);

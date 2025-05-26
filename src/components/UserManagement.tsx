@@ -55,8 +55,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         name: profile.name,
         email: profile.email,
         role: profile.role as 'admin' | 'employee',
-        hourlyRate: parseFloat(profile.hourly_rate),
-        overtimeRate: parseFloat(profile.hourly_rate) * 1.5
+        hourlyRate: Number(profile.hourly_rate),
+        overtimeRate: Number(profile.hourly_rate) * 1.5
       }));
 
       setUsers(formattedUsers);
