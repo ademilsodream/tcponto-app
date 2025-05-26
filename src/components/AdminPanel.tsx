@@ -2,15 +2,10 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Clock, Settings, FileText, MapPin, DollarSign, UserPlus, Calendar } from 'lucide-react';
+import { ArrowLeft, Users, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AdminDashboard from './AdminDashboard';
-import PendingApprovals from './PendingApprovals';
-import PayrollReport from './PayrollReport';
-import DetailedTimeReport from './DetailedTimeReport';
-import LocationReport from './LocationReport';
-import UserManagement from './UserManagement';
-import MonthlyControl from './MonthlyControl';
+import SupabaseUserManagement from './SupabaseUserManagement';
 import GlobalCurrencySelector from './GlobalCurrencySelector';
 
 interface User {
@@ -45,17 +40,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       case 'dashboard':
         return <AdminDashboard employees={employees} />;
       case 'users':
-        return <UserManagement employees={employees} />;
-      case 'approvals':
-        return <PendingApprovals employees={employees} />;
-      case 'payroll':
-        return <PayrollReport employees={employees} onBack={() => setActiveTab('dashboard')} />;
-      case 'detailed':
-        return <DetailedTimeReport employees={employees} onBack={() => setActiveTab('dashboard')} />;
-      case 'locations':
-        return <LocationReport employees={employees} />;
-      case 'monthly':
-        return <MonthlyControl employees={employees} />;
+        return <SupabaseUserManagement />;
       default:
         return <AdminDashboard employees={employees} />;
     }
@@ -113,66 +98,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             >
               <UserPlus className="w-4 h-4 mr-2" />
               Usuários
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('approvals')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'approvals'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Clock className="w-4 h-4 mr-2" />
-              Aprovações
-            </button>
-
-            <button
-              onClick={() => setActiveTab('payroll')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'payroll'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <DollarSign className="w-4 h-4 mr-2" />
-              Folha de Pagamento
-            </button>
-
-            <button
-              onClick={() => setActiveTab('detailed')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'detailed'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Relatório Detalhado
-            </button>
-
-            <button
-              onClick={() => setActiveTab('locations')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'locations'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <MapPin className="w-4 h-4 mr-2" />
-              Localizações
-            </button>
-
-            <button
-              onClick={() => setActiveTab('monthly')}
-              className={`flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                activeTab === 'monthly'
-                  ? 'bg-primary-100 text-primary-700'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <Calendar className="w-4 h-4 mr-2" />
-              Controle Mensal
             </button>
           </nav>
         </div>
