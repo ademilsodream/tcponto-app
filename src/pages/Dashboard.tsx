@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -115,18 +114,19 @@ const Dashboard = () => {
                 />
                 <div>
                   <h1 className="text-xl font-semibold text-primary-900">TCPonto</h1>
-                  <p className="text-sm text-gray-600">Sistema de Controle de Ponto</p>
+                  <p className="text-sm text-gray-600 hidden sm:block">Sistema de Controle de Ponto</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2 text-sm">
-                  <span className="text-gray-600">Olá, {userName}</span>
+              <div className="flex items-center space-x-2 sm:space-x-4">
+                <div className="flex flex-col sm:flex-row items-end sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 text-sm">
+                  <span className="text-gray-600 text-xs sm:text-sm">Olá,</span>
+                  <span className="text-gray-900 font-medium text-xs sm:text-sm truncate max-w-24 sm:max-w-none">{userName}</span>
                 </div>
 
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sair
+                  <LogOut className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Sair</span>
                 </Button>
               </div>
             </div>
