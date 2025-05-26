@@ -37,16 +37,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
     
     try {
+      console.log('Buscando registros para o funcionário:', selectedEmployeeId);
+      console.log('Período:', startDate, 'até', endDate);
+
       const { data, error } = await supabase
         .from('time_records')
-        .select(`
-          *,
-          profiles:user_id (
-            name,
-            email,
-            hourly_rate
-          )
-        `)
+        .select('*')
         .eq('user_id', selectedEmployeeId)
         .gte('date', startDate)
         .lte('date', endDate)
@@ -54,11 +50,30 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
-        alert('Erro ao carregar registros');
+        alert('Erro ao carregar registros: ' + error.message);
         return;
       }
 
-      setTimeRecords(data || []);
+      console.log('Registros encontrados:', data);
+
+      // Buscar informações do funcionário separadamente
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('name, email, hourly_rate')
+        .eq('id', selectedEmployeeId)
+        .single();
+
+      if (profileError) {
+        console.error('Erro ao carregar perfil do funcionário:', profileError);
+      }
+
+      // Combinar dados do registro com dados do perfil
+      const recordsWithProfile = (data || []).map(record => ({
+        ...record,
+        profiles: profileData
+      }));
+
+      setTimeRecords(recordsWithProfile);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
@@ -76,27 +91,45 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
 
     try {
+      console.log('Buscando registros de todos os funcionários');
+      console.log('Período:', startDate, 'até', endDate);
+
       const { data, error } = await supabase
         .from('time_records')
-        .select(`
-          *,
-          profiles:user_id (
-            name,
-            email,
-            hourly_rate
-          )
-        `)
+        .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: false });
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
-        alert('Erro ao carregar registros');
+        alert('Erro ao carregar registros: ' + error.message);
         return;
       }
 
-      setTimeRecords(data || []);
+      console.log('Registros encontrados:', data);
+
+      // Buscar informações de todos os funcionários
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, email, hourly_rate');
+
+      if (profilesError) {
+        console.error('Erro ao carregar perfis:', profilesError);
+        alert('Erro ao carregar perfis dos funcionários');
+        return;
+      }
+
+      // Combinar dados dos registros com dados dos perfis
+      const recordsWithProfiles = (data || []).map(record => {
+        const profile = profilesData?.find(p => p.id === record.user_id);
+        return {
+          ...record,
+          profiles: profile
+        };
+      });
+
+      setTimeRecords(recordsWithProfiles);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
