@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Clock, AlertCircle, Unlock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EditRequest {
   id: string;
@@ -32,135 +33,134 @@ interface PendingApprovalsProps {
 const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const loadEditRequests = () => {
-    const savedRequests = localStorage.getItem('tcponto_edit_requests');
-    if (savedRequests) {
-      setEditRequests(JSON.parse(savedRequests));
+  const loadEditRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('edit_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedRequests = data.map(request => ({
+        id: request.id,
+        employeeId: request.employee_id,
+        employeeName: request.employee_name,
+        date: request.date,
+        field: request.field as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+        oldValue: request.old_value || '',
+        newValue: request.new_value,
+        reason: request.reason,
+        timestamp: request.created_at,
+        status: request.status as 'pending' | 'approved' | 'rejected'
+      }));
+
+      setEditRequests(formattedRequests);
+    } catch (error) {
+      console.error('Error loading edit requests:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadEditRequests();
     
-    // Atualizar a cada 10 segundos para verificar novas solicitações
-    const interval = setInterval(loadEditRequests, 10000);
+    // Set up real-time listener for edit requests
+    const subscription = supabase
+      .channel('edit_requests_changes')
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'edit_requests'
+        },
+        () => {
+          loadEditRequests();
+        }
+      )
+      .subscribe();
     
-    return () => clearInterval(interval);
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const clearFieldRequestMark = (employeeId: string, date: string, field: string) => {
-    const key = `tcponto_edit_requested_${employeeId}_${date}`;
-    const savedFields = localStorage.getItem(key);
-    if (savedFields) {
-      const fields = new Set(JSON.parse(savedFields));
-      fields.delete(field);
-      if (fields.size === 0) {
-        localStorage.removeItem(key);
-      } else {
-        localStorage.setItem(key, JSON.stringify(Array.from(fields)));
-      }
-    }
-  };
-
-  const markFieldAsApprovedEdited = (employeeId: string, date: string, field: string) => {
-    const key = `tcponto_approved_edits_${employeeId}_${date}`;
-    const savedFields = localStorage.getItem(key);
-    const fields = savedFields ? new Set(JSON.parse(savedFields)) : new Set();
-    fields.add(field);
-    localStorage.setItem(key, JSON.stringify(Array.from(fields)));
-  };
-
-  const handleApproval = (requestId: string, approved: boolean) => {
+  const handleApproval = async (requestId: string, approved: boolean) => {
     const request = editRequests.find(r => r.id === requestId);
     if (!request) return;
 
-    // Atualizar status da solicitação
-    const updatedRequests = editRequests.map(r => 
-      r.id === requestId 
-        ? { ...r, status: approved ? 'approved' as const : 'rejected' as const }
-        : r
-    );
-    setEditRequests(updatedRequests);
-    localStorage.setItem('tcponto_edit_requests', JSON.stringify(updatedRequests));
+    try {
+      // Update the request status
+      const { error: updateError } = await supabase
+        .from('edit_requests')
+        .update({
+          status: approved ? 'approved' : 'rejected',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .eq('id', requestId);
 
-    if (approved) {
-      // Aplicar a edição no registro do funcionário
-      const savedRecords = localStorage.getItem(`tcponto_records_${request.employeeId}`);
-      if (savedRecords) {
-        const records = JSON.parse(savedRecords);
-        const recordIndex = records.findIndex((r: any) => r.date === request.date);
-        
-        if (recordIndex !== -1) {
-          records[recordIndex][request.field] = request.newValue;
-          
-          // Recalcular horas e valores
-          const employee = employees.find(e => e.id === request.employeeId);
-          if (employee) {
-            const { totalHours, normalHours, overtimeHours } = calculateHours(
-              records[recordIndex].clockIn,
-              records[recordIndex].lunchStart,
-              records[recordIndex].lunchEnd,
-              records[recordIndex].clockOut
-            );
+      if (updateError) throw updateError;
 
-            const normalPay = normalHours * employee.hourlyRate;
-            const overtimePay = overtimeHours * employee.overtimeRate;
-            const totalPay = normalPay + overtimePay;
+      if (approved) {
+        // Apply the edit to the time record
+        const { data: timeRecords, error: fetchError } = await supabase
+          .from('time_records')
+          .select('*')
+          .eq('user_id', request.employeeId)
+          .eq('date', request.date)
+          .single();
 
-            records[recordIndex] = {
-              ...records[recordIndex],
-              totalHours,
-              normalHours,
-              overtimeHours,
-              normalPay,
-              overtimePay,
-              totalPay
-            };
-          }
-          
-          localStorage.setItem(`tcponto_records_${request.employeeId}`, JSON.stringify(records));
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw fetchError;
         }
+
+        const fieldMap = {
+          clockIn: 'clock_in',
+          lunchStart: 'lunch_start',
+          lunchEnd: 'lunch_end',
+          clockOut: 'clock_out'
+        };
+
+        const updateData = {
+          [fieldMap[request.field]]: request.newValue
+        };
+
+        if (timeRecords) {
+          // Update existing record
+          const { error: updateRecordError } = await supabase
+            .from('time_records')
+            .update(updateData)
+            .eq('id', timeRecords.id);
+
+          if (updateRecordError) throw updateRecordError;
+        } else {
+          // Create new record
+          const { error: insertError } = await supabase
+            .from('time_records')
+            .insert({
+              user_id: request.employeeId,
+              date: request.date,
+              ...updateData
+            });
+
+          if (insertError) throw insertError;
+        }
+
+        setMessage(`Edição de ${getFieldLabel(request.field)} aprovada para ${request.employeeName}.`);
+      } else {
+        setMessage(`Edição de ${getFieldLabel(request.field)} rejeitada para ${request.employeeName}.`);
       }
 
-      // Marcar campo como editado com aprovação (bloquear futuras edições)
-      markFieldAsApprovedEdited(request.employeeId, request.date, request.field);
-      
-      setMessage(`Edição de ${getFieldLabel(request.field)} aprovada para ${request.employeeName}. Campo bloqueado para futuras edições.`);
-    } else {
-      setMessage(`Edição de ${getFieldLabel(request.field)} rejeitada para ${request.employeeName}. Funcionário pode solicitar nova edição.`);
+      await loadEditRequests();
+      setTimeout(() => setMessage(''), 5000);
+    } catch (error) {
+      console.error('Error handling approval:', error);
+      alert('Erro ao processar aprovação');
     }
-
-    // Limpar a marcação de campo solicitado (tanto para aprovado quanto rejeitado)
-    clearFieldRequestMark(request.employeeId, request.date, request.field);
-    
-    setTimeout(() => setMessage(''), 5000);
-  };
-
-  const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
-    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
-
-    const parseTime = (timeStr: string) => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours + minutes / 60;
-    };
-
-    const clockInHours = parseTime(clockIn);
-    const clockOutHours = parseTime(clockOut);
-    const lunchStartHours = lunchStart ? parseTime(lunchStart) : 0;
-    const lunchEndHours = lunchEnd ? parseTime(lunchEnd) : 0;
-
-    let totalHours = clockOutHours - clockInHours;
-
-    if (lunchStart && lunchEnd && lunchEndHours > lunchStartHours) {
-      totalHours -= (lunchEndHours - lunchStartHours);
-    }
-
-    totalHours = Math.max(0, totalHours);
-    const normalHours = Math.min(totalHours, 8);
-    const overtimeHours = Math.max(0, totalHours - 8);
-
-    return { totalHours, normalHours, overtimeHours };
   };
 
   const getFieldLabel = (field: string) => {
@@ -172,6 +172,10 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
       default: return field;
     }
   };
+
+  if (loading) {
+    return <div>Carregando solicitações...</div>;
+  }
 
   const pendingRequests = editRequests.filter(r => r.status === 'pending');
   const processedRequests = editRequests.filter(r => r.status !== 'pending').slice(0, 10);
@@ -210,10 +214,6 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       <p className="text-sm text-gray-600">
                         {new Date(request.date).toLocaleDateString('pt-BR')} - {getFieldLabel(request.field)}
                       </p>
-                      <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                        <Unlock className="w-3 h-3" />
-                        Campo será desbloqueado ou bloqueado após decisão
-                      </p>
                     </div>
                     <Badge variant="secondary">
                       {new Date(request.timestamp).toLocaleString('pt-BR')}
@@ -246,7 +246,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
-                      Aprovar (Bloquear Campo)
+                      Aprovar
                     </Button>
                     <Button
                       size="sm"
@@ -254,7 +254,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       onClick={() => handleApproval(request.id, false)}
                     >
                       <XCircle className="w-4 h-4 mr-1" />
-                      Rejeitar (Permitir Nova Edição)
+                      Rejeitar
                     </Button>
                   </div>
                 </div>
@@ -306,7 +306,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado (Bloqueado)' : 'Rejeitado'}
+                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

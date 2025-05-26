@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
@@ -16,12 +16,58 @@ import LocationReport from '@/components/LocationReport';
 import MonthlyControl from '@/components/MonthlyControl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'employee';
+  hourlyRate: number;
+  overtimeRate: number;
+}
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState('adminDashboard');
+  const [employees, setEmployees] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      loadEmployees();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  const loadEmployees = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+
+      const formattedEmployees = data.map(profile => ({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role as 'admin' | 'employee',
+        hourlyRate: parseFloat(profile.hourly_rate),
+        overtimeRate: parseFloat(profile.hourly_rate) * 1.5
+      }));
+
+      setEmployees(formattedEmployees);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignOut = () => {
     logout();
@@ -30,17 +76,6 @@ const Dashboard = () => {
 
   const isAdmin = user?.role === 'admin';
   const userName = user?.name || user?.email || 'Usuário';
-
-  // Função para obter lista de funcionários do localStorage
-  const getEmployees = () => {
-    const savedUsers = localStorage.getItem('tcponto_employees');
-    if (savedUsers) {
-      return JSON.parse(savedUsers);
-    }
-    return [];
-  };
-
-  const employees = getEmployees();
 
   // Layout para funcionário comum
   if (!isAdmin) {
@@ -143,6 +178,10 @@ const Dashboard = () => {
 
   // Layout para Admin
   const renderTabContent = () => {
+    if (loading) {
+      return <div>Carregando...</div>;
+    }
+
     switch (activeTab) {
       case 'adminDashboard':
         return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;

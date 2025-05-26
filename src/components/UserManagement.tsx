@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Users, Plus, Edit, Trash2 } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface User {
   id: string;
@@ -22,10 +22,11 @@ interface UserManagementProps {
   employees: User[];
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ employees }) => {
-  const [users, setUsers] = useState<User[]>(employees);
+const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmployees }) => {
+  const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -35,6 +36,36 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees }) => {
     overtimeRate: ''
   });
   const { formatCurrency } = useCurrency();
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+
+      const formattedUsers = data.map(profile => ({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role as 'admin' | 'employee',
+        hourlyRate: parseFloat(profile.hourly_rate),
+        overtimeRate: parseFloat(profile.hourly_rate) * 1.5
+      }));
+
+      setUsers(formattedUsers);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -48,7 +79,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees }) => {
     setEditingUser(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || (!editingUser && !formData.password)) {
@@ -57,52 +88,56 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees }) => {
     }
 
     const hourlyRate = parseFloat(formData.hourlyRate) || 0;
-    const overtimeRate = parseFloat(formData.overtimeRate) || hourlyRate * 1.5;
 
-    if (editingUser) {
-      // Editar usuário existente
-      const updatedUsers = users.map(user =>
-        user.id === editingUser.id
-          ? {
-              ...user,
+    try {
+      if (editingUser) {
+        // Update existing user
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+            hourly_rate: hourlyRate
+          })
+          .eq('id', editingUser.id);
+
+        if (error) throw error;
+      } else {
+        // Create new user
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email: formData.email,
+          password: formData.password,
+          user_metadata: {
+            name: formData.name,
+            role: formData.role
+          }
+        });
+
+        if (authError) throw authError;
+
+        if (authData.user) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: authData.user.id,
               name: formData.name,
               email: formData.email,
               role: formData.role,
-              hourlyRate,
-              overtimeRate
-            }
-          : user
-      );
-      setUsers(updatedUsers);
-      localStorage.setItem('tcponto_users', JSON.stringify(updatedUsers));
-    } else {
-      // Criar novo usuário
-      const newUser: User = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        hourlyRate,
-        overtimeRate
-      };
+              hourly_rate: hourlyRate
+            });
 
-      const updatedUsers = [...users, newUser];
-      setUsers(updatedUsers);
-      localStorage.setItem('tcponto_users', JSON.stringify(updatedUsers));
+          if (profileError) throw profileError;
+        }
+      }
 
-      // Salvar credenciais de login
-      const credentials = JSON.parse(localStorage.getItem('tcponto_credentials') || '[]');
-      credentials.push({
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-        userId: newUser.id
-      });
-      localStorage.setItem('tcponto_credentials', JSON.stringify(credentials));
+      await loadUsers();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      alert('Erro ao salvar usuário');
     }
-
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handleEdit = (user: User) => {
@@ -118,18 +153,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees }) => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (userId: string) => {
+  const handleDelete = async (userId: string) => {
     if (confirm('Tem certeza que deseja excluir este usuário?')) {
-      const updatedUsers = users.filter(user => user.id !== userId);
-      setUsers(updatedUsers);
-      localStorage.setItem('tcponto_users', JSON.stringify(updatedUsers));
+      try {
+        const { error } = await supabase.auth.admin.deleteUser(userId);
+        if (error) throw error;
 
-      // Remover credenciais
-      const credentials = JSON.parse(localStorage.getItem('tcponto_credentials') || '[]');
-      const updatedCredentials = credentials.filter((cred: any) => cred.userId !== userId);
-      localStorage.setItem('tcponto_credentials', JSON.stringify(updatedCredentials));
+        await loadUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('Erro ao excluir usuário');
+      }
     }
   };
+
+  if (loading) {
+    return <div>Carregando usuários...</div>;
+  }
 
   return (
     <div className="space-y-6">
