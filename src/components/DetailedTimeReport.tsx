@@ -55,25 +55,42 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
-  const [allDates, setAllDates] = useState<string[]>([]);
 
   // Filtrar funcionários para não exibir administradores
   const nonAdminEmployees = employees.filter(employee => employee.role !== 'admin');
 
-  // Função para gerar todas as datas do período
+  // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
     const dates = [];
-    const startDate = new Date(start);
-    const endDate = new Date(end);
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    
+    console.log('Gerando datas do período:', start, 'até', end);
+    console.log('Start date object:', startDate);
+    console.log('End date object:', endDate);
     
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-      dates.push(format(date, 'yyyy-MM-dd'));
+      const dateString = format(date, 'yyyy-MM-dd');
+      dates.push(dateString);
     }
+    
+    console.log('Datas geradas:', dates);
     return dates;
   };
 
+  // Função para validar se uma data está dentro do período
+  const isDateInPeriod = (dateStr: string, start: string, end: string) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    
+    const isValid = date >= startDate && date <= endDate;
+    console.log(`Data ${dateStr} está no período ${start} a ${end}?`, isValid);
+    return isValid;
+  };
+
   const getDayOfWeek = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = new Date(dateString + 'T00:00:00');
     return format(date, 'EEEE', { locale: ptBR });
   };
 
@@ -120,14 +137,17 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
 
     setLoading(true);
+    // Limpar dados anteriores
+    setTimeRecords([]);
     
     try {
-      console.log('Buscando registros para o funcionário:', selectedEmployeeId);
-      console.log('Período:', startDate, 'até', endDate);
+      console.log('=== INÍCIO GERAÇÃO RELATÓRIO INDIVIDUAL ===');
+      console.log('Funcionário selecionado:', selectedEmployeeId);
+      console.log('Período selecionado:', startDate, 'até', endDate);
 
-      // Gerar apenas as datas do período selecionado
+      // Gerar APENAS as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
-      setAllDates(dateRange);
+      console.log('Range de datas gerado:', dateRange);
 
       const { data, error } = await supabase
         .from('time_records')
@@ -143,7 +163,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      console.log('Registros encontrados no período:', data);
+      console.log('Registros encontrados na consulta:', data);
 
       // Buscar informações do funcionário separadamente
       const { data: profileData, error: profileError } = await supabase
@@ -158,11 +178,19 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       // Criar um mapa dos registros por data
       const recordsMap = (data || []).reduce((acc, record) => {
-        acc[record.date] = record;
+        // Validar se a data do registro está REALMENTE no período
+        if (isDateInPeriod(record.date, startDate, endDate)) {
+          acc[record.date] = record;
+          console.log('Registro adicionado ao mapa:', record.date, record);
+        } else {
+          console.log('Registro REJEITADO (fora do período):', record.date);
+        }
         return acc;
       }, {} as Record<string, any>);
 
-      // Combinar apenas as datas do período com os registros existentes
+      console.log('Mapa de registros válidos:', recordsMap);
+
+      // Combinar APENAS as datas do período com os registros existentes
       const completeRecords: TimeRecord[] = dateRange.map(date => {
         const record = recordsMap[date];
         
@@ -199,11 +227,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return {
           date,
           user_id: selectedEmployeeId,
-          profiles: profileData || undefined,
-          ...record
+          profiles: profileData || undefined
         };
       });
 
+      console.log('Registros completos para exibição:', completeRecords);
+      console.log('Total de datas no resultado:', completeRecords.length);
       setTimeRecords(completeRecords);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
@@ -220,14 +249,16 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
 
     setLoading(true);
+    // Limpar dados anteriores
+    setTimeRecords([]);
 
     try {
-      console.log('Buscando registros de todos os funcionários no período');
-      console.log('Período:', startDate, 'até', endDate);
+      console.log('=== INÍCIO GERAÇÃO RELATÓRIO TODOS OS FUNCIONÁRIOS ===');
+      console.log('Período selecionado:', startDate, 'até', endDate);
 
-      // Gerar apenas as datas do período selecionado
+      // Gerar APENAS as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
-      setAllDates(dateRange);
+      console.log('Range de datas gerado:', dateRange);
 
       const { data, error } = await supabase
         .from('time_records')
@@ -243,7 +274,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      console.log('Registros encontrados no período:', data);
+      console.log('Registros encontrados na consulta:', data);
 
       // Buscar informações de todos os funcionários (somente não-administradores)
       const nonAdminIds = nonAdminEmployees.map(emp => emp.id);
@@ -261,12 +292,20 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       // Criar um mapa dos registros por usuário e data
       const recordsMap = (data || []).reduce((acc, record) => {
-        const key = `${record.user_id}-${record.date}`;
-        acc[key] = record;
+        // Validar se a data do registro está REALMENTE no período
+        if (isDateInPeriod(record.date, startDate, endDate)) {
+          const key = `${record.user_id}-${record.date}`;
+          acc[key] = record;
+          console.log('Registro adicionado ao mapa:', key, record);
+        } else {
+          console.log('Registro REJEITADO (fora do período):', record.date);
+        }
         return acc;
       }, {} as Record<string, any>);
 
-      // Criar registros completos apenas para o período selecionado
+      console.log('Mapa de registros válidos:', recordsMap);
+
+      // Criar registros completos APENAS para o período selecionado
       const completeRecords: TimeRecord[] = [];
       
       profilesData?.forEach(profile => {
@@ -312,6 +351,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         });
       });
 
+      console.log('Registros completos para exibição:', completeRecords);
+      console.log('Total de registros no resultado:', completeRecords.length);
       setTimeRecords(completeRecords);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
@@ -488,7 +529,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                           const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
                           return (
                             <TableRow key={key}>
-                              <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
+                              <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
                               <TableCell>{getDayOfWeek(record.date)}</TableCell>
                               <TableCell>{formatTime(record.clock_in || '')}</TableCell>
                               <TableCell>{formatTime(record.lunch_start || '')}</TableCell>

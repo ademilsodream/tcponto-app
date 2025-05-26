@@ -43,6 +43,17 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [loading, setLoading] = useState(false);
   const { formatCurrency } = useCurrency();
 
+  // Função para validar se uma data está dentro do período
+  const isDateInPeriod = (dateStr: string, start: string, end: string) => {
+    const date = new Date(dateStr + 'T00:00:00');
+    const startDate = new Date(start + 'T00:00:00');
+    const endDate = new Date(end + 'T00:00:00');
+    
+    const isValid = date >= startDate && date <= endDate;
+    console.log(`[PayrollReport] Data ${dateStr} está no período ${start} a ${end}?`, isValid);
+    return isValid;
+  };
+
   const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
     if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
 
@@ -90,8 +101,14 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     }
 
     setLoading(true);
+    // Limpar dados anteriores
+    setPayrollData([]);
+    setIsGenerated(false);
     
     try {
+      console.log('=== INÍCIO GERAÇÃO FOLHA DE PAGAMENTO ===');
+      console.log('Período selecionado:', startDate, 'até', endDate);
+
       const payrollResults: PayrollData[] = [];
 
       // Buscar todos os funcionários do banco, excluindo administradores
@@ -109,6 +126,8 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       console.log('Funcionários encontrados:', dbEmployees);
 
       for (const employee of dbEmployees) {
+        console.log(`\n=== Processando funcionário: ${employee.name} ===`);
+        
         // Buscar registros do funcionário APENAS no período selecionado
         const { data: timeRecords, error } = await supabase
           .from('time_records')
@@ -122,30 +141,45 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           continue;
         }
 
-        console.log(`Registros para ${employee.name} no período ${startDate} a ${endDate}:`, timeRecords);
+        console.log(`Registros encontrados na consulta para ${employee.name}:`, timeRecords);
 
         let totalHours = 0;
         let totalNormalHours = 0;
         let totalOvertimeHours = 0;
 
-        // Calcular horas APENAS dos registros do período selecionado
+        // Calcular horas APENAS dos registros VÁLIDOS do período selecionado
         if (timeRecords && timeRecords.length > 0) {
-          timeRecords.forEach(record => {
-            // Verificar se a data está dentro do período
-            const recordDate = new Date(record.date);
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            
-            if (recordDate >= start && recordDate <= end) {
-              const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
-                calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
-              
-              totalHours += dayTotalHours;
-              totalNormalHours += dayNormalHours;
-              totalOvertimeHours += dayOvertimeHours;
+          const validRecords = timeRecords.filter(record => {
+            const isValid = isDateInPeriod(record.date, startDate, endDate);
+            if (!isValid) {
+              console.log(`Registro REJEITADO para ${employee.name}:`, record.date);
             }
+            return isValid;
+          });
+
+          console.log(`Registros VÁLIDOS para ${employee.name}:`, validRecords);
+
+          validRecords.forEach(record => {
+            const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
+              calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+            
+            console.log(`Horas do dia ${record.date}:`, {
+              dayTotalHours,
+              dayNormalHours,
+              dayOvertimeHours
+            });
+            
+            totalHours += dayTotalHours;
+            totalNormalHours += dayNormalHours;
+            totalOvertimeHours += dayOvertimeHours;
           });
         }
+
+        console.log(`Totais para ${employee.name}:`, {
+          totalHours,
+          totalNormalHours,
+          totalOvertimeHours
+        });
 
         // Usar o hourly_rate do banco de dados
         const hourlyRate = Number(employee.hourly_rate) || 0;
@@ -172,6 +206,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         });
       }
 
+      console.log('=== RESULTADO FINAL DA FOLHA DE PAGAMENTO ===');
       console.log('Dados da folha de pagamento para o período:', payrollResults);
       setPayrollData(payrollResults);
       setIsGenerated(true);
@@ -280,7 +315,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                   Detalhamento da Folha de Pagamento
                   {startDate && endDate && (
                     <span className="text-sm font-normal text-gray-600 ml-2">
-                      ({new Date(startDate).toLocaleDateString('pt-BR')} a {new Date(endDate).toLocaleDateString('pt-BR')})
+                      ({new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR')})
                     </span>
                   )}
                 </CardTitle>
