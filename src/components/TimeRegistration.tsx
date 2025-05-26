@@ -54,6 +54,17 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const [editRequestedFields, setEditRequestedFields] = useState<Set<string>>(new Set());
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  
+  // Estados para edição em lote (dias anteriores)
+  const [batchEditValues, setBatchEditValues] = useState({
+    clockIn: '',
+    lunchStart: '',
+    lunchEnd: '',
+    clockOut: ''
+  });
+  const [batchEditReason, setBatchEditReason] = useState('');
+  const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+  
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
 
@@ -102,6 +113,14 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           locations: data.locations as any || undefined
         };
         setRecord(loadedRecord);
+        
+        // Preencher valores para edição em lote
+        setBatchEditValues({
+          clockIn: loadedRecord.clockIn || '',
+          lunchStart: loadedRecord.lunchStart || '',
+          lunchEnd: loadedRecord.lunchEnd || '',
+          clockOut: loadedRecord.clockOut || ''
+        });
       } else {
         // Registro não existe, manter o estado inicial
         setRecord({
@@ -113,6 +132,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           normalPay: 0,
           overtimePay: 0,
           totalPay: 0
+        });
+        
+        setBatchEditValues({
+          clockIn: '',
+          lunchStart: '',
+          lunchEnd: '',
+          clockOut: ''
         });
       }
 
@@ -320,6 +346,76 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     return { totalHours, normalHours, overtimeHours };
   };
 
+  // Função para envio em lote (dias anteriores)
+  const handleBatchSubmit = async () => {
+    if (!user) {
+      setMessage('Erro: Usuário não autenticado');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    // Validar se todos os campos estão preenchidos
+    if (!batchEditValues.clockIn || !batchEditValues.lunchStart || 
+        !batchEditValues.lunchEnd || !batchEditValues.clockOut) {
+      setMessage('Todos os 4 registros devem ser preenchidos');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    if (!batchEditReason.trim()) {
+      setMessage('Por favor, informe o motivo da alteração');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    setIsSubmittingBatch(true);
+
+    try {
+      // Salvar cada solicitação de edição no banco
+      const editRequests = [
+        { field: 'clockIn', newValue: batchEditValues.clockIn, oldValue: record.clockIn || '' },
+        { field: 'lunchStart', newValue: batchEditValues.lunchStart, oldValue: record.lunchStart || '' },
+        { field: 'lunchEnd', newValue: batchEditValues.lunchEnd, oldValue: record.lunchEnd || '' },
+        { field: 'clockOut', newValue: batchEditValues.clockOut, oldValue: record.clockOut || '' }
+      ];
+
+      for (const request of editRequests) {
+        const editRequest = {
+          employee_id: user.id,
+          employee_name: user.name || user.email,
+          date: record.date,
+          field: request.field as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+          old_value: request.oldValue,
+          new_value: request.newValue,
+          reason: batchEditReason,
+          status: 'pending'
+        };
+
+        const { error } = await supabase
+          .from('edit_requests')
+          .insert(editRequest);
+
+        if (error) throw error;
+
+        // Marcar campo como solicitado
+        markFieldAsRequested(request.field);
+      }
+
+      setMessage('Solicitação de alteração enviada para aprovação administrativa para todos os registros.');
+      setTimeout(() => setMessage(''), 5000);
+      
+      // Limpar formulário
+      setBatchEditReason('');
+      
+    } catch (error) {
+      console.error('Error saving batch edit request:', error);
+      setMessage('Erro ao enviar solicitação. Tente novamente.');
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setIsSubmittingBatch(false);
+    }
+  };
+
   const handleRegisterTime = async (field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
     if (!user) {
       setMessage('Erro: Usuário não autenticado');
@@ -367,12 +463,10 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         totalPay
       };
 
-      // Determinar se precisa de aprovação
       const today = new Date().toISOString().split('T')[0];
       const isToday = selectedDate === today;
       const needsApproval = !isToday;
 
-      // Salvar no banco de dados
       await saveTimeRecord(finalRecord, needsApproval);
       
       setRecord(finalRecord);
@@ -381,7 +475,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     } catch (error) {
       console.error('Error registering time:', error);
       
-      // Em caso de erro, salvar localmente como fallback
       const updatedRecord = { ...record, [field]: currentTime };
       
       const { totalHours, normalHours, overtimeHours } = calculateHours(
@@ -460,7 +553,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     try {
       markFieldAsRequested(editingField);
 
-      // Salvar solicitação de edição no banco
       const editRequest = {
         employee_id: user.id,
         employee_name: user.name || user.email,
@@ -487,7 +579,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     } catch (error) {
       console.error('Error saving edit request:', error);
       
-      // Fallback para localStorage em caso de erro
       const editRequest = {
         id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         employeeId: user.id,
@@ -575,6 +666,97 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const isHistoricalEntry = selectedDate < todayDateString;
 
   const currentFieldToShow = getCurrentFieldToShow();
+
+  // Render para dias anteriores (edição em lote)
+  const renderHistoricalEntry = () => {
+    const fields = ['clockIn', 'lunchStart', 'lunchEnd', 'clockOut'];
+    
+    return (
+      <div className="space-y-4">
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-amber-800">
+            Você está registrando horários de um dia anterior. Preencha todos os 4 campos e envie uma solicitação única.
+          </AlertDescription>
+        </Alert>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {fields.map((field) => {
+            const Icon = getFieldIcon(field);
+            const color = getFieldColor(field);
+            const isRequested = isFieldEditRequested(field);
+            const isApprovedEdited = isFieldApprovedEdited(field);
+            
+            return (
+              <Card key={field} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-medium flex items-center gap-2 justify-center">
+                    <div className={`w-4 h-4 rounded-full ${color}`} />
+                    {getFieldLabel(field)}
+                    {(isRequested || isApprovedEdited) && <Lock className="w-4 h-4 text-amber-600" />}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(isRequested || isApprovedEdited) ? (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary-900 mb-2">
+                        {record[field as keyof TimeRecord] as string || '--:--'}
+                      </div>
+                      <div className="text-sm text-amber-600 flex items-center justify-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        {isApprovedEdited ? 'Campo editado - bloqueado' : 'Aguardando aprovação'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="text-center text-sm text-gray-600 mb-2">
+                        Valor atual: {record[field as keyof TimeRecord] as string || 'Não registrado'}
+                      </div>
+                      <Input
+                        type="time"
+                        value={batchEditValues[field as keyof typeof batchEditValues]}
+                        onChange={(e) => setBatchEditValues(prev => ({
+                          ...prev,
+                          [field]: e.target.value
+                        }))}
+                        className="text-center"
+                        disabled={isRequested || isApprovedEdited}
+                      />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <Textarea
+                placeholder="Motivo da alteração (obrigatório para todos os registros)"
+                value={batchEditReason}
+                onChange={(e) => setBatchEditReason(e.target.value)}
+                className="text-sm"
+                rows={3}
+              />
+              <Button
+                onClick={handleBatchSubmit}
+                disabled={isSubmittingBatch || 
+                  !batchEditValues.clockIn || !batchEditValues.lunchStart || 
+                  !batchEditValues.lunchEnd || !batchEditValues.clockOut ||
+                  !batchEditReason.trim()}
+                className="w-full bg-primary-600 hover:bg-primary-700"
+                size="lg"
+              >
+                {isSubmittingBatch ? 'Enviando...' : 'Enviar Solicitação de Ajustes'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   const renderCurrentField = () => {
     if (currentFieldToShow === 'completed') {
@@ -762,20 +944,17 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         </Alert>
       )}
 
-      {isHistoricalEntry && (
-        <Alert className="border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="text-amber-800">
-            Você está registrando horários de um dia anterior. Todas as alterações precisarão de aprovação administrativa.
-          </AlertDescription>
-        </Alert>
+      {/* Se for dia anterior, mostrar interface de edição em lote */}
+      {isHistoricalEntry ? (
+        renderHistoricalEntry()
+      ) : (
+        <>
+          <div className="max-w-md mx-auto">
+            {renderCurrentField()}
+          </div>
+          {renderCompletedFields()}
+        </>
       )}
-
-      <div className="max-w-md mx-auto">
-        {renderCurrentField()}
-      </div>
-
-      {renderCompletedFields()}
 
       <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
         <CardHeader>
