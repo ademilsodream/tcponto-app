@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,104 +26,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
+    // Configurar listener de mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
         setSession(session);
         
         if (session?.user) {
-          // Defer profile fetching to avoid blocking auth state change
-          setTimeout(async () => {
-            console.log('User authenticated, fetching profile for:', session.user.id);
-            try {
-              const { data: profile, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .maybeSingle();
-              
-              console.log('Profile fetch result:', { profile, error });
-              
-              if (profile && !error) {
-                const userData: User = {
-                  id: profile.id,
-                  name: profile.name,
-                  email: profile.email,
-                  role: profile.role === 'admin' ? 'admin' : 'user',
-                  hourlyRate: Number(profile.hourly_rate),
-                  overtimeRate: Number(profile.hourly_rate) * 1.5
-                };
-                console.log('Setting user data:', userData);
-                setUser(userData);
-                setIsAuthenticated(true);
-              } else if (error) {
-                console.error('Error fetching profile:', error);
-                setUser(null);
-                setIsAuthenticated(false);
-              } else {
-                console.error('No profile found for user:', session.user.id);
-                // Create a basic profile if it doesn't exist
-                const { data: newProfile, error: createError } = await supabase
-                  .from('profiles')
-                  .insert({
-                    id: session.user.id,
-                    email: session.user.email || '',
-                    name: session.user.email || 'Usuário',
-                    role: 'user',
-                    hourly_rate: 50.00
-                  })
-                  .select()
-                  .single();
-                
-                if (newProfile && !createError) {
-                  const userData: User = {
-                    id: newProfile.id,
-                    name: newProfile.name,
-                    email: newProfile.email,
-                    role: newProfile.role === 'admin' ? 'admin' : 'user',
-                    hourlyRate: Number(newProfile.hourly_rate),
-                    overtimeRate: Number(newProfile.hourly_rate) * 1.5
-                  };
-                  console.log('Created and set new user profile:', userData);
-                  setUser(userData);
-                  setIsAuthenticated(true);
-                } else {
-                  console.error('Failed to create profile:', createError);
-                  setUser(null);
-                  setIsAuthenticated(false);
-                }
-              }
-            } catch (error) {
-              console.error('Error in profile handling:', error);
-              setUser(null);
-              setIsAuthenticated(false);
-            }
-          }, 0);
+          console.log('User authenticated, fetching profile for:', session.user.id);
+          await fetchUserProfile(session.user.id);
         } else {
           console.log('No session, clearing user');
           setUser(null);
           setIsAuthenticated(false);
         }
+        setLoading(false);
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email);
-      if (session) {
-        setSession(session);
+    // Verificar sessão existente
+    const checkSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Initial session check:', session?.user?.email);
+        if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error in checkSession:', error);
+        setLoading(false);
       }
-    });
+    };
+
+    checkSession();
 
     return () => subscription.unsubscribe();
   }, []);
 
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      console.log('Profile fetch result:', { profile, error });
+      
+      if (profile && !error) {
+        const userData: User = {
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role === 'admin' ? 'admin' : 'user',
+          hourlyRate: Number(profile.hourly_rate),
+          overtimeRate: Number(profile.hourly_rate) * 1.5
+        };
+        console.log('Setting user data:', userData);
+        setUser(userData);
+        setIsAuthenticated(true);
+      } else if (error) {
+        console.error('Error fetching profile:', error);
+        setUser(null);
+        setIsAuthenticated(false);
+      } else {
+        console.error('No profile found for user:', userId);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error('Error in fetchUserProfile:', error);
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  };
+
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log('Attempting login for:', email);
+      setLoading(true);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -133,22 +126,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Login error:', error);
+        setLoading(false);
         return false;
       }
 
-      return !!data.user;
+      if (data.user) {
+        // O fetchUserProfile será chamado automaticamente pelo onAuthStateChange
+        return true;
+      }
+
+      setLoading(false);
+      return false;
     } catch (error) {
       console.error('Login error:', error);
+      setLoading(false);
       return false;
     }
   };
 
   const logout = async () => {
-    console.log('Logging out');
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setIsAuthenticated(false);
+    try {
+      console.log('Logging out');
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+      }
+      // O estado será limpo automaticamente pelo onAuthStateChange
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   };
 
   return (
@@ -156,7 +162,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       login,
       logout,
-      isAuthenticated
+      isAuthenticated,
+      loading
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { initializeApp } from '@/utils/initializeApp';
+import { useToast } from '@/hooks/use-toast';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -15,17 +17,35 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const { login } = useAuth();
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const initialize = async () => {
-      await initializeApp();
-      setIsInitializing(false);
+      try {
+        await initializeApp();
+      } catch (error) {
+        console.error('Initialization error:', error);
+        toast({
+          title: "Aviso",
+          description: "Sistema inicializado com dados básicos",
+          variant: "default"
+        });
+      } finally {
+        setIsInitializing(false);
+      }
     };
     
     initialize();
-  }, []);
+  }, [toast]);
+
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      console.log('User is authenticated, redirecting to dashboard');
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,19 +54,35 @@ const Login = () => {
 
     console.log('Form submitted with:', { email, password: '***' });
 
+    if (!email || !password) {
+      setError('Por favor, preencha todos os campos');
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const success = await login(email, password);
       console.log('Login success:', success);
       
       if (success) {
-        console.log('Redirecting to dashboard');
-        navigate('/dashboard');
+        console.log('Login successful, redirecting...');
+        toast({
+          title: "Sucesso",
+          description: "Login realizado com sucesso!"
+        });
+        // A navegação será feita pelo useEffect quando isAuthenticated mudar
       } else {
-        setError('E-mail ou senha inválidos');
+        setError('E-mail ou senha inválidos. Verifique suas credenciais e tente novamente.');
       }
     } catch (err) {
       console.error('Login form error:', err);
-      setError('Erro ao fazer login');
+      setError('Erro ao fazer login. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -58,6 +94,17 @@ const Login = () => {
         <div className="text-center text-white">
           <Clock className="w-8 h-8 animate-spin mx-auto mb-4" />
           <p>Inicializando sistema...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
+        <div className="text-center text-white">
+          <Clock className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p>Verificando autenticação...</p>
         </div>
       </div>
     );
@@ -100,6 +147,7 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="transition-all duration-200 focus:ring-2 focus:ring-primary-500"
+                  disabled={isLoading}
                 />
               </div>
               
@@ -112,7 +160,9 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  minLength={6}
                   className="transition-all duration-200 focus:ring-2 focus:ring-primary-500"
+                  disabled={isLoading}
                 />
               </div>
 
@@ -137,7 +187,7 @@ const Login = () => {
             </form>
 
             <div className="mt-6 pt-6 border-t text-center text-sm text-gray-600">
-              <p className="mb-2"><strong>Contas criadas automaticamente:</strong></p>
+              <p className="mb-2"><strong>Contas de demonstração:</strong></p>
               <div className="space-y-1">
                 <p><strong>Funcionário:</strong> joao@tcponto.com</p>
                 <p><strong>Admin:</strong> admin@tcponto.com</p>
@@ -146,7 +196,7 @@ const Login = () => {
               
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
                 <p className="text-green-800 text-xs">
-                  <strong>✓ Sistema inicializado!</strong> Usuários de demonstração foram criados automaticamente.
+                  <strong>✓ Sistema pronto!</strong> Use as credenciais acima para testar o sistema.
                 </p>
               </div>
             </div>

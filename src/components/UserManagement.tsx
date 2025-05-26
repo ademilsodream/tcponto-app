@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Users, Plus, Edit, Trash2 } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface User {
   id: string;
@@ -28,6 +29,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -37,6 +39,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     overtimeRate: ''
   });
   const { formatCurrency } = useCurrency();
+  const { toast } = useToast();
 
   useEffect(() => {
     loadUsers();
@@ -44,12 +47,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
 
   const loadUsers = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('name');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading users:', error);
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar usuários: " + error.message,
+          variant: "destructive"
+        });
+        return;
+      }
 
       const formattedUsers = data.map(profile => ({
         id: profile.id,
@@ -63,6 +75,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       setUsers(formattedUsers);
     } catch (error) {
       console.error('Error loading users:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao carregar usuários",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -84,29 +101,51 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     e.preventDefault();
     
     if (!formData.name || !formData.email || (!editingUser && !formData.password)) {
-      alert('Preencha todos os campos obrigatórios');
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!editingUser && formData.password.length < 6) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive"
+      });
       return;
     }
 
     const hourlyRate = parseFloat(formData.hourlyRate) || 0;
-    const overtimeRate = parseFloat(formData.overtimeRate) || 0;
 
     try {
+      setSubmitting(true);
+
       if (editingUser) {
-        // Update existing user
+        // Atualizar usuário existente
         const { error } = await supabase
           .from('profiles')
           .update({
             name: formData.name,
             email: formData.email,
             role: formData.role,
-            hourly_rate: hourlyRate
+            hourly_rate: hourlyRate,
+            updated_at: new Date().toISOString()
           })
           .eq('id', editingUser.id);
 
         if (error) throw error;
+
+        toast({
+          title: "Sucesso",
+          description: "Usuário atualizado com sucesso!"
+        });
       } else {
-        // Create new user using auth signup with email confirmation disabled
+        // Criar novo usuário
+        console.log('Criando novo usuário:', formData.email);
+        
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -114,44 +153,99 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
             data: {
               name: formData.name,
               role: formData.role
-            },
-            emailRedirectTo: undefined
+            }
           }
         });
 
         if (authError) {
-          console.error('Auth error:', authError);
-          throw authError;
+          console.error('Erro de autenticação:', authError);
+          
+          if (authError.message.includes('already registered')) {
+            toast({
+              title: "Erro",
+              description: "Este e-mail já está registrado no sistema",
+              variant: "destructive"
+            });
+          } else {
+            toast({
+              title: "Erro",
+              description: "Erro ao criar usuário: " + authError.message,
+              variant: "destructive"
+            });
+          }
+          return;
         }
 
         if (authData.user) {
-          // Force create profile since trigger might not work as expected
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({
-              id: authData.user.id,
-              name: formData.name,
-              email: formData.email,
-              role: formData.role,
-              hourly_rate: hourlyRate
-            }, {
-              onConflict: 'id'
-            });
+          console.log('Usuário criado com sucesso:', authData.user.id);
+          
+          // Aguardar um pouco para o trigger criar o perfil
+          setTimeout(async () => {
+            try {
+              // Verificar se o perfil foi criado
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', authData.user!.id)
+                .single();
 
-          if (profileError) {
-            console.error('Profile error:', profileError);
-            throw profileError;
-          }
+              if (profileError || !profile) {
+                console.log('Perfil não encontrado, criando manualmente...');
+                // Se o perfil não foi criado pelo trigger, criar manualmente
+                const { error: createError } = await supabase
+                  .from('profiles')
+                  .insert({
+                    id: authData.user!.id,
+                    name: formData.name,
+                    email: formData.email,
+                    role: formData.role,
+                    hourly_rate: hourlyRate
+                  });
+
+                if (createError) {
+                  console.error('Erro ao criar perfil:', createError);
+                }
+              } else {
+                // Atualizar o perfil com os dados corretos
+                const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({
+                    name: formData.name,
+                    role: formData.role,
+                    hourly_rate: hourlyRate
+                  })
+                  .eq('id', authData.user!.id);
+
+                if (updateError) {
+                  console.error('Erro ao atualizar perfil:', updateError);
+                }
+              }
+
+              await loadUsers();
+            } catch (error) {
+              console.error('Erro ao processar perfil:', error);
+            }
+          }, 1000);
+
+          toast({
+            title: "Sucesso",
+            description: "Usuário criado com sucesso!"
+          });
         }
       }
 
       await loadUsers();
       setIsDialogOpen(false);
       resetForm();
-      alert(editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!');
     } catch (error) {
-      console.error('Error saving user:', error);
-      alert('Erro ao salvar usuário: ' + (error as any).message);
+      console.error('Erro ao salvar usuário:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar usuário: " + (error as any).message,
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -169,26 +263,46 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
   };
 
   const handleDelete = async (userId: string) => {
-    if (confirm('Tem certeza que deseja excluir este usuário?')) {
-      try {
-        const { error } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('id', userId);
+    if (!confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) {
+      return;
+    }
 
-        if (error) throw error;
+    try {
+      // Primeiro deletar o perfil
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
 
-        await loadUsers();
-        alert('Usuário excluído com sucesso!');
-      } catch (error) {
-        console.error('Error deleting user:', error);
-        alert('Erro ao excluir usuário: ' + (error as any).message);
+      if (profileError) {
+        console.error('Erro ao deletar perfil:', profileError);
+        throw profileError;
       }
+
+      await loadUsers();
+      toast({
+        title: "Sucesso",
+        description: "Usuário excluído com sucesso!"
+      });
+    } catch (error) {
+      console.error('Erro ao excluir usuário:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir usuário: " + (error as any).message,
+        variant: "destructive"
+      });
     }
   };
 
   if (loading) {
-    return <div>Carregando usuários...</div>;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Carregando usuários...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -214,42 +328,50 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
+                <Label htmlFor="name">Nome *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  disabled={submitting}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
+                  disabled={submitting}
                 />
               </div>
 
               {!editingUser && (
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
+                  <Label htmlFor="password">Senha * (mínimo 6 caracteres)</Label>
                   <Input
                     id="password"
                     type="password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
+                    minLength={6}
+                    disabled={submitting}
                   />
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="role">Cargo/Nível</Label>
-                <Select value={formData.role} onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}>
+                <Label htmlFor="role">Cargo/Nível *</Label>
+                <Select 
+                  value={formData.role} 
+                  onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
+                  disabled={submitting}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -261,36 +383,30 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="hourlyRate">Valor por Hora</Label>
+                <Label htmlFor="hourlyRate">Valor por Hora *</Label>
                 <Input
                   id="hourlyRate"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.hourlyRate}
                   onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
                   required
+                  disabled={submitting}
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="overtimeRate">Valor Hora Extra</Label>
-                <Input
-                  id="overtimeRate"
-                  type="number"
-                  step="0.01"
-                  value={formData.overtimeRate}
-                  onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
-                  placeholder="Aceita qualquer valor"
-                />
-                <p className="text-xs text-gray-500">Aceita qualquer valor, inclusive igual ou menor que a hora normal</p>
-              </div>
-
-              <div className="flex justify-end space-x-2">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsDialogOpen(false)}
+                  disabled={submitting}
+                >
                   Cancelar
                 </Button>
-                <Button type="submit">
-                  {editingUser ? 'Salvar' : 'Criar'}
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Salvando...' : (editingUser ? 'Salvar' : 'Criar')}
                 </Button>
               </div>
             </form>
@@ -302,82 +418,84 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Lista de Usuários
+            Lista de Usuários ({users.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cargo
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Valor/Hora
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Hora Extra
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {user.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {user.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.role === 'admin' 
-                          ? 'bg-purple-100 text-purple-800' 
-                          : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {user.role === 'admin' ? 'Administrador' : 'Funcionário'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(user.hourlyRate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(user.overtimeRate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(user)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(user.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
+          {users.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhum usuário encontrado</p>
+              <p className="text-sm">Clique em "Novo Usuário" para criar o primeiro usuário</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Nome
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cargo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Valor/Hora
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Ações
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {user.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {user.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          user.role === 'admin' 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {user.role === 'admin' ? 'Administrador' : 'Funcionário'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(user.hourlyRate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(user)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(user.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
