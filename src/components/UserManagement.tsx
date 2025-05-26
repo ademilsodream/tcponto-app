@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,30 +106,42 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
 
         if (error) throw error;
       } else {
-        // Create new user using admin API
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        // Create new user using auth signup with email confirmation disabled
+        const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
-          user_metadata: {
-            name: formData.name,
-            role: formData.role
+          options: {
+            data: {
+              name: formData.name,
+              role: formData.role
+            },
+            emailRedirectTo: undefined
           }
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          console.error('Auth error:', authError);
+          throw authError;
+        }
 
         if (authData.user) {
+          // Force create profile since trigger might not work as expected
           const { error: profileError } = await supabase
             .from('profiles')
-            .insert({
+            .upsert({
               id: authData.user.id,
               name: formData.name,
               email: formData.email,
               role: formData.role,
               hourly_rate: hourlyRate
+            }, {
+              onConflict: 'id'
             });
 
-          if (profileError) throw profileError;
+          if (profileError) {
+            console.error('Profile error:', profileError);
+            throw profileError;
+          }
         }
       }
 
