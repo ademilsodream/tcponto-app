@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,12 +24,32 @@ interface DetailedTimeReportProps {
   onBack: () => void;
 }
 
+interface TimeRecord {
+  id?: string;
+  date: string;
+  user_id?: string;
+  clock_in?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  clock_out?: string;
+  total_hours?: number;
+  overtime_hours?: number;
+  total_pay?: number;
+  profiles?: {
+    id: string;
+    name: string;
+    email: string;
+    hourly_rate: number;
+    role: string;
+  };
+}
+
 const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBack }) => {
   const [startDate, setStartDate] = useState('2025-05-01');
   const [endDate, setEndDate] = useState('2025-05-31');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [timeRecords, setTimeRecords] = useState<any[]>([]);
+  const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [allDates, setAllDates] = useState<string[]>([]);
 
   // Filtrar funcionários para não exibir administradores
@@ -88,7 +107,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // Buscar informações do funcionário separadamente
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('name, email, hourly_rate')
+        .select('id, name, email, hourly_rate, role')
         .eq('id', selectedEmployeeId)
         .single();
 
@@ -103,11 +122,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       }, {} as Record<string, any>);
 
       // Combinar todas as datas com os registros existentes
-      const completeRecords = dateRange.map(date => {
+      const completeRecords: TimeRecord[] = dateRange.map(date => {
         const record = recordsMap[date];
         return {
           date,
-          profiles: profileData,
+          user_id: selectedEmployeeId,
+          profiles: profileData || undefined,
           ...record
         };
       });
@@ -175,7 +195,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       }, {} as Record<string, any>);
 
       // Criar registros completos para todos os funcionários e todas as datas
-      const completeRecords: any[] = [];
+      const completeRecords: TimeRecord[] = [];
       
       profilesData?.forEach(profile => {
         dateRange.forEach(date => {
@@ -221,7 +241,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
     acc[employeeName].push(record);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, TimeRecord[]>);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -368,16 +388,16 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {records.map((record: any, index: number) => {
+                      {records.map((record: TimeRecord, index: number) => {
                         const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
                         return (
                           <TableRow key={key}>
                             <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                            <TableCell>{formatTime(record.clock_in)}</TableCell>
-                            <TableCell>{formatTime(record.lunch_start)}</TableCell>
-                            <TableCell>{formatTime(record.lunch_end)}</TableCell>
-                            <TableCell>{formatTime(record.clock_out)}</TableCell>
+                            <TableCell>{formatTime(record.clock_in || '')}</TableCell>
+                            <TableCell>{formatTime(record.lunch_start || '')}</TableCell>
+                            <TableCell>{formatTime(record.lunch_end || '')}</TableCell>
+                            <TableCell>{formatTime(record.clock_out || '')}</TableCell>
                             <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
                             <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
                             <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
