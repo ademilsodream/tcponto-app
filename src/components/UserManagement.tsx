@@ -54,7 +54,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         id: profile.id,
         name: profile.name,
         email: profile.email,
-        role: profile.role as 'admin' | 'user',
+        role: profile.role === 'admin' ? 'admin' : 'user' as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate),
         overtimeRate: Number(profile.hourly_rate) * 1.5
       }));

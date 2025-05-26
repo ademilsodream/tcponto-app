@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               id: profile.id,
               name: profile.name,
               email: profile.email,
-              role: profile.role as 'admin' | 'user',
+              role: profile.role === 'admin' ? 'admin' : 'user',
               hourlyRate: Number(profile.hourly_rate),
               overtimeRate: Number(profile.hourly_rate) * 1.5
             };
@@ -80,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: newProfile.id,
                 name: newProfile.name,
                 email: newProfile.email,
-                role: newProfile.role as 'admin' | 'user',
+                role: newProfile.role === 'admin' ? 'admin' : 'user',
                 hourlyRate: Number(newProfile.hourly_rate),
                 overtimeRate: Number(newProfile.hourly_rate) * 1.5
               };
