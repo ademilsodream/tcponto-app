@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import AdminPanel from '@/components/AdminPanel';
 import PayrollReport from '@/components/PayrollReport';
 import LocationReport from '@/components/LocationReport';
 import MonthlyControl from '@/components/MonthlyControl';
+import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,7 +88,7 @@ const Dashboard = () => {
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-4">
                 <img 
-                  src="/lovable-uploads/0d53eab2-e013-4f2d-a6ed-e6d48f6e38ef.png" 
+                  src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
                   alt="TCPonto Logo" 
                   className="w-10 h-10 rounded-full"
                 />
@@ -97,8 +99,6 @@ const Dashboard = () => {
               </div>
 
               <div className="flex items-center space-x-4">
-                <GlobalCurrencySelector />
-
                 <div className="flex items-center space-x-2 text-sm">
                   <span className="text-gray-600">Olá, {userName}</span>
                 </div>
@@ -188,6 +188,8 @@ const Dashboard = () => {
         return <MonthlyControl employees={employees} />;
       case 'payrollReport':
         return <PayrollReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
+      case 'detailedReport':
+        return <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => setActiveTab('adminDashboard')} />;
       case 'locationReport':
         return <LocationReport employees={employees} />;
       default:
@@ -203,7 +205,7 @@ const Dashboard = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <img 
-                src="/lovable-uploads/0d53eab2-e013-4f2d-a6ed-e6d48f6e38ef.png" 
+                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
                 alt="TCPonto Logo" 
                 className="w-10 h-10 rounded-full"
               />
@@ -268,6 +270,18 @@ const Dashboard = () => {
             >
               <FileText className="w-4 h-4 mr-2" />
               Folha de Pagamento
+            </button>
+
+            <button
+              onClick={() => setActiveTab('detailedReport')}
+              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+                activeTab === 'detailedReport'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Relatório Detalhado
             </button>
 
             <button

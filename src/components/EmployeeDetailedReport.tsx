@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText, MapPin } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,7 +23,6 @@ interface TimeRecord {
   normal_pay: number;
   overtime_pay: number;
   total_pay: number;
-  locations?: any;
 }
 
 interface EmployeeDetailedReportProps {
@@ -38,6 +38,20 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   const [loading, setLoading] = useState(true);
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
+
+  // Função para gerar todas as datas do mês
+  const generateMonthDates = (month: Date) => {
+    const year = month.getFullYear();
+    const monthNumber = month.getMonth();
+    const daysInMonth = new Date(year, monthNumber + 1, 0).getDate();
+    
+    const dates = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, monthNumber, day);
+      dates.push(format(date, 'yyyy-MM-dd'));
+    }
+    return dates;
+  };
 
   useEffect(() => {
     if (user) {
@@ -71,6 +85,20 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     }
   };
 
+  const getDayOfWeek = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, 'EEEE', { locale: ptBR });
+  };
+
+  // Gerar todas as datas do mês
+  const allDates = generateMonthDates(selectedMonth);
+  
+  // Criar um mapa dos registros por data
+  const recordsMap = records.reduce((acc, record) => {
+    acc[record.date] = record;
+    return acc;
+  }, {} as Record<string, TimeRecord>);
+
   const totals = records.reduce((acc, record) => ({
     totalHours: acc.totalHours + Number(record.total_hours),
     normalHours: acc.normalHours + Number(record.normal_hours),
@@ -99,132 +127,49 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
             </Button>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Relatório Detalhado - {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
+              {user?.name} ({totals.totalHours.toFixed(1)}h - {formatCurrency(totals.totalPay)})
             </CardTitle>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Resumo */}
-      <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
-        <CardHeader>
-          <CardTitle className="text-primary-900">Resumo do Período</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <p className="text-sm text-gray-600">Dias Trabalhados</p>
-              <p className="text-xl font-bold text-primary-900">
-                {records.filter(r => Number(r.total_hours) > 0).length}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Horas Normais</p>
-              <p className="text-xl font-bold text-primary-900">
-                {totals.normalHours.toFixed(1)}h
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Horas Extras</p>
-              <p className="text-xl font-bold text-orange-600">
-                {totals.overtimeHours.toFixed(1)}h
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Total Ganho</p>
-              <p className="text-xl font-bold text-accent-600">
-                {formatCurrency(totals.totalPay)}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Registros Detalhados */}
       <Card>
-        <CardHeader>
-          <CardTitle>Registros Diários</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {records.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">
-                Nenhum registro encontrado para este período.
-              </p>
-            ) : (
-              records.map((record) => (
-                <div key={record.id} className="border rounded-lg p-4 bg-gray-50">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-semibold text-lg">
-                        {format(new Date(record.date), 'EEEE, dd/MM/yyyy', { locale: ptBR })}
-                      </h3>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Total do Dia</p>
-                      <p className="font-bold text-lg">{formatCurrency(Number(record.total_pay))}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">Entrada</p>
-                      <p className="font-semibold">
-                        {record.clock_in || '--:--'}
-                      </p>
-                      {record.locations?.clockIn && (
-                        <MapPin className="w-3 h-3 text-green-600 mx-auto mt-1" />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">Início Almoço</p>
-                      <p className="font-semibold">
-                        {record.lunch_start || '--:--'}
-                      </p>
-                      {record.locations?.lunchStart && (
-                        <MapPin className="w-3 h-3 text-orange-600 mx-auto mt-1" />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">Fim Almoço</p>
-                      <p className="font-semibold">
-                        {record.lunch_end || '--:--'}
-                      </p>
-                      {record.locations?.lunchEnd && (
-                        <MapPin className="w-3 h-3 text-orange-600 mx-auto mt-1" />
-                      )}
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">Saída</p>
-                      <p className="font-semibold">
-                        {record.clock_out || '--:--'}
-                      </p>
-                      {record.locations?.clockOut && (
-                        <MapPin className="w-3 h-3 text-red-600 mx-auto mt-1" />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4 text-center text-sm border-t pt-3">
-                    <div>
-                      <p className="text-gray-600">Horas Normais</p>
-                      <p className="font-semibold">{Number(record.normal_hours).toFixed(1)}h</p>
-                      <p className="text-accent-600">{formatCurrency(Number(record.normal_pay))}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Horas Extras</p>
-                      <p className="font-semibold text-orange-600">{Number(record.overtime_hours).toFixed(1)}h</p>
-                      <p className="text-accent-600">{formatCurrency(Number(record.overtime_pay))}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Total Horas</p>
-                      <p className="font-semibold">{Number(record.total_hours).toFixed(1)}h</p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Dia da Semana</TableHead>
+                <TableHead>Entrada</TableHead>
+                <TableHead>Saída Almoço</TableHead>
+                <TableHead>Volta Almoço</TableHead>
+                <TableHead>Saída</TableHead>
+                <TableHead>Total Horas</TableHead>
+                <TableHead>Horas Extras</TableHead>
+                <TableHead>Valor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {allDates.map((dateString) => {
+                const record = recordsMap[dateString];
+                const dayOfWeek = getDayOfWeek(dateString);
+                
+                return (
+                  <TableRow key={dateString}>
+                    <TableCell>{format(new Date(dateString), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>{dayOfWeek}</TableCell>
+                    <TableCell>{record?.clock_in || '-'}</TableCell>
+                    <TableCell>{record?.lunch_start || '-'}</TableCell>
+                    <TableCell>{record?.lunch_end || '-'}</TableCell>
+                    <TableCell>{record?.clock_out || '-'}</TableCell>
+                    <TableCell>{record ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                    <TableCell>{record ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                    <TableCell>{record ? formatCurrency(Number(record.total_pay)) : '-'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
