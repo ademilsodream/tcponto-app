@@ -91,62 +91,96 @@ const Dashboard = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Date Selection */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5" />
-                  Selecionar Data
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !selectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {selectedDate ? (
-                        format(selectedDate, "PPP", { locale: ptBR })
-                      ) : (
-                        <span>Selecione uma data</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => date && setSelectedDate(date)}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
+        {isAdmin ? (
+          // Admin Dashboard - sem registro de ponto
+          <div className="text-center py-16">
+            <div className="mb-8">
+              <Users className="w-24 h-24 mx-auto text-primary-500 mb-4" />
+              <h2 className="text-3xl font-bold text-primary-900 mb-2">Painel Administrativo</h2>
+              <p className="text-gray-600 text-lg">Bem-vindo ao sistema de gestão TCPonto</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowAdminPanel(true)}>
+                <CardHeader className="text-center">
+                  <Users className="w-12 h-12 mx-auto text-primary-500 mb-2" />
+                  <CardTitle>Gerenciar Usuários</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Criar, editar e gerenciar funcionários do sistema</p>
+                </CardContent>
+              </Card>
 
-                <div className="mt-4 p-4 bg-accent-50 rounded-lg">
-                  <h3 className="font-medium text-accent-900 mb-2">Data Selecionada</h3>
-                  <p className="text-accent-700">
-                    {format(selectedDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowAdminPanel(true)}>
+                <CardHeader className="text-center">
+                  <BarChart3 className="w-12 h-12 mx-auto text-primary-500 mb-2" />
+                  <CardTitle>Relatórios</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Visualizar relatórios de ponto e folha de pagamento</p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
+        ) : (
+          // Employee Dashboard - com registro de ponto
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column - Date Selection */}
+            <div className="lg:col-span-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5" />
+                    Selecionar Data
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !selectedDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? (
+                          format(selectedDate, "PPP", { locale: ptBR })
+                        ) : (
+                          <span>Selecione uma data</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
 
-          {/* Right Column - Time Registration */}
-          <div className="lg:col-span-2">
-            <SupabaseTimeRegistration 
-              selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-            />
+                  <div className="mt-4 p-4 bg-accent-50 rounded-lg">
+                    <h3 className="font-medium text-accent-900 mb-2">Data Selecionada</h3>
+                    <p className="text-accent-700">
+                      {format(selectedDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column - Time Registration */}
+            <div className="lg:col-span-2">
+              <SupabaseTimeRegistration 
+                selectedDate={format(selectedDate, 'yyyy-MM-dd')}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

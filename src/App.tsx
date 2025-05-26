@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
-import AuthPage from "./components/AuthPage";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -20,7 +19,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   }
   
-  return user ? <>{children}</> : <Navigate to="/auth" />;
+  return user ? <>{children}</> : <Navigate to="/login" />;
 };
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
@@ -36,14 +35,6 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route 
-        path="/auth" 
-        element={
-          <PublicRoute>
-            <AuthPage />
-          </PublicRoute>
-        } 
-      />
       <Route 
         path="/login" 
         element={
