@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar, DollarSign, Clock, FileText } from 'lucide-react';
-import { calculateDayHours } from '@/utils/timeCalculations';
 import DetailedTimeReport from './DetailedTimeReport';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -35,92 +36,69 @@ interface PayrollData {
   totalPay: number;
 }
 
-// Função para gerar dados mock de maio de 2025
-const generateMayTimeData = (employeeId: string) => {
-  const may2025 = new Date(2025, 4, 1); // Maio é mês 4 (0-indexed)
-  const daysInMay = 31;
-  const weekdays = [];
-  
-  // Gerar apenas dias úteis (segunda a sexta)
-  for (let day = 1; day <= daysInMay; day++) {
-    const date = new Date(2025, 4, day);
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) { // Segunda a sexta
-      weekdays.push(day);
-    }
-  }
-  
-  let totalHours = 0;
-  let totalNormalHours = 0;
-  let totalOvertimeHours = 0;
-  
-  weekdays.forEach(day => {
-    // Gerar horários aleatórios mas realistas
-    const entryHour = 8 + Math.floor(Math.random() * 2); // Entre 8h e 9h
-    const entryMinute = Math.floor(Math.random() * 60);
-    
-    const lunchStartHour = 12 + Math.floor(Math.random() * 2); // Entre 12h e 13h
-    const lunchStartMinute = Math.floor(Math.random() * 60);
-    
-    const lunchEndHour = lunchStartHour + 1; // 1 hora de almoço
-    const lunchEndMinute = lunchStartMinute;
-    
-    const exitHour = 17 + Math.floor(Math.random() * 3); // Entre 17h e 19h
-    const exitMinute = Math.floor(Math.random() * 60);
-    
-    const workStart = `${entryHour.toString().padStart(2, '0')}:${entryMinute.toString().padStart(2, '0')}`;
-    const lunchStart = `${lunchStartHour.toString().padStart(2, '0')}:${lunchStartMinute.toString().padStart(2, '0')}`;
-    const lunchEnd = `${lunchEndHour.toString().padStart(2, '0')}:${lunchEndMinute.toString().padStart(2, '0')}`;
-    const workEnd = `${exitHour.toString().padStart(2, '0')}:${exitMinute.toString().padStart(2, '0')}`;
-    
-    const dayCalculation = calculateDayHours(workStart, lunchStart, lunchEnd, workEnd);
-    
-    totalHours += dayCalculation.totalHours;
-    totalNormalHours += dayCalculation.normalHours;
-    totalOvertimeHours += dayCalculation.overtimeHours;
-  });
-  
-  return {
-    totalHours: Math.round(totalHours * 10) / 10,
-    normalHours: Math.round(totalNormalHours * 10) / 10,
-    overtimeHours: Math.round(totalOvertimeHours * 10) / 10
-  };
-};
-
 const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [startDate, setStartDate] = useState('2025-05-01');
   const [endDate, setEndDate] = useState('2025-05-31');
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
   const [showDetailedReport, setShowDetailedReport] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { formatCurrency } = useCurrency();
 
-  const generatePayroll = () => {
+  const generatePayroll = async () => {
     if (!startDate || !endDate) {
       alert('Selecione o período para gerar a folha de pagamento');
       return;
     }
 
-    const mockPayroll: PayrollData[] = employees.map(employee => {
-      const timeData = generateMayTimeData(employee.id);
-      
-      const normalPay = timeData.normalHours * employee.hourlyRate;
-      const overtimePay = timeData.overtimeHours * employee.overtimeRate;
-      const totalPay = normalPay + overtimePay;
+    setLoading(true);
+    
+    try {
+      const payrollResults: PayrollData[] = [];
 
-      return {
-        employee,
-        totalHours: timeData.totalHours,
-        normalHours: timeData.normalHours,
-        overtimeHours: timeData.overtimeHours,
-        normalPay,
-        overtimePay,
-        totalPay
-      };
-    });
+      for (const employee of employees) {
+        // Buscar registros do funcionário no período
+        const { data: timeRecords, error } = await supabase
+          .from('time_records')
+          .select('*')
+          .eq('user_id', employee.id)
+          .gte('date', startDate)
+          .lte('date', endDate);
 
-    setPayrollData(mockPayroll);
-    setIsGenerated(true);
+        if (error) {
+          console.error('Erro ao buscar registros:', error);
+          continue;
+        }
+
+        // Calcular totais
+        const totalHours = timeRecords?.reduce((sum, record) => sum + Number(record.total_hours || 0), 0) || 0;
+        const normalHours = timeRecords?.reduce((sum, record) => sum + Number(record.normal_hours || 0), 0) || 0;
+        const overtimeHours = timeRecords?.reduce((sum, record) => sum + Number(record.overtime_hours || 0), 0) || 0;
+
+        // Calcular pagamentos - hora extra com mesmo valor da hora normal
+        const normalPay = normalHours * employee.hourlyRate;
+        const overtimePay = overtimeHours * employee.hourlyRate; // Mesmo valor da hora normal
+        const totalPay = normalPay + overtimePay;
+
+        payrollResults.push({
+          employee,
+          totalHours: Math.round(totalHours * 10) / 10,
+          normalHours: Math.round(normalHours * 10) / 10,
+          overtimeHours: Math.round(overtimeHours * 10) / 10,
+          normalPay,
+          overtimePay,
+          totalPay
+        });
+      }
+
+      setPayrollData(payrollResults);
+      setIsGenerated(true);
+    } catch (error) {
+      console.error('Erro ao gerar folha de pagamento:', error);
+      alert('Erro ao gerar folha de pagamento');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getTotalPayroll = () => {
@@ -201,9 +179,10 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
               <Button
                 onClick={generatePayroll}
+                disabled={loading}
                 className="bg-primary-800 hover:bg-primary-700"
               >
-                Gerar Folha de Pagamento
+                {loading ? 'Gerando...' : 'Gerar Folha de Pagamento'}
               </Button>
             </div>
           </CardContent>

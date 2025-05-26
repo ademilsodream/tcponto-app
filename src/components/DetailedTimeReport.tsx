@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Calendar, Clock, User, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { calculateDayHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Employee {
   id: string;
@@ -54,18 +54,38 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [allEmployeesData, setAllEmployeesData] = useState<EmployeeDetailedReport[]>([]);
   const [isGenerated, setIsGenerated] = useState(false);
   const [showAllEmployees, setShowAllEmployees] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const generateDaysInPeriod = (start: string, end: string, employee: Employee): DayRecord[] => {
+  const generateDaysInPeriod = async (start: string, end: string, employee: Employee): Promise<DayRecord[]> => {
     const days: DayRecord[] = [];
     const startDateObj = new Date(start);
     const endDateObj = new Date(end);
     
     const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     
+    // Buscar registros do funcionário no período
+    const { data: timeRecords, error } = await supabase
+      .from('time_records')
+      .select('*')
+      .eq('user_id', employee.id)
+      .gte('date', start)
+      .lte('date', end);
+
+    if (error) {
+      console.error('Erro ao buscar registros:', error);
+    }
+
+    // Criar mapa de registros por data
+    const recordsMap = new Map();
+    timeRecords?.forEach(record => {
+      recordsMap.set(record.date, record);
+    });
+    
     for (let date = new Date(startDateObj); date <= endDateObj; date.setDate(date.getDate() + 1)) {
       const dateStr = date.toISOString().split('T')[0];
       const dayOfWeek = dayNames[date.getDay()];
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      
+      const record = recordsMap.get(dateStr);
       
       let dayRecord: DayRecord = {
         date: dateStr,
@@ -76,38 +96,18 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         totalPay: 0
       };
       
-      // Gerar dados mock apenas para dias úteis
-      if (!isWeekend) {
-        const entryHour = 8 + Math.floor(Math.random() * 2);
-        const entryMinute = Math.floor(Math.random() * 60);
-        
-        const lunchStartHour = 12 + Math.floor(Math.random() * 2);
-        const lunchStartMinute = Math.floor(Math.random() * 60);
-        
-        const lunchEndHour = lunchStartHour + 1;
-        const lunchEndMinute = lunchStartMinute;
-        
-        const exitHour = 17 + Math.floor(Math.random() * 3);
-        const exitMinute = Math.floor(Math.random() * 60);
-        
-        const clockIn = `${entryHour.toString().padStart(2, '0')}:${entryMinute.toString().padStart(2, '0')}`;
-        const lunchStart = `${lunchStartHour.toString().padStart(2, '0')}:${lunchStartMinute.toString().padStart(2, '0')}`;
-        const lunchEnd = `${lunchEndHour.toString().padStart(2, '0')}:${lunchEndMinute.toString().padStart(2, '0')}`;
-        const clockOut = `${exitHour.toString().padStart(2, '0')}:${exitMinute.toString().padStart(2, '0')}`;
-        
-        const calculation = calculateDayHours(clockIn, lunchStart, lunchEnd, clockOut);
-        
+      if (record) {
+        // Usar dados reais do banco
         dayRecord = {
           ...dayRecord,
-          clockIn,
-          lunchStart,
-          lunchEnd,
-          clockOut,
-          totalHours: calculation.totalHours,
-          normalHours: calculation.normalHours,
-          overtimeHours: calculation.overtimeHours,
-          totalPay: (calculation.normalHours * employee.hourlyRate) + 
-                   (calculation.overtimeHours * employee.overtimeRate)
+          clockIn: record.clock_in || undefined,
+          lunchStart: record.lunch_start || undefined,
+          lunchEnd: record.lunch_end || undefined,
+          clockOut: record.clock_out || undefined,
+          totalHours: Number(record.total_hours || 0),
+          normalHours: Number(record.normal_hours || 0),
+          overtimeHours: Number(record.overtime_hours || 0),
+          totalPay: Number(record.total_pay || 0)
         };
       }
       
@@ -117,62 +117,82 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return days;
   };
 
-  const generateSingleEmployeeReport = () => {
+  const generateSingleEmployeeReport = async () => {
     if (!startDate || !endDate || !selectedEmployeeId) {
       alert('Selecione todos os campos para gerar o relatório');
       return;
     }
 
-    const employee = employees.find(e => e.id === selectedEmployeeId);
-    if (!employee) return;
-
-    const days = generateDaysInPeriod(startDate, endDate, employee);
+    setLoading(true);
     
-    const totalHours = days.reduce((sum, day) => sum + day.totalHours, 0);
-    const totalNormalHours = days.reduce((sum, day) => sum + day.normalHours, 0);
-    const totalOvertimeHours = days.reduce((sum, day) => sum + day.overtimeHours, 0);
-    const totalPay = days.reduce((sum, day) => sum + day.totalPay, 0);
+    try {
+      const employee = employees.find(e => e.id === selectedEmployeeId);
+      if (!employee) return;
 
-    setReportData({
-      employee,
-      days,
-      totalHours,
-      totalNormalHours,
-      totalOvertimeHours,
-      totalPay
-    });
-    
-    setShowAllEmployees(false);
-    setIsGenerated(true);
-  };
-
-  const generateAllEmployeesReport = () => {
-    if (!startDate || !endDate) {
-      alert('Selecione o período para gerar o relatório');
-      return;
-    }
-
-    const allReports: EmployeeDetailedReport[] = employees.map(employee => {
-      const days = generateDaysInPeriod(startDate, endDate, employee);
+      const days = await generateDaysInPeriod(startDate, endDate, employee);
       
       const totalHours = days.reduce((sum, day) => sum + day.totalHours, 0);
       const totalNormalHours = days.reduce((sum, day) => sum + day.normalHours, 0);
       const totalOvertimeHours = days.reduce((sum, day) => sum + day.overtimeHours, 0);
       const totalPay = days.reduce((sum, day) => sum + day.totalPay, 0);
 
-      return {
+      setReportData({
         employee,
         days,
         totalHours,
         totalNormalHours,
         totalOvertimeHours,
         totalPay
-      };
-    });
+      });
+      
+      setShowAllEmployees(false);
+      setIsGenerated(true);
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+      alert('Erro ao gerar relatório');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    setAllEmployeesData(allReports);
-    setShowAllEmployees(true);
-    setIsGenerated(true);
+  const generateAllEmployeesReport = async () => {
+    if (!startDate || !endDate) {
+      alert('Selecione o período para gerar o relatório');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const allReports: EmployeeDetailedReport[] = [];
+
+      for (const employee of employees) {
+        const days = await generateDaysInPeriod(startDate, endDate, employee);
+        
+        const totalHours = days.reduce((sum, day) => sum + day.totalHours, 0);
+        const totalNormalHours = days.reduce((sum, day) => sum + day.normalHours, 0);
+        const totalOvertimeHours = days.reduce((sum, day) => sum + day.overtimeHours, 0);
+        const totalPay = days.reduce((sum, day) => sum + day.totalPay, 0);
+
+        allReports.push({
+          employee,
+          days,
+          totalHours,
+          totalNormalHours,
+          totalOvertimeHours,
+          totalPay
+        });
+      }
+
+      setAllEmployeesData(allReports);
+      setShowAllEmployees(true);
+      setIsGenerated(true);
+    } catch (error) {
+      console.error('Erro ao gerar relatório:', error);
+      alert('Erro ao gerar relatório');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getTotalFromAllEmployees = () => {
@@ -257,19 +277,21 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
               <Button
                 onClick={generateSingleEmployeeReport}
+                disabled={loading}
                 className="bg-primary-800 hover:bg-primary-700"
               >
                 <User className="w-4 h-4 mr-2" />
-                Gerar Individual
+                {loading ? 'Gerando...' : 'Gerar Individual'}
               </Button>
 
               <Button
                 onClick={generateAllEmployeesReport}
+                disabled={loading}
                 variant="outline"
                 className="border-primary-300 text-primary-700 hover:bg-primary-50"
               >
                 <Users className="w-4 h-4 mr-2" />
-                Gerar Todos
+                {loading ? 'Gerando...' : 'Gerar Todos'}
               </Button>
             </div>
           </CardContent>
