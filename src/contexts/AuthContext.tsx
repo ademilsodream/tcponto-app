@@ -26,14 +26,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Configurar listener de mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email);
-      
       if (session?.user) {
         await loadUserData(session.user);
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     // Verificar sessão existente
@@ -50,8 +48,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserData = async (authUser: SupabaseUser) => {
     try {
-      console.log('Loading user data for:', authUser.email);
-      
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -65,7 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (profile) {
-        console.log('Profile loaded:', profile);
         setUser({
           id: profile.id,
           name: profile.name,
@@ -82,7 +77,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('Tentando fazer login com:', email);
       setLoading(true);
       
       const { error } = await supabase.auth.signInWithPassword({
@@ -91,7 +85,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        console.error('Erro no login:', error);
         setLoading(false);
         return { 
           success: false, 
@@ -101,7 +94,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
 
-      console.log('Login bem-sucedido');
       return { success: true };
     } catch (error) {
       console.error('Erro inesperado no login:', error);
