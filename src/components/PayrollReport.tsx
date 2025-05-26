@@ -109,7 +109,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       console.log('Funcionários encontrados:', dbEmployees);
 
       for (const employee of dbEmployees) {
-        // Buscar registros do funcionário no período
+        // Buscar registros do funcionário APENAS no período selecionado
         const { data: timeRecords, error } = await supabase
           .from('time_records')
           .select('*')
@@ -122,21 +122,28 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           continue;
         }
 
-        console.log(`Registros para ${employee.name}:`, timeRecords);
+        console.log(`Registros para ${employee.name} no período ${startDate} a ${endDate}:`, timeRecords);
 
         let totalHours = 0;
         let totalNormalHours = 0;
         let totalOvertimeHours = 0;
 
-        // Calcular horas usando a mesma função do relatório detalhado
+        // Calcular horas APENAS dos registros do período selecionado
         if (timeRecords && timeRecords.length > 0) {
           timeRecords.forEach(record => {
-            const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
-              calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+            // Verificar se a data está dentro do período
+            const recordDate = new Date(record.date);
+            const start = new Date(startDate);
+            const end = new Date(endDate);
             
-            totalHours += dayTotalHours;
-            totalNormalHours += dayNormalHours;
-            totalOvertimeHours += dayOvertimeHours;
+            if (recordDate >= start && recordDate <= end) {
+              const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
+                calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+              
+              totalHours += dayTotalHours;
+              totalNormalHours += dayNormalHours;
+              totalOvertimeHours += dayOvertimeHours;
+            }
           });
         }
 
@@ -165,7 +172,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         });
       }
 
-      console.log('Dados da folha de pagamento:', payrollResults);
+      console.log('Dados da folha de pagamento para o período:', payrollResults);
       setPayrollData(payrollResults);
       setIsGenerated(true);
     } catch (error) {

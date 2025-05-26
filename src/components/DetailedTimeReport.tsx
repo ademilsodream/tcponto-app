@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -124,7 +125,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.log('Buscando registros para o funcionário:', selectedEmployeeId);
       console.log('Período:', startDate, 'até', endDate);
 
-      // Gerar todas as datas do período
+      // Gerar apenas as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
       setAllDates(dateRange);
 
@@ -142,7 +143,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      console.log('Registros encontrados:', data);
+      console.log('Registros encontrados no período:', data);
 
       // Buscar informações do funcionário separadamente
       const { data: profileData, error: profileError } = await supabase
@@ -161,7 +162,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return acc;
       }, {} as Record<string, any>);
 
-      // Combinar todas as datas com os registros existentes e calcular valores
+      // Combinar apenas as datas do período com os registros existentes
       const completeRecords: TimeRecord[] = dateRange.map(date => {
         const record = recordsMap[date];
         
@@ -221,10 +222,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
 
     try {
-      console.log('Buscando registros de todos os funcionários');
+      console.log('Buscando registros de todos os funcionários no período');
       console.log('Período:', startDate, 'até', endDate);
 
-      // Gerar todas as datas do período
+      // Gerar apenas as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
       setAllDates(dateRange);
 
@@ -242,7 +243,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      console.log('Registros encontrados:', data);
+      console.log('Registros encontrados no período:', data);
 
       // Buscar informações de todos os funcionários (somente não-administradores)
       const nonAdminIds = nonAdminEmployees.map(emp => emp.id);
@@ -265,7 +266,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return acc;
       }, {} as Record<string, any>);
 
-      // Criar registros completos para todos os funcionários e todas as datas
+      // Criar registros completos apenas para o período selecionado
       const completeRecords: TimeRecord[] = [];
       
       profilesData?.forEach(profile => {
