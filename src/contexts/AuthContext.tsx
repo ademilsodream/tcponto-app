@@ -37,16 +37,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (session?.user) {
           console.log('User authenticated, fetching profile for:', session.user.id);
-          // Aguardar um pouco antes de buscar o perfil
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 100);
+          // Buscar perfil do usuário
+          try {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            
+            console.log('Profile fetch result:', { profile, error });
+            
+            if (error) {
+              console.error('Error fetching profile:', error);
+              setUser(null);
+              setIsAuthenticated(false);
+            } else if (profile) {
+              const userData: User = {
+                id: profile.id,
+                name: profile.name,
+                email: profile.email,
+                role: profile.role === 'admin' ? 'admin' : 'user',
+                hourlyRate: Number(profile.hourly_rate) || 50,
+                overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
+              };
+              console.log('Setting user data:', userData);
+              setUser(userData);
+              setIsAuthenticated(true);
+            }
+          } catch (error) {
+            console.error('Error in profile fetch:', error);
+            setUser(null);
+            setIsAuthenticated(false);
+          }
         } else {
           console.log('No session, clearing user');
           setUser(null);
           setIsAuthenticated(false);
-          setLoading(false);
         }
+        setLoading(false);
       }
     );
 
@@ -61,11 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         console.log('Initial session check:', session?.user?.email);
-        if (session?.user) {
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 100);
-        } else {
+        // Se há sessão, o onAuthStateChange será chamado automaticamente
+        if (!session) {
           setLoading(false);
         }
       } catch (error) {
@@ -78,52 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      console.log('Fetching profile for user:', userId);
-      
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      console.log('Profile fetch result:', { profile, error });
-      
-      if (error) {
-        console.error('Error fetching profile:', error);
-        setUser(null);
-        setIsAuthenticated(false);
-        setLoading(false);
-        return;
-      }
-
-      if (profile) {
-        const userData: User = {
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          role: profile.role === 'admin' ? 'admin' : 'user',
-          hourlyRate: Number(profile.hourly_rate) || 50,
-          overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
-        };
-        console.log('Setting user data:', userData);
-        setUser(userData);
-        setIsAuthenticated(true);
-      } else {
-        console.log('No profile found for user:', userId);
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error('Error in fetchUserProfile:', error);
-      setUser(null);
-      setIsAuthenticated(false);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -144,7 +123,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
-        // O fetchUserProfile será chamado automaticamente pelo onAuthStateChange
+        console.log('Login successful, auth state will change automatically');
+        // O estado será atualizado automaticamente pelo onAuthStateChange
         return true;
       }
 

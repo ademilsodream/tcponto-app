@@ -19,10 +19,12 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Redirecionar se já estiver autenticado
   useEffect(() => {
+    console.log('Login effect - isAuthenticated:', isAuthenticated, 'authLoading:', authLoading);
     if (isAuthenticated && !authLoading) {
       console.log('User is authenticated, redirecting to dashboard');
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -50,7 +52,7 @@ const Login = () => {
       console.log('Login success:', success);
       
       if (success) {
-        console.log('Login successful, redirecting...');
+        console.log('Login successful');
         toast({
           title: "Sucesso",
           description: "Login realizado com sucesso!"
@@ -67,6 +69,7 @@ const Login = () => {
     }
   };
 
+  // Mostrar loading durante verificação inicial de autenticação
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
@@ -155,9 +158,12 @@ const Login = () => {
             </form>
 
             <div className="mt-6 pt-6 border-t text-center text-sm text-gray-600">
-              <p className="text-gray-500">
-                Use suas credenciais existentes para fazer login
-              </p>
+              <p className="mb-2"><strong>Contas de demonstração:</strong></p>
+              <div className="space-y-1">
+                <p><strong>Funcionário:</strong> joao@tcponto.com</p>
+                <p><strong>Admin:</strong> admin@tcponto.com</p>
+                <p className="text-primary-600"><strong>Senha:</strong> 123456</p>
+              </div>
             </div>
           </CardContent>
         </Card>
