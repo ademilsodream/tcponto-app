@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft } from 'lucide-react';
+import { calculateWorkingHours } from '@/utils/timeCalculations';
 
 interface Employee {
   id: string;
@@ -94,33 +94,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return format(date, 'EEEE', { locale: ptBR });
   };
 
-  // Função para calcular horas trabalhadas
-  const calculateHours = (clockIn: string, lunchStart: string, lunchEnd: string, clockOut: string) => {
-    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
-
-    const parseTime = (timeStr: string) => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours + minutes / 60;
-    };
-
-    const clockInHours = parseTime(clockIn);
-    const clockOutHours = parseTime(clockOut);
-    const lunchStartHours = lunchStart ? parseTime(lunchStart) : 0;
-    const lunchEndHours = lunchEnd ? parseTime(lunchEnd) : 0;
-
-    // Calcular tempo de almoço
-    const lunchHours = (lunchStart && lunchEnd) ? (lunchEndHours - lunchStartHours) : 0;
-    
-    // Calcular total de horas trabalhadas
-    const totalHours = clockOutHours - clockInHours - lunchHours;
-    
-    // Calcular horas normais e extras (considerando 8h como jornada normal)
-    const normalHours = Math.min(totalHours, 8);
-    const overtimeHours = Math.max(0, totalHours - 8);
-
-    return { totalHours, normalHours, overtimeHours };
-  };
-
   // Função para calcular valores
   const calculatePay = (normalHours: number, overtimeHours: number, hourlyRate: number) => {
     const normalPay = normalHours * hourlyRate;
@@ -195,8 +168,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         const record = recordsMap[date];
         
         if (record && profileData) {
-          // Calcular horas se os dados estão disponíveis
-          const { totalHours, normalHours, overtimeHours } = calculateHours(
+          // Usar a função padronizada com tolerância de 15 minutos
+          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
             record.clock_in || '',
             record.lunch_start || '',
             record.lunch_end || '',
@@ -314,8 +287,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
           const record = recordsMap[key];
           
           if (record) {
-            // Calcular horas se os dados estão disponíveis
-            const { totalHours, normalHours, overtimeHours } = calculateHours(
+            // Usar a função padronizada com tolerância de 15 minutos
+            const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
               record.clock_in || '',
               record.lunch_start || '',
               record.lunch_end || '',
