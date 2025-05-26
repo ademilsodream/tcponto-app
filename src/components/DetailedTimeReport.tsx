@@ -17,6 +17,7 @@ interface Employee {
   email: string;
   hourlyRate: number;
   overtimeRate: number;
+  role: string;
 }
 
 interface DetailedTimeReportProps {
@@ -31,6 +32,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<any[]>([]);
   const [allDates, setAllDates] = useState<string[]>([]);
+
+  // Filtrar funcionários para não exibir administradores
+  const nonAdminEmployees = employees.filter(employee => employee.role !== 'admin');
 
   // Função para gerar todas as datas do período
   const generateDateRange = (start: string, end: string) => {
@@ -149,10 +153,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados:', data);
 
-      // Buscar informações de todos os funcionários
+      // Buscar informações de todos os funcionários (somente não-administradores)
+      const nonAdminIds = nonAdminEmployees.map(emp => emp.id);
+      
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, name, email, hourly_rate');
+        .select('id, name, email, hourly_rate, role')
+        .in('id', nonAdminIds);
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
@@ -205,6 +212,16 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       currency: 'BRL'
     }).format(value);
   };
+
+  // Agrupar registros por funcionário para exibição
+  const groupedRecords = timeRecords.reduce((acc, record) => {
+    const employeeName = record.profiles?.name || 'Funcionário Desconhecido';
+    if (!acc[employeeName]) {
+      acc[employeeName] = [];
+    }
+    acc[employeeName].push(record);
+    return acc;
+  }, {} as Record<string, any[]>);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -266,7 +283,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       <SelectValue placeholder="Selecione o funcionário" />
                     </SelectTrigger>
                     <SelectContent>
-                      {employees.map((employee) => (
+                      {nonAdminEmployees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.name}
                         </SelectItem>
@@ -324,53 +341,55 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
           </CardContent>
         </Card>
 
-        {/* Tabela de Resultados */}
-        {timeRecords.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileDown className="w-5 h-5" />
-                Registros de Ponto
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Dia da Semana</TableHead>
-                    <TableHead>Funcionário</TableHead>
-                    <TableHead>Entrada</TableHead>
-                    <TableHead>Saída Almoço</TableHead>
-                    <TableHead>Volta Almoço</TableHead>
-                    <TableHead>Saída</TableHead>
-                    <TableHead>Total Horas</TableHead>
-                    <TableHead>Horas Extras</TableHead>
-                    <TableHead>Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {timeRecords.map((record: any, index: number) => {
-                    const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                    return (
-                      <TableRow key={key}>
-                        <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                        <TableCell>{record.profiles?.name || '-'}</TableCell>
-                        <TableCell>{formatTime(record.clock_in)}</TableCell>
-                        <TableCell>{formatTime(record.lunch_start)}</TableCell>
-                        <TableCell>{formatTime(record.lunch_end)}</TableCell>
-                        <TableCell>{formatTime(record.clock_out)}</TableCell>
-                        <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                        <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                        <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
+        {/* Exibir relatórios agrupados por funcionário */}
+        {Object.keys(groupedRecords).length > 0 && (
+          <div className="space-y-8">
+            {Object.entries(groupedRecords).map(([employeeName, records]) => (
+              <Card key={employeeName}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    {employeeName} (0.0h - 0.00 €)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Dia da Semana</TableHead>
+                        <TableHead>Entrada</TableHead>
+                        <TableHead>Saída Almoço</TableHead>
+                        <TableHead>Volta Almoço</TableHead>
+                        <TableHead>Saída</TableHead>
+                        <TableHead>Total Horas</TableHead>
+                        <TableHead>Horas Extras</TableHead>
+                        <TableHead>Valor</TableHead>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {records.map((record: any, index: number) => {
+                        const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
+                        return (
+                          <TableRow key={key}>
+                            <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
+                            <TableCell>{getDayOfWeek(record.date)}</TableCell>
+                            <TableCell>{formatTime(record.clock_in)}</TableCell>
+                            <TableCell>{formatTime(record.lunch_start)}</TableCell>
+                            <TableCell>{formatTime(record.lunch_end)}</TableCell>
+                            <TableCell>{formatTime(record.clock_out)}</TableCell>
+                            <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                            <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                            <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </div>
