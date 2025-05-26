@@ -41,20 +41,20 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   const [loading, setLoading] = useState(true);
   const [hourlyRate, setHourlyRate] = useState(50);
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<Date>(new Date());
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date());
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
 
-  // Função para gerar todas as datas do mês
-  const generateMonthDates = (month: Date) => {
-    const year = month.getFullYear();
-    const monthNumber = month.getMonth();
-    const daysInMonth = new Date(year, monthNumber + 1, 0).getDate();
-    
+  // Função para gerar todas as datas do período EXATO
+  const generateDateRange = (start: Date, end: Date) => {
     const dates = [];
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, monthNumber, day);
-      dates.push(format(date, 'yyyy-MM-dd'));
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      const dateString = format(date, 'yyyy-MM-dd');
+      dates.push(dateString);
     }
     return dates;
   };
@@ -77,10 +77,10 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
 
   // Depois carrega os registros quando o perfil estiver carregado ou período mudar
   useEffect(() => {
-    if (user && profileLoaded) {
+    if (user && profileLoaded && startDate && endDate) {
       loadRecords();
     }
-  }, [selectedPeriod, user, profileLoaded, hourlyRate]);
+  }, [startDate, endDate, user, profileLoaded, hourlyRate]);
 
   const loadUserProfile = async () => {
     if (!user) return;
@@ -113,29 +113,29 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   };
 
   const loadRecords = async () => {
-    if (!user || !profileLoaded) return;
+    if (!user || !profileLoaded || !startDate || !endDate) return;
 
     console.log('Carregando registros com valor da hora:', hourlyRate);
     setLoading(true);
     try {
-      const startDate = format(selectedPeriod, 'yyyy-MM-01');
-      const endDate = format(new Date(selectedPeriod.getFullYear(), selectedPeriod.getMonth() + 1, 0), 'yyyy-MM-dd');
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
 
-      console.log('Buscando registros entre:', startDate, 'e', endDate);
+      console.log('Buscando registros entre:', startDateStr, 'e', endDateStr);
 
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
         .eq('user_id', user.id)
-        .gte('date', startDate)
-        .lte('date', endDate)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
         .eq('status', 'active')
         .order('date');
 
       if (error) throw error;
 
-      // Gerar todas as datas do mês selecionado
-      const allDates = generateMonthDates(selectedPeriod);
+      // Gerar todas as datas do período selecionado
+      const allDates = generateDateRange(startDate, endDate);
       
       // Criar um mapa dos registros por data
       const recordsMap = (data || []).reduce((acc, record) => {
@@ -242,32 +242,63 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Seletor de Período</h3>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-[240px] justify-start text-left font-normal",
-                    !selectedPeriod && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedPeriod ? format(selectedPeriod, "MMMM yyyy", { locale: ptBR }) : <span>Selecione o período</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedPeriod}
-                  onSelect={(date) => date && setSelectedPeriod(date)}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
+          <h3 className="text-lg font-semibold mb-4">Seletor de Período</h3>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Data Inicial</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data inicial</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => date && setStartDate(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Data Final</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data final</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => date && setEndDate(date)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
+          
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>Total de Horas: {totals.totalHours.toFixed(1)}h</span>
             <span>Valor Total: {formatCurrency(totals.totalPay)}</span>
