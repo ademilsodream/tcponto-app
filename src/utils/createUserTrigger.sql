@@ -24,18 +24,24 @@ CREATE TRIGGER on_auth_user_created
 -- Habilitar RLS na tabela profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Remover políticas existentes
+DROP POLICY IF EXISTS "Allow read access to all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow admins to modify profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow profile creation during signup" ON public.profiles;
+
+-- Função security definer para verificar role sem recursão
+CREATE OR REPLACE FUNCTION public.get_current_user_role()
+RETURNS TEXT AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
+
 -- Política para permitir que usuários vejam todos os perfis (necessário para admin)
 CREATE POLICY "Allow read access to all profiles" ON public.profiles
   FOR SELECT USING (true);
 
--- Política para permitir que apenas admins modifiquem perfis
+-- Política para permitir que apenas admins modifiquem perfis usando a função
 CREATE POLICY "Allow admins to modify profiles" ON public.profiles
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
+  FOR ALL USING (public.get_current_user_role() = 'admin');
 
 -- Política para permitir inserção durante signup
 CREATE POLICY "Allow profile creation during signup" ON public.profiles

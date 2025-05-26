@@ -37,13 +37,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (session?.user) {
           console.log('User authenticated, fetching profile for:', session.user.id);
-          await fetchUserProfile(session.user.id);
+          // Aguardar um pouco antes de buscar o perfil
+          setTimeout(() => {
+            fetchUserProfile(session.user.id);
+          }, 100);
         } else {
           console.log('No session, clearing user');
           setUser(null);
           setIsAuthenticated(false);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
@@ -59,7 +62,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         console.log('Initial session check:', session?.user?.email);
         if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          setTimeout(() => {
+            fetchUserProfile(session.user.id);
+          }, 100);
         } else {
           setLoading(false);
         }
@@ -76,32 +81,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log('Fetching profile for user:', userId);
+      
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
       console.log('Profile fetch result:', { profile, error });
       
-      if (profile && !error) {
+      if (error) {
+        console.error('Error fetching profile:', error);
+        setUser(null);
+        setIsAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+
+      if (profile) {
         const userData: User = {
           id: profile.id,
           name: profile.name,
           email: profile.email,
           role: profile.role === 'admin' ? 'admin' : 'user',
-          hourlyRate: Number(profile.hourly_rate),
-          overtimeRate: Number(profile.hourly_rate) * 1.5
+          hourlyRate: Number(profile.hourly_rate) || 50,
+          overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
         };
         console.log('Setting user data:', userData);
         setUser(userData);
         setIsAuthenticated(true);
-      } else if (error) {
-        console.error('Error fetching profile:', error);
-        setUser(null);
-        setIsAuthenticated(false);
       } else {
-        console.error('No profile found for user:', userId);
+        console.log('No profile found for user:', userId);
         setUser(null);
         setIsAuthenticated(false);
       }
@@ -109,6 +120,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Error in fetchUserProfile:', error);
       setUser(null);
       setIsAuthenticated(false);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -5,7 +5,7 @@ export const initializeApp = async () => {
   try {
     console.log('Inicializando aplicação...');
 
-    // Verificar se já existem usuários
+    // Verificar se já existem usuários com uma query mais simples
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('id')
@@ -13,7 +13,8 @@ export const initializeApp = async () => {
 
     if (profilesError) {
       console.error('Erro ao verificar perfis:', profilesError);
-      throw profilesError;
+      // Não relançar erro para não quebrar o sistema
+      return;
     }
 
     // Se já existem usuários, não fazer nada
@@ -27,7 +28,7 @@ export const initializeApp = async () => {
     // Criar usuário administrador padrão
     console.log('Criando usuário administrador...');
     try {
-      const { data: adminData, error: adminError } = await supabase.auth.signUp({
+      const { error: adminError } = await supabase.auth.signUp({
         email: 'admin@tcponto.com',
         password: '123456',
         options: {
@@ -40,8 +41,8 @@ export const initializeApp = async () => {
 
       if (adminError && !adminError.message.includes('already registered')) {
         console.error('Erro ao criar usuário admin:', adminError);
-      } else if (adminData.user) {
-        console.log('Usuário administrador criado com sucesso!');
+      } else {
+        console.log('Usuário administrador criado!');
       }
     } catch (error) {
       console.error('Erro na criação do admin:', error);
@@ -53,7 +54,7 @@ export const initializeApp = async () => {
     // Criar usuário funcionário de demonstração
     console.log('Criando usuário funcionário...');
     try {
-      const { data: userAuthData, error: userAuthError } = await supabase.auth.signUp({
+      const { error: userError } = await supabase.auth.signUp({
         email: 'joao@tcponto.com',
         password: '123456',
         options: {
@@ -64,10 +65,10 @@ export const initializeApp = async () => {
         }
       });
 
-      if (userAuthError && !userAuthError.message.includes('already registered')) {
-        console.error('Erro ao criar usuário funcionário:', userAuthError);
-      } else if (userAuthData.user) {
-        console.log('Usuário funcionário criado com sucesso!');
+      if (userError && !userError.message.includes('already registered')) {
+        console.error('Erro ao criar usuário funcionário:', userError);
+      } else {
+        console.log('Usuário funcionário criado!');
       }
     } catch (error) {
       console.error('Erro na criação do funcionário:', error);

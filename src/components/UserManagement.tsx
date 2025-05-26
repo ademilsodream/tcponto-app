@@ -48,6 +48,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
   const loadUsers = async () => {
     try {
       setLoading(true);
+      console.log('Carregando usuários...');
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -63,14 +65,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         return;
       }
 
-      const formattedUsers = data.map(profile => ({
+      console.log('Usuários carregados:', data);
+
+      const formattedUsers = data?.map(profile => ({
         id: profile.id,
         name: profile.name,
         email: profile.email,
         role: profile.role === 'admin' ? 'admin' : 'user' as 'admin' | 'user',
-        hourlyRate: Number(profile.hourly_rate),
-        overtimeRate: Number(profile.hourly_rate) * 1.5
-      }));
+        hourlyRate: Number(profile.hourly_rate) || 50,
+        overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
+      })) || [];
 
       setUsers(formattedUsers);
     } catch (error) {
@@ -91,8 +95,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       email: '',
       password: '',
       role: 'user',
-      hourlyRate: '',
-      overtimeRate: ''
+      hourlyRate: '50',
+      overtimeRate: '75'
     });
     setEditingUser(null);
   };
@@ -125,6 +129,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
 
       if (editingUser) {
         // Atualizar usuário existente
+        console.log('Atualizando usuário:', editingUser.id);
+        
         const { error } = await supabase
           .from('profiles')
           .update({
@@ -183,18 +189,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
           console.log('Usuário criado com sucesso:', authData.user.id);
           
           // Aguardar para dar tempo do trigger criar o perfil
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
           
-          // Atualizar o perfil com o valor por hora correto
+          // Atualizar o perfil com os dados corretos
           const { error: updateError } = await supabase
             .from('profiles')
             .update({
+              name: formData.name,
+              role: formData.role,
               hourly_rate: hourlyRate
             })
             .eq('id', authData.user.id);
 
           if (updateError) {
-            console.error('Erro ao atualizar valor por hora:', updateError);
+            console.error('Erro ao atualizar perfil:', updateError);
           }
 
           toast({
@@ -238,7 +246,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     }
 
     try {
-      // Deletar o perfil (o trigger deve cuidar do resto)
+      console.log('Deletando usuário:', userId);
+      
+      // Deletar o perfil
       const { error: profileError } = await supabase
         .from('profiles')
         .delete()
