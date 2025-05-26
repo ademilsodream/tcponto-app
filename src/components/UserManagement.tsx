@@ -89,7 +89,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     }
 
     const hourlyRate = parseFloat(formData.hourlyRate) || 0;
-    const overtimeRate = parseFloat(formData.overtimeRate) || 0;
+    const overtimeRate = parseFloat(formData.overtimeRate) || hourlyRate * 1.5;
 
     try {
       if (editingUser) {
@@ -107,12 +107,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         if (error) throw error;
       } else {
         // Create new user
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
-          user_metadata: {
-            name: formData.name,
-            role: formData.role
+          options: {
+            data: {
+              name: formData.name,
+              role: formData.role
+            }
           }
         });
 
@@ -121,7 +123,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
         if (authData.user) {
           const { error: profileError } = await supabase
             .from('profiles')
-            .insert({
+            .upsert({
               id: authData.user.id,
               name: formData.name,
               email: formData.email,
@@ -136,9 +138,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
       await loadUsers();
       setIsDialogOpen(false);
       resetForm();
+      alert(editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!');
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('Erro ao salvar usuário');
+      alert('Erro ao salvar usuário: ' + (error as any).message);
     }
   };
 
@@ -158,13 +161,18 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
   const handleDelete = async (userId: string) => {
     if (confirm('Tem certeza que deseja excluir este usuário?')) {
       try {
-        const { error } = await supabase.auth.admin.deleteUser(userId);
+        const { error } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+
         if (error) throw error;
 
         await loadUsers();
+        alert('Usuário excluído com sucesso!');
       } catch (error) {
         console.error('Error deleting user:', error);
-        alert('Erro ao excluir usuário');
+        alert('Erro ao excluir usuário: ' + (error as any).message);
       }
     }
   };
@@ -251,6 +259,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   min="0"
                   value={formData.hourlyRate}
                   onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                  required
                 />
               </div>
 
@@ -263,9 +272,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
                   min="0"
                   value={formData.overtimeRate}
                   onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
-                  placeholder="Aceita qualquer valor"
+                  placeholder="Padrão: 1.5x o valor da hora normal"
                 />
-                <p className="text-xs text-gray-500">Pode ser igual ou menor que o valor da hora normal</p>
+                <p className="text-xs text-gray-500">Pode ser qualquer valor, inclusive igual ou menor que a hora normal</p>
               </div>
 
               <div className="flex justify-end space-x-2">
