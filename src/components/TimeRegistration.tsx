@@ -7,15 +7,6 @@ import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin, L
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'employee';
-  hourlyRate: number;
-  overtimeRate: number;
-}
-
 interface TimeRecord {
   id: string;
   date: string;
@@ -38,18 +29,21 @@ interface TimeRecord {
 }
 
 interface TimeRegistrationProps {
-  record: TimeRecord;
-  onUpdate: (record: TimeRecord) => void;
-  user: User;
-  isHistoricalEntry?: boolean;
+  selectedDate: string;
 }
 
-const TimeRegistration: React.FC<TimeRegistrationProps> = ({ 
-  record, 
-  onUpdate, 
-  user, 
-  isHistoricalEntry = false 
-}) => {
+const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => {
+  const [record, setRecord] = useState<TimeRecord>({
+    id: `record_${selectedDate}`,
+    date: selectedDate,
+    totalHours: 0,
+    normalHours: 0,
+    overtimeHours: 0,
+    normalPay: 0,
+    overtimePay: 0,
+    totalPay: 0
+  });
+
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -59,48 +53,80 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   const [approvedEditedFields, setApprovedEditedFields] = useState<Set<string>>(new Set());
   const { formatCurrency } = useCurrency();
 
-  // Carregar campos já solicitados para edição
+  // Usuário simulado
+  const user = {
+    id: 'user_1',
+    name: 'João Silva',
+    email: 'joao@tcponto.com',
+    role: 'employee' as const,
+    hourlyRate: 50,
+    overtimeRate: 75
+  };
+
+  // Carregar dados do localStorage quando a data muda
   useEffect(() => {
-    const key = `tcponto_edit_requested_${user.id}_${record.date}`;
+    const savedRecord = localStorage.getItem(`tcponto_record_${selectedDate}`);
+    if (savedRecord) {
+      setRecord(JSON.parse(savedRecord));
+    } else {
+      setRecord({
+        id: `record_${selectedDate}`,
+        date: selectedDate,
+        totalHours: 0,
+        normalHours: 0,
+        overtimeHours: 0,
+        normalPay: 0,
+        overtimePay: 0,
+        totalPay: 0
+      });
+    }
+
+    // Carregar campos já solicitados para edição
+    const key = `tcponto_edit_requested_${user.id}_${selectedDate}`;
     const savedFields = localStorage.getItem(key);
     if (savedFields) {
       setEditRequestedFields(new Set(JSON.parse(savedFields)));
+    } else {
+      setEditRequestedFields(new Set());
     }
 
     // Carregar campos que já foram editados com aprovação
-    const approvedKey = `tcponto_approved_edits_${user.id}_${record.date}`;
+    const approvedKey = `tcponto_approved_edits_${user.id}_${selectedDate}`;
     const savedApprovedFields = localStorage.getItem(approvedKey);
     if (savedApprovedFields) {
       setApprovedEditedFields(new Set(JSON.parse(savedApprovedFields)));
+    } else {
+      setApprovedEditedFields(new Set());
     }
-  }, [user.id, record.date]);
+  }, [selectedDate, user.id]);
 
-  // Verificar se um campo já foi solicitado para edição
+  // Salvar no localStorage sempre que o record muda
+  const updateRecord = (newRecord: TimeRecord) => {
+    setRecord(newRecord);
+    localStorage.setItem(`tcponto_record_${selectedDate}`, JSON.stringify(newRecord));
+  };
+
   const isFieldEditRequested = (field: string): boolean => {
     return editRequestedFields.has(field);
   };
 
-  // Verificar se um campo já foi editado com aprovação
   const isFieldApprovedEdited = (field: string): boolean => {
     return approvedEditedFields.has(field);
   };
 
-  // Verificar se um campo pode ser editado
   const canEditField = (field: string): boolean => {
     return !isFieldEditRequested(field) && !isFieldApprovedEdited(field);
   };
 
-  // Marcar campo como solicitado para edição
   const markFieldAsRequested = (field: string) => {
     const newSet = new Set(editRequestedFields);
     newSet.add(field);
     setEditRequestedFields(newSet);
     
-    const key = `tcponto_edit_requested_${user.id}_${record.date}`;
+    const key = `tcponto_edit_requested_${user.id}_${selectedDate}`;
     localStorage.setItem(key, JSON.stringify(Array.from(newSet)));
   };
 
-  // Determinar qual campo deve aparecer para registro
   const getCurrentFieldToShow = () => {
     if (!record.clockIn) return 'clockIn';
     if (!record.lunchStart) return 'lunchStart';
@@ -160,7 +186,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     });
   };
 
-  // Calcular horas trabalhadas
   const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
     if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
 
@@ -228,7 +253,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       );
 
       const normalPay = normalHours * user.hourlyRate;
-      const overtimePay = overtimeHours * user.hourlyRate;
+      const overtimePay = overtimeHours * user.overtimeRate;
       const totalPay = normalPay + overtimePay;
 
       const finalRecord = {
@@ -241,7 +266,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         totalPay
       };
 
-      onUpdate(finalRecord);
+      updateRecord(finalRecord);
       setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (${location.address})`);
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
@@ -255,7 +280,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
       );
 
       const normalPay = normalHours * user.hourlyRate;
-      const overtimePay = overtimeHours * user.hourlyRate;
+      const overtimePay = overtimeHours * user.overtimeRate;
       const totalPay = normalPay + overtimePay;
 
       const finalRecord = {
@@ -268,49 +293,12 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         totalPay
       };
 
-      onUpdate(finalRecord);
+      updateRecord(finalRecord);
       setMessage(`${getFieldLabel(field)} registrado: ${currentTime} (sem localização)`);
       setTimeout(() => setMessage(''), 3000);
     } finally {
       setIsGettingLocation(false);
     }
-  };
-
-  const handleManualTimeEntry = (field: string, value: string) => {
-    if (!value.trim()) {
-      setMessage('Por favor, informe um horário válido');
-      setTimeout(() => setMessage(''), 3000);
-      return;
-    }
-
-    const updatedRecord = { ...record, [field]: value };
-    
-    const { totalHours, normalHours, overtimeHours } = calculateHours(
-      updatedRecord.clockIn,
-      updatedRecord.lunchStart,
-      updatedRecord.lunchEnd,
-      updatedRecord.clockOut
-    );
-
-    const normalPay = normalHours * user.hourlyRate;
-    const overtimePay = overtimeHours * user.hourlyRate;
-    const totalPay = normalPay + overtimePay;
-
-    const finalRecord = {
-      ...updatedRecord,
-      totalHours,
-      normalHours,
-      overtimeHours,
-      normalPay,
-      overtimePay,
-      totalPay
-    };
-
-    onUpdate(finalRecord);
-    setEditingField(null);
-    setEditValue('');
-    setMessage(`${getFieldLabel(field)} definido: ${value}`);
-    setTimeout(() => setMessage(''), 3000);
   };
 
   const handleEdit = (field: string, value?: string) => {
@@ -381,8 +369,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     setEditValue('');
     setEditReason('');
     
-    const dateType = isHistoricalEntry ? 'registro histórico' : 'registro do dia';
-    setMessage(`Solicitação de alteração para ${dateType} enviada para aprovação administrativa. Este campo não pode mais ser editado.`);
+    setMessage(`Solicitação de alteração enviada para aprovação administrativa. Este campo não pode mais ser editado.`);
     setTimeout(() => setMessage(''), 5000);
   };
 
@@ -423,6 +410,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
   };
 
   const currentFieldToShow = getCurrentFieldToShow();
+  const isHistoricalEntry = new Date(selectedDate) < new Date(new Date().toDateString());
 
   const renderCurrentField = () => {
     if (currentFieldToShow === 'completed') {
@@ -553,7 +541,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
     );
   };
 
-  // Renderizar todos os campos já preenchidos (somente leitura)
   const renderCompletedFields = () => {
     const completedFields = [];
     const allFields = ['clockIn', 'lunchStart', 'lunchEnd', 'clockOut'];
@@ -620,15 +607,12 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({
         </Alert>
       )}
 
-      {/* Campo Atual para Registro */}
       <div className="max-w-md mx-auto">
         {renderCurrentField()}
       </div>
 
-      {/* Campos Já Preenchidos */}
       {renderCompletedFields()}
 
-      {/* Resumo do Dia */}
       <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
         <CardHeader>
           <CardTitle className="text-primary-900">Resumo do Dia</CardTitle>
