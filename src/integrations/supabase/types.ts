@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          hourly_rate: number
+          id: string
+          name: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          hourly_rate?: number
+          id: string
+          name: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          hourly_rate?: number
+          id?: string
+          name?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tcponto: {
         Row: {
           created_at: string
@@ -21,6 +51,63 @@ export type Database = {
         Update: {
           created_at?: string
           id?: number
+        }
+        Relationships: []
+      }
+      time_records: {
+        Row: {
+          clock_in: string | null
+          clock_out: string | null
+          created_at: string
+          date: string
+          id: string
+          locations: Json | null
+          lunch_end: string | null
+          lunch_start: string | null
+          normal_hours: number
+          normal_pay: number
+          overtime_hours: number
+          overtime_pay: number
+          total_hours: number
+          total_pay: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string
+          date: string
+          id?: string
+          locations?: Json | null
+          lunch_end?: string | null
+          lunch_start?: string | null
+          normal_hours?: number
+          normal_pay?: number
+          overtime_hours?: number
+          overtime_pay?: number
+          total_hours?: number
+          total_pay?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          clock_in?: string | null
+          clock_out?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          locations?: Json | null
+          lunch_end?: string | null
+          lunch_start?: string | null
+          normal_hours?: number
+          normal_pay?: number
+          overtime_hours?: number
+          overtime_pay?: number
+          total_hours?: number
+          total_pay?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

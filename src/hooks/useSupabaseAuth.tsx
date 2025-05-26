@@ -67,7 +67,7 @@ export const useSupabaseAuth = () => {
       if (error) {
         console.error('Erro ao carregar perfil:', error);
       } else {
-        setProfile(profileData as Profile);
+        setProfile(profileData);
       }
     } catch (error) {
       console.error('Erro ao buscar perfil:', error);

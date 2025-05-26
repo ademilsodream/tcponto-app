@@ -63,7 +63,7 @@ const SupabaseTimeRegistration: React.FC<SupabaseTimeRegistrationProps> = ({
         console.error('Erro ao carregar registro:', error);
         setMessage('Erro ao carregar registro do dia');
       } else if (data) {
-        setRecord(data as TimeRecord);
+        setRecord(data);
       } else {
         // Criar novo registro para o dia
         const newRecord: TimeRecord = {
