@@ -26,72 +26,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [endDate, setEndDate] = useState('2025-05-31');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [dbEmployees, setDbEmployees] = useState<Employee[]>([]);
-  const [timeRecords, setTimeRecords] = useState([]);
-
-  useEffect(() => {
-    loadEmployeesFromDB();
-  }, []);
-
-  const loadEmployeesFromDB = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('email', 'admin@tcponto.com');
-
-      if (error) {
-        console.error('Erro ao carregar funcionários:', error);
-        return;
-      }
-
-      const employeesData = data.map(emp => ({
-        id: emp.id,
-        name: emp.name,
-        email: emp.email,
-        hourlyRate: Number(emp.hourly_rate) || 0,
-        overtimeRate: Number(emp.hourly_rate) || 0
-      }));
-
-      setDbEmployees(employeesData);
-    } catch (error) {
-      console.error('Erro ao carregar funcionários:', error);
-    }
-  };
-
-  const loadTimeRecords = async (employeeId?: string) => {
-    try {
-      let query = supabase
-        .from('time_records')
-        .select(`
-          *,
-          profiles:user_id (
-            name,
-            email,
-            hourly_rate
-          )
-        `)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: false });
-
-      if (employeeId) {
-        query = query.eq('user_id', employeeId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Erro ao carregar registros:', error);
-        return [];
-      }
-
-      return data || [];
-    } catch (error) {
-      console.error('Erro ao carregar registros:', error);
-      return [];
-    }
-  };
+  const [timeRecords, setTimeRecords] = useState<any[]>([]);
 
   const generateSingleEmployeeReport = async () => {
     if (!startDate || !endDate || !selectedEmployeeId) {
@@ -102,10 +37,28 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
     
     try {
-      console.log('Gerando relatório individual para:', selectedEmployeeId);
-      const records = await loadTimeRecords(selectedEmployeeId);
-      setTimeRecords(records);
-      console.log('Registros carregados:', records);
+      const { data, error } = await supabase
+        .from('time_records')
+        .select(`
+          *,
+          profiles:user_id (
+            name,
+            email,
+            hourly_rate
+          )
+        `)
+        .eq('user_id', selectedEmployeeId)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao carregar registros:', error);
+        alert('Erro ao carregar registros');
+        return;
+      }
+
+      setTimeRecords(data || []);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
@@ -123,10 +76,27 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setLoading(true);
 
     try {
-      console.log('Gerando relatório de todos os funcionários');
-      const records = await loadTimeRecords();
-      setTimeRecords(records);
-      console.log('Registros carregados:', records);
+      const { data, error } = await supabase
+        .from('time_records')
+        .select(`
+          *,
+          profiles:user_id (
+            name,
+            email,
+            hourly_rate
+          )
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao carregar registros:', error);
+        alert('Erro ao carregar registros');
+        return;
+      }
+
+      setTimeRecords(data || []);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
@@ -207,7 +177,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       <SelectValue placeholder="Selecione o funcionário" />
                     </SelectTrigger>
                     <SelectContent>
-                      {dbEmployees.map((employee) => (
+                      {employees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.name}
                         </SelectItem>
