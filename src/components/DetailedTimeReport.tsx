@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Calendar, User, Users, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface Employee {
   id: string;
@@ -27,6 +30,24 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<any[]>([]);
+  const [allDates, setAllDates] = useState<string[]>([]);
+
+  // Função para gerar todas as datas do período
+  const generateDateRange = (start: string, end: string) => {
+    const dates = [];
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      dates.push(format(date, 'yyyy-MM-dd'));
+    }
+    return dates;
+  };
+
+  const getDayOfWeek = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, 'EEEE', { locale: ptBR });
+  };
 
   const generateSingleEmployeeReport = async () => {
     if (!startDate || !endDate || !selectedEmployeeId) {
@@ -40,13 +61,17 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.log('Buscando registros para o funcionário:', selectedEmployeeId);
       console.log('Período:', startDate, 'até', endDate);
 
+      // Gerar todas as datas do período
+      const dateRange = generateDateRange(startDate, endDate);
+      setAllDates(dateRange);
+
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
         .eq('user_id', selectedEmployeeId)
         .gte('date', startDate)
         .lte('date', endDate)
-        .order('date', { ascending: false });
+        .order('date', { ascending: true });
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
@@ -67,13 +92,23 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         console.error('Erro ao carregar perfil do funcionário:', profileError);
       }
 
-      // Combinar dados do registro com dados do perfil
-      const recordsWithProfile = (data || []).map(record => ({
-        ...record,
-        profiles: profileData
-      }));
+      // Criar um mapa dos registros por data
+      const recordsMap = (data || []).reduce((acc, record) => {
+        acc[record.date] = record;
+        return acc;
+      }, {} as Record<string, any>);
 
-      setTimeRecords(recordsWithProfile);
+      // Combinar todas as datas com os registros existentes
+      const completeRecords = dateRange.map(date => {
+        const record = recordsMap[date];
+        return {
+          date,
+          profiles: profileData,
+          ...record
+        };
+      });
+
+      setTimeRecords(completeRecords);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
@@ -94,12 +129,17 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.log('Buscando registros de todos os funcionários');
       console.log('Período:', startDate, 'até', endDate);
 
+      // Gerar todas as datas do período
+      const dateRange = generateDateRange(startDate, endDate);
+      setAllDates(dateRange);
+
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
         .gte('date', startDate)
         .lte('date', endDate)
-        .order('date', { ascending: false });
+        .order('user_id', { ascending: true })
+        .order('date', { ascending: true });
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
@@ -120,16 +160,31 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      // Combinar dados dos registros com dados dos perfis
-      const recordsWithProfiles = (data || []).map(record => {
-        const profile = profilesData?.find(p => p.id === record.user_id);
-        return {
-          ...record,
-          profiles: profile
-        };
+      // Criar um mapa dos registros por usuário e data
+      const recordsMap = (data || []).reduce((acc, record) => {
+        const key = `${record.user_id}-${record.date}`;
+        acc[key] = record;
+        return acc;
+      }, {} as Record<string, any>);
+
+      // Criar registros completos para todos os funcionários e todas as datas
+      const completeRecords: any[] = [];
+      
+      profilesData?.forEach(profile => {
+        dateRange.forEach(date => {
+          const key = `${profile.id}-${date}`;
+          const record = recordsMap[key];
+          
+          completeRecords.push({
+            date,
+            user_id: profile.id,
+            profiles: profile,
+            ...record
+          });
+        });
       });
 
-      setTimeRecords(recordsWithProfiles);
+      setTimeRecords(completeRecords);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
@@ -139,11 +194,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   };
 
   const formatTime = (timeString: string) => {
-    if (!timeString) return '--:--';
+    if (!timeString) return '-';
     return timeString.slice(0, 5);
   };
 
   const formatCurrency = (value: number) => {
+    if (!value) return '-';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
@@ -277,61 +333,42 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 Registros de Ponto
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-2 text-left">Data</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Funcionário</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Entrada</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Almoço Saída</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Almoço Volta</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Saída</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Horas Normais</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Horas Extras</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Total Horas</th>
-                      <th className="border border-gray-300 px-4 py-2 text-left">Valor Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {timeRecords.map((record: any) => (
-                      <tr key={record.id} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-4 py-2">
-                          {new Date(record.date).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {record.profiles?.name || 'N/A'}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {formatTime(record.clock_in)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {formatTime(record.lunch_start)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {formatTime(record.lunch_end)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {formatTime(record.clock_out)}
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {Number(record.normal_hours).toFixed(2)}h
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {Number(record.overtime_hours).toFixed(2)}h
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {Number(record.total_hours).toFixed(2)}h
-                        </td>
-                        <td className="border border-gray-300 px-4 py-2">
-                          {formatCurrency(Number(record.total_pay))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Dia da Semana</TableHead>
+                    <TableHead>Funcionário</TableHead>
+                    <TableHead>Entrada</TableHead>
+                    <TableHead>Saída Almoço</TableHead>
+                    <TableHead>Volta Almoço</TableHead>
+                    <TableHead>Saída</TableHead>
+                    <TableHead>Total Horas</TableHead>
+                    <TableHead>Horas Extras</TableHead>
+                    <TableHead>Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {timeRecords.map((record: any, index: number) => {
+                    const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
+                    return (
+                      <TableRow key={key}>
+                        <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell>{getDayOfWeek(record.date)}</TableCell>
+                        <TableCell>{record.profiles?.name || '-'}</TableCell>
+                        <TableCell>{formatTime(record.clock_in)}</TableCell>
+                        <TableCell>{formatTime(record.lunch_start)}</TableCell>
+                        <TableCell>{formatTime(record.lunch_end)}</TableCell>
+                        <TableCell>{formatTime(record.clock_out)}</TableCell>
+                        <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                        <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                        <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         )}
