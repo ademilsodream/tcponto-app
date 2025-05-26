@@ -38,6 +38,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [hourlyRate, setHourlyRate] = useState(50);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
 
@@ -56,24 +57,32 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   };
 
   // Função para calcular valores (hora extra = hora normal)
-  const calculatePay = (normalHours: number, overtimeHours: number, hourlyRate: number) => {
-    const normalPay = normalHours * hourlyRate;
-    const overtimePay = overtimeHours * hourlyRate; // Hora extra com mesmo valor da hora normal
+  const calculatePay = (normalHours: number, overtimeHours: number, rate: number) => {
+    const normalPay = normalHours * rate;
+    const overtimePay = overtimeHours * rate; // Hora extra com mesmo valor da hora normal
     const totalPay = normalPay + overtimePay;
     
     return { normalPay, overtimePay, totalPay };
   };
 
+  // Primeiro carrega o perfil do usuário
   useEffect(() => {
     if (user) {
-      loadRecords();
       loadUserProfile();
     }
-  }, [selectedMonth, user]);
+  }, [user]);
+
+  // Depois carrega os registros quando o perfil estiver carregado
+  useEffect(() => {
+    if (user && profileLoaded) {
+      loadRecords();
+    }
+  }, [selectedMonth, user, profileLoaded, hourlyRate]);
 
   const loadUserProfile = async () => {
     if (!user) return;
 
+    console.log('Carregando perfil do usuário:', user.id);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -81,19 +90,29 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao carregar perfil:', error);
+        throw error;
+      }
 
       if (data) {
-        setHourlyRate(Number(data.hourly_rate));
+        const rate = Number(data.hourly_rate);
+        console.log('Valor da hora carregado do perfil:', rate);
+        setHourlyRate(rate);
+      } else {
+        console.log('Nenhum perfil encontrado, usando valor padrão:', 50);
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
+    } finally {
+      setProfileLoaded(true);
     }
   };
 
   const loadRecords = async () => {
-    if (!user) return;
+    if (!user || !profileLoaded) return;
 
+    console.log('Carregando registros com valor da hora:', hourlyRate);
     setLoading(true);
     try {
       const startDate = format(selectedMonth, 'yyyy-MM-01');
@@ -132,12 +151,14 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
             record.clock_out || ''
           );
           
-          // Calcular valores com hora extra igual à hora normal
+          // Calcular valores com o hourlyRate correto carregado do perfil
           const { normalPay, overtimePay, totalPay } = calculatePay(
             normalHours,
             overtimeHours,
             hourlyRate
           );
+
+          console.log(`Calculando para ${dateString}: ${normalHours}h normais + ${overtimeHours}h extras * R$${hourlyRate} = R$${totalPay}`);
 
           return {
             id: record.id,
@@ -187,7 +208,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     totalPay: acc.totalPay + Number(record.total_pay)
   }), { totalHours: 0, normalHours: 0, overtimeHours: 0, totalPay: 0 });
 
-  if (loading) {
+  if (loading || !profileLoaded) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -208,7 +229,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
             </Button>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              {user?.name} ({totals.totalHours.toFixed(1)}h - {formatCurrency(totals.totalPay)})
+              {user?.name} ({totals.totalHours.toFixed(1)}h - {formatCurrency(totals.totalPay)}) - R${hourlyRate}/h
             </CardTitle>
           </div>
         </CardHeader>
