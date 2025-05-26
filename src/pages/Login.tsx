@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,14 +7,25 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { initializeApp } from '@/utils/initializeApp';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const initialize = async () => {
+      await initializeApp();
+      setIsInitializing(false);
+    };
+    
+    initialize();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +51,17 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
+        <div className="text-center text-white">
+          <Clock className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p>Inicializando sistema...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
@@ -115,16 +137,16 @@ const Login = () => {
             </form>
 
             <div className="mt-6 pt-6 border-t text-center text-sm text-gray-600">
-              <p className="mb-2"><strong>Contas de demonstração:</strong></p>
+              <p className="mb-2"><strong>Contas criadas automaticamente:</strong></p>
               <div className="space-y-1">
                 <p><strong>Funcionário:</strong> joao@tcponto.com</p>
                 <p><strong>Admin:</strong> admin@tcponto.com</p>
                 <p className="text-primary-600"><strong>Senha:</strong> 123456</p>
               </div>
               
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-yellow-800 text-xs">
-                  <strong>Debug:</strong> Verifique o console do navegador para logs de debug do login.
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-green-800 text-xs">
+                  <strong>✓ Sistema inicializado!</strong> Usuários de demonstração foram criados automaticamente.
                 </p>
               </div>
             </div>
