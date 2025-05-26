@@ -28,7 +28,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [loading, setLoading] = useState(false);
   const [dbEmployees, setDbEmployees] = useState<Employee[]>([]);
 
-  // Carregar funcionários do banco de dados
   useEffect(() => {
     loadEmployeesFromDB();
   }, []);
@@ -132,9 +131,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="employee">Funcionário</Label>
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Funcionário */}
+              <div className="min-w-[200px] flex-1">
+                <Label htmlFor="employee" className="block text-sm font-medium text-gray-700 mb-1">
+                  Funcionário
+                </Label>
                 <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
                   <SelectTrigger className="h-10">
                     <SelectValue placeholder="Selecione o funcionário" />
@@ -149,8 +151,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Data Inicial</Label>
+              {/* Data Inicial */}
+              <div className="min-w-[150px]">
+                <Label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                  Data Inicial
+                </Label>
                 <Input
                   id="startDate"
                   type="date"
@@ -160,8 +165,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Data Final</Label>
+              {/* Data Final */}
+              <div className="min-w-[150px]">
+                <Label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+                  Data Final
+                </Label>
                 <Input
                   id="endDate"
                   type="date"
@@ -171,23 +179,25 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 />
               </div>
 
-              <div className="flex items-end">
+              {/* Botão Gerar Individual */}
+              <div>
                 <Button
                   onClick={generateSingleEmployeeReport}
                   disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white h-10 w-full"
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-10 px-6"
                 >
                   <User className="w-4 h-4 mr-2" />
                   {loading ? 'Gerando...' : 'Gerar Individual'}
                 </Button>
               </div>
 
-              <div className="flex items-end">
+              {/* Botão Gerar Todos */}
+              <div>
                 <Button
                   onClick={generateAllEmployeesReport}
                   disabled={loading}
                   variant="outline"
-                  className="border-blue-600 text-blue-600 hover:bg-blue-50 h-10 w-full"
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50 h-10 px-6"
                 >
                   <Users className="w-4 h-4 mr-2" />
                   {loading ? 'Gerando...' : 'Gerar Todos'}
