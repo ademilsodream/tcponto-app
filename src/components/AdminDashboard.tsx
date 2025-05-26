@@ -28,6 +28,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const [loading, setLoading] = useState(true);
   const { formatCurrency } = useCurrency();
 
+  const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
+    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
+
+    const parseTime = (timeStr: string) => {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const clockInMinutes = parseTime(clockIn);
+    const clockOutMinutes = parseTime(clockOut);
+    const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : 0;
+    const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : 0;
+
+    let lunchBreakMinutes = 0;
+    if (lunchStart && lunchEnd && lunchEndMinutes > lunchStartMinutes) {
+      lunchBreakMinutes = lunchEndMinutes - lunchStartMinutes;
+    }
+
+    const totalWorkedMinutes = clockOutMinutes - clockInMinutes - lunchBreakMinutes;
+    let effectiveWorkedMinutes = totalWorkedMinutes;
+
+    // Se trabalhou mais de 8h, mas menos de 8h15min, considera apenas 8h
+    const extraMinutes = totalWorkedMinutes - 480; // 480 min = 8h
+    if (extraMinutes > 0 && extraMinutes <= 15) {
+      effectiveWorkedMinutes = 480;
+    }
+
+    const totalHours = Math.max(0, effectiveWorkedMinutes / 60);
+
+    let normalHours = Math.min(totalHours, 8);
+    let overtimeHours = 0;
+
+    if (totalHours > 8) {
+      overtimeHours = totalHours - 8;
+      normalHours = 8;
+    }
+
+    return { totalHours, normalHours, overtimeHours };
+  };
+
   useEffect(() => {
     loadDashboardData();
   }, [employees]);
@@ -38,21 +78,62 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
       setTotalEmployees(employees.length);
       setTotalAdmins(employees.filter(employee => employee.role === 'admin').length);
 
-      // Buscar dados reais de horas e ganhos do banco de dados
-      const { data: timeRecords, error } = await supabase
-        .from('time_records')
-        .select('total_hours, total_pay');
+      // Buscar dados do mês vigente
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1; // getMonth() retorna 0-11
+      const currentYear = now.getFullYear();
+      const startOfMonth = `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`;
+      const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
 
-      if (error) {
-        console.error('Error loading time records:', error);
+      console.log('Buscando dados do período:', startOfMonth, 'até', endOfMonth);
+
+      // Buscar todos os funcionários (exceto admin)
+      const { data: dbEmployees, error: employeesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('email', 'admin@tcponto.com');
+
+      if (employeesError) {
+        console.error('Erro ao buscar funcionários:', employeesError);
         setTotalHours(0);
         setTotalEarnings(0);
       } else {
-        const calculatedTotalHours = timeRecords.reduce((acc, record) => acc + Number(record.total_hours || 0), 0);
-        const calculatedTotalEarnings = timeRecords.reduce((acc, record) => acc + Number(record.total_pay || 0), 0);
-        
-        setTotalHours(calculatedTotalHours);
-        setTotalEarnings(calculatedTotalEarnings);
+        let monthTotalHours = 0;
+        let monthTotalEarnings = 0;
+
+        // Calcular totais para cada funcionário no mês
+        for (const employee of dbEmployees) {
+          const { data: timeRecords, error } = await supabase
+            .from('time_records')
+            .select('*')
+            .eq('user_id', employee.id)
+            .gte('date', startOfMonth)
+            .lte('date', endOfMonth);
+
+          if (!error && timeRecords && timeRecords.length > 0) {
+            let employeeTotalHours = 0;
+            let employeeTotalNormalHours = 0;
+            let employeeTotalOvertimeHours = 0;
+
+            timeRecords.forEach(record => {
+              const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
+                calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+              
+              employeeTotalHours += dayTotalHours;
+              employeeTotalNormalHours += dayNormalHours;
+              employeeTotalOvertimeHours += dayOvertimeHours;
+            });
+
+            const hourlyRate = Number(employee.hourly_rate) || 0;
+            const employeeEarnings = (employeeTotalNormalHours + employeeTotalOvertimeHours) * hourlyRate;
+
+            monthTotalHours += employeeTotalHours;
+            monthTotalEarnings += employeeEarnings;
+          }
+        }
+
+        setTotalHours(monthTotalHours);
+        setTotalEarnings(monthTotalEarnings);
       }
 
       // Verificar em tempo real quem está trabalhando através dos registros do Supabase
@@ -135,6 +216,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalHours.toFixed(1)}</div>
+            <div className="text-sm text-gray-500">Mês vigente</div>
           </CardContent>
         </Card>
 
@@ -147,6 +229,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalEarnings)}</div>
+            <div className="text-sm text-gray-500">Mês vigente</div>
           </CardContent>
         </Card>
       </div>

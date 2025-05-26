@@ -86,7 +86,7 @@ const Dashboard = () => {
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-4">
                 <img 
-                  src="/lovable-uploads/4b2c75fc-26d4-4be4-9e7e-3a415e06b623.png" 
+                  src="/lovable-uploads/0d53eab2-e013-4f2d-a6ed-e6d48f6e38ef.png" 
                   alt="TCPonto Logo" 
                   className="w-10 h-10 rounded-full"
                 />
@@ -203,7 +203,7 @@ const Dashboard = () => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
               <img 
-                src="/lovable-uploads/4b2c75fc-26d4-4be4-9e7e-3a415e06b623.png" 
+                src="/lovable-uploads/0d53eab2-e013-4f2d-a6ed-e6d48f6e38ef.png" 
                 alt="TCPonto Logo" 
                 className="w-10 h-10 rounded-full"
               />
