@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Calendar, User, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Users, FileDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Employee {
@@ -27,6 +27,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [dbEmployees, setDbEmployees] = useState<Employee[]>([]);
+  const [timeRecords, setTimeRecords] = useState([]);
 
   useEffect(() => {
     loadEmployeesFromDB();
@@ -58,6 +59,40 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
   };
 
+  const loadTimeRecords = async (employeeId?: string) => {
+    try {
+      let query = supabase
+        .from('time_records')
+        .select(`
+          *,
+          profiles:user_id (
+            name,
+            email,
+            hourly_rate
+          )
+        `)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (employeeId) {
+        query = query.eq('user_id', employeeId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Erro ao carregar registros:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Erro ao carregar registros:', error);
+      return [];
+    }
+  };
+
   const generateSingleEmployeeReport = async () => {
     if (!startDate || !endDate || !selectedEmployeeId) {
       alert('Selecione todos os campos para gerar o relatório');
@@ -68,7 +103,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     
     try {
       console.log('Gerando relatório individual para:', selectedEmployeeId);
-      // Implementar lógica aqui
+      const records = await loadTimeRecords(selectedEmployeeId);
+      setTimeRecords(records);
+      console.log('Registros carregados:', records);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
@@ -87,13 +124,27 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
     try {
       console.log('Gerando relatório de todos os funcionários');
-      // Implementar lógica aqui
+      const records = await loadTimeRecords();
+      setTimeRecords(records);
+      console.log('Registros carregados:', records);
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
       alert('Erro ao gerar relatório');
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatTime = (timeString: string) => {
+    if (!timeString) return '--:--';
+    return timeString.slice(0, 5);
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
   };
 
   return (
@@ -213,6 +264,74 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             </div>
           </CardContent>
         </Card>
+
+        {/* Tabela de Resultados */}
+        {timeRecords.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileDown className="w-5 h-5" />
+                Registros de Ponto
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse border border-gray-300">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-gray-300 px-4 py-2 text-left">Data</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Funcionário</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Entrada</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Almoço Saída</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Almoço Volta</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Saída</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Horas Normais</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Horas Extras</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Total Horas</th>
+                      <th className="border border-gray-300 px-4 py-2 text-left">Valor Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {timeRecords.map((record: any) => (
+                      <tr key={record.id} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-2">
+                          {new Date(record.date).toLocaleDateString('pt-BR')}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {record.profiles?.name || 'N/A'}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {formatTime(record.clock_in)}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {formatTime(record.lunch_start)}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {formatTime(record.lunch_end)}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {formatTime(record.clock_out)}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {Number(record.normal_hours).toFixed(2)}h
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {Number(record.overtime_hours).toFixed(2)}h
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {Number(record.total_hours).toFixed(2)}h
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {formatCurrency(Number(record.total_pay))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
