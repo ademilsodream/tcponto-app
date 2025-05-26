@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Calendar, DollarSign, Clock } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
+import { calculateWorkingHours } from '@/utils/timeCalculations';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -52,46 +52,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     const isValid = date >= startDate && date <= endDate;
     console.log(`[PayrollReport] Data ${dateStr} está no período ${start} a ${end}?`, isValid);
     return isValid;
-  };
-
-  const calculateHours = (clockIn?: string, lunchStart?: string, lunchEnd?: string, clockOut?: string) => {
-    if (!clockIn || !clockOut) return { totalHours: 0, normalHours: 0, overtimeHours: 0 };
-
-    const parseTime = (timeStr: string) => {
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    const clockInMinutes = parseTime(clockIn);
-    const clockOutMinutes = parseTime(clockOut);
-    const lunchStartMinutes = lunchStart ? parseTime(lunchStart) : 0;
-    const lunchEndMinutes = lunchEnd ? parseTime(lunchEnd) : 0;
-
-    let lunchBreakMinutes = 0;
-    if (lunchStart && lunchEnd && lunchEndMinutes > lunchStartMinutes) {
-      lunchBreakMinutes = lunchEndMinutes - lunchStartMinutes;
-    }
-
-    const totalWorkedMinutes = clockOutMinutes - clockInMinutes - lunchBreakMinutes;
-    let effectiveWorkedMinutes = totalWorkedMinutes;
-
-    // Se trabalhou mais de 8h, mas menos de 8h15min, considera apenas 8h
-    const extraMinutes = totalWorkedMinutes - 480; // 480 min = 8h
-    if (extraMinutes > 0 && extraMinutes <= 15) {
-      effectiveWorkedMinutes = 480;
-    }
-
-    const totalHours = Math.max(0, effectiveWorkedMinutes / 60);
-
-    let normalHours = Math.min(totalHours, 8);
-    let overtimeHours = 0;
-
-    if (totalHours > 8) {
-      overtimeHours = totalHours - 8;
-      normalHours = 8;
-    }
-
-    return { totalHours, normalHours, overtimeHours };
   };
 
   const generatePayroll = async () => {
@@ -160,8 +120,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           console.log(`Registros VÁLIDOS para ${employee.name}:`, validRecords);
 
           validRecords.forEach(record => {
+            // Usar a função padronizada com tolerância de 15 minutos
             const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
-              calculateHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+              calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
             
             console.log(`Horas do dia ${record.date}:`, {
               dayTotalHours,
