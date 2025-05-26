@@ -89,7 +89,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ employees: initialEmplo
     }
 
     const hourlyRate = parseFloat(formData.hourlyRate) || 0;
-    const overtimeRate = parseFloat(formData.overtimeRate) || parseFloat(formData.hourlyRate) || 0;
+    const overtimeRate = parseFloat(formData.overtimeRate) || 0; // Aceita qualquer valor, mesmo 0
 
     try {
       if (editingUser) {
