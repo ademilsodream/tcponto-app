@@ -16,7 +16,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center">
         <div className="text-center">
           <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-600" />
-          <p className="text-primary-600">Carregando...</p>
+          <p className="text-primary-600">Verificando autenticação...</p>
         </div>
       </div>
     );
