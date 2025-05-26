@@ -416,6 +416,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const todayDateString = today.toISOString().split('T')[0];
   const isHistoricalEntry = selectedDate < todayDateString;
 
+  const currentFieldToShow = getCurrentFieldToShow();
+
   const renderCurrentField = () => {
     if (currentFieldToShow === 'completed') {
       return (
