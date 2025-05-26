@@ -132,11 +132,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="employee">Funcionário</Label>
                 <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="Selecione o funcionário" />
                   </SelectTrigger>
                   <SelectContent>
@@ -156,6 +156,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  className="h-10"
                 />
               </div>
 
@@ -166,27 +167,32 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  className="h-10"
                 />
               </div>
 
-              <Button
-                onClick={generateSingleEmployeeReport}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <User className="w-4 h-4 mr-2" />
-                {loading ? 'Gerando...' : 'Gerar Individual'}
-              </Button>
+              <div className="flex items-end">
+                <Button
+                  onClick={generateSingleEmployeeReport}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-10 w-full"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  {loading ? 'Gerando...' : 'Gerar Individual'}
+                </Button>
+              </div>
 
-              <Button
-                onClick={generateAllEmployeesReport}
-                disabled={loading}
-                variant="outline"
-                className="border-blue-300 text-blue-600 hover:bg-blue-50"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                {loading ? 'Gerando...' : 'Gerar Todos'}
-              </Button>
+              <div className="flex items-end">
+                <Button
+                  onClick={generateAllEmployeesReport}
+                  disabled={loading}
+                  variant="outline"
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50 h-10 w-full"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  {loading ? 'Gerando...' : 'Gerar Todos'}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
