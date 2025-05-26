@@ -97,7 +97,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   // Função para calcular valores
   const calculatePay = (normalHours: number, overtimeHours: number, hourlyRate: number) => {
     const normalPay = normalHours * hourlyRate;
-    const overtimePay = overtimeHours * hourlyRate * 1.5; // 50% adicional para horas extras
+    const overtimePay = overtimeHours * hourlyRate; // Hora extra com mesmo valor da hora normal
     const totalPay = normalPay + overtimePay;
     
     return { normalPay, overtimePay, totalPay };
@@ -176,7 +176,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             record.clock_out || ''
           );
           
-          // Calcular valores
+          // Calcular valores com hora extra igual à hora normal
           const { normalPay, overtimePay, totalPay } = calculatePay(
             normalHours,
             overtimeHours,
@@ -295,7 +295,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               record.clock_out || ''
             );
             
-            // Calcular valores
+            // Calcular valores com hora extra igual à hora normal
             const { normalPay, overtimePay, totalPay } = calculatePay(
               normalHours,
               overtimeHours,
