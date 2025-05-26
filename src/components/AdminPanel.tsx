@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Users, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import AdminDashboard from './AdminDashboard';
-import SupabaseUserManagement from './SupabaseUserManagement';
+import UserManagement from './UserManagement';
 import GlobalCurrencySelector from './GlobalCurrencySelector';
 
 interface User {
@@ -26,7 +26,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   // Carregar lista de funcionários
   const getEmployees = (): User[] => {
-    const savedUsers = localStorage.getItem('tcponto_users');
+    const savedUsers = localStorage.getItem('tcponto_employees');
     if (savedUsers) {
       return JSON.parse(savedUsers);
     }
@@ -40,7 +40,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       case 'dashboard':
         return <AdminDashboard employees={employees} />;
       case 'users':
-        return <SupabaseUserManagement />;
+        return <UserManagement />;
       default:
         return <AdminDashboard employees={employees} />;
     }
