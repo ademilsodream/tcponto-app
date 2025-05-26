@@ -243,6 +243,21 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return acc;
   }, {} as Record<string, TimeRecord[]>);
 
+  // Calcular totais por funcionário
+  const calculateEmployeeTotals = (records: TimeRecord[]) => {
+    return records.reduce((totals, record) => {
+      const totalHours = Number(record.total_hours || 0);
+      const overtimeHours = Number(record.overtime_hours || 0);
+      const totalPay = Number(record.total_pay || 0);
+      
+      return {
+        totalHours: totals.totalHours + totalHours,
+        overtimeHours: totals.overtimeHours + overtimeHours,
+        totalPay: totals.totalPay + totalPay
+      };
+    }, { totalHours: 0, overtimeHours: 0, totalPay: 0 });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -364,51 +379,55 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         {/* Exibir relatórios agrupados por funcionário */}
         {Object.keys(groupedRecords).length > 0 && (
           <div className="space-y-8">
-            {Object.entries(groupedRecords).map(([employeeName, records]) => (
-              <Card key={employeeName}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    {employeeName} (0.0h - 0.00 €)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Dia da Semana</TableHead>
-                        <TableHead>Entrada</TableHead>
-                        <TableHead>Saída Almoço</TableHead>
-                        <TableHead>Volta Almoço</TableHead>
-                        <TableHead>Saída</TableHead>
-                        <TableHead>Total Horas</TableHead>
-                        <TableHead>Horas Extras</TableHead>
-                        <TableHead>Valor</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {records.map((record: TimeRecord, index: number) => {
-                        const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                        return (
-                          <TableRow key={key}>
-                            <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                            <TableCell>{formatTime(record.clock_in || '')}</TableCell>
-                            <TableCell>{formatTime(record.lunch_start || '')}</TableCell>
-                            <TableCell>{formatTime(record.lunch_end || '')}</TableCell>
-                            <TableCell>{formatTime(record.clock_out || '')}</TableCell>
-                            <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                            <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                            <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            ))}
+            {Object.entries(groupedRecords).map(([employeeName, records]) => {
+              const totals = calculateEmployeeTotals(records);
+              
+              return (
+                <Card key={employeeName}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="w-5 h-5" />
+                      {employeeName} ({totals.totalHours.toFixed(1)}h - {totals.overtimeHours.toFixed(1)}h extras - {formatCurrency(totals.totalPay)})
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Dia da Semana</TableHead>
+                          <TableHead>Entrada</TableHead>
+                          <TableHead>Saída Almoço</TableHead>
+                          <TableHead>Volta Almoço</TableHead>
+                          <TableHead>Saída</TableHead>
+                          <TableHead>Total Horas</TableHead>
+                          <TableHead>Horas Extras</TableHead>
+                          <TableHead>Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {records.map((record: TimeRecord, index: number) => {
+                          const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
+                          return (
+                            <TableRow key={key}>
+                              <TableCell>{format(new Date(record.date), 'dd/MM/yyyy')}</TableCell>
+                              <TableCell>{getDayOfWeek(record.date)}</TableCell>
+                              <TableCell>{formatTime(record.clock_in || '')}</TableCell>
+                              <TableCell>{formatTime(record.lunch_start || '')}</TableCell>
+                              <TableCell>{formatTime(record.lunch_end || '')}</TableCell>
+                              <TableCell>{formatTime(record.clock_out || '')}</TableCell>
+                              <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                              <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                              <TableCell>{formatCurrency(Number(record.total_pay))}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
