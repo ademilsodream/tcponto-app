@@ -31,6 +31,17 @@ const Dashboard = () => {
   const isAdmin = user?.role === 'admin';
   const userName = user?.name || user?.email || 'Usuário';
 
+  // Função para obter lista de funcionários do localStorage
+  const getEmployees = () => {
+    const savedUsers = localStorage.getItem('tcponto_employees');
+    if (savedUsers) {
+      return JSON.parse(savedUsers);
+    }
+    return [];
+  };
+
+  const employees = getEmployees();
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'timeRegistration':
@@ -93,11 +104,11 @@ const Dashboard = () => {
           </div>
         );
       case 'monthlyControl':
-        return <MonthlyControl />;
+        return <MonthlyControl employees={employees} />;
       case 'payrollReport':
-        return <PayrollReport />;
+        return <PayrollReport employees={employees} onBack={() => setActiveTab('timeRegistration')} />;
       case 'locationReport':
-        return <LocationReport />;
+        return <LocationReport employees={employees} />;
       case 'adminPanel':
         return <AdminPanel onBack={() => setActiveTab('timeRegistration')} />;
       default:
