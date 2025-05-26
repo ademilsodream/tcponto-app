@@ -1,14 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
+import { cn } from '@/lib/utils';
 
 interface TimeRecord {
   id: string;
@@ -31,13 +35,13 @@ interface EmployeeDetailedReportProps {
 }
 
 const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
-  selectedMonth,
   onBack
 }) => {
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [hourlyRate, setHourlyRate] = useState(50);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<Date>(new Date());
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
 
@@ -71,12 +75,12 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     }
   }, [user]);
 
-  // Depois carrega os registros quando o perfil estiver carregado
+  // Depois carrega os registros quando o perfil estiver carregado ou período mudar
   useEffect(() => {
     if (user && profileLoaded) {
       loadRecords();
     }
-  }, [selectedMonth, user, profileLoaded, hourlyRate]);
+  }, [selectedPeriod, user, profileLoaded, hourlyRate]);
 
   const loadUserProfile = async () => {
     if (!user) return;
@@ -114,8 +118,10 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     console.log('Carregando registros com valor da hora:', hourlyRate);
     setLoading(true);
     try {
-      const startDate = format(selectedMonth, 'yyyy-MM-01');
-      const endDate = format(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0), 'yyyy-MM-dd');
+      const startDate = format(selectedPeriod, 'yyyy-MM-01');
+      const endDate = format(new Date(selectedPeriod.getFullYear(), selectedPeriod.getMonth() + 1, 0), 'yyyy-MM-dd');
+
+      console.log('Buscando registros entre:', startDate, 'e', endDate);
 
       const { data, error } = await supabase
         .from('time_records')
@@ -128,8 +134,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
 
       if (error) throw error;
 
-      // Gerar todas as datas do mês
-      const allDates = generateMonthDates(selectedMonth);
+      // Gerar todas as datas do mês selecionado
+      const allDates = generateMonthDates(selectedPeriod);
       
       // Criar um mapa dos registros por data
       const recordsMap = (data || []).reduce((acc, record) => {
@@ -230,6 +236,42 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
               <FileText className="w-5 h-5" />
               {user?.name}
             </CardTitle>
+          </div>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Seletor de Período</h3>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-[240px] justify-start text-left font-normal",
+                    !selectedPeriod && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedPeriod ? format(selectedPeriod, "MMMM yyyy", { locale: ptBR }) : <span>Selecione o período</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedPeriod}
+                  onSelect={(date) => date && setSelectedPeriod(date)}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>Total de Horas: {totals.totalHours.toFixed(1)}h</span>
+            <span>Valor Total: {formatCurrency(totals.totalPay)}</span>
+            <span>Valor/Hora: {formatCurrency(hourlyRate)}</span>
           </div>
         </CardHeader>
       </Card>
