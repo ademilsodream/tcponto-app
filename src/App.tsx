@@ -4,32 +4,42 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { CurrencyProvider } from "./contexts/CurrencyContext";
-import Login from "./pages/Login";
+import AuthPage from "./components/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
+import { useSupabaseAuth } from "./hooks/useSupabaseAuth";
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  const { user, loading } = useSupabaseAuth();
+  
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  }
+  
+  return user ? <>{children}</> : <Navigate to="/auth" />;
 };
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuth();
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" />;
+  const { user, loading } = useSupabaseAuth();
+  
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  }
+  
+  return !user ? <>{children}</> : <Navigate to="/dashboard" />;
 };
 
 const AppRoutes = () => {
   return (
     <Routes>
       <Route 
-        path="/login" 
+        path="/auth" 
         element={
           <PublicRoute>
-            <Login />
+            <AuthPage />
           </PublicRoute>
         } 
       />
@@ -53,11 +63,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <CurrencyProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
       </CurrencyProvider>
     </TooltipProvider>
   </QueryClientProvider>

@@ -2,9 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Clock, Coffee, LogIn, LogOut, Edit2, Check, X, AlertTriangle, MapPin } from 'lucide-react';
+import { Clock, Coffee, LogIn, LogOut, MapPin } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +23,8 @@ interface TimeRecord {
   overtime_pay: number;
   total_pay: number;
   locations?: any;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface SupabaseTimeRegistrationProps {
@@ -35,9 +35,6 @@ const SupabaseTimeRegistration: React.FC<SupabaseTimeRegistrationProps> = ({
   selectedDate = new Date().toISOString().split('T')[0]
 }) => {
   const [record, setRecord] = useState<TimeRecord | null>(null);
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [editReason, setEditReason] = useState('');
   const [message, setMessage] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -54,33 +51,39 @@ const SupabaseTimeRegistration: React.FC<SupabaseTimeRegistrationProps> = ({
     if (!user) return;
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from('time_records')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('date', selectedDate)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('date', selectedDate)
+        .maybeSingle();
 
-    if (error) {
+      if (error) {
+        console.error('Erro ao carregar registro:', error);
+        setMessage('Erro ao carregar registro do dia');
+      } else if (data) {
+        setRecord(data as TimeRecord);
+      } else {
+        // Criar novo registro para o dia
+        const newRecord: TimeRecord = {
+          user_id: user.id,
+          date: selectedDate,
+          total_hours: 0,
+          normal_hours: 0,
+          overtime_hours: 0,
+          normal_pay: 0,
+          overtime_pay: 0,
+          total_pay: 0,
+        };
+        setRecord(newRecord);
+      }
+    } catch (error) {
       console.error('Erro ao carregar registro:', error);
       setMessage('Erro ao carregar registro do dia');
-    } else if (data) {
-      setRecord(data);
-    } else {
-      // Criar novo registro para o dia
-      const newRecord: TimeRecord = {
-        user_id: user.id,
-        date: selectedDate,
-        total_hours: 0,
-        normal_hours: 0,
-        overtime_hours: 0,
-        normal_pay: 0,
-        overtime_pay: 0,
-        total_pay: 0,
-      };
-      setRecord(newRecord);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const getCurrentTime = () => {
@@ -196,36 +199,43 @@ const SupabaseTimeRegistration: React.FC<SupabaseTimeRegistrationProps> = ({
       total_pay: totalPay,
     };
 
-    if (finalRecord.id) {
-      // Atualizar registro existente
-      const { error } = await supabase
-        .from('time_records')
-        .update(finalRecord)
-        .eq('id', finalRecord.id);
+    try {
+      if (finalRecord.id) {
+        // Atualizar registro existente
+        const { error } = await supabase
+          .from('time_records')
+          .update(finalRecord)
+          .eq('id', finalRecord.id);
 
-      if (error) {
-        console.error('Erro ao atualizar registro:', error);
-        setMessage('Erro ao salvar registro');
-        return;
-      }
-    } else {
-      // Inserir novo registro
-      const { data, error } = await supabase
-        .from('time_records')
-        .insert([finalRecord])
-        .select()
-        .single();
+        if (error) {
+          console.error('Erro ao atualizar registro:', error);
+          setMessage('Erro ao salvar registro');
+          return;
+        }
+      } else {
+        // Inserir novo registro
+        const { data, error } = await supabase
+          .from('time_records')
+          .insert([finalRecord])
+          .select()
+          .single();
 
-      if (error) {
-        console.error('Erro ao inserir registro:', error);
-        setMessage('Erro ao salvar registro');
-        return;
+        if (error) {
+          console.error('Erro ao inserir registro:', error);
+          setMessage('Erro ao salvar registro');
+          return;
+        }
+        
+        if (data) {
+          finalRecord.id = data.id;
+        }
       }
-      
-      finalRecord.id = data.id;
+
+      setRecord(finalRecord);
+    } catch (error) {
+      console.error('Erro ao salvar registro:', error);
+      setMessage('Erro ao salvar registro');
     }
-
-    setRecord(finalRecord);
   };
 
   const handleRegisterTime = async (field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
