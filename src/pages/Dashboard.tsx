@@ -101,7 +101,7 @@ const Dashboard = () => {
 
     switch (activeTab) {
       case 'adminDashboard':
-        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
+        return <AdminPanel />;
       case 'monthlyControl':
         return <MonthlyControl employees={employees} />;
       case 'payrollReport':
@@ -111,7 +111,7 @@ const Dashboard = () => {
       case 'locationReport':
         return <LocationReport employees={employees} />;
       default:
-        return <AdminPanel onBack={() => setActiveTab('adminDashboard')} />;
+        return <AdminPanel />;
     }
   };
 
