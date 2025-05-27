@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw } from 'lucide-react';
+import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +14,11 @@ interface IncompleteRecord {
   isWeekend: boolean;
 }
 
-const IncompleteRecordsProfile: React.FC = () => {
+interface IncompleteRecordsProfileProps {
+  onBack?: () => void;
+}
+
+const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onBack }) => {
   const [incompleteRecords, setIncompleteRecords] = useState<IncompleteRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -206,10 +209,18 @@ const IncompleteRecordsProfile: React.FC = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="w-5 h-5" />
-          Registros Incompletos - Mês Atual
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Registros Incompletos - Mês Atual
+          </CardTitle>
+          {onBack && (
+            <Button variant="outline" size="sm" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {incompleteRecords.length === 0 ? (
