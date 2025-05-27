@@ -139,3 +139,23 @@ export const calculateMonthlyStats = (
   };
 };
 
+// Função utilitária para verificar se é dia útil
+export const isWorkingDay = (date: Date): boolean => {
+  const dayOfWeek = date.getDay();
+  return dayOfWeek >= 1 && dayOfWeek <= 5; // Segunda a sexta
+};
+
+// Função para contar apenas dias úteis em um período
+export const countWorkingDays = (startDate: string, endDate: string): number => {
+  let count = 0;
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  
+  for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    if (isWorkingDay(date)) {
+      count++;
+    }
+  }
+  
+  return count;
+};

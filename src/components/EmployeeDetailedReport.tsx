@@ -12,6 +12,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
+import { isWorkingDay } from '@/utils/workingDays';
 
 interface TimeRecord {
   id: string;
@@ -26,6 +27,7 @@ interface TimeRecord {
   normal_pay: number;
   overtime_pay: number;
   total_pay: number;
+  isWeekend?: boolean;
 }
 
 interface EmployeeDetailedReportProps {
@@ -52,8 +54,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     const endDate = new Date(end + 'T00:00:00');
     
     console.log('Gerando datas do período:', start, 'até', end);
-    console.log('Start date object:', startDate);
-    console.log('End date object:', endDate);
     
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const dateString = format(date, 'yyyy-MM-dd');
@@ -169,54 +169,65 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
       console.log('Mapa de registros válidos:', recordsMap);
 
       // Combinar APENAS as datas do período com os registros existentes
-      const completeRecords: TimeRecord[] = dateRange.map(dateString => {
+      // Filtrar para mostrar apenas dias úteis OU fins de semana com registros
+      const completeRecords: TimeRecord[] = [];
+      
+      for (const dateString of dateRange) {
         const record = recordsMap[dateString];
+        const dateObj = new Date(dateString + 'T00:00:00');
+        const isWeekendDay = !isWorkingDay(dateObj);
         
-        if (record) {
-          // Usar a função padronizada com tolerância de 15 minutos
-          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-            record.clock_in || '',
-            record.lunch_start || '',
-            record.lunch_end || '',
-            record.clock_out || ''
-          );
-          
-          // Calcular valores com o hourlyRate correto carregado do perfil
-          const { normalPay, overtimePay, totalPay } = calculatePay(
-            normalHours,
-            overtimeHours,
-            hourlyRate
-          );
+        // Mostrar se for dia útil OU se for fim de semana com registro
+        if (!isWeekendDay || record) {
+          if (record) {
+            // Usar a função padronizada com tolerância de 15 minutos
+            const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
+              record.clock_in || '',
+              record.lunch_start || '',
+              record.lunch_end || '',
+              record.clock_out || ''
+            );
+            
+            // Calcular valores com o hourlyRate correto carregado do perfil
+            const { normalPay, overtimePay, totalPay } = calculatePay(
+              normalHours,
+              overtimeHours,
+              hourlyRate
+            );
 
-          console.log(`Calculando para ${dateString}: ${normalHours}h normais + ${overtimeHours}h extras * R$${hourlyRate} = R$${totalPay}`);
+            console.log(`Calculando para ${dateString}: ${normalHours}h normais + ${overtimeHours}h extras * ${formatCurrency(hourlyRate)} = ${formatCurrency(totalPay)}`);
 
-          return {
-            id: record.id,
-            date: record.date,
-            clock_in: record.clock_in,
-            lunch_start: record.lunch_start,
-            lunch_end: record.lunch_end,
-            clock_out: record.clock_out,
-            total_hours: totalHours,
-            normal_hours: normalHours,
-            overtime_hours: overtimeHours,
-            normal_pay: normalPay,
-            overtime_pay: overtimePay,
-            total_pay: totalPay
-          };
+            completeRecords.push({
+              id: record.id,
+              date: record.date,
+              clock_in: record.clock_in,
+              lunch_start: record.lunch_start,
+              lunch_end: record.lunch_end,
+              clock_out: record.clock_out,
+              total_hours: totalHours,
+              normal_hours: normalHours,
+              overtime_hours: overtimeHours,
+              normal_pay: normalPay,
+              overtime_pay: overtimePay,
+              total_pay: totalPay,
+              isWeekend: isWeekendDay
+            });
+          } else {
+            // Dia útil sem registro
+            completeRecords.push({
+              id: `empty-${dateString}`,
+              date: dateString,
+              total_hours: 0,
+              normal_hours: 0,
+              overtime_hours: 0,
+              normal_pay: 0,
+              overtime_pay: 0,
+              total_pay: 0,
+              isWeekend: isWeekendDay
+            });
+          }
         }
-
-        return {
-          id: `empty-${dateString}`,
-          date: dateString,
-          total_hours: 0,
-          normal_hours: 0,
-          overtime_hours: 0,
-          normal_pay: 0,
-          overtime_pay: 0,
-          total_pay: 0
-        };
-      });
+      }
 
       console.log('Registros completos para exibição:', completeRecords);
       console.log('Total de datas no resultado:', completeRecords.length);
@@ -321,8 +332,11 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
                 const dayOfWeek = getDayOfWeek(record.date);
                 
                 return (
-                  <TableRow key={record.id}>
-                    <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
+                  <TableRow key={record.id} className={record.isWeekend ? 'bg-blue-50' : ''}>
+                    <TableCell>
+                      {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                      {record.isWeekend && <span className="ml-2 text-xs text-blue-600">(Fim de semana)</span>}
+                    </TableCell>
                     <TableCell>{dayOfWeek}</TableCell>
                     <TableCell>{record.clock_in || '-'}</TableCell>
                     <TableCell>{record.lunch_start || '-'}</TableCell>

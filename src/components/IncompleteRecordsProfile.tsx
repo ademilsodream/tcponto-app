@@ -6,11 +6,13 @@ import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { getWorkingDaysInMonth, isWorkingDay } from '@/utils/workingDays';
 
 interface IncompleteRecord {
   date: string;
   missingFields: string[];
   completedCount: number;
+  isWeekend: boolean;
 }
 
 const IncompleteRecordsProfile: React.FC = () => {
@@ -53,6 +55,7 @@ const IncompleteRecordsProfile: React.FC = () => {
         .eq('user_id', user.id)
         .gte('date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('date', lastDayOfMonth.toISOString().split('T')[0])
+        .eq('status', 'active')
         .order('date', { ascending: false });
 
       if (fetchError) {
@@ -62,32 +65,44 @@ const IncompleteRecordsProfile: React.FC = () => {
 
       console.log('IncompleteRecordsProfile: Fetched records:', records?.length || 0);
 
+      // Obter apenas dias úteis do mês
+      const workingDays = getWorkingDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+      console.log('IncompleteRecordsProfile: Working days in month:', workingDays.length);
+
       // Processar registros incompletos
       const incomplete: IncompleteRecord[] = [];
       
-      // Criar array de todos os dias úteis do mês
-      const allDays: string[] = [];
+      // Verificar cada dia útil + fins de semana com registros
+      const allDaysToCheck = [...workingDays];
+      
+      // Adicionar fins de semana que têm registros
       for (let d = new Date(firstDayOfMonth); d <= lastDayOfMonth; d.setDate(d.getDate() + 1)) {
-        const dayOfWeek = d.getDay();
-        // Incluir apenas dias úteis (segunda a sexta)
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          allDays.push(d.toISOString().split('T')[0]);
+        const dateString = d.toISOString().split('T')[0];
+        const isWeekendDay = !isWorkingDay(d);
+        
+        if (isWeekendDay && records?.find(r => r.date === dateString)) {
+          allDaysToCheck.push(dateString);
         }
       }
 
-      console.log('IncompleteRecordsProfile: Processing', allDays.length, 'business days');
+      console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records)');
 
-      // Verificar cada dia útil
-      allDays.forEach(date => {
+      // Verificar cada dia
+      allDaysToCheck.forEach(date => {
         const record = records?.find(r => r.date === date);
+        const dateObj = new Date(date + 'T00:00:00');
+        const isWeekendDay = !isWorkingDay(dateObj);
         
         if (!record) {
-          // Dia sem nenhum registro
-          incomplete.push({
-            date,
-            missingFields: ['Entrada', 'Início do Almoço', 'Fim do Almoço', 'Saída'],
-            completedCount: 0
-          });
+          // Dia sem nenhum registro (apenas dias úteis aparecem aqui)
+          if (!isWeekendDay) {
+            incomplete.push({
+              date,
+              missingFields: ['Entrada', 'Início do Almoço', 'Fim do Almoço', 'Saída'],
+              completedCount: 0,
+              isWeekend: false
+            });
+          }
         } else {
           // Verificar quais campos estão faltando
           const missingFields: string[] = [];
@@ -109,7 +124,8 @@ const IncompleteRecordsProfile: React.FC = () => {
             incomplete.push({
               date,
               missingFields,
-              completedCount
+              completedCount,
+              isWeekend: isWeekendDay
             });
           }
         }
@@ -126,7 +142,7 @@ const IncompleteRecordsProfile: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+    return new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -184,6 +200,9 @@ const IncompleteRecordsProfile: React.FC = () => {
     );
   }
 
+  const workingDayRecords = incompleteRecords.filter(record => !record.isWeekend);
+  const weekendRecords = incompleteRecords.filter(record => record.isWeekend);
+
   return (
     <Card>
       <CardHeader>
@@ -200,7 +219,7 @@ const IncompleteRecordsProfile: React.FC = () => {
               Parabéns! Todos os registros do mês estão completos.
             </p>
             <p className="text-sm text-gray-600 mt-2">
-              Você tem todos os 4 registros diários preenchidos.
+              Você tem todos os 4 registros diários preenchidos nos dias úteis.
             </p>
           </div>
         ) : (
@@ -208,50 +227,94 @@ const IncompleteRecordsProfile: React.FC = () => {
             <Alert className="border-amber-200 bg-amber-50">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-amber-800">
-                Você tem {incompleteRecords.length} dia(s) com registros incompletos neste mês.
+                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos
+                {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
               </AlertDescription>
             </Alert>
 
-            <div className="space-y-3">
-              {incompleteRecords.map((record) => (
-                <div 
-                  key={record.date}
-                  className="border rounded-lg p-4 bg-gray-50"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">
-                      {formatDate(record.date)}
-                    </h4>
-                    <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm font-medium">
-                        {record.completedCount}/4 registros
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {record.missingFields.map((field) => (
-                        <span 
-                          key={field}
-                          className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded"
-                        >
-                          {field}
+            {/* Registros de dias úteis */}
+            {workingDayRecords.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Dias Úteis Incompletos:</h4>
+                {workingDayRecords.map((record) => (
+                  <div 
+                    key={record.date}
+                    className="border rounded-lg p-4 bg-red-50"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="font-medium text-gray-900">
+                        {formatDate(record.date)}
+                      </h5>
+                      <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
+                        <Clock className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          {record.completedCount}/4 registros
                         </span>
-                      ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {record.missingFields.map((field) => (
+                          <span 
+                            key={field}
+                            className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded"
+                          >
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {new Date(record.date + 'T00:00:00') < new Date(new Date().toISOString().split('T')[0] + 'T00:00:00') && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Registros de fins de semana */}
+            {weekendRecords.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Fins de Semana com Registros Incompletos:</h4>
+                {weekendRecords.map((record) => (
+                  <div 
+                    key={record.date}
+                    className="border rounded-lg p-4 bg-blue-50"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="font-medium text-gray-900">
+                        {formatDate(record.date)} <span className="text-sm text-blue-600">(Fim de semana)</span>
+                      </h5>
+                      <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
+                        <Clock className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          {record.completedCount}/4 registros
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {record.missingFields.map((field) => (
+                          <span 
+                            key={field}
+                            className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+                          >
+                            {field}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  
-                  {new Date(record.date) < new Date(new Date().toISOString().split('T')[0]) && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
