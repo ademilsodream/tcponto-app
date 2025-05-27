@@ -197,7 +197,7 @@ const Dashboard = () => {
 
               {activeEmployeeView === 'timeRegistration' && (
                 <SidebarGroup>
-                  <SidebarGroupLabel>Seleção de Data</SidebarGroupLabel>
+                  <SidebarGroupLabel>Selecionar data para ajustar</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <div className="p-2">
                       <Popover>
