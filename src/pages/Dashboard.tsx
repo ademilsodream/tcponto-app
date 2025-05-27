@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, AlertCircle, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -11,12 +11,28 @@ import TimeRegistration from '@/components/TimeRegistration';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
 import AdminPanel from '@/components/AdminPanel';
 import PayrollReport from '@/components/PayrollReport';
+import DetailedTimeReport from '@/components/DetailedTimeReport';
 import LocationReport from '@/components/LocationReport';
 import MonthlyControl from '@/components/MonthlyControl';
-import DetailedTimeReport from '@/components/DetailedTimeReport';
+import EmployeeMonthlySummary from '@/components/EmployeeMonthlySummary';
+import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
+import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  SidebarInset,
+} from '@/components/ui/sidebar';
 
 interface User {
   id: string;
@@ -30,6 +46,7 @@ interface User {
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState('adminDashboard');
+  const [activeEmployeeView, setActiveEmployeeView] = useState('timeRegistration');
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, logout } = useAuth();
@@ -98,113 +115,181 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum
+  const renderEmployeeContent = () => {
+    switch (activeEmployeeView) {
+      case 'timeRegistration':
+        return (
+          <TimeRegistration 
+            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
+          />
+        );
+      case 'incompleteRecords':
+        return (
+          <IncompleteRecordsProfile 
+            onBack={() => setActiveEmployeeView('timeRegistration')}
+          />
+        );
+      case 'monthlySummary':
+        return (
+          <EmployeeMonthlySummary 
+            selectedMonth={selectedDate}
+            onShowDetailedReport={() => setActiveEmployeeView('detailedReport')}
+          />
+        );
+      case 'detailedReport':
+        return (
+          <EmployeeDetailedReport 
+            selectedMonth={selectedDate}
+            onBack={() => setActiveEmployeeView('monthlySummary')}
+          />
+        );
+      default:
+        return (
+          <TimeRegistration 
+            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
+          />
+        );
+    }
+  };
+
+  // Layout para funcionário comum com sidebar
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-4">
-                <img 
-                  src="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" 
-                  alt="TCPonto Logo" 
-                  className="w-10 h-10 rounded-full"
-                />
-                <div>
-                  <h1 className="text-xl font-semibold text-primary-900">TCPonto</h1>
-                  <p className="text-sm text-gray-600 hidden sm:block">Sistema de Controle de Ponto</p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2 sm:space-x-4">
-                <div className="flex flex-col sm:flex-row items-end sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 text-sm">
-                  <span className="text-gray-600 text-xs sm:text-sm">Olá,</span>
-                  <span className="text-gray-900 font-medium text-xs sm:text-sm truncate max-w-24 sm:max-w-none">{userName}</span>
-                </div>
-
-                <Button variant="outline" size="sm" onClick={handleSignOut}>
-                  <LogOut className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Sair</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content para Funcionário */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column - Date Selection */}
-            <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarIcon className="w-5 h-5" />
-                    Selecionar data para ajustar
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !selectedDate && "text-muted-foreground"
-                        )}
+      <SidebarProvider>
+        <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex w-full">
+          <Sidebar>
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupLabel>Menu</SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        onClick={() => setActiveEmployeeView('timeRegistration')}
+                        isActive={activeEmployeeView === 'timeRegistration'}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? (
-                          format(selectedDate, "PPP", { locale: ptBR })
-                        ) : (
-                          <span>Selecione uma data</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => date && setSelectedDate(date)}
-                        initialFocus
-                        locale={ptBR}
-                        disabled={(date) => {
-                          const today = new Date();
-                          const currentMonth = today.getMonth();
-                          const currentYear = today.getFullYear();
-                          
-                          // Desabilitar datas futuras e data atual
-                          if (date >= today) return true;
-                          
-                          // Só permitir datas do mês atual
-                          return date.getMonth() !== currentMonth || date.getFullYear() !== currentYear;
-                        }}
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
+                        <Clock className="w-4 h-4" />
+                        <span>Selecionar Data</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        onClick={() => setActiveEmployeeView('incompleteRecords')}
+                        isActive={activeEmployeeView === 'incompleteRecords'}
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Ver Registros Incompletos do Mês</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        onClick={() => setActiveEmployeeView('monthlySummary')}
+                        isActive={activeEmployeeView === 'monthlySummary'}
+                      >
+                        <TrendingUp className="w-4 h-4" />
+                        <span>Ver Resumo Mensal</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
 
-                  <div className="mt-4 p-4 bg-accent-50 rounded-lg">
-                    <h3 className="font-medium text-accent-900 mb-2">Data Selecionada</h3>
-                    <p className="text-accent-700">
-                      {format(selectedDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                    </p>
+              {activeEmployeeView === 'timeRegistration' && (
+                <SidebarGroup>
+                  <SidebarGroupLabel>Seleção de Data</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="p-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal text-xs",
+                              !selectedDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-3 w-3" />
+                            {selectedDate ? (
+                              format(selectedDate, "dd/MM/yyyy", { locale: ptBR })
+                            ) : (
+                              <span>Selecione uma data</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={selectedDate}
+                            onSelect={(date) => date && setSelectedDate(date)}
+                            initialFocus
+                            locale={ptBR}
+                            disabled={(date) => {
+                              const today = new Date();
+                              const currentMonth = today.getMonth();
+                              const currentYear = today.getFullYear();
+                              
+                              if (date >= today) return true;
+                              
+                              return date.getMonth() !== currentMonth || date.getFullYear() !== currentYear;
+                            }}
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+
+                      <div className="mt-4 p-3 bg-accent-50 rounded-lg">
+                        <h4 className="font-medium text-accent-900 mb-1 text-xs">Data Selecionada</h4>
+                        <p className="text-accent-700 text-xs">
+                          {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                        </p>
+                      </div>
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              )}
+            </SidebarContent>
+          </Sidebar>
+
+          <SidebarInset>
+            {/* Header */}
+            <header className="bg-white shadow-sm border-b">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-16">
+                  <div className="flex items-center space-x-4">
+                    <SidebarTrigger />
+                    <img 
+                      src="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" 
+                      alt="TCPonto Logo" 
+                      className="w-10 h-10 rounded-full"
+                    />
+                    <div>
+                      <h1 className="text-xl font-semibold text-primary-900">TCPonto</h1>
+                      <p className="text-sm text-gray-600 hidden sm:block">Sistema de Controle de Ponto</p>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
 
-            {/* Right Column - Time Registration */}
-            <div className="lg:col-span-2">
-              <TimeRegistration 
-                selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-              />
-            </div>
-          </div>
-        </main>
-      </div>
+                  <div className="flex items-center space-x-2 sm:space-x-4">
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 text-sm">
+                      <span className="text-gray-600 text-xs sm:text-sm">Olá,</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-sm truncate max-w-24 sm:max-w-none">{userName}</span>
+                    </div>
+
+                    <Button variant="outline" size="sm" onClick={handleSignOut}>
+                      <LogOut className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Sair</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            {/* Main Content para Funcionário */}
+            <main className="flex-1 p-4 sm:p-6 lg:p-8">
+              {renderEmployeeContent()}
+            </main>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
     );
   }
 
