@@ -18,6 +18,7 @@ interface User {
   role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
+  employeeCode?: string;
 }
 
 const UserManagement: React.FC = () => {
@@ -32,7 +33,8 @@ const UserManagement: React.FC = () => {
     password: '',
     role: 'user' as 'admin' | 'user',
     hourlyRate: '50',
-    overtimeRate: '75'
+    overtimeRate: '75',
+    employeeCode: ''
   });
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
@@ -65,7 +67,8 @@ const UserManagement: React.FC = () => {
         email: profile.email,
         role: profile.role === 'admin' ? 'admin' : 'user' as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate) || 50,
-        overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5
+        overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5,
+        employeeCode: profile.employee_code || ''
       })) || [];
 
       setUsers(formattedUsers);
@@ -88,7 +91,8 @@ const UserManagement: React.FC = () => {
       password: '',
       role: 'user',
       hourlyRate: '50',
-      overtimeRate: '75'
+      overtimeRate: '75',
+      employeeCode: ''
     });
     setEditingUser(null);
   };
@@ -119,6 +123,7 @@ const UserManagement: React.FC = () => {
             email: formData.email,
             role: formData.role,
             hourly_rate: hourlyRate,
+            employee_code: formData.employeeCode || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingUser.id);
@@ -164,7 +169,8 @@ const UserManagement: React.FC = () => {
               name: formData.name,
               email: formData.email,
               role: formData.role,
-              hourly_rate: hourlyRate
+              hourly_rate: hourlyRate,
+              employee_code: formData.employeeCode || null
             });
 
           if (profileError) {
@@ -201,7 +207,8 @@ const UserManagement: React.FC = () => {
       password: '',
       role: user.role,
       hourlyRate: user.hourlyRate.toString(),
-      overtimeRate: user.overtimeRate.toString()
+      overtimeRate: user.overtimeRate.toString(),
+      employeeCode: user.employeeCode || ''
     });
     setIsDialogOpen(true);
   };
@@ -289,6 +296,17 @@ const UserManagement: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
                   disabled={submitting || !!editingUser}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employeeCode">Código do Funcionário</Label>
+                <Input
+                  id="employeeCode"
+                  value={formData.employeeCode}
+                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
+                  placeholder="Ex: EMP001"
+                  disabled={submitting}
                 />
               </div>
 
@@ -382,6 +400,9 @@ const UserManagement: React.FC = () => {
                       Email
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Código
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Cargo
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -400,6 +421,9 @@ const UserManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {user.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {user.employeeCode || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

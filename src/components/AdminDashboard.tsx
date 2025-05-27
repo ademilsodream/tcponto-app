@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
@@ -14,6 +13,14 @@ interface User {
   overtimeRate: number;
 }
 
+interface EmployeeStatus {
+  employee: User;
+  status: 'working' | 'lunch_break' | 'not_working' | 'day_finished';
+  statusLabel: string;
+  statusColor: string;
+  record?: any;
+}
+
 interface AdminDashboardProps {
   employees: User[];
 }
@@ -23,8 +30,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const [totalAdmins, setTotalAdmins] = useState(0);
   const [totalHours, setTotalHours] = useState(0);
   const [totalEarnings, setTotalEarnings] = useState(0);
-  const [workingEmployees, setWorkingEmployees] = useState<User[]>([]);
-  const [notWorkingEmployees, setNotWorkingEmployees] = useState<User[]>([]);
+  const [employeeStatuses, setEmployeeStatuses] = useState<EmployeeStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const { formatCurrency } = useCurrency();
 
@@ -71,6 +77,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   useEffect(() => {
     loadDashboardData();
   }, [employees]);
+
+  const getEmployeeStatus = (record: any): { status: string; label: string; color: string } => {
+    if (!record?.clock_in) {
+      return {
+        status: 'not_working',
+        label: 'Não iniciou o trabalho',
+        color: 'red'
+      };
+    }
+
+    if (record.clock_out) {
+      return {
+        status: 'day_finished',
+        label: 'Finalizou o dia',
+        color: 'blue'
+      };
+    }
+
+    if (record.lunch_start && !record.lunch_end) {
+      return {
+        status: 'lunch_break',
+        label: 'Em horário de almoço',
+        color: 'yellow'
+      };
+    }
+
+    if (record.lunch_end || !record.lunch_start) {
+      return {
+        status: 'working',
+        label: record.lunch_end ? 'Trabalhando (voltou do almoço)' : 'Trabalhando',
+        color: 'green'
+      };
+    }
+
+    return {
+      status: 'working',
+      label: 'Trabalhando',
+      color: 'green'
+    };
+  };
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -136,10 +182,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
         setTotalEarnings(monthTotalEarnings);
       }
 
-      // Verificar em tempo real quem está trabalhando através dos registros do Supabase
+      // Verificar status detalhado dos funcionários
       const today = new Date().toISOString().split('T')[0];
-      const working: User[] = [];
-      const notWorking: User[] = [];
+      const statuses: EmployeeStatus[] = [];
 
       for (const employee of employees) {
         if (employee.role === 'user') {
@@ -151,24 +196,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
               .eq('date', today)
               .single();
 
-            if (!error && todayRecord) {
-              // Se tem entrada mas não tem saída, está trabalhando
-              if (todayRecord.clock_in && !todayRecord.clock_out) {
-                working.push(employee);
-              } else {
-                notWorking.push(employee);
-              }
-            } else {
-              notWorking.push(employee);
-            }
+            const statusInfo = getEmployeeStatus(error ? null : todayRecord);
+            
+            statuses.push({
+              employee,
+              status: statusInfo.status as any,
+              statusLabel: statusInfo.label,
+              statusColor: statusInfo.color,
+              record: error ? null : todayRecord
+            });
           } catch (error) {
-            notWorking.push(employee);
+            statuses.push({
+              employee,
+              status: 'not_working',
+              statusLabel: 'Não iniciou o trabalho',
+              statusColor: 'red'
+            });
           }
         }
       }
 
-      setWorkingEmployees(working);
-      setNotWorkingEmployees(notWorking);
+      setEmployeeStatuses(statuses);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -179,6 +227,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   if (loading) {
     return <div>Carregando dados do painel...</div>;
   }
+
+  const getStatusColorClasses = (color: string) => {
+    switch (color) {
+      case 'green':
+        return 'bg-green-50 border-green-200 text-green-800';
+      case 'yellow':
+        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+      case 'blue':
+        return 'bg-blue-50 border-blue-200 text-blue-800';
+      case 'red':
+        return 'bg-red-50 border-red-200 text-red-800';
+      default:
+        return 'bg-gray-50 border-gray-200 text-gray-800';
+    }
+  };
+
+  const getStatusBadgeClasses = (color: string) => {
+    switch (color) {
+      case 'green':
+        return 'bg-green-200 text-green-800';
+      case 'yellow':
+        return 'bg-yellow-200 text-yellow-800';
+      case 'blue':
+        return 'bg-blue-200 text-blue-800';
+      case 'red':
+        return 'bg-red-200 text-red-800';
+      default:
+        return 'bg-gray-200 text-gray-800';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -234,66 +312,57 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
         </Card>
       </div>
 
-      {/* Status em Tempo Real dos Funcionários */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-600">
-              <UserCheck className="w-5 h-5" />
-              Funcionários Trabalhando Agora
-              <span className="text-sm bg-green-100 px-2 py-1 rounded-full">Em Tempo Real</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600 mb-4">
-              {workingEmployees.length}
-            </div>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {workingEmployees.map((employee) => (
-                <div key={employee.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
-                  <span className="font-medium text-green-800">{employee.name}</span>
-                  <span className="text-sm text-green-600 bg-green-200 px-2 py-1 rounded">Trabalhando</span>
+      {/* Status Detalhado dos Funcionários */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserCheck className="w-5 h-5" />
+            Status Detalhado dos Funcionários
+            <span className="text-sm bg-blue-100 px-2 py-1 rounded-full">Em Tempo Real</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {employeeStatuses.map((empStatus) => (
+              <div 
+                key={empStatus.employee.id} 
+                className={`p-4 rounded-lg border ${getStatusColorClasses(empStatus.statusColor)}`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium">{empStatus.employee.name}</span>
+                  <span className={`text-xs px-2 py-1 rounded ${getStatusBadgeClasses(empStatus.statusColor)}`}>
+                    {empStatus.statusLabel}
+                  </span>
                 </div>
-              ))}
-              {workingEmployees.length === 0 && (
-                <div className="text-center py-8">
-                  <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-500 text-sm">Nenhum funcionário trabalhando no momento</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-600">
-              <UserX className="w-5 h-5" />
-              Funcionários Não Trabalhando
-              <span className="text-sm bg-red-100 px-2 py-1 rounded-full">Em Tempo Real</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600 mb-4">
-              {notWorkingEmployees.length}
-            </div>
-            <div className="space-y-2 max-h-40 overflow-y-auto">
-              {notWorkingEmployees.map((employee) => (
-                <div key={employee.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                  <span className="font-medium text-red-800">{employee.name}</span>
-                  <span className="text-sm text-red-600 bg-red-200 px-2 py-1 rounded">Fora do expediente</span>
-                </div>
-              ))}
-              {notWorkingEmployees.length === 0 && (
-                <div className="text-center py-8">
-                  <UserCheck className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-500 text-sm">Todos os funcionários estão trabalhando</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                
+                {empStatus.record && (
+                  <div className="text-xs space-y-1 text-gray-600">
+                    {empStatus.record.clock_in && (
+                      <div>Entrada: {empStatus.record.clock_in}</div>
+                    )}
+                    {empStatus.record.lunch_start && (
+                      <div>Saída almoço: {empStatus.record.lunch_start}</div>
+                    )}
+                    {empStatus.record.lunch_end && (
+                      <div>Volta almoço: {empStatus.record.lunch_end}</div>
+                    )}
+                    {empStatus.record.clock_out && (
+                      <div>Saída: {empStatus.record.clock_out}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            {employeeStatuses.length === 0 && (
+              <div className="col-span-full text-center py-8">
+                <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500 text-sm">Nenhum funcionário cadastrado</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
