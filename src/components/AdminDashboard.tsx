@@ -302,7 +302,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-500" />
-              Total de Ganhos
+              Folha de Pagamento
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -317,7 +317,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserCheck className="w-5 h-5" />
-            Status Detalhado dos Funcionários
+            Status dos Funcionários
             <span className="text-sm bg-blue-100 px-2 py-1 rounded-full">Em Tempo Real</span>
           </CardTitle>
         </CardHeader>
