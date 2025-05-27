@@ -142,7 +142,7 @@ const Dashboard = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5" />
-                    Selecionar Data
+                    Selecionar data para ajustar
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
