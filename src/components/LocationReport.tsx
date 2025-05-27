@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,8 +61,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           lunch_end,
           clock_out,
           locations,
-          user_id,
-          profiles!inner(name)
+          user_id
         `)
         .not('locations', 'is', null)
         .eq('status', 'active')
@@ -77,10 +75,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       console.log('Registros com localização encontrados:', data);
 
+      // Criar um mapa de user_id para nome do funcionário
+      const employeeMap = employees.reduce((map, employee) => {
+        map[employee.id] = employee.name;
+        return map;
+      }, {} as Record<string, string>);
+
       const formattedData: LocationData[] = [];
 
       data?.forEach((record) => {
-        const employeeName = record.profiles?.name || 'Funcionário';
+        const employeeName = employeeMap[record.user_id] || 'Funcionário';
         const locations = record.locations as any;
 
         // Processar entrada
