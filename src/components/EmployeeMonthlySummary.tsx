@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, FileText } from 'lucide-react';
+import { Calendar, FileText, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -23,11 +22,13 @@ interface MonthlySummary {
 interface EmployeeMonthlySummaryProps {
   selectedMonth: Date;
   onShowDetailedReport: () => void;
+  onBack?: () => void;
 }
 
 const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
   selectedMonth,
-  onShowDetailedReport
+  onShowDetailedReport,
+  onBack
 }) => {
   const [summary, setSummary] = useState<MonthlySummary>({
     totalHours: 0,
@@ -168,10 +169,18 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
   return (
     <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
       <CardHeader>
-        <CardTitle className="text-primary-900 flex items-center gap-2">
-          <Calendar className="w-5 h-5" />
-          Resumo de {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-primary-900 flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Resumo de {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
+          </CardTitle>
+          {onBack && (
+            <Button variant="outline" size="sm" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-4">

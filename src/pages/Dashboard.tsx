@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, AlertCircle, TrendingUp } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, AlertCircle, TrendingUp, Home } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -134,6 +134,7 @@ const Dashboard = () => {
           <EmployeeMonthlySummary 
             selectedMonth={selectedDate}
             onShowDetailedReport={() => setActiveEmployeeView('detailedReport')}
+            onBack={() => setActiveEmployeeView('timeRegistration')}
           />
         );
       case 'detailedReport':
@@ -168,8 +169,8 @@ const Dashboard = () => {
                         onClick={() => setActiveEmployeeView('timeRegistration')}
                         isActive={activeEmployeeView === 'timeRegistration'}
                       >
-                        <Clock className="w-4 h-4" />
-                        <span>Selecionar Data</span>
+                        <Home className="w-4 h-4" />
+                        <span>Dashboard Principal</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
@@ -178,7 +179,7 @@ const Dashboard = () => {
                         isActive={activeEmployeeView === 'incompleteRecords'}
                       >
                         <AlertCircle className="w-4 h-4" />
-                        <span>Ver Registros Incompletos do Mês</span>
+                        <span>Registros Incompletos</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
@@ -187,7 +188,7 @@ const Dashboard = () => {
                         isActive={activeEmployeeView === 'monthlySummary'}
                       >
                         <TrendingUp className="w-4 h-4" />
-                        <span>Ver Resumo Mensal</span>
+                        <span>Resumo Mensal</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   </SidebarMenu>
