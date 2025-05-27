@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeMonthlySummary from './EmployeeMonthlySummary';
 import EmployeeDetailedReport from './EmployeeDetailedReport';
+import TimeRegistrationProgress from './TimeRegistrationProgress';
+import IncompleteRecordsProfile from './IncompleteRecordsProfile';
 
 interface TimeRecord {
   id: string;
@@ -59,6 +61,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const [hourlyRate, setHourlyRate] = useState(50);
   const [showMonthlySummary, setShowMonthlySummary] = useState(false);
   const [showDetailedReport, setShowDetailedReport] = useState(false);
+  const [showIncompleteRecords, setShowIncompleteRecords] = useState(false);
   
   // Estados para edição em lote (dias anteriores)
   const [batchEditValues, setBatchEditValues] = useState({
@@ -448,6 +451,21 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       return;
     }
 
+    // Verificar se já foram feitos 4 registros
+    if (!canRegisterMore()) {
+      setMessage('Limite de 4 registros por dia atingido. Todos os registros do dia foram concluídos.');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    // Verificar se é o próximo campo na sequência
+    const nextField = getNextAvailableField();
+    if (field !== nextField) {
+      setMessage(`Por favor, registre na sequência correta. Próximo registro: ${getFieldLabel(nextField || '')}`);
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
     const currentTime = getCurrentTime();
     setIsGettingLocation(true);
 
@@ -495,8 +513,16 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       await saveTimeRecord(finalRecord, needsApproval);
       
       setRecord(finalRecord);
-      setMessage(`${getFieldLabel(field)} registrado: ${currentTime}${needsApproval ? ' - Aguardando aprovação administrativa' : ''}`);
-      setTimeout(() => setMessage(''), 5000);
+      
+      const newRecordsCount = getRecordsCount(finalRecord);
+      const isComplete = newRecordsCount === 4;
+      
+      setMessage(
+        `${getFieldLabel(field)} registrado: ${currentTime}${needsApproval ? ' - Aguardando aprovação administrativa' : ''}${
+          isComplete ? ' 🎉 Dia completo! Todos os 4 registros foram realizados.' : ` (${newRecordsCount}/4 registros)`
+        }`
+      );
+      setTimeout(() => setMessage(''), isComplete ? 5000 : 3000);
     } catch (error) {
       console.error('Error registering time:', error);
       
@@ -667,6 +693,28 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     }
   };
 
+  const getRecordsCount = (record: TimeRecord): number => {
+    let count = 0;
+    if (record.clockIn) count++;
+    if (record.lunchStart) count++;
+    if (record.lunchEnd) count++;
+    if (record.clockOut) count++;
+    return count;
+  };
+
+  const canRegisterMore = (): boolean => {
+    const currentRecordsCount = getRecordsCount(record);
+    return currentRecordsCount < 4;
+  };
+
+  const getNextAvailableField = (): string | null => {
+    if (!record.clockIn) return 'clockIn';
+    if (!record.lunchStart) return 'lunchStart';
+    if (!record.lunchEnd) return 'lunchEnd';
+    if (!record.clockOut) return 'clockOut';
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -693,6 +741,22 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     );
   }
 
+  // Se está visualizando registros incompletos
+  if (showIncompleteRecords) {
+    return (
+      <div className="space-y-4">
+        <Button 
+          onClick={() => setShowIncompleteRecords(false)}
+          variant="outline"
+          size="sm"
+        >
+          ← Voltar ao Registro
+        </Button>
+        <IncompleteRecordsProfile />
+      </div>
+    );
+  }
+
   const today = new Date();
   const selectedDateObj = new Date(selectedDate);
   
@@ -700,7 +764,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const todayDateString = today.toISOString().split('T')[0];
   const isHistoricalEntry = selectedDate < todayDateString;
 
-  const currentFieldToShow = getCurrentFieldToShow();
+  const currentRecordsCount = getRecordsCount(record);
+  const nextField = getNextAvailableField();
+  const isComplete = currentRecordsCount === 4;
 
   // Render para dias anteriores (edição em lote)
   const renderHistoricalEntry = () => {
@@ -807,7 +873,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   };
 
   const renderCurrentField = () => {
-    if (currentFieldToShow === 'completed') {
+    if (isComplete) {
       return (
         <Card className="border-green-200 bg-green-50">
           <CardHeader className="text-center">
@@ -817,14 +883,19 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-green-600">
-              Todos os registros do dia foram preenchidos com sucesso!
+              Todos os 4 registros do dia foram preenchidos com sucesso!
+            </p>
+            <p className="text-sm text-gray-600 mt-2">
+              Limite diário de registros atingido.
             </p>
           </CardContent>
         </Card>
       );
     }
 
-    const field = currentFieldToShow;
+    if (!nextField) return null;
+
+    const field = nextField;
     const Icon = getFieldIcon(field);
     const value = record[field as keyof TimeRecord] as string;
     const location = record.locations?.[field as keyof typeof record.locations];
@@ -905,7 +976,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
                 )}
               </div>
               
-              {!value && !isHistoricalEntry && (
+              {!value && !isHistoricalEntry && canRegisterMore() && (
                 <Button
                   onClick={() => handleRegisterTime(field as any)}
                   disabled={isGettingLocation}
@@ -992,6 +1063,23 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         </Alert>
       )}
 
+      {/* Progresso do Dia */}
+      <TimeRegistrationProgress record={record} />
+
+      {/* Botão para ver registros incompletos */}
+      <Card className="bg-gradient-to-r from-amber-50 to-amber-100">
+        <CardContent className="p-4">
+          <Button
+            onClick={() => setShowIncompleteRecords(true)}
+            variant="outline"
+            className="w-full"
+          >
+            <AlertTriangle className="w-4 h-4 mr-2" />
+            Ver Registros Incompletos do Mês
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Resumo Mensal */}
       {!showMonthlySummary && (
         <Card className="bg-gradient-to-r from-blue-50 to-blue-100">
@@ -1038,6 +1126,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         </>
       )}
 
+      {/* Resumo do Dia */}
       <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
         <CardHeader>
           <CardTitle className="text-primary-900">Resumo do Dia</CardTitle>
