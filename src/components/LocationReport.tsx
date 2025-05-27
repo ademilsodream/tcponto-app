@@ -1,10 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { MapPin, ArrowLeft, Search } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 
 interface User {
   id: string;
@@ -16,6 +18,7 @@ interface User {
 }
 
 interface LocationData {
+  id: string;
   employeeName: string;
   date: string;
   type: string;
@@ -31,67 +34,124 @@ interface LocationReportProps {
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  const [locationData, setLocationData] = useState<LocationData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Gerar dados de exemplo simples
-  const locationData = useMemo(() => {
+  useEffect(() => {
+    loadLocationData();
+  }, [employees]);
+
+  const loadLocationData = async () => {
     if (!employees || employees.length === 0) {
-      return [];
+      setLocationData([]);
+      setLoading(false);
+      return;
     }
 
-    const sampleData: LocationData[] = [];
-    const addresses = [
-      "Rua das Flores, 123 - Centro, São Paulo, SP",
-      "Av. Paulista, 1578 - Bela Vista, São Paulo, SP", 
-      "Rua Augusta, 456 - Consolação, São Paulo, SP",
-      "Rua Oscar Freire, 789 - Jardins, São Paulo, SP"
-    ];
+    console.log('Carregando dados de localização...');
+    setLoading(true);
 
-    employees.forEach((employee, index) => {
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-      
-      // Dados para hoje
-      sampleData.push({
-        employeeName: employee.name,
-        date: today.toISOString().split('T')[0],
-        type: 'Entrada',
-        time: '08:00',
-        address: addresses[index % addresses.length],
-        coordinates: '-23.5505, -46.6333'
-      });
-      
-      sampleData.push({
-        employeeName: employee.name,
-        date: today.toISOString().split('T')[0],
-        type: 'Saída',
-        time: '17:00',
-        address: addresses[(index + 1) % addresses.length],
-        coordinates: '-23.5489, -46.6388'
+    try {
+      const { data, error } = await supabase
+        .from('time_records')
+        .select(`
+          id,
+          date,
+          clock_in,
+          lunch_start,
+          lunch_end,
+          clock_out,
+          locations,
+          user_id,
+          profiles!inner(name)
+        `)
+        .not('locations', 'is', null)
+        .eq('status', 'active')
+        .order('date', { ascending: false })
+        .order('clock_in', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar dados de localização:', error);
+        throw error;
+      }
+
+      console.log('Registros com localização encontrados:', data);
+
+      const formattedData: LocationData[] = [];
+
+      data?.forEach((record) => {
+        const employeeName = record.profiles?.name || 'Funcionário';
+        const locations = record.locations as any;
+
+        // Processar entrada
+        if (record.clock_in && locations?.clock_in) {
+          formattedData.push({
+            id: `${record.id}-clock_in`,
+            employeeName,
+            date: record.date,
+            type: 'Entrada',
+            time: record.clock_in,
+            address: locations.clock_in.address || 'Endereço não disponível',
+            coordinates: locations.clock_in.latitude && locations.clock_in.longitude 
+              ? `${locations.clock_in.latitude}, ${locations.clock_in.longitude}`
+              : 'Coordenadas não disponíveis'
+          });
+        }
+
+        // Processar saída para almoço
+        if (record.lunch_start && locations?.lunch_start) {
+          formattedData.push({
+            id: `${record.id}-lunch_start`,
+            employeeName,
+            date: record.date,
+            type: 'Saída Almoço',
+            time: record.lunch_start,
+            address: locations.lunch_start.address || 'Endereço não disponível',
+            coordinates: locations.lunch_start.latitude && locations.lunch_start.longitude 
+              ? `${locations.lunch_start.latitude}, ${locations.lunch_start.longitude}`
+              : 'Coordenadas não disponíveis'
+          });
+        }
+
+        // Processar volta do almoço
+        if (record.lunch_end && locations?.lunch_end) {
+          formattedData.push({
+            id: `${record.id}-lunch_end`,
+            employeeName,
+            date: record.date,
+            type: 'Volta Almoço',
+            time: record.lunch_end,
+            address: locations.lunch_end.address || 'Endereço não disponível',
+            coordinates: locations.lunch_end.latitude && locations.lunch_end.longitude 
+              ? `${locations.lunch_end.latitude}, ${locations.lunch_end.longitude}`
+              : 'Coordenadas não disponíveis'
+          });
+        }
+
+        // Processar saída
+        if (record.clock_out && locations?.clock_out) {
+          formattedData.push({
+            id: `${record.id}-clock_out`,
+            employeeName,
+            date: record.date,
+            type: 'Saída',
+            time: record.clock_out,
+            address: locations.clock_out.address || 'Endereço não disponível',
+            coordinates: locations.clock_out.latitude && locations.clock_out.longitude 
+              ? `${locations.clock_out.latitude}, ${locations.clock_out.longitude}`
+              : 'Coordenadas não disponíveis'
+          });
+        }
       });
 
-      // Dados para ontem
-      sampleData.push({
-        employeeName: employee.name,
-        date: yesterday.toISOString().split('T')[0],
-        type: 'Entrada',
-        time: '08:15',
-        address: addresses[(index + 2) % addresses.length],
-        coordinates: '-23.5520, -46.6350'
-      });
-      
-      sampleData.push({
-        employeeName: employee.name,
-        date: yesterday.toISOString().split('T')[0],
-        type: 'Saída',
-        time: '17:30',
-        address: addresses[(index + 3) % addresses.length],
-        coordinates: '-23.5470, -46.6400'
-      });
-    });
-
-    return sampleData;
-  }, [employees]);
+      console.log('Dados de localização formatados:', formattedData);
+      setLocationData(formattedData);
+    } catch (error) {
+      console.error('Erro ao carregar dados de localização:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filtrar dados por funcionário selecionado
   const filteredData = useMemo(() => {
@@ -111,6 +171,10 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return 'bg-green-100 text-green-800';
       case 'Saída':
         return 'bg-red-100 text-red-800';
+      case 'Saída Almoço':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'Volta Almoço':
+        return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -119,8 +183,50 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   console.log('LocationReport renderizado com:', {
     employeesCount: employees.length,
     locationDataCount: locationData.length,
-    filteredDataCount: filteredData.length
+    filteredDataCount: filteredData.length,
+    loading
   });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                {onBack && (
+                  <Button
+                    onClick={onBack}
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Voltar
+                  </Button>
+                )}
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Relatório de Localizações
+                  </h1>
+                  <p className="text-sm text-gray-600">Localizações dos registros de ponto</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">Carregando dados de localização...</div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -218,10 +324,10 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredData.map((item, index) => (
-                        <TableRow key={index}>
+                      {filteredData.map((item) => (
+                        <TableRow key={item.id}>
                           <TableCell>
-                            {new Date(item.date).toLocaleDateString('pt-BR')}
+                            {format(new Date(item.date + 'T00:00:00'), 'dd/MM/yyyy')}
                           </TableCell>
                           <TableCell className="font-medium">
                             {item.employeeName}
@@ -257,7 +363,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <p className="text-sm">
                     {employees.length === 0 
                       ? 'Cadastre funcionários para ver os registros de localização'
-                      : 'Os registros de localização aparecerão aqui'
+                      : 'Os registros de localização aparecerão aqui quando os funcionários registrarem o ponto'
                     }
                   </p>
                 </div>
