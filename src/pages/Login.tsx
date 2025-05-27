@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,17 +7,28 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    console.log('Login: Verificando se usuário já está logado...');
+    if (!loading && user) {
+      console.log('Login: Usuário já logado, redirecionando...');
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    console.log('Login: Tentando fazer login...');
     
     if (!email || !password) {
       setError('Preencha todos os campos');
@@ -28,11 +39,25 @@ const Login = () => {
     const result = await login(email, password);
     
     if (!result.success) {
+      console.error('Login: Falha no login:', result.error);
       setError(result.error || 'Erro ao fazer login');
+    } else {
+      console.log('Login: Login realizado com sucesso');
     }
     
     setIsLoading(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
+        <div className="text-center">
+          <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-white" />
+          <p className="text-white">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
@@ -70,6 +95,8 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={isLoading}
+                  autoComplete="email"
+                  className="h-12 text-base"
                 />
               </div>
               
@@ -82,6 +109,8 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
+                  autoComplete="current-password"
+                  className="h-12 text-base"
                 />
               </div>
 
@@ -93,7 +122,7 @@ const Login = () => {
 
               <Button 
                 type="submit" 
-                className="w-full bg-primary-800 hover:bg-primary-700"
+                className="w-full bg-primary-800 hover:bg-primary-700 h-12 text-base"
                 disabled={isLoading}
               >
                 {isLoading ? (
