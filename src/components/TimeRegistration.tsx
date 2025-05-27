@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ interface TimeRecord {
   lunch_end: string | null;
   clock_out: string | null;
   status: string;
-  location: string | null;
+  locations: any | null;
 }
 
 interface TimeRegistrationProps {
@@ -63,7 +64,18 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         return;
       }
 
-      setTimeRecord(data);
+      if (data) {
+        setTimeRecord({
+          id: data.id,
+          date: data.date,
+          clock_in: data.clock_in,
+          lunch_start: data.lunch_start,
+          lunch_end: data.lunch_end,
+          clock_out: data.clock_out,
+          status: data.status,
+          locations: data.locations
+        });
+      }
     } catch (error) {
       console.error('Error loading time record:', error);
     }
@@ -121,7 +133,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           .from('time_records')
           .update({ 
             [type]: currentTime,
-            location: currentLocation || timeRecord.location
+            locations: currentLocation || timeRecord.locations
           })
           .eq('id', timeRecord.id);
 
@@ -133,7 +145,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
             user_id: user.id,
             date: selectedDate,
             [type]: currentTime,
-            location: currentLocation,
+            locations: currentLocation,
             status: 'active'
           });
 
@@ -178,6 +190,19 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const nextAction = getNextAction();
   const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
 
+  // Converter o timeRecord para o formato esperado pelo TimeRegistrationProgress
+  const progressRecord = timeRecord ? {
+    clockIn: timeRecord.clock_in,
+    lunchStart: timeRecord.lunch_start,
+    lunchEnd: timeRecord.lunch_end,
+    clockOut: timeRecord.clock_out
+  } : {
+    clockIn: undefined,
+    lunchStart: undefined,
+    lunchEnd: undefined,
+    clockOut: undefined
+  };
+
   return (
     <div className="space-y-6">
       {/* Relógio */}
@@ -193,7 +218,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       </Card>
 
       {/* Progresso do Dia */}
-      <TimeRegistrationProgress timeRecord={timeRecord} />
+      <TimeRegistrationProgress record={progressRecord} />
 
       {/* Botão de Ação Principal */}
       {nextAction && isToday && (
