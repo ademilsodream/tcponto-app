@@ -84,61 +84,61 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         const locations = record.locations as any;
 
         // Processar entrada
-        if (record.clock_in && locations?.clock_in) {
+        if (record.clock_in && locations?.clockIn) {
           formattedData.push({
             id: `${record.id}-clock_in`,
             employeeName,
             date: record.date,
             type: 'Entrada',
             time: record.clock_in,
-            address: locations.clock_in.address || 'Endereço não disponível',
-            coordinates: locations.clock_in.latitude && locations.clock_in.longitude 
-              ? `${locations.clock_in.latitude}, ${locations.clock_in.longitude}`
+            address: locations.clockIn.address || 'Endereço não disponível',
+            coordinates: locations.clockIn.lat && locations.clockIn.lng 
+              ? `${locations.clockIn.lat}, ${locations.clockIn.lng}`
               : 'Coordenadas não disponíveis'
           });
         }
 
         // Processar saída para almoço
-        if (record.lunch_start && locations?.lunch_start) {
+        if (record.lunch_start && locations?.lunchStart) {
           formattedData.push({
             id: `${record.id}-lunch_start`,
             employeeName,
             date: record.date,
             type: 'Saída Almoço',
             time: record.lunch_start,
-            address: locations.lunch_start.address || 'Endereço não disponível',
-            coordinates: locations.lunch_start.latitude && locations.lunch_start.longitude 
-              ? `${locations.lunch_start.latitude}, ${locations.lunch_start.longitude}`
+            address: locations.lunchStart.address || 'Endereço não disponível',
+            coordinates: locations.lunchStart.lat && locations.lunchStart.lng 
+              ? `${locations.lunchStart.lat}, ${locations.lunchStart.lng}`
               : 'Coordenadas não disponíveis'
           });
         }
 
         // Processar volta do almoço
-        if (record.lunch_end && locations?.lunch_end) {
+        if (record.lunch_end && locations?.lunchEnd) {
           formattedData.push({
             id: `${record.id}-lunch_end`,
             employeeName,
             date: record.date,
             type: 'Volta Almoço',
             time: record.lunch_end,
-            address: locations.lunch_end.address || 'Endereço não disponível',
-            coordinates: locations.lunch_end.latitude && locations.lunch_end.longitude 
-              ? `${locations.lunch_end.latitude}, ${locations.lunch_end.longitude}`
+            address: locations.lunchEnd.address || 'Endereço não disponível',
+            coordinates: locations.lunchEnd.lat && locations.lunchEnd.lng 
+              ? `${locations.lunchEnd.lat}, ${locations.lunchEnd.lng}`
               : 'Coordenadas não disponíveis'
           });
         }
 
         // Processar saída
-        if (record.clock_out && locations?.clock_out) {
+        if (record.clock_out && locations?.clockOut) {
           formattedData.push({
             id: `${record.id}-clock_out`,
             employeeName,
             date: record.date,
             type: 'Saída',
             time: record.clock_out,
-            address: locations.clock_out.address || 'Endereço não disponível',
-            coordinates: locations.clock_out.latitude && locations.clock_out.longitude 
-              ? `${locations.clock_out.latitude}, ${locations.clock_out.longitude}`
+            address: locations.clockOut.address || 'Endereço não disponível',
+            coordinates: locations.clockOut.lat && locations.clockOut.lng 
+              ? `${locations.clockOut.lat}, ${locations.clockOut.lng}`
               : 'Coordenadas não disponíveis'
           });
         }
