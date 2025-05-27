@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
+import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -15,26 +16,38 @@ interface IncompleteRecord {
 const IncompleteRecordsProfile: React.FC = () => {
   const [incompleteRecords, setIncompleteRecords] = useState<IncompleteRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
+    console.log('IncompleteRecordsProfile: useEffect triggered, user:', user?.id);
     if (user) {
       loadIncompleteRecords();
+    } else {
+      console.log('IncompleteRecordsProfile: No user found');
+      setLoading(false);
     }
   }, [user]);
 
   const loadIncompleteRecords = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('IncompleteRecordsProfile: No user available for loading records');
+      return;
+    }
 
     try {
+      console.log('IncompleteRecordsProfile: Starting to load records for user:', user.id);
       setLoading(true);
+      setError(null);
       
       // Buscar registros do mês atual
       const currentDate = new Date();
       const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
-      const { data: records, error } = await supabase
+      console.log('IncompleteRecordsProfile: Fetching records from', firstDayOfMonth.toISOString().split('T')[0], 'to', lastDayOfMonth.toISOString().split('T')[0]);
+
+      const { data: records, error: fetchError } = await supabase
         .from('time_records')
         .select('date, clock_in, lunch_start, lunch_end, clock_out')
         .eq('user_id', user.id)
@@ -42,7 +55,12 @@ const IncompleteRecordsProfile: React.FC = () => {
         .lte('date', lastDayOfMonth.toISOString().split('T')[0])
         .order('date', { ascending: false });
 
-      if (error) throw error;
+      if (fetchError) {
+        console.error('IncompleteRecordsProfile: Error fetching records:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('IncompleteRecordsProfile: Fetched records:', records?.length || 0);
 
       // Processar registros incompletos
       const incomplete: IncompleteRecord[] = [];
@@ -56,6 +74,8 @@ const IncompleteRecordsProfile: React.FC = () => {
           allDays.push(d.toISOString().split('T')[0]);
         }
       }
+
+      console.log('IncompleteRecordsProfile: Processing', allDays.length, 'business days');
 
       // Verificar cada dia útil
       allDays.forEach(date => {
@@ -95,9 +115,11 @@ const IncompleteRecordsProfile: React.FC = () => {
         }
       });
 
+      console.log('IncompleteRecordsProfile: Found', incomplete.length, 'incomplete records');
       setIncompleteRecords(incomplete);
     } catch (error) {
-      console.error('Error loading incomplete records:', error);
+      console.error('IncompleteRecordsProfile: Error loading incomplete records:', error);
+      setError('Erro ao carregar registros. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -124,9 +146,41 @@ const IncompleteRecordsProfile: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-32">
-        <div className="text-lg">Carregando registros...</div>
-      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
+          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+          <div className="text-lg">Carregando registros...</div>
+          <div className="text-sm text-gray-600">Verificando registros do mês atual</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
+          <AlertTriangle className="w-8 h-8 text-red-600" />
+          <div className="text-lg text-red-600">Erro ao carregar dados</div>
+          <div className="text-sm text-gray-600">{error}</div>
+          <Button onClick={() => loadIncompleteRecords()} variant="outline" size="sm">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Tentar Novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
+          <AlertTriangle className="w-8 h-8 text-amber-600" />
+          <div className="text-lg text-amber-600">Usuário não autenticado</div>
+          <div className="text-sm text-gray-600">Por favor, faça login para ver seus registros</div>
+        </CardContent>
+      </Card>
     );
   }
 

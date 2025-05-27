@@ -1012,7 +1012,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     
     for (const field of allFields) {
       const value = record[field as keyof TimeRecord] as string;
-      if (value && field !== currentFieldToShow) {
+      const currentField = getCurrentFieldToShow(); // Fix: use function call instead of variable
+      if (value && field !== currentField) {
         const Icon = getFieldIcon(field);
         const location = record.locations?.[field as keyof typeof record.locations];
         
