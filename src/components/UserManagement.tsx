@@ -20,7 +20,11 @@ interface User {
   employeeCode?: string;
 }
 
-const UserManagement: React.FC = () => {
+interface UserManagementProps {
+  onUserChange?: () => void;
+}
+
+const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -187,6 +191,9 @@ const UserManagement: React.FC = () => {
       }
 
       await loadUsers();
+      // Chamar callback para atualizar dados no componente pai
+      onUserChange?.();
+      
       setIsDialogOpen(false);
       resetForm();
     } catch (error) {
@@ -231,6 +238,9 @@ const UserManagement: React.FC = () => {
       }
 
       await loadUsers();
+      // Chamar callback para atualizar dados no componente pai
+      onUserChange?.();
+      
       toast({
         title: "Sucesso",
         description: "Usuário excluído com sucesso!"
