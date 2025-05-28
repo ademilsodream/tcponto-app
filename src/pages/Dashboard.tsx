@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -213,17 +212,26 @@ const Dashboard = () => {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         const requests = [];
 
+        // Mapeamento correto dos nomes dos campos para o banco de dados
+        const fieldMapping = {
+          clock_in: 'clock_in',
+          lunch_start: 'lunch_start', 
+          lunch_end: 'lunch_end',
+          clock_out: 'clock_out'
+        };
+
         // Criar solicitações para cada campo modificado
         for (const [field, newValue] of Object.entries(times)) {
           if (newValue.trim() !== '') {
             const oldValue = currentRecord ? currentRecord[field] || '' : '';
             const reason = reasons[field as keyof typeof reasons] || 'Ajuste de horário';
+            const mappedField = fieldMapping[field as keyof typeof fieldMapping];
 
             requests.push({
               employee_id: user.id,
               employee_name: user.name || user.email,
               date: dateStr,
-              field: field,
+              field: mappedField,
               old_value: oldValue,
               new_value: newValue,
               reason: reason,
@@ -237,12 +245,17 @@ const Dashboard = () => {
           return;
         }
 
+        console.log('Enviando solicitações:', requests);
+
         // Inserir todas as solicitações
         const { error } = await supabase
           .from('edit_requests')
           .insert(requests);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Erro ao inserir:', error);
+          throw error;
+        }
 
         alert(`${requests.length} solicitação(ões) enviada(s) para aprovação!`);
         setActiveEmployeeView('timeRegistration');
