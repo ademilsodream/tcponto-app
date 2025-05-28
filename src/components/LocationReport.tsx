@@ -31,6 +31,66 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
+// Função para processar dados de localização em diferentes formatos
+const processLocationData = (locations: any, fieldName: string) => {
+  console.log(`Processando localização para ${fieldName}:`, locations);
+  
+  if (!locations) {
+    console.log(`Nenhuma localização encontrada para ${fieldName}`);
+    return null;
+  }
+
+  // Verificar se locations é uma string (formato antigo)
+  if (typeof locations === 'string') {
+    console.log(`Formato antigo detectado para ${fieldName}: ${locations}`);
+    
+    // Tentar parsear coordenadas no formato "lat,lng"
+    const coordMatch = locations.match(/-?\d+\.?\d*,-?\d+\.?\d*/);
+    if (coordMatch) {
+      const [lat, lng] = coordMatch[0].split(',');
+      return {
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        address: 'Endereço não disponível (formato antigo)'
+      };
+    }
+    
+    console.warn(`Formato de string não reconhecido para ${fieldName}: ${locations}`);
+    return {
+      lat: null,
+      lng: null,
+      address: 'Formato de localização inválido'
+    };
+  }
+
+  // Verificar se locations é um objeto (formato novo)
+  if (typeof locations === 'object') {
+    // Verificar se existe a propriedade específica do campo
+    const fieldData = locations[fieldName];
+    if (fieldData) {
+      console.log(`Formato novo encontrado para ${fieldName}:`, fieldData);
+      return {
+        lat: fieldData.lat || null,
+        lng: fieldData.lng || null,
+        address: fieldData.address || 'Endereço não disponível'
+      };
+    }
+    
+    // Fallback: verificar se o objeto tem propriedades de coordenadas diretamente
+    if (locations.lat && locations.lng) {
+      console.log(`Formato de objeto direto para ${fieldName}:`, locations);
+      return {
+        lat: locations.lat,
+        lng: locations.lng,
+        address: locations.address || 'Endereço não disponível'
+      };
+    }
+  }
+
+  console.warn(`Formato não reconhecido para ${fieldName}:`, typeof locations, locations);
+  return null;
+};
+
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [locationData, setLocationData] = useState<LocationData[]>([]);
@@ -85,66 +145,80 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       data?.forEach((record) => {
         const employeeName = employeeMap[record.user_id] || 'Funcionário';
-        const locations = record.locations as any;
+        const locations = record.locations;
+
+        console.log(`Processando registro ${record.id} com locations:`, locations);
 
         // Processar entrada
-        if (record.clock_in && locations?.clockIn) {
-          formattedData.push({
-            id: `${record.id}-clock_in`,
-            employeeName,
-            date: record.date,
-            type: 'Entrada',
-            time: record.clock_in,
-            address: locations.clockIn.address || 'Endereço não disponível',
-            coordinates: locations.clockIn.lat && locations.clockIn.lng 
-              ? `${locations.clockIn.lat}, ${locations.clockIn.lng}`
-              : 'Coordenadas não disponíveis'
-          });
+        if (record.clock_in) {
+          const locationInfo = processLocationData(locations, 'clockIn');
+          if (locationInfo) {
+            formattedData.push({
+              id: `${record.id}-clock_in`,
+              employeeName,
+              date: record.date,
+              type: 'Entrada',
+              time: record.clock_in,
+              address: locationInfo.address,
+              coordinates: locationInfo.lat && locationInfo.lng 
+                ? `${locationInfo.lat}, ${locationInfo.lng}`
+                : 'Coordenadas não disponíveis'
+            });
+          }
         }
 
         // Processar saída para almoço
-        if (record.lunch_start && locations?.lunchStart) {
-          formattedData.push({
-            id: `${record.id}-lunch_start`,
-            employeeName,
-            date: record.date,
-            type: 'Saída Almoço',
-            time: record.lunch_start,
-            address: locations.lunchStart.address || 'Endereço não disponível',
-            coordinates: locations.lunchStart.lat && locations.lunchStart.lng 
-              ? `${locations.lunchStart.lat}, ${locations.lunchStart.lng}`
-              : 'Coordenadas não disponíveis'
-          });
+        if (record.lunch_start) {
+          const locationInfo = processLocationData(locations, 'lunchStart');
+          if (locationInfo) {
+            formattedData.push({
+              id: `${record.id}-lunch_start`,
+              employeeName,
+              date: record.date,
+              type: 'Saída Almoço',
+              time: record.lunch_start,
+              address: locationInfo.address,
+              coordinates: locationInfo.lat && locationInfo.lng 
+                ? `${locationInfo.lat}, ${locationInfo.lng}`
+                : 'Coordenadas não disponíveis'
+            });
+          }
         }
 
         // Processar volta do almoço
-        if (record.lunch_end && locations?.lunchEnd) {
-          formattedData.push({
-            id: `${record.id}-lunch_end`,
-            employeeName,
-            date: record.date,
-            type: 'Volta Almoço',
-            time: record.lunch_end,
-            address: locations.lunchEnd.address || 'Endereço não disponível',
-            coordinates: locations.lunchEnd.lat && locations.lunchEnd.lng 
-              ? `${locations.lunchEnd.lat}, ${locations.lunchEnd.lng}`
-              : 'Coordenadas não disponíveis'
-          });
+        if (record.lunch_end) {
+          const locationInfo = processLocationData(locations, 'lunchEnd');
+          if (locationInfo) {
+            formattedData.push({
+              id: `${record.id}-lunch_end`,
+              employeeName,
+              date: record.date,
+              type: 'Volta Almoço',
+              time: record.lunch_end,
+              address: locationInfo.address,
+              coordinates: locationInfo.lat && locationInfo.lng 
+                ? `${locationInfo.lat}, ${locationInfo.lng}`
+                : 'Coordenadas não disponíveis'
+            });
+          }
         }
 
         // Processar saída
-        if (record.clock_out && locations?.clockOut) {
-          formattedData.push({
-            id: `${record.id}-clock_out`,
-            employeeName,
-            date: record.date,
-            type: 'Saída',
-            time: record.clock_out,
-            address: locations.clockOut.address || 'Endereço não disponível',
-            coordinates: locations.clockOut.lat && locations.clockOut.lng 
-              ? `${locations.clockOut.lat}, ${locations.clockOut.lng}`
-              : 'Coordenadas não disponíveis'
-          });
+        if (record.clock_out) {
+          const locationInfo = processLocationData(locations, 'clockOut');
+          if (locationInfo) {
+            formattedData.push({
+              id: `${record.id}-clock_out`,
+              employeeName,
+              date: record.date,
+              type: 'Saída',
+              time: record.clock_out,
+              address: locationInfo.address,
+              coordinates: locationInfo.lat && locationInfo.lng 
+                ? `${locationInfo.lat}, ${locationInfo.lng}`
+                : 'Coordenadas não disponíveis'
+            });
+          }
         }
       });
 
