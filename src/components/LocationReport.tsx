@@ -188,7 +188,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
       setLocationData(formattedData);
     } catch (error) {
       console.error('Erro inesperado ao carregar dados:', error);
-      // Tratar erro, talvez exibir mensagem para o usuário
     } finally {
       setLoading(false);
     }
@@ -294,11 +293,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Todos os funcionários</SelectItem>
-                      {employees.map(employee => (
-                        <SelectItem key={employee.id} value={employee.id}>
-                          {employee.name}
-                        </SelectItem>
-                      ))}
+                      {employees
+                        .filter(employee => employee.id && employee.id !== '')
+                        .map(employee => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
