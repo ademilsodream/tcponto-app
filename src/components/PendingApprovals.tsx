@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,7 @@ interface EditRequest {
   employeeId: string;
   employeeName: string;
   date: string;
-  field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
+  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
   oldValue: string;
   newValue: string;
   reason: string;
@@ -67,7 +66,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         employeeId: request.employee_id,
         employeeName: request.employee_name,
         date: request.date,
-        field: request.field as 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out',
+        field: request.field as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
         oldValue: request.old_value || '',
         newValue: request.new_value,
         reason: request.reason,
@@ -158,14 +157,14 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           throw fetchError;
         }
 
-        // Prepare update data from all requests
+        // Prepare update data from all requests - mapeamento correto para time_records
         const updateData: any = {};
         group.requests.forEach(request => {
           const fieldMap = {
-            clock_in: 'clock_in',
-            lunch_start: 'lunch_start',
-            lunch_end: 'lunch_end',
-            clock_out: 'clock_out'
+            clockIn: 'clock_in',
+            lunchStart: 'lunch_start',
+            lunchEnd: 'lunch_end',
+            clockOut: 'clock_out'
           };
           updateData[fieldMap[request.field]] = request.newValue;
         });
@@ -206,10 +205,10 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
   const getFieldLabel = (field: string) => {
     switch (field) {
-      case 'clock_in': return 'Entrada';
-      case 'lunch_start': return 'Início do Almoço';
-      case 'lunch_end': return 'Fim do Almoço';
-      case 'clock_out': return 'Saída';
+      case 'clockIn': return 'Entrada';
+      case 'lunchStart': return 'Início do Almoço';
+      case 'lunchEnd': return 'Fim do Almoço';
+      case 'clockOut': return 'Saída';
       default: return field;
     }
   };
