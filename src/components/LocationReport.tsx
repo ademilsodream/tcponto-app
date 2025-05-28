@@ -12,7 +12,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
 }
@@ -32,7 +32,7 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função para processar dados de localização
+// Função melhorada para processar dados de localização
 const processLocationData = (locations: any, fieldName: string) => {
   console.log(`Processando localização para ${fieldName}:`, locations);
   
@@ -41,11 +41,31 @@ const processLocationData = (locations: any, fieldName: string) => {
     return null;
   }
 
-  // Se locations é um objeto estruturado, buscar o campo específico
+  // Caso 1: Se locations é uma string no formato "lat,lng"
+  if (typeof locations === 'string') {
+    console.log(`Localização como string para ${fieldName}:`, locations);
+    const parts = locations.split(',');
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return {
+          lat: lat,
+          lng: lng,
+          address: 'Endereço não disponível'
+        };
+      }
+    }
+    console.log(`Formato de string inválido para ${fieldName}:`, locations);
+    return null;
+  }
+
+  // Caso 2: Se locations é um objeto estruturado
   if (typeof locations === 'object') {
+    // Verificar se tem o campo específico
     const fieldData = locations[fieldName];
     if (fieldData && typeof fieldData === 'object') {
-      console.log(`Dados de localização encontrados para ${fieldName}:`, fieldData);
+      console.log(`Dados de localização estruturados encontrados para ${fieldName}:`, fieldData);
       return {
         lat: fieldData.lat || null,
         lng: fieldData.lng || null,
@@ -53,7 +73,7 @@ const processLocationData = (locations: any, fieldName: string) => {
       };
     }
     
-    // Fallback: se o objeto tem lat/lng diretamente, usar para todos os campos
+    // Fallback: se o objeto tem lat/lng diretamente (formato antigo), usar para todos os campos
     if (locations.lat && locations.lng) {
       console.log(`Usando coordenadas diretas para ${fieldName}:`, locations);
       return {
@@ -61,6 +81,22 @@ const processLocationData = (locations: any, fieldName: string) => {
         lng: locations.lng,
         address: locations.address || 'Endereço não disponível'
       };
+    }
+    
+    // Verificar se é um objeto com coordenadas em formato string
+    if (locations.coordinates && typeof locations.coordinates === 'string') {
+      const parts = locations.coordinates.split(',');
+      if (parts.length === 2) {
+        const lat = parseFloat(parts[0].trim());
+        const lng = parseFloat(parts[1].trim());
+        if (!isNaN(lat) && !isNaN(lng)) {
+          return {
+            lat: lat,
+            lng: lng,
+            address: locations.address || 'Endereço não disponível'
+          };
+        }
+      }
     }
   }
 
@@ -80,6 +116,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const loadLocationData = async () => {
     console.log('Iniciando carregamento dos dados de localização...');
     console.log('Funcionários disponíveis:', employees.length);
+    console.log('Funcionários:', employees);
     
     if (!employees || employees.length === 0) {
       console.log('Nenhum funcionário disponível');
@@ -153,6 +190,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 ? `${locationInfo.lat}, ${locationInfo.lng}`
                 : 'Coordenadas não disponíveis'
             });
+          } else {
+            console.log(`Entrada sem localização válida para ${employeeName} em ${record.date}`);
           }
         }
 

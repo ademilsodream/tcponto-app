@@ -39,7 +39,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'employee';
+  role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
 }
@@ -70,15 +70,18 @@ const Dashboard = () => {
 
       if (error) throw error;
 
+      console.log('Dados brutos dos perfis:', data);
+
       const formattedEmployees = data.map(profile => ({
         id: profile.id,
         name: profile.name,
         email: profile.email,
-        role: profile.role as 'admin' | 'employee',
+        role: profile.role as 'admin' | 'user', // Mantendo o valor original do banco
         hourlyRate: Number(profile.hourly_rate),
         overtimeRate: Number(profile.hourly_rate) * 1.5
       }));
 
+      console.log('Funcionários formatados:', formattedEmployees);
       setEmployees(formattedEmployees);
     } catch (error) {
       console.error('Error loading employees:', error);
