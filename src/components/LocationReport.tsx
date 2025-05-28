@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,27 +32,39 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função simplificada para processar dados de localização no formato atual
+// Função para processar dados de localização
 const processLocationData = (locations: any, fieldName: string) => {
   console.log(`Processando localização para ${fieldName}:`, locations);
   
-  if (!locations || typeof locations !== 'object') {
-    console.log(`Nenhuma localização válida encontrada para ${fieldName}`);
+  if (!locations) {
+    console.log(`Nenhuma localização encontrada para ${fieldName}`);
     return null;
   }
 
-  // Verificar se existe a propriedade específica do campo no formato estruturado
-  const fieldData = locations[fieldName];
-  if (fieldData && typeof fieldData === 'object') {
-    console.log(`Dados de localização encontrados para ${fieldName}:`, fieldData);
-    return {
-      lat: fieldData.lat || null,
-      lng: fieldData.lng || null,
-      address: fieldData.address || 'Endereço não disponível'
-    };
+  // Se locations é um objeto estruturado, buscar o campo específico
+  if (typeof locations === 'object') {
+    const fieldData = locations[fieldName];
+    if (fieldData && typeof fieldData === 'object') {
+      console.log(`Dados de localização encontrados para ${fieldName}:`, fieldData);
+      return {
+        lat: fieldData.lat || null,
+        lng: fieldData.lng || null,
+        address: fieldData.address || 'Endereço não disponível'
+      };
+    }
+    
+    // Fallback: se o objeto tem lat/lng diretamente, usar para todos os campos
+    if (locations.lat && locations.lng) {
+      console.log(`Usando coordenadas diretas para ${fieldName}:`, locations);
+      return {
+        lat: locations.lat,
+        lng: locations.lng,
+        address: locations.address || 'Endereço não disponível'
+      };
+    }
   }
 
-  console.log(`Campo ${fieldName} não encontrado no objeto de localização`);
+  console.log(`Nenhuma localização válida encontrada para ${fieldName}`);
   return null;
 };
 
@@ -65,13 +78,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   }, [employees]);
 
   const loadLocationData = async () => {
+    console.log('Iniciando carregamento dos dados de localização...');
+    console.log('Funcionários disponíveis:', employees.length);
+    
     if (!employees || employees.length === 0) {
+      console.log('Nenhum funcionário disponível');
       setLocationData([]);
       setLoading(false);
       return;
     }
 
-    console.log('Carregando dados de localização...');
     setLoading(true);
 
     try {
@@ -97,7 +113,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         throw error;
       }
 
-      console.log('Registros com localização encontrados:', data);
+      console.log('Registros brutos encontrados:', data?.length || 0);
+      console.log('Primeiros 3 registros:', data?.slice(0, 3));
 
       // Criar um mapa de user_id para nome do funcionário
       const employeeMap = employees.reduce((map, employee) => {
@@ -105,13 +122,21 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return map;
       }, {} as Record<string, string>);
 
+      console.log('Mapa de funcionários:', employeeMap);
+
       const formattedData: LocationData[] = [];
 
       data?.forEach((record) => {
-        const employeeName = employeeMap[record.user_id] || 'Funcionário';
+        const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations;
 
-        console.log(`Processando registro ${record.id} com locations:`, locations);
+        console.log(`Processando registro ${record.id} para ${employeeName}:`, {
+          locations,
+          clock_in: record.clock_in,
+          lunch_start: record.lunch_start,
+          lunch_end: record.lunch_end,
+          clock_out: record.clock_out
+        });
 
         // Processar entrada
         if (record.clock_in) {
@@ -186,10 +211,11 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         }
       });
 
-      console.log('Dados de localização formatados:', formattedData);
+      console.log('Dados finais formatados:', formattedData.length, formattedData);
       setLocationData(formattedData);
     } catch (error) {
       console.error('Erro ao carregar dados de localização:', error);
+      setLocationData([]);
     } finally {
       setLoading(false);
     }
@@ -222,11 +248,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
   };
 
-  console.log('LocationReport renderizado com:', {
+  console.log('LocationReport renderizado:', {
     employeesCount: employees.length,
     locationDataCount: locationData.length,
     filteredDataCount: filteredData.length,
-    loading
+    loading,
+    selectedEmployee
   });
 
   if (loading) {
@@ -399,13 +426,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <h3 className="text-lg font-medium mb-2">
                     {employees.length === 0 
                       ? 'Nenhum funcionário cadastrado' 
-                      : 'Nenhum registro de localização'
+                      : 'Nenhum registro de localização encontrado'
                     }
                   </h3>
                   <p className="text-sm">
                     {employees.length === 0 
                       ? 'Cadastre funcionários para ver os registros de localização'
-                      : 'Os registros de localização aparecerão aqui quando os funcionários registrarem o ponto'
+                      : 'Os registros de localização aparecerão aqui quando os funcionários registrarem o ponto com localização ativa'
                     }
                   </p>
                 </div>
