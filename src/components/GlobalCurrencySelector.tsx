@@ -16,15 +16,15 @@ const GlobalCurrencySelector: React.FC = () => {
         </SelectTrigger>
         <SelectContent className="bg-white border shadow-lg z-50">
           <SelectItem value="EUR" className="flex items-center gap-2">
-            <Euro className="w-4 h-4" />
+           
             Euro (€)
           </SelectItem>
           <SelectItem value="BRL" className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
+           
             Real (R$)
           </SelectItem>
           <SelectItem value="USD" className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
+           
             Dólar ($)
           </SelectItem>
         </SelectContent>
