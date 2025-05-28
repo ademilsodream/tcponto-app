@@ -21,12 +21,20 @@ interface EditRequest {
   employeeId: string;
   employeeName: string;
   date: string;
-  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
+  field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
   oldValue: string;
   newValue: string;
   reason: string;
   timestamp: string;
   status: 'pending' | 'approved' | 'rejected';
+}
+
+interface GroupedRequest {
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  requests: EditRequest[];
+  timestamp: string;
 }
 
 interface PendingApprovalsProps {
@@ -59,7 +67,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         employeeId: request.employee_id,
         employeeName: request.employee_name,
         date: request.date,
-        field: request.field as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
+        field: request.field as 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out',
         oldValue: request.old_value || '',
         newValue: request.new_value,
         reason: request.reason,
@@ -98,12 +106,34 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
     };
   }, []);
 
-  const handleApproval = async (requestId: string, approved: boolean) => {
-    const request = editRequests.find(r => r.id === requestId);
-    if (!request) return;
+  // Agrupar solicitações por funcionário e data
+  const groupRequestsByEmployeeAndDate = (requests: EditRequest[]): GroupedRequest[] => {
+    const groups: { [key: string]: GroupedRequest } = {};
 
+    requests.forEach(request => {
+      const key = `${request.employeeId}-${request.date}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          employeeId: request.employeeId,
+          employeeName: request.employeeName,
+          date: request.date,
+          requests: [],
+          timestamp: request.timestamp
+        };
+      }
+      
+      groups[key].requests.push(request);
+    });
+
+    return Object.values(groups);
+  };
+
+  const handleGroupApproval = async (group: GroupedRequest, approved: boolean) => {
     try {
-      // Update the request status
+      const requestIds = group.requests.map(r => r.id);
+      
+      // Update all request statuses in the group
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
@@ -111,33 +141,34 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           reviewed_at: new Date().toISOString(),
           reviewed_by: (await supabase.auth.getUser()).data.user?.id
         })
-        .eq('id', requestId);
+        .in('id', requestIds);
 
       if (updateError) throw updateError;
 
       if (approved) {
-        // Apply the edit to the time record
+        // Apply all edits to the time record
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
           .select('*')
-          .eq('user_id', request.employeeId)
-          .eq('date', request.date)
+          .eq('user_id', group.employeeId)
+          .eq('date', group.date)
           .single();
 
         if (fetchError && fetchError.code !== 'PGRST116') {
           throw fetchError;
         }
 
-        const fieldMap = {
-          clockIn: 'clock_in',
-          lunchStart: 'lunch_start',
-          lunchEnd: 'lunch_end',
-          clockOut: 'clock_out'
-        };
-
-        const updateData = {
-          [fieldMap[request.field]]: request.newValue
-        };
+        // Prepare update data from all requests
+        const updateData: any = {};
+        group.requests.forEach(request => {
+          const fieldMap = {
+            clock_in: 'clock_in',
+            lunch_start: 'lunch_start',
+            lunch_end: 'lunch_end',
+            clock_out: 'clock_out'
+          };
+          updateData[fieldMap[request.field]] = request.newValue;
+        });
 
         if (timeRecords) {
           // Update existing record
@@ -152,33 +183,33 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           const { error: insertError } = await supabase
             .from('time_records')
             .insert({
-              user_id: request.employeeId,
-              date: request.date,
+              user_id: group.employeeId,
+              date: group.date,
               ...updateData
             });
 
           if (insertError) throw insertError;
         }
 
-        setMessage(`Edição de ${getFieldLabel(request.field)} aprovada para ${request.employeeName}.`);
+        setMessage(`Todas as edições de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} foram aprovadas.`);
       } else {
-        setMessage(`Edição de ${getFieldLabel(request.field)} rejeitada para ${request.employeeName}.`);
+        setMessage(`Todas as edições de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} foram rejeitadas.`);
       }
 
       await loadEditRequests();
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
-      console.error('Error handling approval:', error);
+      console.error('Error handling group approval:', error);
       alert('Erro ao processar aprovação');
     }
   };
 
   const getFieldLabel = (field: string) => {
     switch (field) {
-      case 'clockIn': return 'Entrada';
-      case 'lunchStart': return 'Início do Almoço';
-      case 'lunchEnd': return 'Fim do Almoço';
-      case 'clockOut': return 'Saída';
+      case 'clock_in': return 'Entrada';
+      case 'lunch_start': return 'Início do Almoço';
+      case 'lunch_end': return 'Fim do Almoço';
+      case 'clock_out': return 'Saída';
       default: return field;
     }
   };
@@ -189,6 +220,8 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
   const pendingRequests = editRequests.filter(r => r.status === 'pending');
   const processedRequests = editRequests.filter(r => r.status !== 'pending').slice(0, 10);
+  
+  const groupedPendingRequests = groupRequestsByEmployeeAndDate(pendingRequests);
 
   return (
     <div className="space-y-6">
@@ -201,70 +234,71 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         </Alert>
       )}
 
-      {/* Solicitações Pendentes */}
+      {/* Solicitações Pendentes Agrupadas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({pendingRequests.length})
+            Solicitações Pendentes ({groupedPendingRequests.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {pendingRequests.length === 0 ? (
+          {groupedPendingRequests.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
               Nenhuma solicitação pendente no momento
             </p>
           ) : (
             <div className="space-y-4">
-              {pendingRequests.map((request) => (
-                <div key={request.id} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
+              {groupedPendingRequests.map((group, index) => (
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <h4 className="font-medium text-gray-900">{request.employeeName}</h4>
+                      <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
                       <p className="text-sm text-gray-600">
-                        {new Date(request.date).toLocaleDateString('pt-BR')} - {getFieldLabel(request.field)}
+                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
                     </div>
                     <Badge variant="secondary">
-                      {new Date(request.timestamp).toLocaleString('pt-BR')}
+                      {new Date(group.timestamp).toLocaleString('pt-BR')}
                     </Badge>
                   </div>
                   
                   <div className="mb-3">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium text-red-600">Valor Atual:</span>
-                        <p className="text-gray-900">{request.oldValue}</p>
-                      </div>
-                      <div>
-                        <span className="font-medium text-green-600">Novo Valor:</span>
-                        <p className="text-gray-900">{request.newValue}</p>
-                      </div>
+                    <h5 className="font-medium mb-2">Ajustes Solicitados:</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {group.requests.map((request) => (
+                        <div key={request.id} className="text-sm border rounded p-2 bg-white">
+                          <div className="font-medium">{getFieldLabel(request.field)}</div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                            <span className="text-green-600">Para: {request.newValue}</span>
+                          </div>
+                          {request.reason && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              Motivo: {request.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {request.reason && (
-                      <div className="mt-2">
-                        <span className="font-medium">Motivo:</span>
-                        <p className="text-gray-700">{request.reason}</p>
-                      </div>
-                    )}
                   </div>
                   
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      onClick={() => handleApproval(request.id, true)}
+                      onClick={() => handleGroupApproval(group, true)}
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
-                      Aprovar
+                      Aprovar Todos
                     </Button>
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleApproval(request.id, false)}
+                      onClick={() => handleGroupApproval(group, false)}
                     >
                       <XCircle className="w-4 h-4 mr-1" />
-                      Rejeitar
+                      Rejeitar Todos
                     </Button>
                   </div>
                 </div>
@@ -312,7 +346,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                         {getFieldLabel(request.field)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue} → {request.newValue}
+                        {request.oldValue || 'Vazio'} → {request.newValue}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>

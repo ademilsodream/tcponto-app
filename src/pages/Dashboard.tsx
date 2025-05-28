@@ -121,9 +121,24 @@ const Dashboard = () => {
   const TimeAdjustmentCards = () => {
     const [currentRecord, setCurrentRecord] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [times, setTimes] = useState({
+      clock_in: '',
+      lunch_start: '',
+      lunch_end: '',
+      clock_out: ''
+    });
+    const [reasons, setReasons] = useState({
+      clock_in: '',
+      lunch_start: '',
+      lunch_end: '',
+      clock_out: ''
+    });
+    const [submitting, setSubmitting] = useState(false);
+    const [hasExistingRequest, setHasExistingRequest] = useState(false);
 
     useEffect(() => {
       loadCurrentRecord();
+      checkExistingRequest();
     }, [selectedDate]);
 
     const loadCurrentRecord = async () => {
@@ -141,8 +156,20 @@ const Dashboard = () => {
 
         if (!error && data) {
           setCurrentRecord(data);
+          setTimes({
+            clock_in: data.clock_in || '',
+            lunch_start: data.lunch_start || '',
+            lunch_end: data.lunch_end || '',
+            clock_out: data.clock_out || ''
+          });
         } else {
           setCurrentRecord(null);
+          setTimes({
+            clock_in: '',
+            lunch_start: '',
+            lunch_end: '',
+            clock_out: ''
+          });
         }
       } catch (error) {
         console.error('Erro ao carregar registro:', error);
@@ -152,72 +179,106 @@ const Dashboard = () => {
       }
     };
 
-    const handleSubmitTime = async (field: string, value: string) => {
-      if (!user?.id || !value) return;
+    const checkExistingRequest = async () => {
+      if (!user?.id) return;
 
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        
-        if (currentRecord) {
-          // Atualizar registro existente
-          const { error } = await supabase
-            .from('time_records')
-            .update({ [field]: value })
-            .eq('id', currentRecord.id);
+        const { data, error } = await supabase
+          .from('edit_requests')
+          .select('id')
+          .eq('employee_id', user.id)
+          .eq('date', dateStr)
+          .eq('status', 'pending');
 
-          if (error) throw error;
-        } else {
-          // Criar novo registro
-          const { error } = await supabase
-            .from('time_records')
-            .insert({
-              user_id: user.id,
-              date: dateStr,
-              [field]: value
-            });
-
-          if (error) throw error;
-        }
-
-        await loadCurrentRecord();
-        alert('Horário ajustado com sucesso!');
+        if (error) throw error;
+        setHasExistingRequest(data && data.length > 0);
       } catch (error) {
-        console.error('Erro ao ajustar horário:', error);
-        alert('Erro ao ajustar horário');
+        console.error('Erro ao verificar solicitações existentes:', error);
       }
     };
 
-    const TimeCard = ({ title, field, currentValue }: { title: string; field: string; currentValue?: string }) => {
-      const [time, setTime] = useState(currentValue || '');
+    const handleSubmitAllRequests = async () => {
+      if (!user?.id || submitting) return;
 
-      useEffect(() => {
-        setTime(currentValue || '');
-      }, [currentValue]);
+      // Verificar se há pelo menos um campo preenchido
+      const hasAnyTime = Object.values(times).some(time => time.trim() !== '');
+      if (!hasAnyTime) {
+        alert('Preencha pelo menos um campo de horário');
+        return;
+      }
 
-      return (
-        <Card className="p-4">
-          <h3 className="font-semibold mb-3">{title}</h3>
-          <div className="space-y-3">
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="w-full p-2 border rounded"
-            />
-            <Button 
-              onClick={() => handleSubmitTime(field, time)}
-              className="w-full"
-              disabled={!time}
-            >
-              Enviar
-            </Button>
-          </div>
-        </Card>
-      );
+      setSubmitting(true);
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const requests = [];
+
+        // Criar solicitações para cada campo modificado
+        for (const [field, newValue] of Object.entries(times)) {
+          if (newValue.trim() !== '') {
+            const oldValue = currentRecord ? currentRecord[field] || '' : '';
+            const reason = reasons[field as keyof typeof reasons] || 'Ajuste de horário';
+
+            requests.push({
+              employee_id: user.id,
+              employee_name: user.name || user.email,
+              date: dateStr,
+              field: field,
+              old_value: oldValue,
+              new_value: newValue,
+              reason: reason,
+              status: 'pending'
+            });
+          }
+        }
+
+        if (requests.length === 0) {
+          alert('Nenhuma alteração para enviar');
+          return;
+        }
+
+        // Inserir todas as solicitações
+        const { error } = await supabase
+          .from('edit_requests')
+          .insert(requests);
+
+        if (error) throw error;
+
+        alert(`${requests.length} solicitação(ões) enviada(s) para aprovação!`);
+        setActiveEmployeeView('timeRegistration');
+        await checkExistingRequest();
+      } catch (error) {
+        console.error('Erro ao enviar solicitações:', error);
+        alert('Erro ao enviar solicitações');
+      } finally {
+        setSubmitting(false);
+      }
     };
 
     if (loading) {
       return <div className="text-center py-4">Carregando dados...</div>;
+    }
+
+    if (hasExistingRequest) {
+      return (
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">
+            Ajustar horários para {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}
+          </h2>
+          <Card className="p-6 bg-yellow-50 border-yellow-200">
+            <div className="text-center">
+              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-yellow-600" />
+              <h3 className="text-lg font-medium text-yellow-800 mb-2">
+                Solicitação Pendente
+              </h3>
+              <p className="text-yellow-700">
+                Você já possui uma solicitação de ajuste pendente para esta data.
+                Aguarde a aprovação do administrador.
+              </p>
+            </div>
+          </Card>
+        </div>
+      );
     }
 
     return (
@@ -227,27 +288,92 @@ const Dashboard = () => {
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TimeCard 
-            title="Entrada" 
-            field="clock_in" 
-            currentValue={currentRecord?.clock_in} 
-          />
-          <TimeCard 
-            title="Início do Almoço" 
-            field="lunch_start" 
-            currentValue={currentRecord?.lunch_start} 
-          />
-          <TimeCard 
-            title="Fim do Almoço" 
-            field="lunch_end" 
-            currentValue={currentRecord?.lunch_end} 
-          />
-          <TimeCard 
-            title="Saída" 
-            field="clock_out" 
-            currentValue={currentRecord?.clock_out} 
-          />
+          <Card className="p-4">
+            <h3 className="font-semibold mb-3">Entrada</h3>
+            <div className="space-y-3">
+              <input
+                type="time"
+                value={times.clock_in}
+                onChange={(e) => setTimes(prev => ({ ...prev, clock_in: e.target.value }))}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Motivo do ajuste (opcional)"
+                value={reasons.clock_in}
+                onChange={(e) => setReasons(prev => ({ ...prev, clock_in: e.target.value }))}
+                className="w-full p-2 border rounded text-sm"
+              />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="font-semibold mb-3">Início do Almoço</h3>
+            <div className="space-y-3">
+              <input
+                type="time"
+                value={times.lunch_start}
+                onChange={(e) => setTimes(prev => ({ ...prev, lunch_start: e.target.value }))}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Motivo do ajuste (opcional)"
+                value={reasons.lunch_start}
+                onChange={(e) => setReasons(prev => ({ ...prev, lunch_start: e.target.value }))}
+                className="w-full p-2 border rounded text-sm"
+              />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="font-semibold mb-3">Fim do Almoço</h3>
+            <div className="space-y-3">
+              <input
+                type="time"
+                value={times.lunch_end}
+                onChange={(e) => setTimes(prev => ({ ...prev, lunch_end: e.target.value }))}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Motivo do ajuste (opcional)"
+                value={reasons.lunch_end}
+                onChange={(e) => setReasons(prev => ({ ...prev, lunch_end: e.target.value }))}
+                className="w-full p-2 border rounded text-sm"
+              />
+            </div>
+          </Card>
+
+          <Card className="p-4">
+            <h3 className="font-semibold mb-3">Saída</h3>
+            <div className="space-y-3">
+              <input
+                type="time"
+                value={times.clock_out}
+                onChange={(e) => setTimes(prev => ({ ...prev, clock_out: e.target.value }))}
+                className="w-full p-2 border rounded"
+              />
+              <input
+                type="text"
+                placeholder="Motivo do ajuste (opcional)"
+                value={reasons.clock_out}
+                onChange={(e) => setReasons(prev => ({ ...prev, clock_out: e.target.value }))}
+                className="w-full p-2 border rounded text-sm"
+              />
+            </div>
+          </Card>
         </div>
+
+        <Card className="p-4">
+          <Button 
+            onClick={handleSubmitAllRequests}
+            className="w-full"
+            disabled={submitting}
+          >
+            {submitting ? 'Enviando...' : 'Enviar Todas as Solicitações para Aprovação'}
+          </Button>
+        </Card>
       </div>
     );
   };
@@ -300,6 +426,15 @@ const Dashboard = () => {
       setActiveEmployeeView(view);
       // CORREÇÃO 3: Fechar sidebar automaticamente no mobile
       setOpenMobile(false);
+    };
+
+    const handleDateSelect = (date: Date | undefined) => {
+      if (date) {
+        setSelectedDate(date);
+        setActiveEmployeeView('timeAdjustment');
+        // Fechar sidebar automaticamente ao selecionar data
+        setOpenMobile(false);
+      }
     };
 
     return (
@@ -380,12 +515,7 @@ const Dashboard = () => {
                   <Calendar
                     mode="single"
                     selected={selectedDate}
-                    onSelect={(date) => {
-                      if (date) {
-                        setSelectedDate(date);
-                        setActiveEmployeeView('timeAdjustment');
-                      }
-                    }}
+                    onSelect={handleDateSelect}
                     initialFocus
                     locale={ptBR}
                     disabled={(date) => {
