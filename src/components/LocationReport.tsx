@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,76 +31,37 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função melhorada para processar dados de localização
 const processLocationData = (locations: any, fieldName: string) => {
-  console.log(`Processando localização para ${fieldName}:`, locations);
-  
-  if (!locations) {
-    console.log(`Nenhuma localização encontrada para ${fieldName}`);
+  if (!locations || typeof locations !== 'object') {
     return null;
   }
 
-  // Caso 1: Se locations é uma string no formato "lat,lng"
-  if (typeof locations === 'string') {
-    console.log(`Localização como string para ${fieldName}:`, locations);
-    const parts = locations.split(',');
-    if (parts.length === 2) {
-      const lat = parseFloat(parts[0].trim());
-      const lng = parseFloat(parts[1].trim());
-      if (!isNaN(lat) && !isNaN(lng)) {
-        return {
-          lat: lat,
-          lng: lng,
-          address: 'Endereço não disponível'
-        };
-      }
-    }
-    console.log(`Formato de string inválido para ${fieldName}:`, locations);
-    return null;
+  const fieldData = locations[fieldName];
+
+  if (fieldData && typeof fieldData === 'object') {
+    return {
+      lat: fieldData.lat || null,
+      lng: fieldData.lng || null,
+      address: fieldData.address || 'Endereço não disponível'
+    };
   }
 
-  // Caso 2: Se locations é um objeto estruturado
-  if (typeof locations === 'object') {
-    // Verificar se tem o campo específico
-    const fieldData = locations[fieldName];
-    if (fieldData && typeof fieldData === 'object') {
-      console.log(`Dados de localização estruturados encontrados para ${fieldName}:`, fieldData);
-      return {
-        lat: fieldData.lat || null,
-        lng: fieldData.lng || null,
-        address: fieldData.address || 'Endereço não disponível'
-      };
-    }
-    
-    // Fallback: se o objeto tem lat/lng diretamente (formato antigo), usar para todos os campos
-    if (locations.lat && locations.lng) {
-      console.log(`Usando coordenadas diretas para ${fieldName}:`, locations);
-      return {
-        lat: locations.lat,
-        lng: locations.lng,
-        address: locations.address || 'Endereço não disponível'
-      };
-    }
-    
-    // Verificar se é um objeto com coordenadas em formato string
-    if (locations.coordinates && typeof locations.coordinates === 'string') {
-      const parts = locations.coordinates.split(',');
-      if (parts.length === 2) {
-        const lat = parseFloat(parts[0].trim());
-        const lng = parseFloat(parts[1].trim());
-        if (!isNaN(lat) && !isNaN(lng)) {
-          return {
-            lat: lat,
-            lng: lng,
-            address: locations.address || 'Endereço não disponível'
-          };
-        }
-      }
-    }
-  }
-
-  console.log(`Nenhuma localização válida encontrada para ${fieldName}`);
   return null;
+};
+
+const getTypeColor = (type: string) => {
+  switch (type) {
+    case 'Entrada':
+      return 'bg-green-100 text-green-800';
+    case 'Saída Almoço':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'Volta Almoço':
+      return 'bg-blue-100 text-blue-800';
+    case 'Saída':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
 };
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
@@ -114,12 +74,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   }, [employees]);
 
   const loadLocationData = async () => {
-    console.log('Iniciando carregamento dos dados de localização...');
-    console.log('Funcionários disponíveis:', employees.length);
-    console.log('Funcionários:', employees);
-    
     if (!employees || employees.length === 0) {
-      console.log('Nenhum funcionário disponível');
       setLocationData([]);
       setLoading(false);
       return;
@@ -150,16 +105,10 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         throw error;
       }
 
-      console.log('Registros brutos encontrados:', data?.length || 0);
-      console.log('Primeiros 3 registros:', data?.slice(0, 3));
-
-      // Criar um mapa de user_id para nome do funcionário
       const employeeMap = employees.reduce((map, employee) => {
         map[employee.id] = employee.name;
         return map;
       }, {} as Record<string, string>);
-
-      console.log('Mapa de funcionários:', employeeMap);
 
       const formattedData: LocationData[] = [];
 
@@ -167,15 +116,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations;
 
-        console.log(`Processando registro ${record.id} para ${employeeName}:`, {
-          locations,
-          clock_in: record.clock_in,
-          lunch_start: record.lunch_start,
-          lunch_end: record.lunch_end,
-          clock_out: record.clock_out
-        });
-
-        // Processar entrada
         if (record.clock_in) {
           const locationInfo = processLocationData(locations, 'clockIn');
           if (locationInfo) {
@@ -186,16 +126,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               type: 'Entrada',
               time: record.clock_in,
               address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng 
+              coordinates: locationInfo.lat && locationInfo.lng
                 ? `${locationInfo.lat}, ${locationInfo.lng}`
                 : 'Coordenadas não disponíveis'
             });
-          } else {
-            console.log(`Entrada sem localização válida para ${employeeName} em ${record.date}`);
           }
         }
 
-        // Processar saída para almoço
         if (record.lunch_start) {
           const locationInfo = processLocationData(locations, 'lunchStart');
           if (locationInfo) {
@@ -206,14 +143,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               type: 'Saída Almoço',
               time: record.lunch_start,
               address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng 
+              coordinates: locationInfo.lat && locationInfo.lng
                 ? `${locationInfo.lat}, ${locationInfo.lng}`
                 : 'Coordenadas não disponíveis'
             });
           }
         }
 
-        // Processar volta do almoço
         if (record.lunch_end) {
           const locationInfo = processLocationData(locations, 'lunchEnd');
           if (locationInfo) {
@@ -224,14 +160,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               type: 'Volta Almoço',
               time: record.lunch_end,
               address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng 
+              coordinates: locationInfo.lat && locationInfo.lng
                 ? `${locationInfo.lat}, ${locationInfo.lng}`
                 : 'Coordenadas não disponíveis'
             });
           }
         }
 
-        // Processar saída
         if (record.clock_out) {
           const locationInfo = processLocationData(locations, 'clockOut');
           if (locationInfo) {
@@ -242,7 +177,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               type: 'Saída',
               time: record.clock_out,
               address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng 
+              coordinates: locationInfo.lat && locationInfo.lng
                 ? `${locationInfo.lat}, ${locationInfo.lng}`
                 : 'Coordenadas não disponíveis'
             });
@@ -250,50 +185,25 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         }
       });
 
-      console.log('Dados finais formatados:', formattedData.length, formattedData);
       setLocationData(formattedData);
     } catch (error) {
-      console.error('Erro ao carregar dados de localização:', error);
-      setLocationData([]);
+      console.error('Erro inesperado ao carregar dados:', error);
+      // Tratar erro, talvez exibir mensagem para o usuário
     } finally {
       setLoading(false);
     }
   };
 
-  // Filtrar dados por funcionário selecionado
   const filteredData = useMemo(() => {
     if (!selectedEmployee) {
       return locationData;
     }
-    
-    return locationData.filter(item => {
-      const employee = employees.find(emp => emp.id === selectedEmployee);
-      return employee && item.employeeName === employee.name;
-    });
-  }, [selectedEmployee, locationData, employees]);
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'Entrada':
-        return 'bg-green-100 text-green-800';
-      case 'Saída':
-        return 'bg-red-100 text-red-800';
-      case 'Saída Almoço':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Volta Almoço':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+    const employee = employees.find(emp => emp.id === selectedEmployee);
+    if (!employee) {
+      return [];
     }
-  };
-
-  console.log('LocationReport renderizado:', {
-    employeesCount: employees.length,
-    locationDataCount: locationData.length,
-    filteredDataCount: filteredData.length,
-    loading,
-    selectedEmployee
-  });
+    return locationData.filter(item => item.employeeName === employee.name);
+  }, [locationData, selectedEmployee, employees]);
 
   if (loading) {
     return (
@@ -338,7 +248,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -368,7 +277,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {/* Filtros */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -394,14 +302,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Total de Registros</label>
                   <div className="text-2xl font-bold text-blue-600">
                     {filteredData.length}
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Funcionários</label>
                   <div className="text-2xl font-bold text-blue-600">
@@ -412,7 +320,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
             </CardContent>
           </Card>
 
-          {/* Tabela de Localizações */}
           <Card>
             <CardHeader>
               <CardTitle>Registros de Localização</CardTitle>
@@ -463,13 +370,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <div className="text-center text-gray-500 py-12">
                   <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    {employees.length === 0 
-                      ? 'Nenhum funcionário cadastrado' 
+                    {employees.length === 0
+                      ? 'Nenhum funcionário cadastrado'
                       : 'Nenhum registro de localização encontrado'
                     }
                   </h3>
                   <p className="text-sm">
-                    {employees.length === 0 
+                    {employees.length === 0
                       ? 'Cadastre funcionários para ver os registros de localização'
                       : 'Os registros de localização aparecerão aqui quando os funcionários registrarem o ponto com localização ativa'
                     }
