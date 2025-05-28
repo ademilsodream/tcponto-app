@@ -31,63 +31,27 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função para processar dados de localização em diferentes formatos
+// Função simplificada para processar dados de localização no formato atual
 const processLocationData = (locations: any, fieldName: string) => {
   console.log(`Processando localização para ${fieldName}:`, locations);
   
-  if (!locations) {
-    console.log(`Nenhuma localização encontrada para ${fieldName}`);
+  if (!locations || typeof locations !== 'object') {
+    console.log(`Nenhuma localização válida encontrada para ${fieldName}`);
     return null;
   }
 
-  // Verificar se locations é uma string (formato antigo)
-  if (typeof locations === 'string') {
-    console.log(`Formato antigo detectado para ${fieldName}: ${locations}`);
-    
-    // Tentar parsear coordenadas no formato "lat,lng"
-    const coordMatch = locations.match(/-?\d+\.?\d*,-?\d+\.?\d*/);
-    if (coordMatch) {
-      const [lat, lng] = coordMatch[0].split(',');
-      return {
-        lat: parseFloat(lat),
-        lng: parseFloat(lng),
-        address: 'Endereço não disponível (formato antigo)'
-      };
-    }
-    
-    console.warn(`Formato de string não reconhecido para ${fieldName}: ${locations}`);
+  // Verificar se existe a propriedade específica do campo no formato estruturado
+  const fieldData = locations[fieldName];
+  if (fieldData && typeof fieldData === 'object') {
+    console.log(`Dados de localização encontrados para ${fieldName}:`, fieldData);
     return {
-      lat: null,
-      lng: null,
-      address: 'Formato de localização inválido'
+      lat: fieldData.lat || null,
+      lng: fieldData.lng || null,
+      address: fieldData.address || 'Endereço não disponível'
     };
   }
 
-  // Verificar se locations é um objeto (formato novo)
-  if (typeof locations === 'object') {
-    // Verificar se existe a propriedade específica do campo
-    const fieldData = locations[fieldName];
-    if (fieldData) {
-      console.log(`Formato novo encontrado para ${fieldName}:`, fieldData);
-      return {
-        lat: fieldData.lat || null,
-        lng: fieldData.lng || null,
-        address: fieldData.address || 'Endereço não disponível'
-      };
-    }
-    
-    // Fallback: verificar se o objeto tem propriedades de coordenadas diretamente
-    if (locations.lat && locations.lng) {
-      console.log(`Formato de objeto direto para ${fieldName}:`, locations);
-      return {
-        lat: locations.lat,
-        lng: locations.lng,
-        address: locations.address || 'Endereço não disponível'
-      };
-    }
-  }
-
-  console.warn(`Formato não reconhecido para ${fieldName}:`, typeof locations, locations);
+  console.log(`Campo ${fieldName} não encontrado no objeto de localização`);
   return null;
 };
 
