@@ -20,17 +20,14 @@ interface User {
   name: string;
   email: string;
   role: 'admin' | 'user';
-  // hourlyRate e overtimeRate podem não estar no tipo Profile diretamente,
-  // se estiverem, use o tipo inferido. Se não, mantenha como está
-  hourly_rate?: number | null; // Use o nome do campo do DB
-  // overtimeRate: number; // Não parece existir no schema profiles
+  hourly_rate?: number | null;
 }
 
 // Tipo para a estrutura de localização dentro do campo 'locations' (do arquivo TimeRegistration)
 interface LocationDetails {
-  lat: number | null; // Pode ser null se as coordenadas não foram obtidas
-  lng: number | null; // Pode ser null se as coordenadas não foram obtidas
-  address: string; // Endereço formatado
+  lat: number | null;
+  lng: number | null;
+  address: string;
 }
 
 // Tipo para o campo 'locations' que agora é um objeto JSON (do arquivo TimeRegistration)
@@ -39,90 +36,75 @@ interface TimeRecordLocations {
   lunchStart?: LocationDetails | null;
   lunchEnd?: LocationDetails | null;
   clockOut?: LocationDetails | null;
-  // Adicione outros tipos de ponto se existirem
-  [key: string]: LocationDetails | null | undefined; // Permite acesso dinâmico
+  [key: string]: LocationDetails | null | undefined;
 }
 
-
-// Atualizar a interface LocationData para incluir userId
-interface LocationData {
-  id: string; // ID único para o item (ex: record_id-type)
-  recordId: string; // ID do registro original (time_records)
-  userId: string; // Adicionado userId para filtragem
+// NOVA INTERFACE: Representa uma linha na tabela de relatório (um registro de ponto)
+interface TimeRecordReportRow {
+  recordId: string; // ID do registro original
+  userId: string;
   employeeName: string;
   date: string;
-  type: string; // 'Entrada', 'Saída Almoço', etc.
-  time: string; // Horário do registro (HH:MM:SS)
-  address: string;
-  coordinates: string; // Formatado como "lat, lng"
+  clockInTime: string | null;
+  clockInLocation: LocationDetails | null;
+  lunchStartTime: string | null;
+  lunchStartLocation: LocationDetails | null;
+  lunchEndTime: string | null;
+  lunchEndLocation: LocationDetails | null;
+  clockOutTime: string | null;
+  clockOutLocation: LocationDetails | null;
 }
 
 interface LocationReportProps {
-  employees: User[]; // Usar o tipo User definido acima
+  employees: User[];
   onBack?: () => void;
 }
 
-
 // Função para processar os dados de localização de um ponto específico
 const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
-   // Garantir que locations é um objeto e não null ou outro tipo primitivo
   if (!locations || typeof locations !== 'object') {
     return null;
   }
 
-  // Converter para o tipo esperado para acesso seguro
   const locObject = locations as TimeRecordLocations;
-
-  // Acessar os dados do campo específico (ex: 'clockIn')
   const fieldData = locObject[fieldName];
 
-  // Verificar se os dados do campo existem e são um objeto válido
   if (fieldData && typeof fieldData === 'object') {
     return {
-      lat: fieldData.lat ?? null, // Usar nullish coalescing para garantir null se undefined
+      lat: fieldData.lat ?? null,
       lng: fieldData.lng ?? null,
-      address: fieldData.address || 'Endereço não disponível' // Usar fallback para endereço
+      address: fieldData.address || 'Endereço não disponível'
     };
   }
 
-  return null; // Retorna null se o campo não existir ou não for válido
+  return null;
 };
 
-
-const getTypeColor = (type: string) => {
-  switch (type) {
-    case 'Entrada':
-      return 'bg-green-100 text-green-800';
-    case 'Saída Almoço':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'Volta Almoço':
-      return 'bg-blue-100 text-blue-800';
-    case 'Saída':
-      return 'bg-red-100 text-red-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
-  }
-};
+// Esta função não é mais necessária para a tabela principal, mas pode ser útil em outro lugar
+// const getTypeColor = (type: string) => {
+//   switch (type) {
+//     case 'Entrada': return 'bg-green-100 text-green-800';
+//     case 'Saída Almoço': return 'bg-yellow-100 text-yellow-800';
+//     case 'Volta Almoço': return 'bg-blue-100 text-blue-800';
+//     case 'Saída': return 'bg-red-100 text-red-800';
+//     default: return 'bg-gray-100 text-gray-800';
+//   }
+// };
 
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
-  const [locationData, setLocationData] = useState<LocationData[]>([]);
+  // Mudar o estado para armazenar a nova estrutura de dados
+  const [timeRecordsReportData, setTimeRecordsReportData] = useState<TimeRecordReportRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadLocationData();
-    // Adicionado selectedEmployee como dependência para recarregar dados ao mudar o filtro
-    // No entanto, a filtragem é feita no useMemo, então carregar tudo uma vez é suficiente.
-    // A dependência correta aqui é apenas 'employees' se você carregar TUDO e filtrar no useMemo.
-    // Se você quiser filtrar a query do Supabase, selectedEmployee seria uma dependência.
-    // Vamos manter a query carregando tudo e filtrar no useMemo por enquanto.
-  }, [employees]); // Dependência de employees está correta para carregar ao receber a lista de funcionários
+    loadTimeRecordsData();
+  }, [employees]); // Dependência de employees
 
-
-  const loadLocationData = async () => {
+  const loadTimeRecordsData = async () => {
     if (!employees || employees.length === 0) {
-      setLocationData([]);
+      setTimeRecordsReportData([]);
       setLoading(false);
       return;
     }
@@ -130,7 +112,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     setLoading(true);
 
     try {
-      // Usar o tipo inferido para a query
       const { data, error } = await supabase
         .from('time_records')
         .select(`
@@ -143,18 +124,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           locations,
           user_id
         `)
-        // Filtrar apenas registros que têm ALGUMA localização registrada
-        .not('locations', 'is', null)
+        // Remover o filtro .not('locations', 'is', null)
+        // Agora queremos TODOS os registros, mas só exibiremos a localização se ela existir
         .eq('status', 'active')
         .order('date', { ascending: false })
         .order('clock_in', { ascending: true });
 
-
       if (error) {
         console.error('Erro ao carregar dados de localização:', error);
-        // Considere mostrar um erro na UI
-        setLocationData([]); // Limpa dados em caso de erro
-        throw error; // Re-lança o erro para ser pego pelo catch
+        setTimeRecordsReportData([]);
+        throw error;
       }
 
       const employeeMap = employees.reduce((map, employee) => {
@@ -162,112 +141,52 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return map;
       }, {} as Record<string, string>);
 
-      const formattedData: LocationData[] = [];
-
-      data?.forEach((record) => {
+      // Processar os dados para a nova estrutura
+      const formattedData: TimeRecordReportRow[] = data?.map((record) => {
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations; // locations já é Json | null
 
-        // Processar e adicionar Entrada se existir e tiver localização
-        if (record.clock_in) {
-          const locationInfo = processLocationData(locations, 'clockIn');
-          if (locationInfo) { // Adiciona apenas se locationInfo não for null
-            formattedData.push({
-              id: `${record.id}-clock_in`, // ID único para o item na lista
-              recordId: record.id, // ID do registro original
-              userId: record.user_id, // Adicionado userId
-              employeeName,
-              date: record.date,
-              type: 'Entrada',
-              time: record.clock_in,
-              address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng
-                ? `${locationInfo.lat}, ${locationInfo.lng}`
-                : 'Coordenadas não disponíveis'
-            });
-          }
-        }
+        // Processar localização para cada tipo de ponto
+        const clockInLocation = processLocationData(locations, 'clockIn');
+        const lunchStartLocation = processLocationData(locations, 'lunchStart');
+        const lunchEndLocation = processLocationData(locations, 'lunchEnd');
+        const clockOutLocation = processLocationData(locations, 'clockOut');
 
-        // Processar e adicionar Saída Almoço se existir e tiver localização
-        if (record.lunch_start) {
-          const locationInfo = processLocationData(locations, 'lunchStart');
-           if (locationInfo) { // Adiciona apenas se locationInfo não for null
-            formattedData.push({
-              id: `${record.id}-lunch_start`,
-              recordId: record.id,
-              userId: record.user_id, // Adicionado userId
-              employeeName,
-              date: record.date,
-              type: 'Saída Almoço',
-              time: record.lunch_start,
-              address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng
-                ? `${locationInfo.lat}, ${locationInfo.lng}`
-                : 'Coordenadas não disponíveis'
-            });
-          }
-        }
+        return {
+          recordId: record.id,
+          userId: record.user_id,
+          employeeName,
+          date: record.date,
+          clockInTime: record.clock_in,
+          clockInLocation, // Pode ser LocationDetails | null
+          lunchStartTime: record.lunch_start,
+          lunchStartLocation, // Pode ser LocationDetails | null
+          lunchEndTime: record.lunch_end,
+          lunchEndLocation, // Pode ser LocationDetails | null
+          clockOutTime: record.clock_out,
+          clockOutLocation, // Pode ser LocationDetails | null
+        };
+      }) || []; // Garante que formattedData é sempre um array
 
-        // Processar e adicionar Volta Almoço se existir e tiver localização
-        if (record.lunch_end) {
-          const locationInfo = processLocationData(locations, 'lunchEnd');
-          if (locationInfo) { // Adiciona apenas se locationInfo não for null
-            formattedData.push({
-              id: `${record.id}-lunch_end`,
-              recordId: record.id,
-              userId: record.user_id, // Adicionado userId
-              employeeName,
-              date: record.date,
-              type: 'Volta Almoço',
-              time: record.lunch_end,
-              address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng
-                ? `${locationInfo.lat}, ${locationInfo.lng}`
-                : 'Coordenadas não disponíveis'
-            });
-          }
-        }
+      setTimeRecordsReportData(formattedData);
 
-        // Processar e adicionar Saída se existir e tiver localização
-        if (record.clock_out) {
-          const locationInfo = processLocationData(locations, 'clockOut');
-          if (locationInfo) { // Adiciona apenas se locationInfo não for null
-            formattedData.push({
-              id: `${record.id}-clock_out`,
-              recordId: record.id,
-              userId: record.user_id, // Adicionado userId
-              employeeName,
-              date: record.date,
-              type: 'Saída',
-              time: record.clock_out,
-              address: locationInfo.address,
-              coordinates: locationInfo.lat && locationInfo.lng
-                ? `${locationInfo.lat}, ${locationInfo.lng}`
-                : 'Coordenadas não disponíveis'
-            });
-          }
-        }
-      });
-
-      setLocationData(formattedData);
     } catch (error) {
       console.error('Erro inesperado ao carregar dados:', error);
-      setLocationData([]); // Limpa dados em caso de erro
+      setTimeRecordsReportData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Corrigir a lógica de filtragem no useMemo para usar o ID do funcionário
-  const filteredData = useMemo(() => {
+  // Filtrar os dados com base no funcionário selecionado
+  const filteredTimeRecords = useMemo(() => {
     if (selectedEmployee === 'all') {
-      return locationData;
+      return timeRecordsReportData;
     }
+    // Filtrar pela nova estrutura, usando o userId
+    return timeRecordsReportData.filter(record => record.userId === selectedEmployee);
 
-    // Filtrar locationData onde o userId corresponde ao selectedEmployee
-    return locationData.filter(item => item.userId === selectedEmployee);
-
-  }, [locationData, selectedEmployee]); // Dependências corretas
+  }, [timeRecordsReportData, selectedEmployee]); // Dependências corretas
 
   if (loading) {
     return (
@@ -290,9 +209,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                     <MapPin className="w-5 h-5" />
-                    Relatório de Localizações
+                    Relatório de Localizações por Registro
                   </h1>
-                  <p className="text-sm text-gray-600">Localizações dos registros de ponto</p>
+                  <p className="text-sm text-gray-600">Localizações associadas a cada registro de ponto</p>
                 </div>
               </div>
             </div>
@@ -330,14 +249,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <MapPin className="w-5 h-5" />
-                  Relatório de Localizações
+                  Relatório de Localizações por Registro
                 </h1>
-                <p className="text-sm text-gray-600">Localizações dos registros de ponto</p>
+                <p className="text-sm text-gray-600">Localizações associadas a cada registro de ponto</p>
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
@@ -370,14 +288,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Registros com Localização</label>
-                  {/* Usar filteredData */}
+                  <label className="text-sm font-medium">Total de Registros Exibidos</label>
+                  {/* Usar filteredTimeRecords para a contagem */}
                   <div className="text-2xl font-bold text-blue-600">
-                    {filteredData.length}
+                    {filteredTimeRecords.length}
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                 <div className="space-y-2">
                   <label className="text-sm font-medium">Funcionários Cadastrados</label>
                   <div className="text-2xl font-bold text-blue-600">
                     {employees.length}
@@ -389,48 +307,69 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
           <Card>
             <CardHeader>
-              <CardTitle>Registros de Localização</CardTitle>
+              <CardTitle>Registros de Ponto e Localizações</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Usar filteredData */}
-              {filteredData.length > 0 ? (
+              {/* Usar filteredTimeRecords */}
+              {filteredTimeRecords.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
                         <TableHead>Funcionário</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Horário</TableHead>
-                        <TableHead>Coordenadas</TableHead>
-                        <TableHead>Endereço</TableHead>
+                        <TableHead>Entrada (Horário)</TableHead>
+                        <TableHead>Entrada (Localização)</TableHead>
+                        <TableHead>Saída Almoço (Horário)</TableHead>
+                        <TableHead>Saída Almoço (Localização)</TableHead>
+                        <TableHead>Volta Almoço (Horário)</TableHead>
+                        <TableHead>Volta Almoço (Localização)</TableHead>
+                        <TableHead>Saída (Horário)</TableHead>
+                        <TableHead>Saída (Localização)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {/* Usar filteredData */}
-                      {filteredData.map((item) => (
-                        <TableRow key={item.id}> {/* Usar item.id que é único */}
+                      {/* Mapear sobre filteredTimeRecords */}
+                      {filteredTimeRecords.map((record) => (
+                        <TableRow key={record.recordId}> {/* Usar recordId como chave */}
                           <TableCell>
-                            {/* Certificar que a data é um formato válido para o construtor Date */}
-                            {/* Assumindo que item.date está no formato 'YYYY-MM-DD' */}
-                            {format(new Date(item.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                            {/* Formatar a data */}
+                            {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
                           </TableCell>
                           <TableCell className="font-medium">
-                            {item.employeeName}
+                            {record.employeeName}
                           </TableCell>
-                          <TableCell>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(item.type)}`}>
-                              {item.type}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            {item.time}
-                          </TableCell>
+                          {/* Células para Entrada */}
+                          <TableCell>{record.clockInTime || '-'}</TableCell>
                           <TableCell className="font-mono text-xs">
-                            {item.coordinates}
+                            {record.clockInLocation ? record.clockInLocation.address : 'N/A'}
+                            {record.clockInLocation?.lat && record.clockInLocation?.lng &&
+                              ` (${record.clockInLocation.lat.toFixed(4)}, ${record.clockInLocation.lng.toFixed(4)})`
+                            }
                           </TableCell>
-                          <TableCell>
-                            {item.address}
+                          {/* Células para Saída Almoço */}
+                          <TableCell>{record.lunchStartTime || '-'}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {record.lunchStartLocation ? record.lunchStartLocation.address : 'N/A'}
+                             {record.lunchStartLocation?.lat && record.lunchStartLocation?.lng &&
+                              ` (${record.lunchStartLocation.lat.toFixed(4)}, ${record.lunchStartLocation.lng.toFixed(4)})`
+                            }
+                          </TableCell>
+                          {/* Células para Volta Almoço */}
+                          <TableCell>{record.lunchEndTime || '-'}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {record.lunchEndLocation ? record.lunchEndLocation.address : 'N/A'}
+                             {record.lunchEndLocation?.lat && record.lunchEndLocation?.lng &&
+                              ` (${record.lunchEndLocation.lat.toFixed(4)}, ${record.lunchEndLocation.lng.toFixed(4)})`
+                            }
+                          </TableCell>
+                          {/* Células para Saída */}
+                          <TableCell>{record.clockOutTime || '-'}</TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {record.clockOutLocation ? record.clockOutLocation.address : 'N/A'}
+                             {record.clockOutLocation?.lat && record.clockOutLocation?.lng &&
+                              ` (${record.clockOutLocation.lat.toFixed(4)}, ${record.clockOutLocation.lng.toFixed(4)})`
+                            }
                           </TableCell>
                         </TableRow>
                       ))}
@@ -441,17 +380,17 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <div className="text-center text-gray-500 py-12">
                   <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    {employees.length === 0
+                     {employees.length === 0
                       ? 'Nenhum funcionário cadastrado'
-                      : 'Nenhum registro de localização encontrado'
+                      : 'Nenhum registro de ponto encontrado'
                     }
                   </h3>
                   <p className="text-sm">
                      {employees.length === 0
-                      ? 'Cadastre funcionários para ver os registros de localização'
+                      ? 'Cadastre funcionários para ver os registros de ponto e localização'
                       : selectedEmployee === 'all'
-                        ? 'Nenhum registro de localização encontrado para todos os funcionários.'
-                        : `Nenhum registro de localização encontrado para o funcionário selecionado.`
+                        ? 'Nenhum registro de ponto encontrado para todos os funcionários.'
+                        : `Nenhum registro de ponto encontrado para o funcionário selecionado.`
                     }
                   </p>
                 </div>
