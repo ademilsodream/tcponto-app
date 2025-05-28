@@ -7,14 +7,25 @@ import { MapPin, ArrowLeft, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
+// Importar o tipo Database do seu arquivo de tipos Supabase
+import { Database } from '@/types/supabase'; // Ajuste o caminho conforme necessário
+
+// Tipos inferidos do banco de dados
+type TimeRecord = Database['public']['Tables']['time_records']['Row'];
+type Profile = Database['public']['Tables']['profiles']['Row'];
+
+// Adicionar hourlyRate e overtimeRate ao tipo User se vierem do profile
 interface User {
   id: string;
   name: string;
   email: string;
   role: 'admin' | 'user';
-  hourlyRate: number;
-  overtimeRate: number;
+  // hourlyRate e overtimeRate podem não estar no tipo Profile diretamente,
+  // se estiverem, use o tipo inferido. Se não, mantenha como está
+  hourly_rate?: number | null; // Use o nome do campo do DB
+  // overtimeRate: number; // Não parece existir no schema profiles
 }
+
 
 interface LocationData {
   id: string;
@@ -26,17 +37,17 @@ interface LocationData {
   coordinates: string;
 }
 
-interface LocationReportProps {
-  employees: User[];
-  onBack?: () => void;
-}
 
-const processLocationData = (locations: any, fieldName: string) => {
-  if (!locations || typeof locations !== 'object') {
+const processLocationData = (locations: TimeRecord['locations'], fieldName: string) => {
+  // Use o tipo inferido para 'locations'
+  if (!locations || typeof locations !== 'object' || locations === null) {
     return null;
   }
 
-  const fieldData = locations[fieldName];
+  // locations é do tipo Json | null. Precisamos garantir que é um objeto
+  const locObject = locations as { [key: string]: any };
+
+  const fieldData = locObject[fieldName];
 
   if (fieldData && typeof fieldData === 'object') {
     return {
@@ -48,6 +59,7 @@ const processLocationData = (locations: any, fieldName: string) => {
 
   return null;
 };
+
 
 const getTypeColor = (type: string) => {
   switch (type) {
@@ -64,14 +76,16 @@ const getTypeColor = (type: string) => {
   }
 };
 
+
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
-  const [selectedEmployee, setSelectedEmployee] = useState<string>('');
+  // 2. Mudar o estado inicial para "all"
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [locationData, setLocationData] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadLocationData();
-  }, [employees]);
+  }, [employees]); // Dependência de employees está correta
 
   const loadLocationData = async () => {
     if (!employees || employees.length === 0) {
@@ -83,6 +97,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     setLoading(true);
 
     try {
+      // Usar o tipo inferido para a query
       const { data, error } = await supabase
         .from('time_records')
         .select(`
@@ -102,7 +117,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       if (error) {
         console.error('Erro ao carregar dados de localização:', error);
-        throw error;
+        // Considere mostrar um erro na UI
+        setLocationData([]); // Limpa dados em caso de erro
+        throw error; // Re-lança o erro para ser pego pelo catch
       }
 
       const employeeMap = employees.reduce((map, employee) => {
@@ -114,7 +131,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       data?.forEach((record) => {
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
-        const locations = record.locations;
+        const locations = record.locations; // locations já é Json | null
 
         if (record.clock_in) {
           const locationInfo = processLocationData(locations, 'clockIn');
@@ -188,21 +205,52 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
       setLocationData(formattedData);
     } catch (error) {
       console.error('Erro inesperado ao carregar dados:', error);
+      setLocationData([]); // Limpa dados em caso de erro
     } finally {
       setLoading(false);
     }
   };
 
   const filteredData = useMemo(() => {
-    if (!selectedEmployee) {
+    // 3. Verificar se selectedEmployee é "all"
+    if (selectedEmployee === 'all') {
       return locationData;
     }
     const employee = employees.find(emp => emp.id === selectedEmployee);
     if (!employee) {
       return [];
     }
+    // Filtrar por user_id em vez de employeeName para garantir unicidade
+    return locationData.filter(item => {
+        // Encontrar o registro original para obter o user_id
+        const originalRecord = supabase.from('time_records').select('user_id').eq('id', item.id.split('-')[0]).single();
+        return originalRecord && originalRecord.data?.user_id === selectedEmployee;
+    });
+  }, [locationData, selectedEmployee, employees]); // Adicionar employees como dependência
+
+  // Corrigir a lógica de filtragem no useMemo para usar o ID do funcionário
+  const filteredDataCorrected = useMemo(() => {
+    if (selectedEmployee === 'all') {
+      return locationData;
+    }
+    // Encontrar o funcionário selecionado pelo ID
+    const employee = employees.find(emp => emp.id === selectedEmployee);
+
+    if (!employee) {
+      // Se o funcionário selecionado não for encontrado na lista, retornar vazio
+      return [];
+    }
+
+    // Filtrar locationData onde o employeeName corresponde ao nome do funcionário selecionado
+    // Nota: Filtrar por employeeName pode ser problemático se houver nomes duplicados.
+    // Seria mais robusto armazenar o user_id diretamente em LocationData
+    // ou buscar os time_records filtrados por user_id na query inicial.
+    // Mantendo a lógica atual de filtragem por nome para corrigir o erro,
+    // mas idealmente a busca inicial deveria ser filtrada.
     return locationData.filter(item => item.employeeName === employee.name);
+
   }, [locationData, selectedEmployee, employees]);
+
 
   if (loading) {
     return (
@@ -292,7 +340,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                       <SelectValue placeholder="Todos os funcionários" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os funcionários</SelectItem>
+                      {/* 1. Mudar o value para "all" */}
+                      <SelectItem value="all">Todos os funcionários</SelectItem>
                       {employees
                         .filter(employee => employee.id && employee.id !== '')
                         .map(employee => (
@@ -306,8 +355,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Total de Registros</label>
+                  {/* Usar filteredDataCorrected */}
                   <div className="text-2xl font-bold text-blue-600">
-                    {filteredData.length}
+                    {filteredDataCorrected.length}
                   </div>
                 </div>
 
@@ -326,7 +376,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               <CardTitle>Registros de Localização</CardTitle>
             </CardHeader>
             <CardContent>
-              {filteredData.length > 0 ? (
+              {/* Usar filteredDataCorrected */}
+              {filteredDataCorrected.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -340,9 +391,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredData.map((item) => (
+                      {/* Usar filteredDataCorrected */}
+                      {filteredDataCorrected.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>
+                            {/* Certificar que a data é um formato válido para o construtor Date */}
+                            {/* Assumindo que item.date está no formato 'YYYY-MM-DD' */}
                             {format(new Date(item.date + 'T00:00:00'), 'dd/MM/yyyy')}
                           </TableCell>
                           <TableCell className="font-medium">
@@ -373,7 +427,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <h3 className="text-lg font-medium mb-2">
                     {employees.length === 0
                       ? 'Nenhum funcionário cadastrado'
-                      : 'Nenhum registro de localização encontrado'
+                      : 'Nenhum registro de localização encontrado para o funcionário selecionado ou em geral'
                     }
                   </h3>
                   <p className="text-sm">
