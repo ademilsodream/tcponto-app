@@ -11,6 +11,7 @@ import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface Employee {
   id: string;
@@ -55,6 +56,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
+  
+  // CORREÇÃO 2: Usar o contexto de moeda
+  const { formatCurrency } = useCurrency();
 
   // Filtrar funcionários para não exibir administradores
   const nonAdminEmployees = employees.filter(employee => employee.role !== 'admin');
@@ -338,14 +342,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const formatTime = (timeString: string) => {
     if (!timeString) return '-';
     return timeString.slice(0, 5);
-  };
-
-  const formatCurrency = (value: number) => {
-    if (!value) return '-';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
   };
 
   // Agrupar registros por funcionário para exibição

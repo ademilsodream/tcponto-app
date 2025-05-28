@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +33,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
+  useSidebar,
 } from '@/components/ui/sidebar';
 
 interface User {
@@ -115,6 +117,141 @@ const Dashboard = () => {
     }
   };
 
+  // CORREÇÃO 4: Componente específico para cards de ajuste de horário
+  const TimeAdjustmentCards = () => {
+    const [currentRecord, setCurrentRecord] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+      loadCurrentRecord();
+    }, [selectedDate]);
+
+    const loadCurrentRecord = async () => {
+      if (!user?.id) return;
+      
+      setLoading(true);
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        const { data, error } = await supabase
+          .from('time_records')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('date', dateStr)
+          .single();
+
+        if (!error && data) {
+          setCurrentRecord(data);
+        } else {
+          setCurrentRecord(null);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar registro:', error);
+        setCurrentRecord(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleSubmitTime = async (field: string, value: string) => {
+      if (!user?.id || !value) return;
+
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        
+        if (currentRecord) {
+          // Atualizar registro existente
+          const { error } = await supabase
+            .from('time_records')
+            .update({ [field]: value })
+            .eq('id', currentRecord.id);
+
+          if (error) throw error;
+        } else {
+          // Criar novo registro
+          const { error } = await supabase
+            .from('time_records')
+            .insert({
+              user_id: user.id,
+              date: dateStr,
+              [field]: value
+            });
+
+          if (error) throw error;
+        }
+
+        await loadCurrentRecord();
+        alert('Horário ajustado com sucesso!');
+      } catch (error) {
+        console.error('Erro ao ajustar horário:', error);
+        alert('Erro ao ajustar horário');
+      }
+    };
+
+    const TimeCard = ({ title, field, currentValue }: { title: string; field: string; currentValue?: string }) => {
+      const [time, setTime] = useState(currentValue || '');
+
+      useEffect(() => {
+        setTime(currentValue || '');
+      }, [currentValue]);
+
+      return (
+        <Card className="p-4">
+          <h3 className="font-semibold mb-3">{title}</h3>
+          <div className="space-y-3">
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <Button 
+              onClick={() => handleSubmitTime(field, time)}
+              className="w-full"
+              disabled={!time}
+            >
+              Enviar
+            </Button>
+          </div>
+        </Card>
+      );
+    };
+
+    if (loading) {
+      return <div className="text-center py-4">Carregando dados...</div>;
+    }
+
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">
+          Ajustar horários para {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TimeCard 
+            title="Entrada" 
+            field="clock_in" 
+            currentValue={currentRecord?.clock_in} 
+          />
+          <TimeCard 
+            title="Início do Almoço" 
+            field="lunch_start" 
+            currentValue={currentRecord?.lunch_start} 
+          />
+          <TimeCard 
+            title="Fim do Almoço" 
+            field="lunch_end" 
+            currentValue={currentRecord?.lunch_end} 
+          />
+          <TimeCard 
+            title="Saída" 
+            field="clock_out" 
+            currentValue={currentRecord?.clock_out} 
+          />
+        </div>
+      </div>
+    );
+  };
+
   const renderEmployeeContent = () => {
     switch (activeEmployeeView) {
       case 'timeRegistration':
@@ -123,6 +260,8 @@ const Dashboard = () => {
             selectedDate={format(selectedDate, 'yyyy-MM-dd')}
           />
         );
+      case 'timeAdjustment':
+        return <TimeAdjustmentCards />;
       case 'incompleteRecords':
         return (
           <IncompleteRecordsProfile 
@@ -153,6 +292,129 @@ const Dashboard = () => {
     }
   };
 
+  // Componente interno para acessar o contexto do sidebar
+  const EmployeeSidebarContent = () => {
+    const { setOpenMobile } = useSidebar();
+
+    const handleMenuClick = (view: string) => {
+      setActiveEmployeeView(view);
+      // CORREÇÃO 3: Fechar sidebar automaticamente no mobile
+      setOpenMobile(false);
+    };
+
+    return (
+      <>
+        <SidebarGroup>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleMenuClick('timeRegistration')}
+                  isActive={activeEmployeeView === 'timeRegistration'}
+                >
+                  <Home className="w-4 h-4" />
+                  <span>Dashboard Principal</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleMenuClick('incompleteRecords')}
+                  isActive={activeEmployeeView === 'incompleteRecords'}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Registros Incompletos</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={() => handleMenuClick('monthlySummary')}
+                  isActive={activeEmployeeView === 'monthlySummary'}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Resumo Mensal</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {activeEmployeeView === 'timeRegistration' && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Registrar ponto do dia</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <div className="p-2">
+                <div className="mt-4 p-3 bg-accent-50 rounded-lg">
+                  <h4 className="font-medium text-accent-900 mb-1 text-xs">Hoje</h4>
+                  <p className="text-accent-700 text-xs">
+                    {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Selecionar data para ajustar</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="p-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal text-xs",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-3 w-3" />
+                    {selectedDate ? (
+                      format(selectedDate, "dd/MM/yyyy", { locale: ptBR })
+                    ) : (
+                      <span>Selecione uma data</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setSelectedDate(date);
+                        setActiveEmployeeView('timeAdjustment');
+                      }
+                    }}
+                    initialFocus
+                    locale={ptBR}
+                    disabled={(date) => {
+                      const today = new Date();
+                      const currentMonth = today.getMonth();
+                      const currentYear = today.getFullYear();
+                      
+                      if (date >= today) return true;
+                      
+                      return date.getMonth() !== currentMonth || date.getFullYear() !== currentYear;
+                    }}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <div className="mt-4 p-3 bg-accent-50 rounded-lg">
+                <h4 className="font-medium text-accent-900 mb-1 text-xs">Data Selecionada</h4>
+                <p className="text-accent-700 text-xs">
+                  {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                </p>
+              </div>
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </>
+    );
+  };
+
   // Layout para funcionário comum com sidebar
   if (!isAdmin) {
     return (
@@ -160,99 +422,11 @@ const Dashboard = () => {
         <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex w-full">
           <Sidebar>
             <SidebarContent>
-              <SidebarGroup>
-                <SidebarGroupLabel>Menu</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        onClick={() => setActiveEmployeeView('timeRegistration')}
-                        isActive={activeEmployeeView === 'timeRegistration'}
-                      >
-                        <Home className="w-4 h-4" />
-                        <span>Dashboard Principal</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        onClick={() => setActiveEmployeeView('incompleteRecords')}
-                        isActive={activeEmployeeView === 'incompleteRecords'}
-                      >
-                        <AlertCircle className="w-4 h-4" />
-                        <span>Registros Incompletos</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        onClick={() => setActiveEmployeeView('monthlySummary')}
-                        isActive={activeEmployeeView === 'monthlySummary'}
-                      >
-                        <TrendingUp className="w-4 h-4" />
-                        <span>Resumo Mensal</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              {activeEmployeeView === 'timeRegistration' && (
-                <SidebarGroup>
-                  <SidebarGroupLabel>Selecionar data para ajustar</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <div className="p-2">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal text-xs",
-                              !selectedDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-3 w-3" />
-                            {selectedDate ? (
-                              format(selectedDate, "dd/MM/yyyy", { locale: ptBR })
-                            ) : (
-                              <span>Selecione uma data</span>
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(date) => date && setSelectedDate(date)}
-                            initialFocus
-                            locale={ptBR}
-                            disabled={(date) => {
-                              const today = new Date();
-                              const currentMonth = today.getMonth();
-                              const currentYear = today.getFullYear();
-                              
-                              if (date >= today) return true;
-                              
-                              return date.getMonth() !== currentMonth || date.getFullYear() !== currentYear;
-                            }}
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-
-                      <div className="mt-4 p-3 bg-accent-50 rounded-lg">
-                        <h4 className="font-medium text-accent-900 mb-1 text-xs">Data Selecionada</h4>
-                        <p className="text-accent-700 text-xs">
-                          {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-                        </p>
-                      </div>
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              )}
+              <EmployeeSidebarContent />
             </SidebarContent>
           </Sidebar>
 
           <SidebarInset>
-            {/* Header */}
             <header className="bg-white shadow-sm border-b">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
@@ -284,7 +458,6 @@ const Dashboard = () => {
               </div>
             </header>
 
-            {/* Main Content para Funcionário */}
             <main className="flex-1 p-4 sm:p-6 lg:p-8">
               {renderEmployeeContent()}
             </main>

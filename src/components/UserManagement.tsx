@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -176,6 +175,9 @@ const UserManagement: React.FC = () => {
           if (profileError) {
             console.error('Erro ao criar perfil:', profileError);
           }
+
+          // CORREÇÃO 1: Fazer logout imediatamente após criar usuário para evitar login automático
+          await supabase.auth.signOut();
 
           toast({
             title: "Sucesso",
