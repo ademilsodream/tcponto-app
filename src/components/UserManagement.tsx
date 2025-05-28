@@ -338,7 +338,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="role">Cargo/Nível *</Label>
+                <Label htmlFor="role">Nível *</Label>
                 <Select 
                   value={formData.role} 
                   onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
@@ -415,7 +415,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       Código
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Cargo
+                      Nível
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Valor/Hora
