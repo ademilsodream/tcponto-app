@@ -36,7 +36,7 @@ interface TimeRecordLocations {
   lunchStart?: LocationDetails | null;
   lunchEnd?: LocationDetails | null;
   clockOut?: LocationDetails | null;
-  [key: string]: LocationDetails | null | undefined;
+  [key: string]: LocationDetails | null | undefined; // Permite outras chaves, mas tipa as conhecidas
 }
 
 // NOVA INTERFACE: Representa uma linha na tabela de relatório (um registro de ponto)
@@ -79,17 +79,6 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
 
   return null;
 };
-
-// Esta função não é mais necessária para a tabela principal, mas pode ser útil em outro lugar
-// const getTypeColor = (type: string) => {
-//   switch (type) {
-//     case 'Entrada': return 'bg-green-100 text-green-800';
-//     case 'Saída Almoço': return 'bg-yellow-100 text-yellow-800';
-//     case 'Volta Almoço': return 'bg-blue-100 text-blue-800';
-//     case 'Saída': return 'bg-red-100 text-red-800';
-//     default: return 'bg-gray-100 text-gray-800';
-//   }
-// };
 
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
@@ -137,12 +126,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
       }
 
       const employeeMap = employees.reduce((map, employee) => {
-        map[employee.id] = employee.name;
+        // Adicionar verificação para garantir que o id não é null/undefined/empty string
+        if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
+           map[employee.id] = employee.name;
+        }
         return map;
       }, {} as Record<string, string>);
 
       // Processar os dados para a nova estrutura
       const formattedData: TimeRecordReportRow[] = data?.map((record) => {
+        // Usar o map para obter o nome do funcionário
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations; // locations já é Json | null
 
@@ -257,150 +250,151 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           </div>
         </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="w-5 h-5" />
-                Filtros
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Funcionário</label>
-                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos os funcionários" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os funcionários</SelectItem>
-                      {employees
-                        .filter(employee => employee.id && employee.id !== '')
-                        .map(employee => (
-                          <SelectItem key={employee.id} value={employee.id}>
-                            {employee.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Search className="w-5 h-5" />
+                  Filtros
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Funcionário</label>
+                    <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos os funcionários" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os funcionários</SelectItem>
+                        {employees
+                          // Filtro mais robusto para garantir que o id é uma string não vazia
+                          .filter(employee => employee.id && typeof employee.id === 'string' && employee.id !== '')
+                          .map(employee => (
+                            <SelectItem key={employee.id} value={employee.id}>
+                              {employee.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Registros Exibidos</label>
-                  {/* Usar filteredTimeRecords para a contagem */}
-                  <div className="text-2xl font-bold text-blue-600">
-                    {filteredTimeRecords.length}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Total de Registros Exibidos</label>
+                    {/* Usar filteredTimeRecords para a contagem */}
+                    <div className="text-2xl font-bold text-blue-600">
+                      {filteredTimeRecords.length}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Funcionários Cadastrados</label>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {employees.length}
+                    </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
 
-                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Funcionários Cadastrados</label>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {employees.length}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Registros de Ponto e Localizações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Usar filteredTimeRecords */}
-              {filteredTimeRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Funcionário</TableHead>
-                        <TableHead>Entrada (Horário)</TableHead>
-                        <TableHead>Entrada (Localização)</TableHead>
-                        <TableHead>Saída Almoço (Horário)</TableHead>
-                        <TableHead>Saída Almoço (Localização)</TableHead>
-                        <TableHead>Volta Almoço (Horário)</TableHead>
-                        <TableHead>Volta Almoço (Localização)</TableHead>
-                        <TableHead>Saída (Horário)</TableHead>
-                        <TableHead>Saída (Localização)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {/* Mapear sobre filteredTimeRecords */}
-                      {filteredTimeRecords.map((record) => (
-                        <TableRow key={record.recordId}> {/* Usar recordId como chave */}
-                          <TableCell>
-                            {/* Formatar a data */}
-                            {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {record.employeeName}
-                          </TableCell>
-                          {/* Células para Entrada */}
-                          <TableCell>{record.clockInTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.clockInLocation ? record.clockInLocation.address : 'N/A'}
-                            {record.clockInLocation?.lat && record.clockInLocation?.lng &&
-                              ` (${record.clockInLocation.lat.toFixed(4)}, ${record.clockInLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
-                          {/* Células para Saída Almoço */}
-                          <TableCell>{record.lunchStartTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.lunchStartLocation ? record.lunchStartLocation.address : 'N/A'}
-                             {record.lunchStartLocation?.lat && record.lunchStartLocation?.lng &&
-                              ` (${record.lunchStartLocation.lat.toFixed(4)}, ${record.lunchStartLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
-                          {/* Células para Volta Almoço */}
-                          <TableCell>{record.lunchEndTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.lunchEndLocation ? record.lunchEndLocation.address : 'N/A'}
-                             {record.lunchEndLocation?.lat && record.lunchEndLocation?.lng &&
-                              ` (${record.lunchEndLocation.lat.toFixed(4)}, ${record.lunchEndLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
-                          {/* Células para Saída */}
-                          <TableCell>{record.clockOutTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.clockOutLocation ? record.clockOutLocation.address : 'N/A'}
-                             {record.clockOutLocation?.lat && record.clockOutLocation?.lng &&
-                              ` (${record.clockOutLocation.lat.toFixed(4)}, ${record.clockOutLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
+            <Card>
+              <CardHeader>
+                <CardTitle>Registros de Ponto e Localizações</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Usar filteredTimeRecords */}
+                {filteredTimeRecords.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Funcionário</TableHead>
+                          <TableHead>Entrada (Horário)</TableHead>
+                          <TableHead>Entrada (Localização)</TableHead>
+                          <TableHead>Saída Almoço (Horário)</TableHead>
+                          <TableHead>Saída Almoço (Localização)</TableHead>
+                          <TableHead>Volta Almoço (Horário)</TableHead>
+                          <TableHead>Volta Almoço (Localização)</TableHead>
+                          <TableHead>Saída (Horário)</TableHead>
+                          <TableHead>Saída (Localização)</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-12">
-                  <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">
-                     {employees.length === 0
-                      ? 'Nenhum funcionário cadastrado'
-                      : 'Nenhum registro de ponto encontrado'
-                    }
-                  </h3>
-                  <p className="text-sm">
-                     {employees.length === 0
-                      ? 'Cadastre funcionários para ver os registros de ponto e localização'
-                      : selectedEmployee === 'all'
-                        ? 'Nenhum registro de ponto encontrado para todos os funcionários.'
-                        : `Nenhum registro de ponto encontrado para o funcionário selecionado.`
-                    }
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {/* Mapear sobre filteredTimeRecords */}
+                        {filteredTimeRecords.map((record) => (
+                          <TableRow key={record.recordId}> {/* Usar recordId como chave */}
+                            <TableCell>
+                              {/* Formatar a data */}
+                              {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {record.employeeName}
+                            </TableCell>
+                            {/* Células para Entrada */}
+                            <TableCell>{record.clockInTime || '-'}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {record.clockInLocation ? record.clockInLocation.address : 'N/A'}
+                               {record.clockInLocation?.lat != null && record.clockInLocation?.lng != null &&
+                                ` (${record.clockInLocation.lat.toFixed(4)}, ${record.clockInLocation.lng.toFixed(4)})`
+                              }
+                            </TableCell>
+                            {/* Células para Saída Almoço */}
+                            <TableCell>{record.lunchStartTime || '-'}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {record.lunchStartLocation ? record.lunchStartLocation.address : 'N/A'}
+                               {record.lunchStartLocation?.lat != null && record.lunchStartLocation?.lng != null &&
+                                ` (${record.lunchStartLocation.lat.toFixed(4)}, ${record.lunchStartLocation.lng.toFixed(4)})`
+                              }
+                            </TableCell>
+                            {/* Células para Volta Almoço */}
+                            <TableCell>{record.lunchEndTime || '-'}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {record.lunchEndLocation ? record.lunchEndLocation.address : 'N/A'}
+                               {record.lunchEndLocation?.lat != null && record.lunchEndLocation?.lng != null &&
+                                ` (${record.lunchEndLocation.lat.toFixed(4)}, ${record.lunchEndLocation.lng.toFixed(4)})`
+                              }
+                            </TableCell>
+                            {/* Células para Saída */}
+                            <TableCell>{record.clockOutTime || '-'}</TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {record.clockOutLocation ? record.clockOutLocation.address : 'N/A'}
+                               {record.clockOutLocation?.lat != null && record.clockOutLocation?.lng != null &&
+                                ` (${record.clockOutLocation.lat.toFixed(4)}, ${record.clockOutLocation.lng.toFixed(4)})`
+                              }
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 py-12">
+                    <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                       {employees.length === 0
+                        ? 'Nenhum funcionário cadastrado'
+                        : 'Nenhum registro de ponto encontrado'
+                      }
+                    </h3>
+                    <p className="text-sm">
+                       {employees.length === 0
+                        ? 'Cadastre funcionários para ver os registros de ponto e localização'
+                        : selectedEmployee === 'all'
+                          ? 'Nenhum registro de ponto encontrado para todos os funcionários.'
+                          : `Nenhum registro de ponto encontrado para o funcionário selecionado.`
+                      }
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 export default LocationReport;
