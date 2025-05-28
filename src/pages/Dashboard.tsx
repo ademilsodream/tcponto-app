@@ -214,10 +214,10 @@ const Dashboard = () => {
 
         // Mapeamento correto dos nomes dos campos para o banco de dados
         const fieldMapping = {
-          clock_in: 'clock_in',
-          lunch_start: 'lunch_start', 
-          lunch_end: 'lunch_end',
-          clock_out: 'clock_out'
+          clock_in: 'clockIn',
+          lunch_start: 'lunchStart', 
+          lunch_end: 'lunchEnd',
+          clock_out: 'clockOut'
         };
 
         // Criar solicitações para cada campo modificado
