@@ -11,8 +11,8 @@ import { format } from 'date-fns';
 import { Database } from '@/types/supabase'; // Ajuste o caminho conforme necessário
 
 // Tipos inferidos do banco de dados
-type TimeRecord = Database['public']['Tables']['time_records']['Row'];
-type Profile = Database['public']['Tables']['profiles']['Row'];
+type TimeRecordRow = Database['public']['Tables']['time_records']['Row'];
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 
 // Adicionar hourlyRate e overtimeRate ao tipo User se vierem do profile
 interface User {
@@ -26,38 +26,66 @@ interface User {
   // overtimeRate: number; // Não parece existir no schema profiles
 }
 
+// Tipo para a estrutura de localização dentro do campo 'locations' (do arquivo TimeRegistration)
+interface LocationDetails {
+  lat: number | null; // Pode ser null se as coordenadas não foram obtidas
+  lng: number | null; // Pode ser null se as coordenadas não foram obtidas
+  address: string; // Endereço formatado
+}
 
-interface LocationData {
-  id: string;
-  employeeName: string;
-  date: string;
-  type: string;
-  time: string;
-  address: string;
-  coordinates: string;
+// Tipo para o campo 'locations' que agora é um objeto JSON (do arquivo TimeRegistration)
+interface TimeRecordLocations {
+  clockIn?: LocationDetails | null;
+  lunchStart?: LocationDetails | null;
+  lunchEnd?: LocationDetails | null;
+  clockOut?: LocationDetails | null;
+  // Adicione outros tipos de ponto se existirem
+  [key: string]: LocationDetails | null | undefined; // Permite acesso dinâmico
 }
 
 
-const processLocationData = (locations: TimeRecord['locations'], fieldName: string) => {
-  // Use o tipo inferido para 'locations'
-  if (!locations || typeof locations !== 'object' || locations === null) {
+// Atualizar a interface LocationData para incluir userId
+interface LocationData {
+  id: string; // ID único para o item (ex: record_id-type)
+  recordId: string; // ID do registro original (time_records)
+  userId: string; // Adicionado userId para filtragem
+  employeeName: string;
+  date: string;
+  type: string; // 'Entrada', 'Saída Almoço', etc.
+  time: string; // Horário do registro (HH:MM:SS)
+  address: string;
+  coordinates: string; // Formatado como "lat, lng"
+}
+
+interface LocationReportProps {
+  employees: User[]; // Usar o tipo User definido acima
+  onBack?: () => void;
+}
+
+
+// Função para processar os dados de localização de um ponto específico
+const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
+   // Garantir que locations é um objeto e não null ou outro tipo primitivo
+  if (!locations || typeof locations !== 'object') {
     return null;
   }
 
-  // locations é do tipo Json | null. Precisamos garantir que é um objeto
-  const locObject = locations as { [key: string]: any };
+  // Converter para o tipo esperado para acesso seguro
+  const locObject = locations as TimeRecordLocations;
 
+  // Acessar os dados do campo específico (ex: 'clockIn')
   const fieldData = locObject[fieldName];
 
+  // Verificar se os dados do campo existem e são um objeto válido
   if (fieldData && typeof fieldData === 'object') {
     return {
-      lat: fieldData.lat || null,
-      lng: fieldData.lng || null,
-      address: fieldData.address || 'Endereço não disponível'
+      lat: fieldData.lat ?? null, // Usar nullish coalescing para garantir null se undefined
+      lng: fieldData.lng ?? null,
+      address: fieldData.address || 'Endereço não disponível' // Usar fallback para endereço
     };
   }
 
-  return null;
+  return null; // Retorna null se o campo não existir ou não for válido
 };
 
 
@@ -78,14 +106,19 @@ const getTypeColor = (type: string) => {
 
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
-  // 2. Mudar o estado inicial para "all"
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [locationData, setLocationData] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadLocationData();
-  }, [employees]); // Dependência de employees está correta
+    // Adicionado selectedEmployee como dependência para recarregar dados ao mudar o filtro
+    // No entanto, a filtragem é feita no useMemo, então carregar tudo uma vez é suficiente.
+    // A dependência correta aqui é apenas 'employees' se você carregar TUDO e filtrar no useMemo.
+    // Se você quiser filtrar a query do Supabase, selectedEmployee seria uma dependência.
+    // Vamos manter a query carregando tudo e filtrar no useMemo por enquanto.
+  }, [employees]); // Dependência de employees está correta para carregar ao receber a lista de funcionários
+
 
   const loadLocationData = async () => {
     if (!employees || employees.length === 0) {
@@ -110,10 +143,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           locations,
           user_id
         `)
+        // Filtrar apenas registros que têm ALGUMA localização registrada
         .not('locations', 'is', null)
         .eq('status', 'active')
         .order('date', { ascending: false })
         .order('clock_in', { ascending: true });
+
 
       if (error) {
         console.error('Erro ao carregar dados de localização:', error);
@@ -133,11 +168,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations; // locations já é Json | null
 
+        // Processar e adicionar Entrada se existir e tiver localização
         if (record.clock_in) {
           const locationInfo = processLocationData(locations, 'clockIn');
-          if (locationInfo) {
+          if (locationInfo) { // Adiciona apenas se locationInfo não for null
             formattedData.push({
-              id: `${record.id}-clock_in`,
+              id: `${record.id}-clock_in`, // ID único para o item na lista
+              recordId: record.id, // ID do registro original
+              userId: record.user_id, // Adicionado userId
               employeeName,
               date: record.date,
               type: 'Entrada',
@@ -150,11 +188,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           }
         }
 
+        // Processar e adicionar Saída Almoço se existir e tiver localização
         if (record.lunch_start) {
           const locationInfo = processLocationData(locations, 'lunchStart');
-          if (locationInfo) {
+           if (locationInfo) { // Adiciona apenas se locationInfo não for null
             formattedData.push({
               id: `${record.id}-lunch_start`,
+              recordId: record.id,
+              userId: record.user_id, // Adicionado userId
               employeeName,
               date: record.date,
               type: 'Saída Almoço',
@@ -167,11 +208,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           }
         }
 
+        // Processar e adicionar Volta Almoço se existir e tiver localização
         if (record.lunch_end) {
           const locationInfo = processLocationData(locations, 'lunchEnd');
-          if (locationInfo) {
+          if (locationInfo) { // Adiciona apenas se locationInfo não for null
             formattedData.push({
               id: `${record.id}-lunch_end`,
+              recordId: record.id,
+              userId: record.user_id, // Adicionado userId
               employeeName,
               date: record.date,
               type: 'Volta Almoço',
@@ -184,11 +228,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           }
         }
 
+        // Processar e adicionar Saída se existir e tiver localização
         if (record.clock_out) {
           const locationInfo = processLocationData(locations, 'clockOut');
-          if (locationInfo) {
+          if (locationInfo) { // Adiciona apenas se locationInfo não for null
             formattedData.push({
               id: `${record.id}-clock_out`,
+              recordId: record.id,
+              userId: record.user_id, // Adicionado userId
               employeeName,
               date: record.date,
               type: 'Saída',
@@ -211,46 +258,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
   };
 
-  const filteredData = useMemo(() => {
-    // 3. Verificar se selectedEmployee é "all"
-    if (selectedEmployee === 'all') {
-      return locationData;
-    }
-    const employee = employees.find(emp => emp.id === selectedEmployee);
-    if (!employee) {
-      return [];
-    }
-    // Filtrar por user_id em vez de employeeName para garantir unicidade
-    return locationData.filter(item => {
-        // Encontrar o registro original para obter o user_id
-        const originalRecord = supabase.from('time_records').select('user_id').eq('id', item.id.split('-')[0]).single();
-        return originalRecord && originalRecord.data?.user_id === selectedEmployee;
-    });
-  }, [locationData, selectedEmployee, employees]); // Adicionar employees como dependência
-
   // Corrigir a lógica de filtragem no useMemo para usar o ID do funcionário
-  const filteredDataCorrected = useMemo(() => {
+  const filteredData = useMemo(() => {
     if (selectedEmployee === 'all') {
       return locationData;
     }
-    // Encontrar o funcionário selecionado pelo ID
-    const employee = employees.find(emp => emp.id === selectedEmployee);
 
-    if (!employee) {
-      // Se o funcionário selecionado não for encontrado na lista, retornar vazio
-      return [];
-    }
+    // Filtrar locationData onde o userId corresponde ao selectedEmployee
+    return locationData.filter(item => item.userId === selectedEmployee);
 
-    // Filtrar locationData onde o employeeName corresponde ao nome do funcionário selecionado
-    // Nota: Filtrar por employeeName pode ser problemático se houver nomes duplicados.
-    // Seria mais robusto armazenar o user_id diretamente em LocationData
-    // ou buscar os time_records filtrados por user_id na query inicial.
-    // Mantendo a lógica atual de filtragem por nome para corrigir o erro,
-    // mas idealmente a busca inicial deveria ser filtrada.
-    return locationData.filter(item => item.employeeName === employee.name);
-
-  }, [locationData, selectedEmployee, employees]);
-
+  }, [locationData, selectedEmployee]); // Dependências corretas
 
   if (loading) {
     return (
@@ -340,7 +357,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                       <SelectValue placeholder="Todos os funcionários" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* 1. Mudar o value para "all" */}
                       <SelectItem value="all">Todos os funcionários</SelectItem>
                       {employees
                         .filter(employee => employee.id && employee.id !== '')
@@ -354,15 +370,15 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Registros</label>
-                  {/* Usar filteredDataCorrected */}
+                  <label className="text-sm font-medium">Total de Registros com Localização</label>
+                  {/* Usar filteredData */}
                   <div className="text-2xl font-bold text-blue-600">
-                    {filteredDataCorrected.length}
+                    {filteredData.length}
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Funcionários</label>
+                  <label className="text-sm font-medium">Funcionários Cadastrados</label>
                   <div className="text-2xl font-bold text-blue-600">
                     {employees.length}
                   </div>
@@ -376,8 +392,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               <CardTitle>Registros de Localização</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Usar filteredDataCorrected */}
-              {filteredDataCorrected.length > 0 ? (
+              {/* Usar filteredData */}
+              {filteredData.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -391,9 +407,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {/* Usar filteredDataCorrected */}
-                      {filteredDataCorrected.map((item) => (
-                        <TableRow key={item.id}>
+                      {/* Usar filteredData */}
+                      {filteredData.map((item) => (
+                        <TableRow key={item.id}> {/* Usar item.id que é único */}
                           <TableCell>
                             {/* Certificar que a data é um formato válido para o construtor Date */}
                             {/* Assumindo que item.date está no formato 'YYYY-MM-DD' */}
@@ -427,13 +443,15 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <h3 className="text-lg font-medium mb-2">
                     {employees.length === 0
                       ? 'Nenhum funcionário cadastrado'
-                      : 'Nenhum registro de localização encontrado para o funcionário selecionado ou em geral'
+                      : 'Nenhum registro de localização encontrado'
                     }
                   </h3>
                   <p className="text-sm">
-                    {employees.length === 0
+                     {employees.length === 0
                       ? 'Cadastre funcionários para ver os registros de localização'
-                      : 'Os registros de localização aparecerão aqui quando os funcionários registrarem o ponto com localização ativa'
+                      : selectedEmployee === 'all'
+                        ? 'Nenhum registro de localização encontrado para todos os funcionários.'
+                        : `Nenhum registro de localização encontrado para o funcionário selecionado.`
                     }
                   </p>
                 </div>
