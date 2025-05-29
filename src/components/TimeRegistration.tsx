@@ -1,143 +1,45 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, MapPin, Edit } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
+import { Clock, MapPin, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import TimeRegistrationProgress from './TimeRegistrationProgress';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
-// Importar o tipo Database do seu arquivo de tipos Supabase
-import { Database } from '@/integrations/supabase/types';
-
-// Tipos inferidos do banco de dados
-type TimeRecordRow = Database['public']['Tables']['time_records']['Row'];
-
-// Tipo melhorado para a estrutura de localização com detalhes completos
-interface LocationDetails {
-  lat: number;
-  lng: number;
-  street: string;        // Nome da rua
-  houseNumber: string;   // Número do endereço
-  neighborhood: string;  // Bairro
-  city: string;          // Cidade
-  state: string;         // Estado/Província
-  postalCode: string;    // CEP/Código postal
-  country: string;       // País
-  fullAddress: string;   // Endereço completo formatado
-}
-
-// Tipo para o campo 'locations' que agora é um objeto JSON
-interface TimeRecordLocations {
-  clockIn?: LocationDetails | null;
-  lunchStart?: LocationDetails | null;
-  lunchEnd?: LocationDetails | null;
-  clockOut?: LocationDetails | null;
-}
-
-// Atualizar o tipo TimeRecord para usar a nova estrutura de locations
 interface TimeRecord {
   id: string;
   date: string;
-  clock_in: string | null;
-  lunch_start: string | null;
-  lunch_end: string | null;
-  clock_out: string | null;
-  status: string;
-  locations: TimeRecordLocations | null;
+  clock_in?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  clock_out?: string;
+  locations?: any;
 }
 
-interface TimeRegistrationProps {
-  selectedDate: string;
+interface LocationData {
+  lat: number;
+  lng: number;
+  street: string;
+  houseNumber: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  fullAddress: string;
 }
 
-// Função melhorada para obter o endereço completo com todos os detalhes
-const getDetailedAddress = async (latitude: number, longitude: number): Promise<LocationDetails> => {
-  const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
-
-  try {
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'TCPonto/1.0 (contato@tcponto.com)'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Erro ao obter endereço: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (data && data.address) {
-      const addr = data.address;
-      
-      // Extrair componentes do endereço de forma robusta
-      const street = addr.road || addr.pedestrian || addr.footway || '';
-      const houseNumber = addr.house_number || '';
-      const neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || '';
-      const city = addr.city || addr.town || addr.village || addr.municipality || '';
-      const state = addr.state || addr.province || addr.region || '';
-      const postalCode = addr.postcode || '';
-      const country = addr.country || '';
-
-      // Montar endereço completo formatado
-      let fullAddress = '';
-      if (street) fullAddress += street;
-      if (houseNumber) fullAddress += (fullAddress ? ', ' : '') + houseNumber;
-      if (neighborhood) fullAddress += (fullAddress ? ' - ' : '') + neighborhood;
-      if (city) fullAddress += (fullAddress ? ', ' : '') + city;
-      if (state) fullAddress += (fullAddress ? '/' : '') + state;
-      if (postalCode) fullAddress += (fullAddress ? ' - CEP: ' : 'CEP: ') + postalCode;
-      if (country) fullAddress += (fullAddress ? ', ' : '') + country;
-
-      // Se não conseguiu montar endereço, usar display_name como fallback
-      if (!fullAddress.trim()) {
-        fullAddress = data.display_name || 'Endereço não disponível';
-      }
-
-      return {
-        lat: latitude,
-        lng: longitude,
-        street: street || 'Não informado',
-        houseNumber: houseNumber || 'S/N',
-        neighborhood: neighborhood || 'Não informado',
-        city: city || 'Não informado',
-        state: state || 'Não informado',
-        postalCode: postalCode || 'Não informado',
-        country: country || 'Não informado',
-        fullAddress: fullAddress
-      };
-
-    } else {
-      throw new Error('Dados de endereço não encontrados');
-    }
-  } catch (error) {
-    console.error('Erro ao obter endereço via Nominatim:', error);
-    
-    // Retornar estrutura básica em caso de erro
-    return {
-      lat: latitude,
-      lng: longitude,
-      street: 'Não disponível',
-      houseNumber: 'S/N',
-      neighborhood: 'Não disponível',
-      city: 'Não disponível',
-      state: 'Não disponível',
-      postalCode: 'Não disponível',
-      country: 'Não disponível',
-      fullAddress: `Localização: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-    };
-  }
-};
-
-const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
-  const [loading, setLoading] = useState(false);
+const TimeRegistration = () => {
   const { user } = useAuth();
-  const { toast } = useToast();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -149,275 +51,367 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
   useEffect(() => {
     if (user) {
-      loadTimeRecord();
+      loadTodayRecord();
+      getCurrentLocation();
     }
-  }, [selectedDate, user]);
+  }, [user]);
 
-  const loadTimeRecord = async () => {
+  const getCurrentLocation = async () => {
+    setLocationLoading(true);
+    try {
+      if (!navigator.geolocation) {
+        console.warn('Geolocalização não é suportada por este navegador');
+        setCurrentLocation(null);
+        return;
+      }
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+      console.log('Coordenadas obtidas:', latitude, longitude);
+
+      // Buscar detalhes do endereço usando Nominatim
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&accept-language=pt-BR`,
+          {
+            headers: {
+              'User-Agent': 'TimeTracker/1.0'
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Resposta do Nominatim:', data);
+
+          const address = data.address || {};
+          const locationData: LocationData = {
+            lat: latitude,
+            lng: longitude,
+            street: address.road || address.pedestrian || 'Não informado',
+            houseNumber: address.house_number || 'S/N',
+            neighborhood: address.neighbourhood || address.suburb || address.quarter || 'Não informado',
+            city: address.city || address.town || address.village || address.municipality || 'Não informado',
+            state: address.state || address.region || 'Não informado',
+            postalCode: address.postcode || 'Não informado',
+            country: address.country || 'Não informado',
+            fullAddress: data.display_name || `${latitude}, ${longitude}`
+          };
+
+          console.log('Dados de localização processados:', locationData);
+          setCurrentLocation(locationData);
+        } else {
+          throw new Error('Erro na resposta do Nominatim');
+        }
+      } catch (geocodeError) {
+        console.warn('Erro ao obter detalhes do endereço:', geocodeError);
+        // Fallback para coordenadas simples
+        const fallbackLocation: LocationData = {
+          lat: latitude,
+          lng: longitude,
+          street: 'Não informado',
+          houseNumber: 'S/N',
+          neighborhood: 'Não informado',
+          city: 'Não informado',
+          state: 'Não informado',
+          postalCode: 'Não informado',
+          country: 'Não informado',
+          fullAddress: `Coordenadas: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+        };
+        setCurrentLocation(fallbackLocation);
+      }
+    } catch (error) {
+      console.error('Erro ao obter localização:', error);
+      setCurrentLocation(null);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const loadTodayRecord = async () => {
     if (!user) return;
 
     try {
+      const today = format(new Date(), 'yyyy-MM-dd');
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
         .eq('user_id', user.id)
-        .eq('date', selectedDate)
-        .eq('status', 'active')
-        .single();
+        .eq('date', today)
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error loading time record:', error);
-        setTimeRecord(null);
-        return;
+        throw error;
       }
 
-      if (data) {
-        setTimeRecord({
-          id: data.id,
-          date: data.date,
-          clock_in: data.clock_in,
-          lunch_start: data.lunch_start,
-          lunch_end: data.lunch_end,
-          clock_out: data.clock_out,
-          status: data.status,
-          locations: data.locations as TimeRecordLocations | null
-        });
-      } else {
-         setTimeRecord(null);
-      }
+      setTodayRecord(data);
     } catch (error) {
-      console.error('Error loading time record:', error);
-      setTimeRecord(null);
+      console.error('Error loading today record:', error);
+      toast.error('Erro ao carregar registro do dia');
     }
   };
 
-  const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocalização não é suportada por este navegador.'));
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          });
-        },
-        (error) => {
-          console.error('Erro ao obter localização:', error);
-          let errorMessage = 'Erro desconhecido ao obter localização.';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = 'Permissão de geolocalização negada. Por favor, permita o acesso à sua localização nas configurações do navegador.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Informação de localização indisponível.';
-              break;
-            case error.TIMEOUT:
-              errorMessage = 'Tempo limite esgotado ao tentar obter a localização.';
-              break;
-          }
-          reject(new Error(errorMessage));
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
-    });
-  };
-
-  const registerTime = async (type: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
-    if (!user) return;
+  const updateTimeRecord = async (field: string, value: string, locationField: string) => {
+    if (!user || !currentLocation) {
+      toast.error('Localização necessária para registrar ponto');
+      return;
+    }
 
     setLoading(true);
-    let locationDetails: LocationDetails | null = null;
-
     try {
-      // 1. Obter as coordenadas
-      const coords = await getCurrentLocation();
-
-      // 2. Obter endereço detalhado
-      try {
-        locationDetails = await getDetailedAddress(coords.latitude, coords.longitude);
-      } catch (addressError) {
-        console.warn('Não foi possível obter o endereço detalhado:', addressError);
-        // Criar estrutura básica se falhar
-        locationDetails = {
-          lat: coords.latitude,
-          lng: coords.longitude,
-          street: 'Não disponível',
-          houseNumber: 'S/N',
-          neighborhood: 'Não disponível',
-          city: 'Não disponível',
-          state: 'Não disponível',
-          postalCode: 'Não disponível',
-          country: 'Não disponível',
-          fullAddress: `Coordenadas: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      if (todayRecord) {
+        // Atualizar registro existente
+        const existingLocations = todayRecord.locations || {};
+        const updatedLocations = {
+          ...existingLocations,
+          [locationField]: currentLocation
         };
-        
-        toast({
-          title: "Aviso",
-          description: "Coordenadas registradas, mas endereço detalhado não foi obtido.",
-          variant: "default",
-        });
-      }
 
-    } catch (locationError: any) {
-      console.error('Erro ao obter localização:', locationError);
-      toast({
-        title: "Erro de Localização",
-        description: locationError.message || "Não foi possível obter sua localização.",
-        variant: "destructive",
-      });
-    }
-
-    const currentTimeString = new Date().toLocaleTimeString('pt-BR', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-
-    try {
-      const updateData: any = { [type]: currentTimeString };
-
-      if (locationDetails) {
-           const existingLocations = timeRecord?.locations || {};
-           updateData.locations = {
-               ...existingLocations,
-               [type]: locationDetails
-           };
-      } else {
-          updateData.locations = timeRecord?.locations || null;
-      }
-
-      if (timeRecord) {
         const { error } = await supabase
           .from('time_records')
-          .update(updateData)
-          .eq('id', timeRecord.id);
+          .update({
+            [field]: value,
+            locations: updatedLocations,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', todayRecord.id);
 
         if (error) throw error;
-
       } else {
+        // Criar novo registro
+        const newLocations = {
+          [locationField]: currentLocation
+        };
+
         const { error } = await supabase
           .from('time_records')
           .insert({
             user_id: user.id,
-            date: selectedDate,
-            ...updateData,
-            status: 'active'
+            date: today,
+            [field]: value,
+            locations: newLocations
           });
 
         if (error) throw error;
       }
 
-      await loadTimeRecord();
-
-      const typeLabels = {
-        clock_in: 'Entrada',
-        lunch_start: 'Início do Almoço',
-        lunch_end: 'Fim do Almoço',
-        clock_out: 'Saída'
-      };
-
-      const locationMsg = locationDetails 
-        ? `Localização: ${locationDetails.city}, ${locationDetails.state}, ${locationDetails.country}` 
-        : 'Localização não registrada.';
-
-      toast({
-        title: "Registro realizado!",
-        description: `${typeLabels[type]} registrada às ${currentTimeString}. ${locationMsg}`,
-      });
-
+      await loadTodayRecord();
+      toast.success('Ponto registrado com sucesso!');
     } catch (error) {
-      console.error('Error registering time:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao registrar o ponto. Tente novamente.",
-        variant: "destructive",
-      });
+      console.error('Error updating time record:', error);
+      toast.error('Erro ao registrar ponto');
     } finally {
       setLoading(false);
     }
   };
 
-  const getNextAction = () => {
-    if (!timeRecord) return { type: 'clock_in', label: 'Registrar Entrada', icon: Clock };
-    if (!timeRecord.clock_in) return { type: 'clock_in', label: 'Registrar Entrada', icon: Clock };
-    if (!timeRecord.lunch_start) return { type: 'lunch_start', label: 'Registrar Início Almoço', icon: Clock };
-    if (!timeRecord.lunch_end) return { type: 'lunch_end', label: 'Registrar Fim Almoço', icon: Clock };
-    if (!timeRecord.clock_out) return { type: 'clock_out', label: 'Registrar Saída', icon: Clock };
-    return null;
+  const handleClockIn = () => {
+    const now = format(new Date(), 'HH:mm:ss');
+    updateTimeRecord('clock_in', now, 'clockIn');
   };
 
-  const nextAction = getNextAction();
-  const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
+  const handleLunchStart = () => {
+    const now = format(new Date(), 'HH:mm:ss');
+    updateTimeRecord('lunch_start', now, 'lunchStart');
+  };
 
-  const progressRecord = timeRecord ? {
-    clockIn: timeRecord.clock_in,
-    lunchStart: timeRecord.lunch_start,
-    lunchEnd: timeRecord.lunch_end,
-    clockOut: timeRecord.clock_out
-  } : {
-    clockIn: undefined,
-    lunchStart: undefined,
-    lunchEnd: undefined,
-    clockOut: undefined
+  const handleLunchEnd = () => {
+    const now = format(new Date(), 'HH:mm:ss');
+    updateTimeRecord('lunch_end', now, 'lunchEnd');
+  };
+
+  const handleClockOut = () => {
+    const now = format(new Date(), 'HH:mm:ss');
+    updateTimeRecord('clock_out', now, 'clockOut');
+  };
+
+  const getStatusBadge = () => {
+    if (!todayRecord) {
+      return <Badge variant="secondary">Não iniciado</Badge>;
+    }
+
+    if (todayRecord.clock_out) {
+      return <Badge className="bg-blue-600">Finalizado</Badge>;
+    }
+
+    if (todayRecord.lunch_start && !todayRecord.lunch_end) {
+      return <Badge className="bg-yellow-600">Em horário de almoço</Badge>;
+    }
+
+    if (todayRecord.clock_in) {
+      return <Badge className="bg-green-600">Trabalhando</Badge>;
+    }
+
+    return <Badge variant="secondary">Não iniciado</Badge>;
+  };
+
+  const isButtonDisabled = (action: string) => {
+    if (loading || !currentLocation) return true;
+
+    switch (action) {
+      case 'clock_in':
+        return todayRecord?.clock_in !== undefined;
+      case 'lunch_start':
+        return !todayRecord?.clock_in || todayRecord?.lunch_start !== undefined;
+      case 'lunch_end':
+        return !todayRecord?.lunch_start || todayRecord?.lunch_end !== undefined;
+      case 'clock_out':
+        return !todayRecord?.clock_in || todayRecord?.clock_out !== undefined;
+      default:
+        return false;
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Relógio */}
-      <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
-        <CardHeader className="text-center">
-          <CardTitle className="text-primary-900">
-            {format(new Date(selectedDate + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })}
+    <div className="max-w-2xl mx-auto space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Registro de Ponto
           </CardTitle>
-          <div className="text-4xl font-bold text-primary-700 font-mono">
-            {currentTime.toLocaleTimeString('pt-BR', { hour12: false })}
-          </div>
         </CardHeader>
-      </Card>
+        <CardContent className="space-y-6">
+          <div className="text-center">
+            <div className="text-3xl font-mono font-bold">
+              {format(currentTime, 'HH:mm:ss')}
+            </div>
+            <div className="text-lg text-gray-600">
+              {format(currentTime, 'dd/MM/yyyy')}
+            </div>
+            <div className="mt-2">
+              {getStatusBadge()}
+            </div>
+          </div>
 
-      {/* Progresso do Dia */}
-      <TimeRegistrationProgress record={progressRecord} />
+          {/* Status da Localização */}
+          <Card className="bg-gray-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="w-4 h-4" />
+                <span className="font-medium">Localização</span>
+                {locationLoading ? (
+                  <Badge variant="secondary">Carregando...</Badge>
+                ) : currentLocation ? (
+                  <Badge className="bg-green-600">
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Obtida
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive">
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Não disponível
+                  </Badge>
+                )}
+              </div>
+              
+              {currentLocation ? (
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div className="font-medium">{currentLocation.fullAddress}</div>
+                  <div>📍 {currentLocation.street}, {currentLocation.houseNumber}</div>
+                  <div>🏘️ {currentLocation.neighborhood}</div>
+                  <div>🏙️ {currentLocation.city}/{currentLocation.state}</div>
+                  <div>📮 {currentLocation.postalCode} - 🌍 {currentLocation.country}</div>
+                  <div className="text-xs text-gray-500">
+                    📌 {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Localização necessária para registrar ponto
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={getCurrentLocation}
+                    disabled={locationLoading}
+                  >
+                    {locationLoading ? 'Obtendo...' : 'Tentar novamente'}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Botão de Ação Principal */}
-      {nextAction && isToday && (
-        <Card>
-          <CardContent className="p-6">
+          {/* Botões de Registro */}
+          <div className="grid grid-cols-2 gap-4">
             <Button
-              onClick={() => registerTime(nextAction.type as any)}
-              disabled={loading}
-              className="w-full h-16 text-lg"
-              size="lg"
+              onClick={handleClockIn}
+              disabled={isButtonDisabled('clock_in')}
+              className="h-16"
             >
-              <nextAction.icon className="w-6 h-6 mr-3" />
-              {loading ? 'Obtendo localização detalhada e registrando...' : nextAction.label}
+              <Clock className="w-5 h-5 mr-2" />
+              Entrada
             </Button>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Edição para dias passados */}
-      {!isToday && (
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-gray-600 mb-4">
-              Ajustar registros de {format(new Date(selectedDate + 'T00:00:00'), "dd/MM/yyyy")}
-            </p>
-            <Button variant="outline" className="w-full">
-              <Edit className="w-4 h-4 mr-2" />
-              Solicitar Edição
+            <Button
+              onClick={handleLunchStart}
+              disabled={isButtonDisabled('lunch_start')}
+              variant="outline"
+              className="h-16"
+            >
+              <Clock className="w-5 h-5 mr-2" />
+              Saída Almoço
             </Button>
-          </CardContent>
-        </Card>
-      )}
+
+            <Button
+              onClick={handleLunchEnd}
+              disabled={isButtonDisabled('lunch_end')}
+              variant="outline"
+              className="h-16"
+            >
+              <Clock className="w-5 h-5 mr-2" />
+              Volta Almoço
+            </Button>
+
+            <Button
+              onClick={handleClockOut}
+              disabled={isButtonDisabled('clock_out')}
+              variant="destructive"
+              className="h-16"
+            >
+              <Clock className="w-5 h-5 mr-2" />
+              Saída
+            </Button>
+          </div>
+
+          {/* Resumo do Dia */}
+          {todayRecord && (
+            <Card className="bg-blue-50">
+              <CardContent className="p-4">
+                <h3 className="font-medium mb-3">Resumo do Dia</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Entrada:</span>
+                    <div className="font-mono">{todayRecord.clock_in || '-'}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Saída Almoço:</span>
+                    <div className="font-mono">{todayRecord.lunch_start || '-'}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Volta Almoço:</span>
+                    <div className="font-mono">{todayRecord.lunch_end || '-'}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Saída:</span>
+                    <div className="font-mono">{todayRecord.clock_out || '-'}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -36,14 +36,6 @@ interface LocationDetails {
   fullAddress: string;
 }
 
-interface TimeRecordLocations {
-  clockIn?: LocationDetails | null;
-  lunchStart?: LocationDetails | null;
-  lunchEnd?: LocationDetails | null;
-  clockOut?: LocationDetails | null;
-  [key: string]: LocationDetails | null | undefined;
-}
-
 interface TimeRecordReportRow {
   recordId: string;
   userId: string;
@@ -64,18 +56,66 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função melhorada para processar os dados de localização
+// Função melhorada para processar os dados de localização com múltiplos formatos
 const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
+  console.log(`Processando localização para campo ${fieldName}:`, locations);
+  
   if (!locations || typeof locations !== 'object' || Array.isArray(locations)) {
+    console.log(`Dados de localização inválidos para ${fieldName}`);
     return null;
   }
 
   const locObject = locations as Record<string, any>;
-  const fieldData = locObject[fieldName];
+  
+  // Tentar múltiplas variações do nome do campo
+  const possibleFields = [
+    fieldName,
+    fieldName.toLowerCase(),
+    fieldName.replace(/([A-Z])/g, '_$1').toLowerCase().substring(1), // camelCase para snake_case
+    fieldName.charAt(0).toLowerCase() + fieldName.slice(1) // primeira letra minúscula
+  ];
 
-  if (fieldData && typeof fieldData === 'object') {
+  let fieldData = null;
+  let foundFieldName = '';
+
+  // Buscar o campo nos possíveis formatos
+  for (const possibleField of possibleFields) {
+    if (locObject[possibleField]) {
+      fieldData = locObject[possibleField];
+      foundFieldName = possibleField;
+      console.log(`Campo encontrado como: ${possibleField}`, fieldData);
+      break;
+    }
+  }
+
+  if (!fieldData) {
+    console.log(`Nenhum dado encontrado para campo ${fieldName} nas variações:`, possibleFields);
+    return null;
+  }
+
+  // Se for string simples (formato muito antigo)
+  if (typeof fieldData === 'string') {
+    console.log(`Formato string simples detectado para ${foundFieldName}:`, fieldData);
+    return {
+      lat: 0,
+      lng: 0,
+      street: 'Não informado',
+      houseNumber: 'S/N',
+      neighborhood: 'Não informado',
+      city: 'Não informado',
+      state: 'Não informado',
+      postalCode: 'Não informado',
+      country: 'Não informado',
+      fullAddress: fieldData
+    };
+  }
+
+  // Se for objeto
+  if (typeof fieldData === 'object') {
+    console.log(`Formato objeto detectado para ${foundFieldName}:`, fieldData);
+    
     // Verificar se é o novo formato com detalhes completos
-    if (fieldData.street !== undefined) {
+    if (fieldData.street !== undefined || fieldData.fullAddress !== undefined) {
       return {
         lat: Number(fieldData.lat) || 0,
         lng: Number(fieldData.lng) || 0,
@@ -89,8 +129,9 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
         fullAddress: fieldData.fullAddress || 'Endereço não disponível'
       };
     } 
-    // Formato antigo (compatibilidade)
+    // Formato antigo (apenas coordenadas)
     else if (fieldData.lat !== undefined && fieldData.lng !== undefined) {
+      console.log(`Formato antigo (coordenadas) detectado para ${foundFieldName}`);
       return {
         lat: Number(fieldData.lat) || 0,
         lng: Number(fieldData.lng) || 0,
@@ -104,8 +145,25 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
         fullAddress: fieldData.address || `Coordenadas: ${fieldData.lat}, ${fieldData.lng}`
       };
     }
+    // Formato com apenas endereço
+    else if (fieldData.address) {
+      console.log(`Formato com address simples detectado para ${foundFieldName}`);
+      return {
+        lat: Number(fieldData.latitude || fieldData.lat) || 0,
+        lng: Number(fieldData.longitude || fieldData.lng) || 0,
+        street: 'Não informado',
+        houseNumber: 'S/N',
+        neighborhood: 'Não informado',
+        city: 'Não informado',
+        state: 'Não informado',
+        postalCode: 'Não informado',
+        country: 'Não informado',
+        fullAddress: fieldData.address
+      };
+    }
   }
 
+  console.log(`Formato não reconhecido para ${foundFieldName}:`, fieldData);
   return null;
 };
 
@@ -126,6 +184,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
 
     setLoading(true);
+    console.log('=== INÍCIO CARREGAMENTO DADOS DE LOCALIZAÇÃO ===');
 
     try {
       const { data, error } = await supabase
@@ -150,6 +209,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         throw error;
       }
 
+      console.log('Registros carregados do banco:', data?.length || 0);
+      
       const employeeMap = employees.reduce((map, employee) => {
         if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
            map[employee.id] = employee.name;
@@ -157,14 +218,36 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return map;
       }, {} as Record<string, string>);
 
-      const formattedData: TimeRecordReportRow[] = data?.map((record) => {
+      console.log('Mapeamento de funcionários:', employeeMap);
+
+      const formattedData: TimeRecordReportRow[] = data?.map((record, index) => {
+        console.log(`\n--- Processando registro ${index + 1}/${data.length} ---`);
+        console.log('Record ID:', record.id);
+        console.log('User ID:', record.user_id);
+        console.log('Data:', record.date);
+        console.log('Locations raw:', record.locations);
+
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations;
 
+        // Processar cada tipo de localização com logs detalhados
+        console.log('Processando clockIn...');
         const clockInLocation = processLocationData(locations, 'clockIn');
+        
+        console.log('Processando lunchStart...');
         const lunchStartLocation = processLocationData(locations, 'lunchStart');
+        
+        console.log('Processando lunchEnd...');
         const lunchEndLocation = processLocationData(locations, 'lunchEnd');
+        
+        console.log('Processando clockOut...');
         const clockOutLocation = processLocationData(locations, 'clockOut');
+
+        console.log('Resultado final do processamento:');
+        console.log('- clockInLocation:', clockInLocation ? 'OK' : 'NULL');
+        console.log('- lunchStartLocation:', lunchStartLocation ? 'OK' : 'NULL');
+        console.log('- lunchEndLocation:', lunchEndLocation ? 'OK' : 'NULL');
+        console.log('- clockOutLocation:', clockOutLocation ? 'OK' : 'NULL');
 
         return {
           recordId: record.id,
@@ -181,6 +264,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           clockOutLocation,
         };
       }) || [];
+
+      console.log('=== DADOS FINAIS FORMATADOS ===');
+      console.log('Total de registros processados:', formattedData.length);
+      console.log('Registros com pelo menos uma localização:', 
+        formattedData.filter(r => r.clockInLocation || r.lunchStartLocation || r.lunchEndLocation || r.clockOutLocation).length
+      );
 
       setTimeRecordsReportData(formattedData);
 
@@ -206,14 +295,28 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     return (
       <div className="text-xs">
         <div className="font-medium mb-1">{location.fullAddress}</div>
-        <div className="text-gray-500 space-y-0.5">
-          <div>📍 {location.street}, {location.houseNumber}</div>
-          <div>🏘️ {location.neighborhood}</div>
-          <div>🏙️ {location.city}/{location.state}</div>
-          <div>📮 {location.postalCode}</div>
-          <div>🌍 {location.country}</div>
-          <div>📌 {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</div>
-        </div>
+        {(location.street !== 'Não informado' || location.city !== 'Não informado') && (
+          <div className="text-gray-500 space-y-0.5">
+            {location.street !== 'Não informado' && (
+              <div>📍 {location.street}, {location.houseNumber}</div>
+            )}
+            {location.neighborhood !== 'Não informado' && (
+              <div>🏘️ {location.neighborhood}</div>
+            )}
+            {location.city !== 'Não informado' && (
+              <div>🏙️ {location.city}/{location.state}</div>
+            )}
+            {location.postalCode !== 'Não informado' && (
+              <div>📮 {location.postalCode}</div>
+            )}
+            {location.country !== 'Não informado' && (
+              <div>🌍 {location.country}</div>
+            )}
+            {(location.lat !== 0 || location.lng !== 0) && (
+              <div>📌 {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -326,9 +429,11 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Funcionários Cadastrados</label>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {employees.length}
+                  <label className="text-sm font-medium">Registros com Localização</label>
+                  <div className="text-2xl font-bold text-green-600">
+                    {filteredTimeRecords.filter(r => 
+                      r.clockInLocation || r.lunchStartLocation || r.lunchEndLocation || r.clockOutLocation
+                    ).length}
                   </div>
                 </div>
               </div>
