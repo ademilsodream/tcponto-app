@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle } from 'lucide-react'; // Removido MapPin, XCircle, AlertCircle
+import { Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -17,7 +17,7 @@ interface TimeRecord {
   lunch_start?: string;
   lunch_end?: string;
   clock_out?: string;
-  locations?: any; // Mantido para salvar a localização, mas não será exibido
+  locations?: any;
 }
 
 
@@ -45,8 +45,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
   const [loading, setLoading] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(false); // Mantido para a lógica interna
-  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null); // Mantido para a lógica interna
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
   const intervalRef = useRef<NodeJS.Timeout>();
 
 
@@ -67,7 +67,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   useEffect(() => {
     if (user) {
       loadTodayRecord();
-      getCurrentLocation(); // Ainda obtém a localização para salvar, mesmo sem exibir
+      getCurrentLocation();
     }
   }, [user, selectedDate]);
 
@@ -92,7 +92,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
 
       const { latitude, longitude } = position.coords;
-      //console.log('Coordenadas obtidas:', latitude, longitude); // Log removido para ser mais conciso
 
 
       // Buscar detalhes do endereço usando Nominatim
@@ -109,7 +108,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
         if (response.ok) {
           const data = await response.json();
-          //console.log('Resposta do Nominatim:', data); // Log removido
 
 
           const address = data.address || {};
@@ -127,7 +125,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           };
 
 
-          //console.log('Dados de localização processados:', locationData); // Log removido
           setCurrentLocation(locationData);
         } else {
           throw new Error('Erro na resposta do Nominatim');
@@ -186,10 +183,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
 
   const updateTimeRecord = async (field: string, value: string, locationField: string) => {
-    // A localização ainda é necessária para a lógica de salvar, mesmo que não seja exibida
     if (!user || !currentLocation) {
       toast.error('Localização necessária para registrar ponto');
-      // Tenta obter a localização novamente se falhou
       getCurrentLocation();
       return;
     }
@@ -200,7 +195,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       const today = selectedDate || format(new Date(), 'yyyy-MM-dd');
       
       if (todayRecord) {
-        // Atualizar registro existente
         const existingLocations = todayRecord.locations || {};
         const updatedLocations = {
           ...existingLocations,
@@ -212,7 +206,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           .from('time_records')
           .update({
             [field]: value,
-            locations: JSON.parse(JSON.stringify(updatedLocations)), // Converter para JSON válido
+            locations: JSON.parse(JSON.stringify(updatedLocations)),
             updated_at: new Date().toISOString()
           })
           .eq('id', todayRecord.id);
@@ -220,7 +214,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
         if (error) throw error;
       } else {
-        // Criar novo registro
         const newLocations = {
           [locationField]: currentLocation
         };
@@ -232,7 +225,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
             user_id: user.id,
             date: today,
             [field]: value,
-            locations: JSON.parse(JSON.stringify(newLocations)) // Converter para JSON válido
+            locations: JSON.parse(JSON.stringify(newLocations))
           });
 
 
@@ -307,8 +300,9 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       return (
         <Button
           onClick={handleClockIn}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          className="h-16 w-full" // w-full para ocupar a largura total
+          disabled={loading || !currentLocation}
+          className="h-16 w-full"
+          variant="primary" // Adicionado variant="primary" para cor azul
         >
           <Clock className="w-5 h-5 mr-2" />
           Registrar Entrada
@@ -322,8 +316,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       return (
         <Button
           onClick={handleLunchStart}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="outline"
+          disabled={loading || !currentLocation}
+          variant="primary" // Alterado para variant="primary" para cor azul
           className="h-16 w-full"
         >
           <Clock className="w-5 h-5 mr-2" />
@@ -338,8 +332,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       return (
         <Button
           onClick={handleLunchEnd}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="outline"
+          disabled={loading || !currentLocation}
+          variant="primary" // Alterado para variant="primary" para cor azul
           className="h-16 w-full"
         >
           <Clock className="w-5 h-5 mr-2" />
@@ -354,8 +348,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       return (
         <Button
           onClick={handleClockOut}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="destructive"
+          disabled={loading || !currentLocation}
+          variant="primary" // Alterado para variant="primary" para cor azul (era destructive)
           className="h-16 w-full"
         >
           <Clock className="w-5 h-5 mr-2" />
@@ -369,14 +363,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     if (todayRecord.clock_out) {
         return (
             <div className="text-center text-green-600 font-semibold py-4">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2" /> {/* Ícone maior */}
+                <CheckCircle className="w-8 h-8 mx-auto mb-2" />
                 Todos os registros do dia foram concluídos!
             </div>
         );
     }
 
 
-    // Caso padrão (não deve acontecer se a lógica estiver correta)
     return null;
   };
 
@@ -420,7 +413,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
 
       {/* Botões de Registro - Exibidos sequencialmente */}
-      <div className="flex justify-center"> {/* Centraliza o botão */}
+      <div className="flex justify-center">
         {renderActionButton()}
       </div>
 
