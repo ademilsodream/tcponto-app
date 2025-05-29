@@ -397,11 +397,7 @@ const Dashboard = () => {
   const renderEmployeeContent = () => {
     switch (activeEmployeeView) {
       case 'timeRegistration':
-        return (
-          <TimeRegistration 
-            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-          />
-        );
+        return <TimeRegistration />;
       case 'timeAdjustment':
         return <TimeAdjustmentCards />;
       case 'incompleteRecords':
@@ -426,11 +422,7 @@ const Dashboard = () => {
           />
         );
       default:
-        return (
-          <TimeRegistration 
-            selectedDate={format(selectedDate, 'yyyy-MM-dd')}
-          />
-        );
+        return <TimeRegistration />;
     }
   };
 

@@ -32,7 +32,11 @@ interface LocationData {
   fullAddress: string;
 }
 
-const TimeRegistration = () => {
+interface TimeRegistrationProps {
+  selectedDate?: string;
+}
+
+const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => {
   const { user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
@@ -40,6 +44,9 @@ const TimeRegistration = () => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
   const intervalRef = useRef<NodeJS.Timeout>();
+
+  // Use selectedDate se fornecido, senão use a data atual
+  const displayDate = selectedDate ? new Date(selectedDate) : new Date();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -54,7 +61,7 @@ const TimeRegistration = () => {
       loadTodayRecord();
       getCurrentLocation();
     }
-  }, [user]);
+  }, [user, selectedDate]);
 
   const getCurrentLocation = async () => {
     setLocationLoading(true);
@@ -139,7 +146,7 @@ const TimeRegistration = () => {
     if (!user) return;
 
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = selectedDate || format(new Date(), 'yyyy-MM-dd');
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
@@ -166,7 +173,7 @@ const TimeRegistration = () => {
 
     setLoading(true);
     try {
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = selectedDate || format(new Date(), 'yyyy-MM-dd');
       
       if (todayRecord) {
         // Atualizar registro existente
@@ -180,7 +187,7 @@ const TimeRegistration = () => {
           .from('time_records')
           .update({
             [field]: value,
-            locations: updatedLocations,
+            locations: JSON.parse(JSON.stringify(updatedLocations)), // Converter para JSON válido
             updated_at: new Date().toISOString()
           })
           .eq('id', todayRecord.id);
@@ -198,7 +205,7 @@ const TimeRegistration = () => {
             user_id: user.id,
             date: today,
             [field]: value,
-            locations: newLocations
+            locations: JSON.parse(JSON.stringify(newLocations)) // Converter para JSON válido
           });
 
         if (error) throw error;
@@ -286,7 +293,7 @@ const TimeRegistration = () => {
               {format(currentTime, 'HH:mm:ss')}
             </div>
             <div className="text-lg text-gray-600">
-              {format(currentTime, 'dd/MM/yyyy')}
+              {format(displayDate, 'dd/MM/yyyy')}
             </div>
             <div className="mt-2">
               {getStatusBadge()}
