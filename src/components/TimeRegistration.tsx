@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import TimeRegistrationProgress from './TimeRegistrationProgress';
 
 interface TimeRecord {
   id: string;
@@ -299,126 +300,138 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
               {getStatusBadge()}
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Status da Localização */}
-          <Card className="bg-gray-50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <MapPin className="w-4 h-4" />
-                <span className="font-medium">Localização</span>
-                {locationLoading ? (
-                  <Badge variant="secondary">Carregando...</Badge>
-                ) : currentLocation ? (
-                  <Badge className="bg-green-600">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Obtida
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive">
-                    <XCircle className="w-3 h-3 mr-1" />
-                    Não disponível
-                  </Badge>
-                )}
-              </div>
-              
-              {currentLocation ? (
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div className="font-medium">{currentLocation.fullAddress}</div>
-                  <div>📍 {currentLocation.street}, {currentLocation.houseNumber}</div>
-                  <div>🏘️ {currentLocation.neighborhood}</div>
-                  <div>🏙️ {currentLocation.city}/{currentLocation.state}</div>
-                  <div>📮 {currentLocation.postalCode} - 🌍 {currentLocation.country}</div>
-                  <div className="text-xs text-gray-500">
-                    📌 {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Localização necessária para registrar ponto
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={getCurrentLocation}
-                    disabled={locationLoading}
-                  >
-                    {locationLoading ? 'Obtendo...' : 'Tentar novamente'}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      {/* Componente de Progresso */}
+      {todayRecord && (
+        <TimeRegistrationProgress 
+          record={{
+            clockIn: todayRecord.clock_in,
+            lunchStart: todayRecord.lunch_start,
+            lunchEnd: todayRecord.lunch_end,
+            clockOut: todayRecord.clock_out
+          }} 
+        />
+      )}
 
-          {/* Botões de Registro */}
-          <div className="grid grid-cols-2 gap-4">
-            <Button
-              onClick={handleClockIn}
-              disabled={isButtonDisabled('clock_in')}
-              className="h-16"
-            >
-              <Clock className="w-5 h-5 mr-2" />
-              Entrada
-            </Button>
-
-            <Button
-              onClick={handleLunchStart}
-              disabled={isButtonDisabled('lunch_start')}
-              variant="outline"
-              className="h-16"
-            >
-              <Clock className="w-5 h-5 mr-2" />
-              Saída Almoço
-            </Button>
-
-            <Button
-              onClick={handleLunchEnd}
-              disabled={isButtonDisabled('lunch_end')}
-              variant="outline"
-              className="h-16"
-            >
-              <Clock className="w-5 h-5 mr-2" />
-              Volta Almoço
-            </Button>
-
-            <Button
-              onClick={handleClockOut}
-              disabled={isButtonDisabled('clock_out')}
-              variant="destructive"
-              className="h-16"
-            >
-              <Clock className="w-5 h-5 mr-2" />
-              Saída
-            </Button>
+      {/* Status da Localização */}
+      <Card className="bg-gray-50">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin className="w-4 h-4" />
+            <span className="font-medium">Localização</span>
+            {locationLoading ? (
+              <Badge variant="secondary">Carregando...</Badge>
+            ) : currentLocation ? (
+              <Badge className="bg-green-600">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Obtida
+              </Badge>
+            ) : (
+              <Badge variant="destructive">
+                <XCircle className="w-3 h-3 mr-1" />
+                Não disponível
+              </Badge>
+            )}
           </div>
-
-          {/* Resumo do Dia */}
-          {todayRecord && (
-            <Card className="bg-blue-50">
-              <CardContent className="p-4">
-                <h3 className="font-medium mb-3">Resumo do Dia</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Entrada:</span>
-                    <div className="font-mono">{todayRecord.clock_in || '-'}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Saída Almoço:</span>
-                    <div className="font-mono">{todayRecord.lunch_start || '-'}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Volta Almoço:</span>
-                    <div className="font-mono">{todayRecord.lunch_end || '-'}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Saída:</span>
-                    <div className="font-mono">{todayRecord.clock_out || '-'}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          
+          {currentLocation ? (
+            <div className="text-sm text-gray-600 space-y-1">
+              <div className="font-medium">{currentLocation.fullAddress}</div>
+              <div>📍 {currentLocation.street}, {currentLocation.houseNumber}</div>
+              <div>🏘️ {currentLocation.neighborhood}</div>
+              <div>🏙️ {currentLocation.city}/{currentLocation.state}</div>
+              <div>📮 {currentLocation.postalCode} - 🌍 {currentLocation.country}</div>
+              <div className="text-xs text-gray-500">
+                📌 {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Localização necessária para registrar ponto
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={getCurrentLocation}
+                disabled={locationLoading}
+              >
+                {locationLoading ? 'Obtendo...' : 'Tentar novamente'}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Botões de Registro */}
+      <div className="grid grid-cols-2 gap-4">
+        <Button
+          onClick={handleClockIn}
+          disabled={isButtonDisabled('clock_in')}
+          className="h-16"
+        >
+          <Clock className="w-5 h-5 mr-2" />
+          Entrada
+        </Button>
+
+        <Button
+          onClick={handleLunchStart}
+          disabled={isButtonDisabled('lunch_start')}
+          variant="outline"
+          className="h-16"
+        >
+          <Clock className="w-5 h-5 mr-2" />
+          Saída Almoço
+        </Button>
+
+        <Button
+          onClick={handleLunchEnd}
+          disabled={isButtonDisabled('lunch_end')}
+          variant="outline"
+          className="h-16"
+        >
+          <Clock className="w-5 h-5 mr-2" />
+          Volta Almoço
+        </Button>
+
+        <Button
+          onClick={handleClockOut}
+          disabled={isButtonDisabled('clock_out')}
+          variant="destructive"
+          className="h-16"
+        >
+          <Clock className="w-5 h-5 mr-2" />
+          Saída
+        </Button>
+      </div>
+
+      {/* Resumo do Dia */}
+      {todayRecord && (
+        <Card className="bg-blue-50">
+          <CardContent className="p-4">
+            <h3 className="font-medium mb-3">Resumo do Dia</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Entrada:</span>
+                <div className="font-mono">{todayRecord.clock_in || '-'}</div>
+              </div>
+              <div>
+                <span className="text-gray-600">Saída Almoço:</span>
+                <div className="font-mono">{todayRecord.lunch_start || '-'}</div>
+              </div>
+              <div>
+                <span className="text-gray-600">Volta Almoço:</span>
+                <div className="font-mono">{todayRecord.lunch_end || '-'}</div>
+              </div>
+              <div>
+                <span className="text-gray-600">Saída:</span>
+                <div className="font-mono">{todayRecord.clock_out || '-'}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
