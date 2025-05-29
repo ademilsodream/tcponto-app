@@ -10,17 +10,23 @@ import TimeRegistrationProgress from './TimeRegistrationProgress';
 import { useToast } from '@/hooks/use-toast';
 
 // Importar o tipo Database do seu arquivo de tipos Supabase
-// Assumindo que 'locations' é jsonb no seu schema Supabase
-import { Database } from '@/integrations/supabase/types'; // Ajuste o caminho conforme necessário
+import { Database } from '@/integrations/supabase/types';
 
 // Tipos inferidos do banco de dados
 type TimeRecordRow = Database['public']['Tables']['time_records']['Row'];
 
-// Tipo para a estrutura de localização dentro do campo 'locations'
+// Tipo melhorado para a estrutura de localização com detalhes completos
 interface LocationDetails {
   lat: number;
   lng: number;
-  address: string; // Endereço formatado
+  street: string;        // Nome da rua
+  houseNumber: string;   // Número do endereço
+  neighborhood: string;  // Bairro
+  city: string;          // Cidade
+  state: string;         // Estado/Província
+  postalCode: string;    // CEP/Código postal
+  country: string;       // País
+  fullAddress: string;   // Endereço completo formatado
 }
 
 // Tipo para o campo 'locations' que agora é um objeto JSON
@@ -29,7 +35,6 @@ interface TimeRecordLocations {
   lunchStart?: LocationDetails | null;
   lunchEnd?: LocationDetails | null;
   clockOut?: LocationDetails | null;
-  // Adicione outros tipos de ponto se existirem
 }
 
 // Atualizar o tipo TimeRecord para usar a nova estrutura de locations
@@ -41,84 +46,96 @@ interface TimeRecord {
   lunch_end: string | null;
   clock_out: string | null;
   status: string;
-  locations: TimeRecordLocations | null; // Agora é um objeto estruturado
+  locations: TimeRecordLocations | null;
 }
 
 interface TimeRegistrationProps {
   selectedDate: string;
 }
 
-// Função para obter o endereço a partir das coordenadas usando Nominatim
-const getStreetAddress = async (latitude: number, longitude: number): Promise<string> => {
-  // URL do endpoint de geocodificação reversa do Nominatim
-  // zoom=18 geralmente dá detalhes de rua e número
-  // addressdetails=1 inclui componentes do endereço
+// Função melhorada para obter o endereço completo com todos os detalhes
+const getDetailedAddress = async (latitude: number, longitude: number): Promise<LocationDetails> => {
   const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
 
   try {
     const response = await fetch(nominatimUrl, {
       headers: {
-        // Nominatim requer um User-Agent. Substitua pelo nome da sua aplicação e um contato.
-        'User-Agent': 'YourAppName/1.0 (your-email@example.com)' // <-- MUDE ISSO!
+        'User-Agent': 'TCPonto/1.0 (contato@tcponto.com)'
       }
     });
 
     if (!response.ok) {
-      // Tenta ler o erro da resposta se disponível
-      const errorText = await response.text();
-      console.error(`Erro HTTP ao obter endereço: ${response.status} - ${errorText}`);
       throw new Error(`Erro ao obter endereço: ${response.status}`);
     }
 
     const data = await response.json();
 
-    // Verifica se a resposta contém um endereço
-    if (data && data.display_name) {
-      // Nominatim fornece display_name que é o endereço completo formatado
-      // Você também pode construir o endereço a partir de data.address
-      const addressComponents = data.address;
-      let formattedAddress = data.display_name; // Endereço completo padrão
+    if (data && data.address) {
+      const addr = data.address;
+      
+      // Extrair componentes do endereço de forma robusta
+      const street = addr.road || addr.pedestrian || addr.footway || '';
+      const houseNumber = addr.house_number || '';
+      const neighborhood = addr.neighbourhood || addr.suburb || addr.quarter || '';
+      const city = addr.city || addr.town || addr.village || addr.municipality || '';
+      const state = addr.state || addr.province || addr.region || '';
+      const postalCode = addr.postcode || '';
+      const country = addr.country || '';
 
-      // Exemplo de como construir um endereço mais específico se necessário
-      // Os campos disponíveis em addressComponents variam muito dependendo da localização
-      const street = addressComponents.road || addressComponents.pedestrian || '';
-      const houseNumber = addressComponents.house_number || '';
-      const neighbourhood = addressComponents.neighbourhood || addressComponents.suburb || '';
-      const city = addressComponents.city || addressComponents.town || addressComponents.village || '';
-      const state = addressComponents.state || '';
-      const postcode = addressComponents.postcode || '';
-      const country = addressComponents.country || '';
+      // Montar endereço completo formatado
+      let fullAddress = '';
+      if (street) fullAddress += street;
+      if (houseNumber) fullAddress += (fullAddress ? ', ' : '') + houseNumber;
+      if (neighborhood) fullAddress += (fullAddress ? ' - ' : '') + neighborhood;
+      if (city) fullAddress += (fullAddress ? ', ' : '') + city;
+      if (state) fullAddress += (fullAddress ? '/' : '') + state;
+      if (postalCode) fullAddress += (fullAddress ? ' - CEP: ' : 'CEP: ') + postalCode;
+      if (country) fullAddress += (fullAddress ? ', ' : '') + country;
 
-      // Constrói um formato específico (ajuste conforme sua necessidade)
-      // Ex: Rua X, 123, Bairro Y - Cidade Z/UF - CEP: 00000-000, País
-      formattedAddress = `${street}${houseNumber ? ', ' + houseNumber : ''}${neighbourhood ? ', ' + neighbourhood : ''}${city ? ' - ' + city : ''}${state ? '/' + state : ''}${postcode ? ' - CEP: ' + postcode : ''}${country ? ', ' + country : ''}`;
+      // Se não conseguiu montar endereço, usar display_name como fallback
+      if (!fullAddress.trim()) {
+        fullAddress = data.display_name || 'Endereço não disponível';
+      }
 
-      // Limpa vírgulas/espaços extras no início ou fim
-      formattedAddress = formattedAddress.replace(/^[,\s]+|[,\s]+$/g, '');
-      formattedAddress = formattedAddress.replace(/,\s*,/g, ','); // Substitui vírgulas duplas
-
-      // Retorna o endereço construído ou o display_name se a construção falhar/for vazia
-      return formattedAddress || data.display_name || 'Endereço não encontrado';
+      return {
+        lat: latitude,
+        lng: longitude,
+        street: street || 'Não informado',
+        houseNumber: houseNumber || 'S/N',
+        neighborhood: neighborhood || 'Não informado',
+        city: city || 'Não informado',
+        state: state || 'Não informado',
+        postalCode: postalCode || 'Não informado',
+        country: country || 'Não informado',
+        fullAddress: fullAddress
+      };
 
     } else {
-      // Se display_name não estiver na resposta, pode significar que não encontrou endereço
-      console.warn('Nominatim não encontrou endereço para as coordenadas.');
-      return 'Endereço não encontrado';
+      throw new Error('Dados de endereço não encontrados');
     }
   } catch (error) {
     console.error('Erro ao obter endereço via Nominatim:', error);
-    // Em caso de erro na requisição ou processamento
-    throw new Error('Não foi possível obter o endereço.');
+    
+    // Retornar estrutura básica em caso de erro
+    return {
+      lat: latitude,
+      lng: longitude,
+      street: 'Não disponível',
+      houseNumber: 'S/N',
+      neighborhood: 'Não disponível',
+      city: 'Não disponível',
+      state: 'Não disponível',
+      postalCode: 'Não disponível',
+      country: 'Não disponível',
+      fullAddress: `Localização: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+    };
   }
 };
-
 
 const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [loading, setLoading] = useState(false);
-  // location state não é mais estritamente necessário aqui, pois a localização é buscada no momento do registro
-  // const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -140,7 +157,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     if (!user) return;
 
     try {
-      // Usar o tipo inferido para a query
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
@@ -149,16 +165,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         .eq('status', 'active')
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+      if (error && error.code !== 'PGRST116') {
         console.error('Error loading time record:', error);
-        // Considere mostrar um erro na UI
-        setTimeRecord(null); // Garante que o estado está limpo se houver erro
+        setTimeRecord(null);
         return;
       }
 
       if (data) {
-        // Mapear os dados do Supabase para o tipo TimeRecord,
-        // garantindo que 'locations' seja tratado como objeto
         setTimeRecord({
           id: data.id,
           date: data.date,
@@ -167,18 +180,17 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           lunch_end: data.lunch_end,
           clock_out: data.clock_out,
           status: data.status,
-          locations: data.locations as TimeRecordLocations | null // Cast para o novo tipo
+          locations: data.locations as TimeRecordLocations | null
         });
       } else {
-         setTimeRecord(null); // Define como null se nenhum registro for encontrado
+         setTimeRecord(null);
       }
     } catch (error) {
       console.error('Error loading time record:', error);
-      setTimeRecord(null); // Define como null em caso de erro inesperado
+      setTimeRecord(null);
     }
   };
 
-  // Função para obter as coordenadas atuais (já existente)
   const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -195,7 +207,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         },
         (error) => {
           console.error('Erro ao obter localização:', error);
-          // Mapear erros comuns para mensagens mais amigáveis
           let errorMessage = 'Erro desconhecido ao obter localização.';
           switch (error.code) {
             case error.PERMISSION_DENIED:
@@ -212,8 +223,8 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         },
         {
           enableHighAccuracy: true,
-          timeout: 10000, // Aumentado ligeiramente para dar mais tempo
-          maximumAge: 0, // Força a busca por uma nova localização
+          timeout: 10000,
+          maximumAge: 0,
         }
       );
     });
@@ -223,43 +234,45 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     if (!user) return;
 
     setLoading(true);
-    let locationDetails: LocationDetails | null = null; // Objeto para armazenar coordenadas e endereço
+    let locationDetails: LocationDetails | null = null;
 
     try {
       // 1. Obter as coordenadas
       const coords = await getCurrentLocation();
 
-      // 2. Se obteve coordenadas, buscar o endereço
+      // 2. Obter endereço detalhado
       try {
-        const address = await getStreetAddress(coords.latitude, coords.longitude);
+        locationDetails = await getDetailedAddress(coords.latitude, coords.longitude);
+      } catch (addressError) {
+        console.warn('Não foi possível obter o endereço detalhado:', addressError);
+        // Criar estrutura básica se falhar
         locationDetails = {
           lat: coords.latitude,
           lng: coords.longitude,
-          address: address // Endereço obtido
+          street: 'Não disponível',
+          houseNumber: 'S/N',
+          neighborhood: 'Não disponível',
+          city: 'Não disponível',
+          state: 'Não disponível',
+          postalCode: 'Não disponível',
+          country: 'Não disponível',
+          fullAddress: `Coordenadas: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`
         };
-      } catch (addressError) {
-        console.warn('Não foi possível obter o endereço exato:', addressError);
-        // Se a busca de endereço falhar, ainda armazena as coordenadas
-        locationDetails = {
-           lat: coords.latitude,
-           lng: coords.longitude,
-           address: 'Endereço não disponível' // Indica que o endereço não foi obtido
-        };
+        
         toast({
           title: "Aviso",
-          description: "Não foi possível obter o endereço exato, mas as coordenadas foram registradas.",
-          variant: "default", // Use default ou info para avisos
+          description: "Coordenadas registradas, mas endereço detalhado não foi obtido.",
+          variant: "default",
         });
       }
 
     } catch (locationError: any) {
-      console.error('Erro ao obter localização (coordenadas):', locationError);
-       toast({
+      console.error('Erro ao obter localização:', locationError);
+      toast({
         title: "Erro de Localização",
-        description: locationError.message || "Não foi possível obter sua localização. O registro de ponto não incluirá localização.",
+        description: locationError.message || "Não foi possível obter sua localização.",
         variant: "destructive",
       });
-      // locationDetails permanece null se não conseguir nem as coordenadas
     }
 
     const currentTimeString = new Date().toLocaleTimeString('pt-BR', {
@@ -270,24 +283,19 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     });
 
     try {
-      // Prepara os dados a serem atualizados/inseridos
       const updateData: any = { [type]: currentTimeString };
 
-      // Se locationDetails foi obtido (mesmo que só com coordenadas), atualiza o campo locations
       if (locationDetails) {
-           // Cria um novo objeto locations mesclando os existentes com o novo ponto
            const existingLocations = timeRecord?.locations || {};
            updateData.locations = {
                ...existingLocations,
-               [type]: locationDetails // Adiciona/atualiza a localização para este tipo de ponto
+               [type]: locationDetails
            };
       } else {
-          // Se não obteve nenhuma localização, mantém as existentes ou define como null
           updateData.locations = timeRecord?.locations || null;
       }
 
       if (timeRecord) {
-        // Atualiza o registro existente
         const { error } = await supabase
           .from('time_records')
           .update(updateData)
@@ -296,20 +304,18 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         if (error) throw error;
 
       } else {
-        // Insere um novo registro
         const { error } = await supabase
           .from('time_records')
           .insert({
             user_id: user.id,
             date: selectedDate,
-            ...updateData, // Inclui o ponto registrado e as localizações
+            ...updateData,
             status: 'active'
           });
 
         if (error) throw error;
       }
 
-      // Recarrega o registro após a operação
       await loadTimeRecord();
 
       const typeLabels = {
@@ -319,9 +325,13 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         clock_out: 'Saída'
       };
 
+      const locationMsg = locationDetails 
+        ? `Localização: ${locationDetails.city}, ${locationDetails.state}, ${locationDetails.country}` 
+        : 'Localização não registrada.';
+
       toast({
         title: "Registro realizado!",
-        description: `${typeLabels[type]} registrada às ${currentTimeString}. ${locationDetails ? 'Localização registrada.' : 'Localização não registrada.'}`,
+        description: `${typeLabels[type]} registrada às ${currentTimeString}. ${locationMsg}`,
       });
 
     } catch (error) {
@@ -348,7 +358,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const nextAction = getNextAction();
   const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
 
-  // Converter o timeRecord para o formato esperado pelo TimeRegistrationProgress
   const progressRecord = timeRecord ? {
     clockIn: timeRecord.clock_in,
     lunchStart: timeRecord.lunch_start,
@@ -367,7 +376,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       <Card className="bg-gradient-to-r from-primary-50 to-accent-50">
         <CardHeader className="text-center">
           <CardTitle className="text-primary-900">
-            {/* Adicionado 'T00:00:00' para garantir que o Date constructor interprete como data local */}
             {format(new Date(selectedDate + 'T00:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })}
           </CardTitle>
           <div className="text-4xl font-bold text-primary-700 font-mono">
@@ -390,7 +398,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
               size="lg"
             >
               <nextAction.icon className="w-6 h-6 mr-3" />
-              {loading ? 'Obtendo localização e registrando...' : nextAction.label}
+              {loading ? 'Obtendo localização detalhada e registrando...' : nextAction.label}
             </Button>
           </CardContent>
         </Card>

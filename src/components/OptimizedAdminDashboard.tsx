@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
@@ -47,15 +46,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
 
-    // 1. Buscar funcionários (exceto admin) com JOIN otimizado
-    const { data: dbEmployees, error: employeesError } = await supabase
-      .from('profiles')
-      .select('*')
-      .neq('email', 'admin@tcponto.com');
-
-    if (employeesError) throw employeesError;
-
-    // 2. Buscar TODOS os registros do mês em uma única query
+    // 1. Buscar TODOS os registros do mês em uma única query usando os campos corretos
     const { data: allTimeRecords, error: recordsError } = await supabase
       .from('time_records')
       .select(`
@@ -66,15 +57,15 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         lunch_end,
         clock_out,
         total_hours,
-        normal_hours,
-        overtime_hours
+        total_pay
       `)
       .gte('date', startOfMonth)
-      .lte('date', endOfMonth);
+      .lte('date', endOfMonth)
+      .eq('status', 'active');
 
     if (recordsError) throw recordsError;
 
-    // 3. Buscar registros de hoje em uma única query
+    // 2. Buscar registros de hoje em uma única query
     const { data: todayRecords, error: todayError } = await supabase
       .from('time_records')
       .select(`
@@ -88,34 +79,17 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
     if (todayError) throw todayError;
 
-    // 4. Processar dados localmente (muito mais rápido que múltiplas queries)
+    // 3. Processar dados localmente usando os campos corretos da tabela
     let totalHours = 0;
     let totalEarnings = 0;
 
-    // Agrupar registros por usuário
-    const recordsByUser = allTimeRecords?.reduce((acc, record) => {
-      if (!acc[record.user_id]) acc[record.user_id] = [];
-      acc[record.user_id].push(record);
-      return acc;
-    }, {} as Record<string, any[]>) || {};
-
-    // Calcular totais para cada funcionário
-    dbEmployees.forEach(employee => {
-      const userRecords = recordsByUser[employee.id] || [];
-      let employeeTotalHours = 0;
-      
-      userRecords.forEach(record => {
-        employeeTotalHours += Number(record.total_hours) || 0;
-      });
-
-      const hourlyRate = Number(employee.hourly_rate) || 0;
-      const employeeEarnings = employeeTotalHours * hourlyRate;
-
-      totalHours += employeeTotalHours;
-      totalEarnings += employeeEarnings;
+    // Calcular totais diretamente dos campos da tabela
+    allTimeRecords?.forEach(record => {
+      totalHours += Number(record.total_hours) || 0;
+      totalEarnings += Number(record.total_pay) || 0;
     });
 
-    // 5. Processar status dos funcionários
+    // 4. Processar status dos funcionários
     const todayRecordsByUser = todayRecords?.reduce((acc, record) => {
       acc[record.user_id] = record;
       return acc;

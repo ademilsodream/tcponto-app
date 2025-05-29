@@ -8,13 +8,12 @@ import { MapPin, ArrowLeft, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 
-// Importar o tipo Database do seu arquivo de tipos Supabase
+// Importar o tipo Database do arquivo de tipos Supabase
 import { Database } from '@/integrations/supabase/types';
 
 // Tipos inferidos do banco de dados
 type TimeRecordRow = Database['public']['Tables']['time_records']['Row'];
 
-// Adicionar hourlyRate e overtimeRate ao tipo User se vierem do profile
 interface User {
   id: string;
   name: string;
@@ -23,14 +22,20 @@ interface User {
   hourly_rate?: number | null;
 }
 
-// Tipo para a estrutura de localização dentro do campo 'locations' (do arquivo TimeRegistration)
+// Tipo melhorado para a estrutura de localização com detalhes completos
 interface LocationDetails {
-  lat: number | null;
-  lng: number | null;
-  address: string;
+  lat: number;
+  lng: number;
+  street: string;
+  houseNumber: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  fullAddress: string;
 }
 
-// Tipo para o campo 'locations' que agora é um objeto JSON (do arquivo TimeRegistration)
 interface TimeRecordLocations {
   clockIn?: LocationDetails | null;
   lunchStart?: LocationDetails | null;
@@ -39,7 +44,6 @@ interface TimeRecordLocations {
   [key: string]: LocationDetails | null | undefined;
 }
 
-// NOVA INTERFACE: Representa uma linha na tabela de relatório (um registro de ponto)
 interface TimeRecordReportRow {
   recordId: string;
   userId: string;
@@ -60,52 +64,44 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função para processar os dados de localização de um ponto específico
+// Função melhorada para processar os dados de localização
 const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
-  console.log('Processing location data:', { locations, fieldName });
-  
-  if (!locations) {
-    console.log('No locations data found');
+  if (!locations || typeof locations !== 'object' || Array.isArray(locations)) {
     return null;
   }
 
-  // Se locations é uma string (formato antigo: "lat,lng")
-  if (typeof locations === 'string') {
-    console.log('Processing string format location:', locations);
-    const parts = locations.split(',');
-    if (parts.length === 2) {
-      const lat = parseFloat(parts[0]);
-      const lng = parseFloat(parts[1]);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        return {
-          lat,
-          lng,
-          address: 'Localização registrada'
-        };
-      }
-    }
-    return null;
-  }
+  const locObject = locations as Record<string, any>;
+  const fieldData = locObject[fieldName];
 
-  // Se locations é um objeto (formato novo)
-  if (typeof locations === 'object' && !Array.isArray(locations)) {
-    const locObject = locations as Record<string, any>;
-    const fieldData = locObject[fieldName];
-
-    if (fieldData && typeof fieldData === 'object') {
+  if (fieldData && typeof fieldData === 'object') {
+    // Verificar se é o novo formato com detalhes completos
+    if (fieldData.street !== undefined) {
       return {
-        lat: fieldData.lat ?? null,
-        lng: fieldData.lng ?? null,
-        address: fieldData.address || 'Endereço não disponível'
+        lat: Number(fieldData.lat) || 0,
+        lng: Number(fieldData.lng) || 0,
+        street: fieldData.street || 'Não informado',
+        houseNumber: fieldData.houseNumber || 'S/N',
+        neighborhood: fieldData.neighborhood || 'Não informado',
+        city: fieldData.city || 'Não informado',
+        state: fieldData.state || 'Não informado',
+        postalCode: fieldData.postalCode || 'Não informado',
+        country: fieldData.country || 'Não informado',
+        fullAddress: fieldData.fullAddress || 'Endereço não disponível'
       };
-    }
-
-    // Se o objeto tem lat/lng diretos (outro formato possível)
-    if ('lat' in locObject && 'lng' in locObject) {
+    } 
+    // Formato antigo (compatibilidade)
+    else if (fieldData.lat !== undefined && fieldData.lng !== undefined) {
       return {
-        lat: locObject.lat as number,
-        lng: locObject.lng as number,
-        address: 'Localização registrada'
+        lat: Number(fieldData.lat) || 0,
+        lng: Number(fieldData.lng) || 0,
+        street: 'Não informado',
+        houseNumber: 'S/N',
+        neighborhood: 'Não informado',
+        city: 'Não informado',
+        state: 'Não informado',
+        postalCode: 'Não informado',
+        country: 'Não informado',
+        fullAddress: fieldData.address || `Coordenadas: ${fieldData.lat}, ${fieldData.lng}`
       };
     }
   }
@@ -123,11 +119,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   }, [employees]);
 
   const loadTimeRecordsData = async () => {
-    console.log('Loading time records data...');
-    console.log('Employees received:', employees);
-
     if (!employees || employees.length === 0) {
-      console.log('No employees provided');
       setTimeRecordsReportData([]);
       setLoading(false);
       return;
@@ -158,8 +150,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         throw error;
       }
 
-      console.log('Raw time records from database:', data);
-
       const employeeMap = employees.reduce((map, employee) => {
         if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
            map[employee.id] = employee.name;
@@ -167,13 +157,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return map;
       }, {} as Record<string, string>);
 
-      console.log('Employee map:', employeeMap);
-
       const formattedData: TimeRecordReportRow[] = data?.map((record) => {
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations;
-
-        console.log('Processing record:', { recordId: record.id, locations, employeeName });
 
         const clockInLocation = processLocationData(locations, 'clockIn');
         const lunchStartLocation = processLocationData(locations, 'lunchStart');
@@ -196,7 +182,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         };
       }) || [];
 
-      console.log('Formatted data for display:', formattedData);
       setTimeRecordsReportData(formattedData);
 
     } catch (error) {
@@ -213,6 +198,25 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
     return timeRecordsReportData.filter(record => record.userId === selectedEmployee);
   }, [timeRecordsReportData, selectedEmployee]);
+
+  // Função para renderizar informações de localização melhoradas
+  const renderLocationInfo = (location: LocationDetails | null) => {
+    if (!location) return 'N/A';
+    
+    return (
+      <div className="text-xs">
+        <div className="font-medium mb-1">{location.fullAddress}</div>
+        <div className="text-gray-500 space-y-0.5">
+          <div>📍 {location.street}, {location.houseNumber}</div>
+          <div>🏘️ {location.neighborhood}</div>
+          <div>🏙️ {location.city}/{location.state}</div>
+          <div>📮 {location.postalCode}</div>
+          <div>🌍 {location.country}</div>
+          <div>📌 {location.lat.toFixed(6)}, {location.lng.toFixed(6)}</div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -235,9 +239,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                     <MapPin className="w-5 h-5" />
-                    Relatório de Localizações por Registro
+                    Relatório de Localizações Detalhado
                   </h1>
-                  <p className="text-sm text-gray-600">Localizações associadas a cada registro de ponto</p>
+                  <p className="text-sm text-gray-600">Informações completas de localização dos registros de ponto</p>
                 </div>
               </div>
             </div>
@@ -275,9 +279,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <MapPin className="w-5 h-5" />
-                  Relatório de Localizações por Registro
+                  Relatório de Localizações Detalhado
                 </h1>
-                <p className="text-sm text-gray-600">Localizações associadas a cada registro de ponto</p>
+                <p className="text-sm text-gray-600">Informações completas de localização dos registros de ponto</p>
               </div>
             </div>
           </div>
@@ -315,7 +319,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Registros Exibidos</label>
+                  <label className="text-sm font-medium">Total de Registros</label>
                   <div className="text-2xl font-bold text-blue-600">
                     {filteredTimeRecords.length}
                   </div>
@@ -333,7 +337,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
           <Card>
             <CardHeader>
-              <CardTitle>Registros de Ponto e Localizações</CardTitle>
+              <CardTitle>Registros de Ponto com Localização Detalhada</CardTitle>
             </CardHeader>
             <CardContent>
               {filteredTimeRecords.length > 0 ? (
@@ -343,14 +347,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                       <TableRow>
                         <TableHead>Data</TableHead>
                         <TableHead>Funcionário</TableHead>
-                        <TableHead>Entrada (Horário)</TableHead>
-                        <TableHead>Entrada (Localização)</TableHead>
-                        <TableHead>Saída Almoço (Horário)</TableHead>
-                        <TableHead>Saída Almoço (Localização)</TableHead>
-                        <TableHead>Volta Almoço (Horário)</TableHead>
-                        <TableHead>Volta Almoço (Localização)</TableHead>
-                        <TableHead>Saída (Horário)</TableHead>
-                        <TableHead>Saída (Localização)</TableHead>
+                        <TableHead>Entrada</TableHead>
+                        <TableHead className="min-w-[200px]">Local Entrada</TableHead>
+                        <TableHead>Saída Almoço</TableHead>
+                        <TableHead className="min-w-[200px]">Local Saída Almoço</TableHead>
+                        <TableHead>Volta Almoço</TableHead>
+                        <TableHead className="min-w-[200px]">Local Volta Almoço</TableHead>
+                        <TableHead>Saída</TableHead>
+                        <TableHead className="min-w-[200px]">Local Saída</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -363,33 +367,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                             {record.employeeName}
                           </TableCell>
                           <TableCell>{record.clockInTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.clockInLocation ? record.clockInLocation.address : 'N/A'}
-                             {record.clockInLocation?.lat != null && record.clockInLocation?.lng != null &&
-                              ` (${record.clockInLocation.lat.toFixed(4)}, ${record.clockInLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
+                          <TableCell>{renderLocationInfo(record.clockInLocation)}</TableCell>
                           <TableCell>{record.lunchStartTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.lunchStartLocation ? record.lunchStartLocation.address : 'N/A'}
-                             {record.lunchStartLocation?.lat != null && record.lunchStartLocation?.lng != null &&
-                              ` (${record.lunchStartLocation.lat.toFixed(4)}, ${record.lunchStartLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
+                          <TableCell>{renderLocationInfo(record.lunchStartLocation)}</TableCell>
                           <TableCell>{record.lunchEndTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.lunchEndLocation ? record.lunchEndLocation.address : 'N/A'}
-                             {record.lunchEndLocation?.lat != null && record.lunchEndLocation?.lng != null &&
-                              ` (${record.lunchEndLocation.lat.toFixed(4)}, ${record.lunchEndLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
+                          <TableCell>{renderLocationInfo(record.lunchEndLocation)}</TableCell>
                           <TableCell>{record.clockOutTime || '-'}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {record.clockOutLocation ? record.clockOutLocation.address : 'N/A'}
-                             {record.clockOutLocation?.lat != null && record.clockOutLocation?.lng != null &&
-                              ` (${record.clockOutLocation.lat.toFixed(4)}, ${record.clockOutLocation.lng.toFixed(4)})`
-                            }
-                          </TableCell>
+                          <TableCell>{renderLocationInfo(record.clockOutLocation)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
