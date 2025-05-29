@@ -60,7 +60,7 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função melhorada para processar diferentes formatos de dados de localização
+// Função para processar os dados de localização de um ponto específico
 const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
   console.log('Processing location data:', { locations, fieldName });
   
@@ -88,8 +88,8 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
   }
 
   // Se locations é um objeto (formato novo)
-  if (typeof locations === 'object') {
-    const locObject = locations as TimeRecordLocations;
+  if (typeof locations === 'object' && !Array.isArray(locations)) {
+    const locObject = locations as Record<string, any>;
     const fieldData = locObject[fieldName];
 
     if (fieldData && typeof fieldData === 'object') {

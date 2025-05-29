@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // Importar o tipo Database do seu arquivo de tipos Supabase
 // Assumindo que 'locations' é jsonb no seu schema Supabase
-import { Database } from '@/types/supabase'; // Ajuste o caminho conforme necessário
+import { Database } from '@/integrations/supabase/types'; // Ajuste o caminho conforme necessário
 
 // Tipos inferidos do banco de dados
 type TimeRecordRow = Database['public']['Tables']['time_records']['Row'];
@@ -43,7 +43,6 @@ interface TimeRecord {
   status: string;
   locations: TimeRecordLocations | null; // Agora é um objeto estruturado
 }
-
 
 interface TimeRegistrationProps {
   selectedDate: string;
@@ -123,7 +122,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
   const { user } = useAuth();
   const { toast } = useToast();
 
-
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -132,13 +130,11 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     return () => clearInterval(timer);
   }, []);
 
-
   useEffect(() => {
     if (user) {
       loadTimeRecord();
     }
   }, [selectedDate, user]);
-
 
   const loadTimeRecord = async () => {
     if (!user) return;
@@ -182,7 +178,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     }
   };
 
-
   // Função para obter as coordenadas atuais (já existente)
   const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
     return new Promise((resolve, reject) => {
@@ -223,7 +218,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       );
     });
   };
-
 
   const registerTime = async (type: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
     if (!user) return;
@@ -268,7 +262,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
       // locationDetails permanece null se não conseguir nem as coordenadas
     }
 
-
     const currentTimeString = new Date().toLocaleTimeString('pt-BR', {
       hour12: false,
       hour: '2-digit',
@@ -292,7 +285,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           // Se não obteve nenhuma localização, mantém as existentes ou define como null
           updateData.locations = timeRecord?.locations || null;
       }
-
 
       if (timeRecord) {
         // Atualiza o registro existente
@@ -344,7 +336,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     }
   };
 
-
   const getNextAction = () => {
     if (!timeRecord) return { type: 'clock_in', label: 'Registrar Entrada', icon: Clock };
     if (!timeRecord.clock_in) return { type: 'clock_in', label: 'Registrar Entrada', icon: Clock };
@@ -353,7 +344,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     if (!timeRecord.clock_out) return { type: 'clock_out', label: 'Registrar Saída', icon: Clock };
     return null;
   };
-
 
   const nextAction = getNextAction();
   const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
@@ -370,7 +360,6 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
     lunchEnd: undefined,
     clockOut: undefined
   };
-
 
   return (
     <div className="space-y-6">
