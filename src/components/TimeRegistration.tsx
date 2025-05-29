@@ -309,6 +309,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
           onClick={handleClockIn}
           disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
           className="h-16 w-full" // w-full para ocupar a largura total
+          variant="primary" // Alterado para primary para ser azul
         >
           <Clock className="w-5 h-5 mr-2" />
           Registrar Entrada
@@ -323,7 +324,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         <Button
           onClick={handleLunchStart}
           disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="outline"
+          variant="primary" // Alterado para primary para ser azul
           className="h-16 w-full"
         >
           <Clock className="w-5 h-5 mr-2" />
@@ -339,7 +340,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         <Button
           onClick={handleLunchEnd}
           disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="outline"
+          variant="primary" // Alterado para primary para ser azul
           className="h-16 w-full"
         >
           <Clock className="w-5 h-5 mr-2" />
@@ -355,7 +356,7 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
         <Button
           onClick={handleClockOut}
           disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="destructive"
+          variant="primary" // Alterado para primary para ser azul (era destructive)
           className="h-16 w-full"
         >
           <Clock className="w-5 h-5 mr-2" />
@@ -367,12 +368,12 @@ const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => 
 
     // Se todos os registros foram concluídos
     if (todayRecord.clock_out) {
-        return (
-            <div className="text-center text-green-600 font-semibold py-4">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2" /> {/* Ícone maior */}
-                Todos os registros do dia foram concluídos!
-            </div>
-        );
+        return (
+            <div className="text-center text-green-600 font-semibold py-4">
+                <CheckCircle className="w-8 h-8 mx-auto mb-2" /> {/* Ícone maior */}
+                Todos os registros do dia foram concluídos!
+            </div>
+        );
     }
 
 
