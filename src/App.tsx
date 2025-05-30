@@ -9,14 +9,14 @@ import {
   MenubarMenu,
   MenubarTrigger,
 } from '@/components/ui/menubar';
-import { Settings, LogOut, User, Building2 } from 'lucide-react';
+import { Settings as SettingsIcon, LogOut, User, Building2 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { Toaster } from '@/components/ui/toaster';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import Settings from '@/components/Settings';
+import SettingsPage from '@/components/Settings';
 import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
@@ -63,7 +63,7 @@ const AppContent = () => {
 
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
-                    <Settings className="w-4 h-4 mr-2" />
+                    <SettingsIcon className="w-4 h-4 mr-2" />
                     Configurações
                   </MenubarTrigger>
                   <MenubarContent>
@@ -81,7 +81,7 @@ const AppContent = () => {
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
                     <User className="w-4 h-4 mr-2" />
-                    {user.user_metadata?.name || user.email}
+                    {user.email}
                   </MenubarTrigger>
                   <MenubarContent>
                     <MenubarItem onClick={handleLogout} className="cursor-pointer">
@@ -105,8 +105,8 @@ const AppContent = () => {
             </ProtectedRoute>
           } />
           <Route path="/settings" element={
-            <ProtectedRoute adminOnly>
-              <Settings />
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />

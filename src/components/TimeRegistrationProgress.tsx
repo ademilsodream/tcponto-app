@@ -9,6 +9,10 @@ interface TimeRegistrationProgressProps {
     lunchStart?: string;
     lunchEnd?: string;
     clockOut?: string;
+    clock_in?: string;
+    lunch_start?: string;
+    lunch_end?: string;
+    clock_out?: string;
   };
 }
 
@@ -20,7 +24,14 @@ const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> = ({ rec
     { key: 'clockOut', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ];
 
-  const completedCount = steps.filter(step => record[step.key as keyof typeof record]).length;
+  // Compatibilidade com diferentes formatos de nomes de campos
+  const getValue = (key: string) => {
+    const camelKey = key as keyof typeof record;
+    const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase() as keyof typeof record;
+    return record[camelKey] || record[snakeKey];
+  };
+
+  const completedCount = steps.filter(step => getValue(step.key)).length;
   const isComplete = completedCount === 4;
 
   return (
@@ -43,7 +54,7 @@ const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> = ({ rec
         <div className="flex justify-between items-center">
           {steps.map((step, index) => {
             const Icon = step.icon;
-            const isCompleted = !!record[step.key as keyof typeof record];
+            const isCompleted = !!getValue(step.key);
             const isNext = !isCompleted && completedCount === index;
 
             return (
@@ -66,7 +77,7 @@ const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> = ({ rec
                 </span>
                 {isCompleted && (
                   <span className="text-xs text-gray-600 mt-1">
-                    {record[step.key as keyof typeof record]}
+                    {getValue(step.key)}
                   </span>
                 )}
               </div>

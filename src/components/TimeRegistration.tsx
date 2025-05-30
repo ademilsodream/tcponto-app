@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -267,7 +266,7 @@ const TimeRegistration = () => {
         .from('edit_requests')
         .insert({
           employee_id: user.id,
-          employee_name: user.user_metadata?.name || user.email || 'Usuário',
+          employee_name: user.email || 'Usuário',
           date: new Date().toISOString().split('T')[0],
           field: editField,
           old_value: timeRecord?.[editField] || null,
@@ -319,7 +318,7 @@ const TimeRegistration = () => {
 
   return (
     <div className="space-y-6">
-      <TimeRegistrationProgress timeRecord={timeRecord} />
+      <TimeRegistrationProgress record={timeRecord || { clockIn: undefined, lunchStart: undefined, lunchEnd: undefined, clockOut: undefined }} />
 
       {/* Validação de Localização */}
       <Card className={locationValidated ? 'border-green-200' : 'border-red-200'}>
