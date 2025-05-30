@@ -141,12 +141,12 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - APENAS ícone do menu e conteúdo ocupando tela toda
+  // Layout para funcionário comum - Retornar apenas o conteúdo, sem layout próprio
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gray-50 w-full relative">
+      <div className="relative">
         {/* Ícone do menu fixo no canto superior esquerdo */}
-        <div className="fixed top-4 left-4 z-50">
+        <div className="fixed top-20 left-4 z-50">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="bg-white shadow-lg">
@@ -209,10 +209,10 @@ const Dashboard = () => {
           </DropdownMenu>
         </div>
 
-        {/* Conteúdo principal ocupando toda a tela */}
-        <main className="w-full min-h-screen bg-gray-50">
+        {/* Conteúdo principal */}
+        <div className="w-full min-h-screen bg-gray-50">
           {renderEmployeeContent()}
-        </main>
+        </div>
       </div>
     );
   }

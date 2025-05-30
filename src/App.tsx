@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -44,6 +43,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const isAdmin = user?.role === 'admin';
+
   return (
     <div className="min-h-screen bg-gray-50 w-full">
       <header className="bg-white shadow-sm border-b w-full">
@@ -59,27 +60,32 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             </div>
 
             <div className="flex items-center space-x-4">
-              <Menubar>
-                <MenubarMenu>
-                  <MenubarTrigger asChild>
-                    <Link to="/" className="cursor-pointer">Dashboard</Link>
-                  </MenubarTrigger>
-                </MenubarMenu>
+              {/* Só mostrar menus para admin */}
+              {isAdmin && (
+                <>
+                  <Menubar>
+                    <MenubarMenu>
+                      <MenubarTrigger asChild>
+                        <Link to="/" className="cursor-pointer">Dashboard</Link>
+                      </MenubarTrigger>
+                    </MenubarMenu>
 
-                <MenubarMenu>
-                  <MenubarTrigger className="cursor-pointer">
-                    <Settings className="w-4 h-4 mr-2" />
-                    Configurações
-                  </MenubarTrigger>
-                  <MenubarContent>
-                    <MenubarItem asChild>
-                      <Link to="/settings" className="cursor-pointer">
-                        Configurações Gerais
-                      </Link>
-                    </MenubarItem>
-                  </MenubarContent>
-                </MenubarMenu>
-              </Menubar>
+                    <MenubarMenu>
+                      <MenubarTrigger className="cursor-pointer">
+                        <Settings className="w-4 h-4 mr-2" />
+                        Configurações
+                      </MenubarTrigger>
+                      <MenubarContent>
+                        <MenubarItem asChild>
+                          <Link to="/settings" className="cursor-pointer">
+                            Configurações Gerais
+                          </Link>
+                        </MenubarItem>
+                      </MenubarContent>
+                    </MenubarMenu>
+                  </Menubar>
+                </>
+              )}
 
               <Menubar>
                 <MenubarMenu>
