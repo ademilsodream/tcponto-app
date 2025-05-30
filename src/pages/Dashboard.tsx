@@ -4,7 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, ChevronDown, ChevronRight, Edit } from 'lucide-react';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -37,9 +44,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('adminDashboard');
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [employeeActiveScreen, setEmployeeActiveScreen] = useState('timeRegistration');
-  const [reportsSubmenuOpen, setReportsSubmenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -137,119 +142,76 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - EXATAMENTE como na imagem
+  // Layout para funcionário comum - APENAS ícone do menu e conteúdo ocupando tela toda
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gray-50 w-full flex">
-        {/* Sidebar para funcionário */}
-        <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white shadow-lg transition-all duration-300 flex flex-col border-r`}>
-          <div className="p-4 border-b">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded"
-            >
-              {sidebarOpen ? (
-                <div className="flex items-center gap-2">
-                  <img 
-                    src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-                    alt="TCPonto Logo" 
-                    className="w-6 h-6 rounded-full"
-                  />
-                  <span className="font-semibold text-gray-800">TCPonto</span>
-                </div>
-              ) : (
-                <Menu className="w-6 h-6 text-gray-600" />
-              )}
-            </button>
-          </div>
-
-          <nav className="flex-1 p-4">
-            <div className="space-y-2">
-              {/* Registro de Ponto - Principal/Ativo */}
-              <button 
+      <div className="min-h-screen bg-gray-50 w-full relative">
+        {/* Ícone do menu fixo no canto superior esquerdo */}
+        <div className="fixed top-4 left-4 z-50">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="bg-white shadow-lg">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56 bg-white">
+              <DropdownMenuItem 
                 onClick={() => setEmployeeActiveScreen('timeRegistration')}
-                className={`w-full flex items-center gap-3 p-3 text-left hover:bg-blue-50 rounded-lg ${
-                  employeeActiveScreen === 'timeRegistration' ? 'bg-blue-50 border-l-4 border-blue-500' : ''
-                }`}
+                className="flex items-center gap-2"
               >
-                <Clock className="w-5 h-5 text-blue-600" />
-                {sidebarOpen && <span className="text-blue-700 font-medium">Registro de Ponto</span>}
-              </button>
+                <Clock className="h-4 w-4" />
+                Registro de Ponto
+              </DropdownMenuItem>
               
-              {/* Relatórios com submenu */}
-              <div>
-                <button 
-                  onClick={() => setReportsSubmenuOpen(!reportsSubmenuOpen)}
-                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg"
-                >
-                  <BarChart3 className="w-5 h-5 text-gray-600" />
-                  {sidebarOpen && (
-                    <>
-                      <span className="text-gray-700 flex-1">Relatórios</span>
-                      {reportsSubmenuOpen ? (
-                        <ChevronDown className="w-4 h-4 text-gray-600" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-600" />
-                      )}
-                    </>
-                  )}
-                </button>
-                
-                {reportsSubmenuOpen && sidebarOpen && (
-                  <div className="ml-6 mt-1 space-y-1">
-                    <button
-                      onClick={() => setEmployeeActiveScreen('monthlySummary')}
-                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
-                        employeeActiveScreen === 'monthlySummary' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
-                      }`}
-                    >
-                      Resumo Mensal
-                    </button>
-                    <button
-                      onClick={() => setEmployeeActiveScreen('detailedReport')}
-                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
-                        employeeActiveScreen === 'detailedReport' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
-                      }`}
-                    >
-                      Relatório Detalhado
-                    </button>
-                    <button
-                      onClick={() => setEmployeeActiveScreen('incompleteRecords')}
-                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
-                        employeeActiveScreen === 'incompleteRecords' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
-                      }`}
-                    >
-                      Registros Incompletos
-                    </button>
-                    <button
-                      onClick={() => setEmployeeActiveScreen('adjustPreviousDays')}
-                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
-                        employeeActiveScreen === 'adjustPreviousDays' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
-                      }`}
-                    >
-                      <Edit className="w-3 h-3" />
-                      Ajustar dias anteriores
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </nav>
-
-          {/* Menu Sair na parte inferior */}
-          <div className="p-4 border-t">
-            <button 
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-3 p-3 text-left hover:bg-red-50 rounded-lg text-red-600"
-            >
-              <LogOut className="w-5 h-5" />
-              {sidebarOpen && <span>Sair</span>}
-            </button>
-          </div>
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem 
+                onClick={() => setEmployeeActiveScreen('monthlySummary')}
+                className="flex items-center gap-2"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Resumo Mensal
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem 
+                onClick={() => setEmployeeActiveScreen('detailedReport')}
+                className="flex items-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Relatório Detalhado
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem 
+                onClick={() => setEmployeeActiveScreen('incompleteRecords')}
+                className="flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                Registros Incompletos
+              </DropdownMenuItem>
+              
+              <DropdownMenuItem 
+                onClick={() => setEmployeeActiveScreen('adjustPreviousDays')}
+                className="flex items-center gap-2"
+              >
+                <Edit className="h-4 w-4" />
+                Ajustar dias anteriores
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem 
+                onClick={handleSignOut}
+                className="flex items-center gap-2 text-red-600"
+              >
+                <LogOut className="h-4 w-4" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* Conteúdo principal - APENAS conteúdo, sem nenhum header */}
-        <main className="flex-1 bg-gray-50">
+        {/* Conteúdo principal ocupando toda a tela */}
+        <main className="w-full min-h-screen bg-gray-50">
           {renderEmployeeContent()}
         </main>
       </div>
