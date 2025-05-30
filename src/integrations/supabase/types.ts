@@ -118,6 +118,8 @@ export type Database = {
           name: string
           overtime_rate: number | null
           role: string
+          status: Database["public"]["Enums"]["employee_status"] | null
+          termination_date: string | null
           updated_at: string
         }
         Insert: {
@@ -129,6 +131,8 @@ export type Database = {
           name: string
           overtime_rate?: number | null
           role?: string
+          status?: Database["public"]["Enums"]["employee_status"] | null
+          termination_date?: string | null
           updated_at?: string
         }
         Update: {
@@ -140,6 +144,8 @@ export type Database = {
           name?: string
           overtime_rate?: number | null
           role?: string
+          status?: Database["public"]["Enums"]["employee_status"] | null
+          termination_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -295,7 +301,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      employee_status: "active" | "inactive"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -410,6 +416,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      employee_status: ["active", "inactive"],
+    },
   },
 } as const

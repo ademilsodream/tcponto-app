@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users, Plus, Edit, Trash2 } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, UserX, UserCheck } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -19,6 +18,8 @@ interface User {
   hourlyRate: number;
   overtimeRate: number;
   employeeCode?: string;
+  status?: 'active' | 'inactive';
+  terminationDate?: string;
 }
 
 interface UserManagementProps {
@@ -28,7 +29,10 @@ interface UserManagementProps {
 const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTerminationDialogOpen, setIsTerminationDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [terminatingUser, setTerminatingUser] = useState<User | null>(null);
+  const [terminationDate, setTerminationDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -72,7 +76,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         role: profile.role === 'admin' ? 'admin' : 'user' as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate) || 50,
         overtimeRate: Number(profile.overtime_rate) || 75,
-        employeeCode: profile.employee_code || ''
+        employeeCode: profile.employee_code || '',
+        status: profile.status || 'active',
+        terminationDate: profile.termination_date || undefined
       })) || [];
 
       setUsers(formattedUsers);
@@ -228,6 +234,93 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+  const handleTerminate = (user: User) => {
+    setTerminatingUser(user);
+    setTerminationDate(new Date().toISOString().split('T')[0]);
+    setIsTerminationDialogOpen(true);
+  };
+
+  const confirmTermination = async () => {
+    if (!terminatingUser || !terminationDate) return;
+
+    try {
+      setSubmitting(true);
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          status: 'inactive',
+          termination_date: terminationDate,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', terminatingUser.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await loadUsers();
+      onUserChange?.();
+      setIsTerminationDialogOpen(false);
+      setTerminatingUser(null);
+      setTerminationDate('');
+
+      toast({
+        title: "Sucesso",
+        description: `Funcionário ${terminatingUser.name} foi demitido em ${new Date(terminationDate).toLocaleDateString('pt-BR')}`
+      });
+    } catch (error: any) {
+      console.error('Erro ao demitir usuário:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao demitir usuário",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReactivate = async (user: User) => {
+    if (!confirm(`Tem certeza que deseja reativar o funcionário ${user.name}?`)) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          status: 'active',
+          termination_date: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await loadUsers();
+      onUserChange?.();
+
+      toast({
+        title: "Sucesso",
+        description: `Funcionário ${user.name} foi reativado com sucesso!`
+      });
+    } catch (error: any) {
+      console.error('Erro ao reativar usuário:', error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao reativar usuário",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -376,6 +469,46 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         </Dialog>
       </div>
 
+      {/* Dialog de Demissão */}
+      <Dialog open={isTerminationDialogOpen} onOpenChange={setIsTerminationDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Demitir Funcionário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>Tem certeza que deseja demitir o funcionário <strong>{terminatingUser?.name}</strong>?</p>
+            <div className="space-y-2">
+              <Label htmlFor="terminationDate">Data da Demissão *</Label>
+              <Input
+                id="terminationDate"
+                type="date"
+                value={terminationDate}
+                onChange={(e) => setTerminationDate(e.target.value)}
+                required
+                disabled={submitting}
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsTerminationDialogOpen(false)}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={confirmTermination} 
+                disabled={submitting || !terminationDate}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {submitting ? 'Demitindo...' : 'Confirmar Demissão'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -405,6 +538,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       Código
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Nível
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -420,7 +556,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
+                    <tr key={user.id} className={`hover:bg-gray-50 ${user.status === 'inactive' ? 'bg-red-50' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {user.name}
                       </td>
@@ -429,6 +565,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {user.employeeCode || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          user.status === 'active'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.status === 'active' ? 'Ativo' : `Demitido em ${user.terminationDate ? new Date(user.terminationDate).toLocaleDateString('pt-BR') : ''}`}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -462,6 +607,25 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
+                          {user.status === 'active' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleTerminate(user)}
+                              className="text-orange-600 hover:text-orange-800"
+                            >
+                              <UserX className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReactivate(user)}
+                              className="text-green-600 hover:text-green-800"
+                            >
+                              <UserCheck className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -20,7 +20,7 @@ interface User {
 }
 
 const AdminPanel = () => {
-  // Query otimizada para buscar funcionários
+  // Query otimizada para buscar funcionários ATIVOS apenas
   const {
     data: employees = [],
     isLoading: loadingEmployees,
@@ -31,6 +31,7 @@ const AdminPanel = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
+        .eq('status', 'active')
         .order('name');
 
       if (error) throw error;
@@ -41,7 +42,7 @@ const AdminPanel = () => {
         email: profile.email,
         role: profile.role as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate),
-        overtimeRate: Number(profile.hourly_rate) * 1.5
+        overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5
       }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
@@ -81,7 +82,7 @@ const AdminPanel = () => {
         <h1 className="text-2xl font-bold text-gray-900">Painel Administrativo</h1>
         <div className="flex items-center space-x-4">
           <div className="text-sm text-gray-600">
-            Total de funcionários: {employees.length}
+            Total de funcionários ativos: {employees.length}
           </div>
           {pendingCount > 0 && (
             <Alert className="inline-flex items-center p-2 border-orange-200 bg-orange-50">

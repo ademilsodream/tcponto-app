@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
@@ -93,7 +94,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
 
       console.log('Buscando dados do período:', startOfMonth, 'até', endOfMonth);
 
-      // Buscar registros do mês vigente de todos os funcionários
+      // Buscar registros do mês vigente de funcionários ATIVOS apenas
+      const activeEmployeeIds = employees.map(emp => emp.id);
+      
       const { data: timeRecords, error: recordsError } = await supabase
         .from('time_records')
         .select(`
@@ -103,7 +106,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
         `)
         .gte('date', startOfMonth)
         .lte('date', endOfMonth)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .in('user_id', activeEmployeeIds);
 
       if (recordsError) {
         console.error('Erro ao buscar registros de tempo:', recordsError);
@@ -123,7 +127,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
         setTotalEarnings(monthTotalEarnings);
       }
 
-      // Verificar status detalhado dos funcionários
+      // Verificar status detalhado dos funcionários ATIVOS apenas
       const today = new Date().toISOString().split('T')[0];
       const statuses: EmployeeStatus[] = [];
 
@@ -206,7 +210,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Total de Funcionários
+              Total de Funcionários Ativos
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -235,7 +239,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalHours.toFixed(1)}</div>
-            <div className="text-sm text-gray-500">Mês vigente</div>
+            <div className="text-sm text-gray-500">Mês vigente (funcionários ativos)</div>
           </CardContent>
         </Card>
 
@@ -248,17 +252,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalEarnings)}</div>
-            <div className="text-sm text-gray-500">Mês vigente</div>
+            <div className="text-sm text-gray-500">Mês vigente (funcionários ativos)</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Status Detalhado dos Funcionários */}
+      {/* Status Detalhado dos Funcionários ATIVOS */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserCheck className="w-5 h-5" />
-            Status dos Funcionários
+            Status dos Funcionários Ativos
             <span className="text-sm bg-blue-100 px-2 py-1 rounded-full">Em Tempo Real</span>
           </CardTitle>
         </CardHeader>
@@ -298,7 +302,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             {employeeStatuses.length === 0 && (
               <div className="col-span-full text-center py-8">
                 <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">Nenhum funcionário cadastrado</p>
+                <p className="text-gray-500 text-sm">Nenhum funcionário ativo cadastrado</p>
               </div>
             )}
           </div>
