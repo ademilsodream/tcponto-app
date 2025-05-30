@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Users, Plus, Edit, Trash2 } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 
 interface User {
   id: string;
@@ -144,13 +144,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         });
       } else {
         // Criar novo usuário via Edge Function (não faz login automático)
-        const response = await fetch('/functions/v1/create-user', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-          },
-          body: JSON.stringify({
+        const response = await supabase.functions.invoke('create-user', {
+          body: {
             email: formData.email,
             password: formData.password,
             name: formData.name,
@@ -158,13 +153,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             hourlyRate: hourlyRate,
             overtimeRate: overtimeRate,
             employeeCode: formData.employeeCode
-          })
+          }
         });
 
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Erro ao criar usuário');
+        if (response.error) {
+          throw new Error(response.error.message || 'Erro ao criar usuário');
         }
 
         toast({
@@ -349,7 +342,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="overtimeRate">Valor Hora Extra *</Label>
+                <Label htmlFor="overtimeRate">Valor Hora Extra * (Campo Livre)</Label>
                 <Input
                   id="overtimeRate"
                   type="number"

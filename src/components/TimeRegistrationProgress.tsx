@@ -5,10 +5,6 @@ import { LogIn, Coffee, LogOut, CheckCircle, Clock } from 'lucide-react';
 
 interface TimeRegistrationProgressProps {
   record: {
-    clockIn?: string;
-    lunchStart?: string;
-    lunchEnd?: string;
-    clockOut?: string;
     clock_in?: string;
     lunch_start?: string;
     lunch_end?: string;
@@ -18,17 +14,14 @@ interface TimeRegistrationProgressProps {
 
 const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> = ({ record }) => {
   const steps = [
-    { key: 'clockIn', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
-    { key: 'lunchStart', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'lunchEnd', label: 'Fim Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'clockOut', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
+    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
+    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'lunch_end', label: 'Fim Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ];
 
-  // Compatibilidade com diferentes formatos de nomes de campos
   const getValue = (key: string) => {
-    const camelKey = key as keyof typeof record;
-    const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase() as keyof typeof record;
-    return record[camelKey] || record[snakeKey];
+    return record[key as keyof typeof record];
   };
 
   const completedCount = steps.filter(step => getValue(step.key)).length;

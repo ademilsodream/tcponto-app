@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, MapPin, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCurrentLocation, isLocationAllowed } from '@/utils/locationValidation';
 import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
@@ -318,7 +319,7 @@ const TimeRegistration = () => {
 
   return (
     <div className="space-y-6">
-      <TimeRegistrationProgress record={timeRecord || { clockIn: undefined, lunchStart: undefined, lunchEnd: undefined, clockOut: undefined }} />
+      <TimeRegistrationProgress record={timeRecord || {}} />
 
       {/* Validação de Localização */}
       <Card className={locationValidated ? 'border-green-200' : 'border-red-200'}>

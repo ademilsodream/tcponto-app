@@ -9,7 +9,7 @@ import {
   MenubarMenu,
   MenubarTrigger,
 } from '@/components/ui/menubar';
-import { Settings as SettingsIcon, LogOut, User, Building2 } from 'lucide-react';
+import { Settings, LogOut, User, Building2 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { Toaster } from '@/components/ui/toaster';
@@ -63,7 +63,7 @@ const AppContent = () => {
 
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
-                    <SettingsIcon className="w-4 h-4 mr-2" />
+                    <Settings className="w-4 h-4 mr-2" />
                     Configurações
                   </MenubarTrigger>
                   <MenubarContent>
