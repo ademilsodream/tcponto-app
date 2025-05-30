@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -137,7 +136,7 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - com sidebar
+  // Layout para funcionário comum - apenas ícone do menu e conteúdo
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full flex">
@@ -248,21 +247,8 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Conteúdo principal para funcionário */}
+        {/* Conteúdo principal para funcionário - sem header extra */}
         <main className="flex-1 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <img 
-                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-                alt="TCPonto Logo" 
-                className="w-8 h-8 rounded-full"
-              />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">TCPonto</h1>
-                <p className="text-sm text-gray-600">Olá, {userName}</p>
-              </div>
-            </div>
-          </div>
           {renderEmployeeContent()}
         </main>
       </div>
