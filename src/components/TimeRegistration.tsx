@@ -9,7 +9,7 @@ import { Clock, MapPin, AlertTriangle, LogIn, Coffee, LogOut } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { getCurrentLocation, isLocationAllowed } from '@/utils/locationValidation';
+import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
@@ -40,9 +40,6 @@ const TimeRegistration = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
-  const [currentLocation, setCurrentLocation] = useState<{latitude: number; longitude: number} | null>(null);
-  const [locationValidated, setLocationValidated] = useState(false);
-  const [locationError, setLocationError] = useState<string>('');
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editField, setEditField] = useState<'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out' | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -62,58 +59,58 @@ const TimeRegistration = () => {
 
   useEffect(() => {
     if (user) {
-      loadTodayRecord();
-      loadAllowedLocations();
-      validateCurrentLocation();
+      initializeData();
     }
   }, [user]);
 
+  const initializeData = async () => {
+    try {
+      setLoading(true);
+      
+      // Carregar localizações permitidas primeiro
+      await loadAllowedLocations();
+      
+      // Depois carregar registro do dia
+      await loadTodayRecord();
+      
+    } catch (error) {
+      console.error('Erro ao inicializar dados:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar dados iniciais",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadAllowedLocations = async () => {
     try {
+      console.log('📍 Carregando localizações permitidas...');
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('*')
         .eq('is_active', true);
 
       if (error) throw error;
-      setAllowedLocations(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar localizações permitidas:', error);
-    }
-  };
-
-  const validateCurrentLocation = async () => {
-    try {
-      const location = await getCurrentLocation();
-      setCurrentLocation(location);
-
-      const validation = isLocationAllowed(location, allowedLocations);
       
-      if (validation.allowed) {
-        setLocationValidated(true);
-        setLocationError('');
+      console.log('✅ Localizações carregadas:', data);
+      setAllowedLocations(data || []);
+      
+      if (!data || data.length === 0) {
+        console.warn('⚠️ Nenhuma localização permitida encontrada no banco de dados');
         toast({
-          title: "Localização válida",
-          description: `Você está próximo a ${validation.closestLocation?.name}`,
-        });
-      } else {
-        setLocationValidated(false);
-        const message = validation.closestLocation 
-          ? `Você está a ${Math.round(validation.distance || 0)}m de ${validation.closestLocation.name}. Range permitido: ${validation.closestLocation.range_meters}m`
-          : 'Nenhuma localização permitida encontrada próxima';
-        setLocationError(message);
-        toast({
-          title: "Localização não permitida",
-          description: message,
+          title: "Aviso",
+          description: "Nenhuma localização permitida configurada no sistema",
           variant: "destructive"
         });
       }
-    } catch (error: any) {
-      console.error('Erro ao validar localização:', error);
-      setLocationError(error.message || 'Erro ao obter localização');
+    } catch (error) {
+      console.error('❌ Erro ao carregar localizações permitidas:', error);
       toast({
-        title: "Erro de localização",
-        description: error.message || 'Não foi possível obter sua localização',
+        title: "Erro",
+        description: "Erro ao carregar localizações permitidas",
         variant: "destructive"
       });
     }
@@ -123,7 +120,6 @@ const TimeRegistration = () => {
     if (!user) return;
 
     try {
-      setLoading(true);
       const today = new Date().toISOString().split('T')[0];
       
       const { data, error } = await supabase
@@ -145,25 +141,32 @@ const TimeRegistration = () => {
         description: "Erro ao carregar registro do dia",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleTimeAction = async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
     if (!user) return;
 
-    if (!locationValidated) {
-      toast({
-        title: "Localização não permitida",
-        description: "Você precisa estar em uma localização autorizada para registrar o ponto",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       setSubmitting(true);
+      
+      console.log(`🕐 Iniciando registro de ${action}...`);
+      
+      // Validar localização em tempo real
+      const locationValidation = await validateLocationForTimeRecord(allowedLocations);
+      
+      if (!locationValidation.valid) {
+        console.error('❌ Localização não autorizada:', locationValidation.message);
+        toast({
+          title: "Localização não autorizada",
+          description: locationValidation.message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('✅ Localização validada, registrando ponto...');
+
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -173,16 +176,16 @@ const TimeRegistration = () => {
         updated_at: new Date().toISOString()
       };
 
-      if (currentLocation) {
+      // Adicionar dados de localização
+      if (locationValidation.location) {
         const locationData = {
           [action]: {
-            latitude: currentLocation.latitude,
-            longitude: currentLocation.longitude,
+            latitude: locationValidation.location.latitude,
+            longitude: locationValidation.location.longitude,
             timestamp: now.toISOString(),
-            address: allowedLocations.find(loc => {
-              const validation = isLocationAllowed(currentLocation, [loc]);
-              return validation.allowed;
-            })?.address || 'Localização não identificada'
+            address: locationValidation.closestLocation?.address || 'Localização autorizada',
+            locationName: locationValidation.closestLocation?.name || 'Local permitido',
+            distance: locationValidation.distance || 0
           }
         };
 
@@ -221,13 +224,15 @@ const TimeRegistration = () => {
         clock_out: 'Saída'
       };
 
+      console.log(`✅ ${actionNames[action]} registrada com sucesso às ${currentTime}`);
+
       toast({
         title: "Sucesso",
         description: `${actionNames[action]} registrada às ${currentTime}`,
       });
 
     } catch (error) {
-      console.error('Erro ao registrar:', error);
+      console.error('❌ Erro ao registrar:', error);
       toast({
         title: "Erro",
         description: "Erro ao registrar horário",
@@ -258,16 +263,18 @@ const TimeRegistration = () => {
     try {
       setSubmitting(true);
 
+      // Validar localização para solicitação de edição
+      const locationValidation = await validateLocationForTimeRecord(allowedLocations);
+
       let locationData = null;
-      if (currentLocation) {
+      if (locationValidation.location) {
         locationData = {
-          latitude: currentLocation.latitude,
-          longitude: currentLocation.longitude,
+          latitude: locationValidation.location.latitude,
+          longitude: locationValidation.location.longitude,
           timestamp: new Date().toISOString(),
-          address: allowedLocations.find(loc => {
-            const validation = isLocationAllowed(currentLocation, [loc]);
-            return validation.allowed;
-          })?.address || 'Localização no momento da solicitação'
+          address: locationValidation.closestLocation?.address || 'Localização no momento da solicitação',
+          locationName: locationValidation.closestLocation?.name || 'Local da solicitação',
+          distance: locationValidation.distance || 0
         };
       }
 
@@ -433,25 +440,13 @@ const TimeRegistration = () => {
           <CardContent className="p-6">
             <Button
               onClick={() => handleTimeAction(nextAction)}
-              disabled={submitting || !locationValidated}
+              disabled={submitting}
               className="w-full h-16 text-xl font-semibold bg-blue-600 hover:bg-blue-700"
               size="lg"
             >
               <Clock className="w-6 h-6 mr-3" />
-              {actionLabels[nextAction]}
+              {submitting ? 'Registrando...' : actionLabels[nextAction]}
             </Button>
-            
-            {!locationValidated && (
-              <div className="mt-3 text-center">
-                <div className="flex items-center justify-center gap-2 text-red-600 text-sm">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>Localização não autorizada</span>
-                </div>
-                {locationError && (
-                  <p className="text-xs text-gray-600 mt-1">{locationError}</p>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
