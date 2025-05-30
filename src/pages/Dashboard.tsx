@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -108,8 +107,8 @@ const Dashboard = () => {
   // Layout para funcionário comum - RESTAURADO AO ORIGINAL
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50">
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
+        <main className="w-full px-6 py-8">
           <TimeRegistration />
         </main>
       </div>
@@ -117,10 +116,10 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
       {/* Navigation Tabs - apenas para Admin */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white border-b w-full">
+        <div className="w-full px-6">
           <nav className="flex space-x-8 overflow-x-auto">
             <button
               onClick={() => setActiveTab('adminDashboard')}
@@ -186,7 +185,7 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content para Admin */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="w-full px-6 py-8">
         {renderTabContent()}
       </main>
     </div>
