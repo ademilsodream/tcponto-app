@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
-const AppContent = () => {
+const Layout = ({ children }: { children: React.ReactNode }) => {
   const { user, logout } = useAuth();
 
   const handleLogout = async () => {
@@ -33,6 +34,72 @@ const AppContent = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
+      <header className="bg-white shadow-sm border-b w-full">
+        <div className="w-full px-6">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <img 
+                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                alt="TCPonto Logo" 
+                className="w-8 h-8 rounded-full"
+              />
+              <h1 className="text-xl font-bold text-gray-900">Sistema de Ponto</h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <Menubar>
+                <MenubarMenu>
+                  <MenubarTrigger asChild>
+                    <Link to="/" className="cursor-pointer">Dashboard</Link>
+                  </MenubarTrigger>
+                </MenubarMenu>
+
+                <MenubarMenu>
+                  <MenubarTrigger className="cursor-pointer">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configurações
+                  </MenubarTrigger>
+                  <MenubarContent>
+                    <MenubarItem asChild>
+                      <Link to="/settings" className="cursor-pointer">
+                        Configurações Gerais
+                      </Link>
+                    </MenubarItem>
+                  </MenubarContent>
+                </MenubarMenu>
+              </Menubar>
+
+              <Menubar>
+                <MenubarMenu>
+                  <MenubarTrigger className="cursor-pointer">
+                    <User className="w-4 h-4 mr-2" />
+                    {user?.email}
+                  </MenubarTrigger>
+                  <MenubarContent>
+                    <MenubarItem onClick={handleLogout} className="cursor-pointer">
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sair
+                    </MenubarItem>
+                  </MenubarContent>
+                </MenubarMenu>
+              </Menubar>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="w-full py-6 px-6">
+        {children}
+      </main>
+    </div>
+  );
+};
+
+const AppContent = () => {
+  const { user } = useAuth();
+
+  return (
+    <div className="min-h-screen bg-gray-50 w-full">
       <Routes>
         <Route path="/login" element={
           user ? <Navigate to="/" replace /> : <Login />
@@ -41,131 +108,19 @@ const AppContent = () => {
         {user ? (
           <>
             <Route path="/" element={
-              <div className="min-h-screen bg-gray-50 w-full">
-                <header className="bg-white shadow-sm border-b w-full">
-                  <div className="w-full px-6">
-                    <div className="flex justify-between items-center h-16">
-                      <div className="flex items-center space-x-4">
-                        <img 
-                          src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-                          alt="TCPonto Logo" 
-                          className="w-8 h-8 rounded-full"
-                        />
-                        <h1 className="text-xl font-bold text-gray-900">Sistema de Ponto</h1>
-                      </div>
-
-                      <div className="flex items-center space-x-4">
-                        <Menubar>
-                          <MenubarMenu>
-                            <MenubarTrigger asChild>
-                              <Link to="/" className="cursor-pointer">Dashboard</Link>
-                            </MenubarTrigger>
-                          </MenubarMenu>
-
-                          <MenubarMenu>
-                            <MenubarTrigger className="cursor-pointer">
-                              <Settings className="w-4 h-4 mr-2" />
-                              Configurações
-                            </MenubarTrigger>
-                            <MenubarContent>
-                              <MenubarItem asChild>
-                                <Link to="/settings" className="cursor-pointer">
-                                  Configurações Gerais
-                                </Link>
-                              </MenubarItem>
-                            </MenubarContent>
-                          </MenubarMenu>
-                        </Menubar>
-
-                        <Menubar>
-                          <MenubarMenu>
-                            <MenubarTrigger className="cursor-pointer">
-                              <User className="w-4 h-4 mr-2" />
-                              {user.email}
-                            </MenubarTrigger>
-                            <MenubarContent>
-                              <MenubarItem onClick={handleLogout} className="cursor-pointer">
-                                <LogOut className="w-4 h-4 mr-2" />
-                                Sair
-                              </MenubarItem>
-                            </MenubarContent>
-                          </MenubarMenu>
-                        </Menubar>
-                      </div>
-                    </div>
-                  </div>
-                </header>
-
-                <main className="w-full py-6 px-6">
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                </main>
-              </div>
+              <Layout>
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              </Layout>
             } />
             
             <Route path="/settings" element={
-              <div className="min-h-screen bg-gray-50 w-full">
-                <header className="bg-white shadow-sm border-b w-full">
-                  <div className="w-full px-6">
-                    <div className="flex justify-between items-center h-16">
-                      <div className="flex items-center space-x-4">
-                        <img 
-                          src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-                          alt="TCPonto Logo" 
-                          className="w-8 h-8 rounded-full"
-                        />
-                        <h1 className="text-xl font-bold text-gray-900">Sistema de Ponto</h1>
-                      </div>
-
-                      <div className="flex items-center space-x-4">
-                        <Menubar>
-                          <MenubarMenu>
-                            <MenubarTrigger asChild>
-                              <Link to="/" className="cursor-pointer">Dashboard</Link>
-                            </MenubarTrigger>
-                          </MenubarMenu>
-
-                          <MenubarMenu>
-                            <MenubarTrigger className="cursor-pointer">
-                              <Settings className="w-4 h-4 mr-2" />
-                              Configurações
-                            </MenubarTrigger>
-                            <MenubarContent>
-                              <MenubarItem asChild>
-                                <Link to="/settings" className="cursor-pointer">
-                                  Configurações Gerais
-                                </Link>
-                              </MenubarItem>
-                            </MenubarContent>
-                          </MenubarMenu>
-                        </Menubar>
-
-                        <Menubar>
-                          <MenubarMenu>
-                            <MenubarTrigger className="cursor-pointer">
-                              <User className="w-4 h-4 mr-2" />
-                              {user.email}
-                            </MenubarTrigger>
-                            <MenubarContent>
-                              <MenubarItem onClick={handleLogout} className="cursor-pointer">
-                                <LogOut className="w-4 h-4 mr-2" />
-                                Sair
-                              </MenubarItem>
-                            </MenubarContent>
-                          </MenubarMenu>
-                        </Menubar>
-                      </div>
-                    </div>
-                  </div>
-                </header>
-
-                <main className="w-full py-6 px-6">
-                  <ProtectedRoute>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                </main>
-              </div>
+              <Layout>
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              </Layout>
             } />
           </>
         ) : (
