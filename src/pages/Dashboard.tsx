@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, User, Settings, Menu } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, ChevronDown, ChevronRight, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ import MonthlyControl from '@/components/MonthlyControl';
 import EmployeeMonthlySummary from '@/components/EmployeeMonthlySummary';
 import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
 import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
+import AdjustPreviousDays from '@/components/AdjustPreviousDays';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,6 +38,8 @@ const Dashboard = () => {
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [employeeActiveScreen, setEmployeeActiveScreen] = useState('timeRegistration');
+  const [reportsSubmenuOpen, setReportsSubmenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -106,7 +109,24 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - sem header, com sidebar
+  const renderEmployeeContent = () => {
+    switch (employeeActiveScreen) {
+      case 'timeRegistration':
+        return <TimeRegistration />;
+      case 'monthlySummary':
+        return <EmployeeMonthlySummary onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+      case 'detailedReport':
+        return <EmployeeDetailedReport onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+      case 'incompleteRecords':
+        return <IncompleteRecordsProfile onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+      case 'adjustPreviousDays':
+        return <AdjustPreviousDays onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+      default:
+        return <TimeRegistration />;
+    }
+  };
+
+  // Layout para funcionário comum - com sidebar
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full flex">
@@ -134,28 +154,78 @@ const Dashboard = () => {
 
           <nav className="flex-1 p-4">
             <div className="space-y-2">
-              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-blue-50 rounded-lg bg-blue-50 border-l-4 border-blue-500">
+              {/* Registro de Ponto - Principal/Ativo */}
+              <button 
+                onClick={() => setEmployeeActiveScreen('timeRegistration')}
+                className={`w-full flex items-center gap-3 p-3 text-left hover:bg-blue-50 rounded-lg ${
+                  employeeActiveScreen === 'timeRegistration' ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                }`}
+              >
                 <Clock className="w-5 h-5 text-blue-600" />
                 {sidebarOpen && <span className="text-blue-700 font-medium">Registro de Ponto</span>}
               </button>
               
-              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-gray-600" />
-                {sidebarOpen && <span className="text-gray-700">Relatórios</span>}
-              </button>
-              
-              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg">
-                <User className="w-5 h-5 text-gray-600" />
-                {sidebarOpen && <span className="text-gray-700">Perfil</span>}
-              </button>
-              
-              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg">
-                <Settings className="w-5 h-5 text-gray-600" />
-                {sidebarOpen && <span className="text-gray-700">Configurações</span>}
-              </button>
+              {/* Relatórios com submenu */}
+              <div>
+                <button 
+                  onClick={() => setReportsSubmenuOpen(!reportsSubmenuOpen)}
+                  className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg"
+                >
+                  <BarChart3 className="w-5 h-5 text-gray-600" />
+                  {sidebarOpen && (
+                    <>
+                      <span className="text-gray-700 flex-1">Relatórios</span>
+                      {reportsSubmenuOpen ? (
+                        <ChevronDown className="w-4 h-4 text-gray-600" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-gray-600" />
+                      )}
+                    </>
+                  )}
+                </button>
+                
+                {reportsSubmenuOpen && sidebarOpen && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    <button
+                      onClick={() => setEmployeeActiveScreen('monthlySummary')}
+                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
+                        employeeActiveScreen === 'monthlySummary' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
+                      }`}
+                    >
+                      Resumo Mensal
+                    </button>
+                    <button
+                      onClick={() => setEmployeeActiveScreen('detailedReport')}
+                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
+                        employeeActiveScreen === 'detailedReport' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
+                      }`}
+                    >
+                      Relatório Detalhado
+                    </button>
+                    <button
+                      onClick={() => setEmployeeActiveScreen('incompleteRecords')}
+                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
+                        employeeActiveScreen === 'incompleteRecords' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
+                      }`}
+                    >
+                      Registros Incompletos
+                    </button>
+                    <button
+                      onClick={() => setEmployeeActiveScreen('adjustPreviousDays')}
+                      className={`w-full flex items-center gap-2 p-2 text-left hover:bg-gray-100 rounded text-sm ${
+                        employeeActiveScreen === 'adjustPreviousDays' ? 'bg-gray-100 text-blue-600' : 'text-gray-600'
+                      }`}
+                    >
+                      <Edit className="w-3 h-3" />
+                      Ajustar dias anteriores
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </nav>
 
+          {/* Menu Sair na parte inferior */}
           <div className="p-4 border-t">
             <button 
               onClick={handleSignOut}
@@ -182,7 +252,7 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-          <TimeRegistration />
+          {renderEmployeeContent()}
         </main>
       </div>
     );
