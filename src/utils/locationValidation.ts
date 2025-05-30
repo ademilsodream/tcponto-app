@@ -33,49 +33,83 @@ export const isLocationAllowed = (
   currentLocation: Location,
   allowedLocations: AllowedLocation[]
 ): { allowed: boolean; closestLocation?: AllowedLocation; distance?: number } => {
-  console.log('Validando localização:', currentLocation);
-  console.log('Localizações permitidas:', allowedLocations);
+  console.log('🔍 VALIDAÇÃO DE LOCALIZAÇÃO - Iniciando validação...');
+  console.log('📍 Localização atual:', {
+    latitude: currentLocation.latitude,
+    longitude: currentLocation.longitude
+  });
+  console.log('🏢 Localizações permitidas configuradas:', allowedLocations.length);
 
   if (!allowedLocations || allowedLocations.length === 0) {
-    console.warn('Nenhuma localização permitida configurada no sistema');
+    console.warn('⚠️ Nenhuma localização permitida configurada no sistema');
     return { allowed: false };
   }
+
+  // Log detalhado de cada localização permitida
+  allowedLocations.forEach((location, index) => {
+    console.log(`📋 Localização ${index + 1}:`, {
+      name: location.name,
+      address: location.address,
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+      range_meters: Number(location.range_meters),
+      is_active: location.is_active
+    });
+  });
 
   let closestLocation: AllowedLocation | undefined;
   let minDistance = Infinity;
 
   for (const location of allowedLocations) {
     if (!location.is_active) {
-      console.log(`Localização ${location.name} está inativa`);
+      console.log(`⏸️ Localização ${location.name} está inativa - pulando validação`);
       continue;
     }
+
+    // Garantir conversão correta para number
+    const locationLat = Number(location.latitude);
+    const locationLon = Number(location.longitude);
+    const rangeMeters = Number(location.range_meters);
+
+    console.log(`🧮 Calculando distância para ${location.name}:`);
+    console.log(`   Coordenadas: ${locationLat}, ${locationLon}`);
+    console.log(`   Range permitido: ${rangeMeters}m`);
 
     const distance = calculateDistance(
       currentLocation.latitude,
       currentLocation.longitude,
-      location.latitude,
-      location.longitude
+      locationLat,
+      locationLon
     );
 
-    console.log(`Distância para ${location.name}: ${Math.round(distance)}m (permitido: ${location.range_meters}m)`);
+    console.log(`📏 Distância calculada: ${Math.round(distance)}m`);
 
     if (distance < minDistance) {
       minDistance = distance;
       closestLocation = location;
+      console.log(`🎯 Nova localização mais próxima: ${location.name}`);
     }
 
     // Se está dentro do range de alguma localização, pode registrar
-    if (distance <= location.range_meters) {
-      console.log(`✅ Localização autorizada em ${location.name}`);
+    if (distance <= rangeMeters) {
+      console.log(`✅ AUTORIZADO! Dentro do range de ${location.name}`);
+      console.log(`   Distância: ${Math.round(distance)}m / Permitido: ${rangeMeters}m`);
       return { 
         allowed: true, 
         closestLocation: location, 
         distance: distance 
       };
+    } else {
+      console.log(`❌ Fora do range de ${location.name}`);
+      console.log(`   Distância: ${Math.round(distance)}m / Permitido: ${rangeMeters}m`);
     }
   }
 
-  console.log(`❌ Fora do range permitido. Mais próximo: ${closestLocation?.name} (${Math.round(minDistance)}m)`);
+  console.log(`🚫 NEGADO! Fora do range de todas as localizações`);
+  if (closestLocation) {
+    console.log(`📍 Mais próximo: ${closestLocation.name} (${Math.round(minDistance)}m)`);
+  }
+
   return { 
     allowed: false, 
     closestLocation, 
@@ -83,14 +117,14 @@ export const isLocationAllowed = (
   };
 };
 
-// Configurações otimizadas para GPS
+// Configurações otimizadas para GPS - melhoradas
 const GPS_OPTIONS = {
   enableHighAccuracy: true,
-  timeout: 8000, // 8 segundos - aumentado para dar mais tempo
-  maximumAge: 60000 // 1 minuto - cache válido por mais tempo
+  timeout: 15000, // 15 segundos - aumentado para dar mais tempo
+  maximumAge: 30000 // 30 segundos - cache mais atual
 };
 
-// Obter localização atual do usuário com retry
+// Obter localização atual do usuário com retry melhorado
 export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -98,7 +132,8 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
       return;
     }
 
-    console.log(`Tentativa ${retryCount + 1} de obter localização GPS...`);
+    console.log(`🔄 GPS - Tentativa ${retryCount + 1} de obter localização...`);
+    console.log('⚙️ Configurações GPS:', GPS_OPTIONS);
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -106,21 +141,27 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
         };
-        console.log('✅ Localização GPS obtida:', location);
-        console.log(`Precisão: ${position.coords.accuracy}m`);
+        console.log('✅ GPS - Localização obtida com sucesso:');
+        console.log(`   Latitude: ${location.latitude}`);
+        console.log(`   Longitude: ${location.longitude}`);
+        console.log(`   Precisão: ${position.coords.accuracy}m`);
+        console.log(`   Timestamp: ${new Date(position.timestamp).toLocaleString()}`);
         resolve(location);
       },
       (error) => {
-        console.error('Erro ao obter localização GPS:', error);
+        console.error(`❌ GPS - Erro na tentativa ${retryCount + 1}:`, {
+          code: error.code,
+          message: error.message
+        });
         
-        // Implementar retry automático até 2 tentativas
+        // Implementar retry automático até 3 tentativas
         if (retryCount < 2) {
-          console.log(`Tentando novamente... (${retryCount + 1}/2)`);
+          console.log(`🔄 Tentando novamente em 2 segundos... (${retryCount + 1}/2)`);
           setTimeout(() => {
             getCurrentLocation(retryCount + 1)
               .then(resolve)
               .catch(reject);
-          }, 2000); // Aguarda 2 segundos antes de tentar novamente
+          }, 2000);
         } else {
           let errorMessage = 'Erro ao obter localização';
           
@@ -138,6 +179,7 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
               errorMessage = `Erro desconhecido: ${error.message}`;
           }
           
+          console.error('🚫 GPS - Todas as tentativas falharam:', errorMessage);
           reject(new Error(errorMessage));
         }
       },
@@ -146,7 +188,7 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
   });
 };
 
-// Validação completa com logs detalhados
+// Validação completa com logs detalhados melhorada
 export const validateLocationForTimeRecord = async (allowedLocations: AllowedLocation[]): Promise<{
   valid: boolean;
   location?: Location;
@@ -155,7 +197,8 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
   distance?: number;
 }> => {
   try {
-    console.log('🔍 Iniciando validação de localização para registro de ponto...');
+    console.log('🎯 INICIANDO VALIDAÇÃO COMPLETA DE LOCALIZAÇÃO');
+    console.log('📅 Data/Hora:', new Date().toLocaleString());
     
     // Verificar se há localizações configuradas
     if (!allowedLocations || allowedLocations.length === 0) {
@@ -166,17 +209,23 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
       };
     }
 
+    console.log(`🏢 Encontradas ${allowedLocations.length} localizações configuradas`);
+
     // Obter localização atual
+    console.log('📡 Iniciando obtenção da localização GPS...');
     const location = await getCurrentLocation();
+    console.log('✅ Localização GPS obtida, iniciando validação...');
     
     // Validar contra localizações permitidas
     const validation = isLocationAllowed(location, allowedLocations);
     
     if (validation.allowed) {
+      const successMessage = `Localização autorizada em ${validation.closestLocation?.name}`;
+      console.log(`🎉 SUCESSO: ${successMessage}`);
       return {
         valid: true,
         location,
-        message: `Localização autorizada em ${validation.closestLocation?.name}`,
+        message: successMessage,
         closestLocation: validation.closestLocation,
         distance: validation.distance
       };
@@ -185,6 +234,7 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
         ? `Você está a ${Math.round(validation.distance || 0)}m de ${validation.closestLocation.name}. Range permitido: ${validation.closestLocation.range_meters}m`
         : 'Nenhuma localização permitida encontrada próxima';
       
+      console.log(`❌ FALHA: ${message}`);
       return {
         valid: false,
         location,
@@ -194,7 +244,7 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
       };
     }
   } catch (error: any) {
-    console.error('❌ Erro na validação de localização:', error);
+    console.error('💥 ERRO CRÍTICO na validação de localização:', error);
     return {
       valid: false,
       message: error.message || 'Erro ao validar localização'

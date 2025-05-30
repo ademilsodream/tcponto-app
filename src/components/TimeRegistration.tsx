@@ -87,23 +87,39 @@ const TimeRegistration = () => {
 
   const loadAllowedLocations = async () => {
     try {
-      console.log('📍 Carregando localizações permitidas...');
+      console.log('📍 CARREGANDO LOCALIZAÇÕES PERMITIDAS...');
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('*')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('name');
 
       if (error) throw error;
       
-      console.log('✅ Localizações carregadas:', data);
-      setAllowedLocations(data || []);
+      console.log('✅ Dados brutos do banco:', data);
       
-      if (!data || data.length === 0) {
+      // Garantir conversão correta dos dados do banco
+      const processedLocations = (data || []).map(location => ({
+        ...location,
+        latitude: Number(location.latitude),
+        longitude: Number(location.longitude),
+        range_meters: Number(location.range_meters)
+      }));
+      
+      console.log('🔄 Dados processados:', processedLocations);
+      setAllowedLocations(processedLocations);
+      
+      if (!processedLocations || processedLocations.length === 0) {
         console.warn('⚠️ Nenhuma localização permitida encontrada no banco de dados');
         toast({
           title: "Aviso",
           description: "Nenhuma localização permitida configurada no sistema",
           variant: "destructive"
+        });
+      } else {
+        console.log(`✅ ${processedLocations.length} localizações carregadas e prontas para validação`);
+        processedLocations.forEach((loc, index) => {
+          console.log(`   ${index + 1}. ${loc.name} - Range: ${loc.range_meters}m`);
         });
       }
     } catch (error) {
@@ -150,7 +166,21 @@ const TimeRegistration = () => {
     try {
       setSubmitting(true);
       
-      console.log(`🕐 Iniciando registro de ${action}...`);
+      console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
+      console.log('📅 Data/Hora:', new Date().toLocaleString());
+      
+      // Verificar se há localizações carregadas
+      if (!allowedLocations || allowedLocations.length === 0) {
+        console.error('❌ Nenhuma localização permitida carregada');
+        toast({
+          title: "Erro de Configuração",
+          description: "Nenhuma localização permitida configurada. Contate o administrador.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log(`🏢 Validando contra ${allowedLocations.length} localizações permitidas`);
       
       // Validar localização em tempo real
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
@@ -185,7 +215,7 @@ const TimeRegistration = () => {
             timestamp: now.toISOString(),
             address: locationValidation.closestLocation?.address || 'Localização autorizada',
             locationName: locationValidation.closestLocation?.name || 'Local permitido',
-            distance: locationValidation.distance || 0
+            distance: Math.round(locationValidation.distance || 0)
           }
         };
 
@@ -225,10 +255,11 @@ const TimeRegistration = () => {
       };
 
       console.log(`✅ ${actionNames[action]} registrada com sucesso às ${currentTime}`);
+      console.log(`📍 Local: ${locationValidation.closestLocation?.name} (${Math.round(locationValidation.distance || 0)}m)`);
 
       toast({
         title: "Sucesso",
-        description: `${actionNames[action]} registrada às ${currentTime}`,
+        description: `${actionNames[action]} registrada às ${currentTime} em ${locationValidation.closestLocation?.name}`,
       });
 
     } catch (error) {
