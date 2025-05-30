@@ -96,36 +96,53 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 };
 
 const AppContent = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center w-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
       <Routes>
-        <Route path="/login" element={
-          user ? <Navigate to="/" replace /> : <Login />
-        } />
+        <Route 
+          path="/login" 
+          element={user ? <Navigate to="/" replace /> : <Login />} 
+        />
         
-        {user ? (
-          <>
-            <Route path="/" element={
+        <Route 
+          path="/" 
+          element={
+            user ? (
               <Layout>
                 <ProtectedRoute>
                   <Dashboard />
                 </ProtectedRoute>
               </Layout>
-            } />
-            
-            <Route path="/settings" element={
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } 
+        />
+        
+        <Route 
+          path="/settings" 
+          element={
+            user ? (
               <Layout>
                 <ProtectedRoute>
                   <SettingsPage />
                 </ProtectedRoute>
               </Layout>
-            } />
-          </>
-        ) : (
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        )}
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          } 
+        />
         
         <Route path="*" element={<NotFound />} />
       </Routes>
