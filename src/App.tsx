@@ -34,10 +34,12 @@ const AppContent = () => {
   return (
     <div className="min-h-screen bg-gray-50 w-full">
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={
+          user ? <Navigate to="/" replace /> : <Login />
+        } />
+        
         {user ? (
           <>
-            {/* Header para usuários logados */}
             <Route path="/" element={
               <div className="min-h-screen bg-gray-50 w-full">
                 <header className="bg-white shadow-sm border-b w-full">
@@ -53,7 +55,6 @@ const AppContent = () => {
                       </div>
 
                       <div className="flex items-center space-x-4">
-                        {/* Menu de Navegação */}
                         <Menubar>
                           <MenubarMenu>
                             <MenubarTrigger asChild>
@@ -76,7 +77,6 @@ const AppContent = () => {
                           </MenubarMenu>
                         </Menubar>
 
-                        {/* Menu do Usuário */}
                         <Menubar>
                           <MenubarMenu>
                             <MenubarTrigger className="cursor-pointer">
@@ -103,6 +103,7 @@ const AppContent = () => {
                 </main>
               </div>
             } />
+            
             <Route path="/settings" element={
               <div className="min-h-screen bg-gray-50 w-full">
                 <header className="bg-white shadow-sm border-b w-full">
@@ -118,7 +119,6 @@ const AppContent = () => {
                       </div>
 
                       <div className="flex items-center space-x-4">
-                        {/* Menu de Navegação */}
                         <Menubar>
                           <MenubarMenu>
                             <MenubarTrigger asChild>
@@ -141,7 +141,6 @@ const AppContent = () => {
                           </MenubarMenu>
                         </Menubar>
 
-                        {/* Menu do Usuário */}
                         <Menubar>
                           <MenubarMenu>
                             <MenubarTrigger className="cursor-pointer">
@@ -172,6 +171,7 @@ const AppContent = () => {
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />
         )}
+        
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
