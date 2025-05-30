@@ -137,10 +137,10 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - apenas ícone do menu e conteúdo
+  // Layout para funcionário comum - EXATAMENTE como na imagem
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full flex">
+      <div className="min-h-screen bg-gray-50 w-full flex">
         {/* Sidebar para funcionário */}
         <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white shadow-lg transition-all duration-300 flex flex-col border-r`}>
           <div className="p-4 border-b">
@@ -248,14 +248,15 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Conteúdo principal para funcionário - SEM HEADER */}
-        <main className="flex-1">
+        {/* Conteúdo principal - APENAS conteúdo, sem nenhum header */}
+        <main className="flex-1 bg-gray-50">
           {renderEmployeeContent()}
         </main>
       </div>
     );
   }
 
+  // Layout para Admin - mantém os menus superiores
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
       {/* Navigation Tabs - apenas para Admin */}

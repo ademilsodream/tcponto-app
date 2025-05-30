@@ -357,7 +357,7 @@ const TimeRegistration = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="p-6 space-y-6 max-w-2xl mx-auto">
       {/* Data e Hora Atual */}
       <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
         <CardContent className="text-center py-8">
