@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -247,8 +248,8 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Conteúdo principal para funcionário - sem header extra */}
-        <main className="flex-1 p-6">
+        {/* Conteúdo principal para funcionário - SEM HEADER */}
+        <main className="flex-1">
           {renderEmployeeContent()}
         </main>
       </div>
