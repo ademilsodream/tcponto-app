@@ -599,14 +599,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(user.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
                           {user.status === 'active' ? (
                             <Button
                               variant="outline"
