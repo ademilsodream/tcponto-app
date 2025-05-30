@@ -28,15 +28,39 @@ export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2
   return distance;
 };
 
+// Calcular range adaptativo baseado na precisão do GPS
+const calculateAdaptiveRange = (baseRange: number, gpsAccuracy: number): number => {
+  console.log(`🎯 Calculando range adaptativo - Base: ${baseRange}m, Precisão GPS: ${gpsAccuracy}m`);
+  
+  if (gpsAccuracy <= 50) {
+    console.log(`✅ GPS de alta precisão - usando range base: ${baseRange}m`);
+    return baseRange;
+  } else if (gpsAccuracy <= 100) {
+    const adaptiveRange = baseRange + gpsAccuracy;
+    console.log(`⚡ GPS de média precisão - usando range adaptativo: ${adaptiveRange}m`);
+    return adaptiveRange;
+  } else if (gpsAccuracy <= 200) {
+    const adaptiveRange = baseRange + (gpsAccuracy * 1.5);
+    console.log(`⚠️ GPS de baixa precisão - usando range aumentado: ${adaptiveRange}m`);
+    return adaptiveRange;
+  } else {
+    const emergencyRange = Math.min(500, baseRange + (gpsAccuracy * 2));
+    console.log(`🚨 GPS de precisão muito baixa - usando range de emergência: ${emergencyRange}m`);
+    return emergencyRange;
+  }
+};
+
 // Verificar se a localização atual está dentro do range de algum endereço permitido
 export const isLocationAllowed = (
   currentLocation: Location,
-  allowedLocations: AllowedLocation[]
-): { allowed: boolean; closestLocation?: AllowedLocation; distance?: number } => {
-  console.log('🔍 VALIDAÇÃO DE LOCALIZAÇÃO - Iniciando validação...');
+  allowedLocations: AllowedLocation[],
+  gpsAccuracy: number = 100
+): { allowed: boolean; closestLocation?: AllowedLocation; distance?: number; adaptiveRange?: number } => {
+  console.log('🔍 VALIDAÇÃO DE LOCALIZAÇÃO ADAPTATIVA - Iniciando...');
   console.log('📍 Localização atual GPS:', {
     latitude: currentLocation.latitude,
-    longitude: currentLocation.longitude
+    longitude: currentLocation.longitude,
+    accuracy: `${gpsAccuracy}m`
   });
   console.log('🏢 Localizações permitidas configuradas:', allowedLocations.length);
 
@@ -45,20 +69,9 @@ export const isLocationAllowed = (
     return { allowed: false };
   }
 
-  // Log detalhado de cada localização permitida
-  allowedLocations.forEach((location, index) => {
-    console.log(`📋 Localização ${index + 1}:`, {
-      name: location.name,
-      address: location.address,
-      latitude: Number(location.latitude),
-      longitude: Number(location.longitude),
-      range_meters: Number(location.range_meters),
-      is_active: location.is_active
-    });
-  });
-
   let closestLocation: AllowedLocation | undefined;
   let minDistance = Infinity;
+  let usedRange = 0;
 
   for (const location of allowedLocations) {
     if (!location.is_active) {
@@ -66,18 +79,18 @@ export const isLocationAllowed = (
       continue;
     }
 
-    // Garantir conversão correta para number
     const locationLat = Number(location.latitude);
     const locationLon = Number(location.longitude);
-    let rangeMeters = Number(location.range_meters);
+    const baseRange = Number(location.range_meters);
+    
+    // Calcular range adaptativo baseado na precisão do GPS
+    const adaptiveRange = calculateAdaptiveRange(baseRange, gpsAccuracy);
 
-    // Aumentar range temporariamente para teste (200m mínimo)
-    rangeMeters = Math.max(rangeMeters, 200);
-
-    console.log(`🧮 Calculando distância para ${location.name}:`);
+    console.log(`🧮 Validando ${location.name}:`);
     console.log(`   Coordenadas cadastradas: ${locationLat}, ${locationLon}`);
     console.log(`   Coordenadas atuais GPS: ${currentLocation.latitude}, ${currentLocation.longitude}`);
-    console.log(`   Range original: ${location.range_meters}m / Range teste: ${rangeMeters}m`);
+    console.log(`   Range base: ${baseRange}m | Range adaptativo: ${adaptiveRange}m`);
+    console.log(`   Precisão GPS: ${gpsAccuracy}m`);
 
     const distance = calculateDistance(
       currentLocation.latitude,
@@ -91,75 +104,93 @@ export const isLocationAllowed = (
     if (distance < minDistance) {
       minDistance = distance;
       closestLocation = location;
-      console.log(`🎯 Nova localização mais próxima: ${location.name}`);
+      usedRange = adaptiveRange;
+      console.log(`🎯 Nova localização mais próxima: ${location.name} (${Math.round(distance)}m)`);
     }
 
-    // Validação escalonada - múltiplas tentativas com tolerância crescente
-    const tolerances = [rangeMeters, rangeMeters + 50, rangeMeters + 100];
-    
-    for (let i = 0; i < tolerances.length; i++) {
-      const currentTolerance = tolerances[i];
-      if (distance <= currentTolerance) {
-        console.log(`✅ AUTORIZADO! Dentro do range de ${location.name} (tentativa ${i + 1})`);
-        console.log(`   Distância: ${Math.round(distance)}m / Tolerância: ${currentTolerance}m`);
-        console.log(`   🔍 DEBUG - Diferença lat: ${Math.abs(currentLocation.latitude - locationLat).toFixed(6)}`);
-        console.log(`   🔍 DEBUG - Diferença lon: ${Math.abs(currentLocation.longitude - locationLon).toFixed(6)}`);
-        return { 
-          allowed: true, 
-          closestLocation: location, 
-          distance: distance 
-        };
-      }
+    if (distance <= adaptiveRange) {
+      console.log(`✅ AUTORIZADO! Dentro do range adaptativo de ${location.name}`);
+      console.log(`   Distância: ${Math.round(distance)}m / Range adaptativo: ${adaptiveRange}m`);
+      console.log(`   🔍 COORDENADAS - Diferença lat: ${Math.abs(currentLocation.latitude - locationLat).toFixed(6)}`);
+      console.log(`   🔍 COORDENADAS - Diferença lon: ${Math.abs(currentLocation.longitude - locationLon).toFixed(6)}`);
+      console.log(`   📊 QUALIDADE GPS - Precisão: ${gpsAccuracy}m (${gpsAccuracy <= 50 ? 'Excelente' : gpsAccuracy <= 100 ? 'Boa' : gpsAccuracy <= 200 ? 'Aceitável' : 'Baixa'})`);
+      
+      return { 
+        allowed: true, 
+        closestLocation: location, 
+        distance: distance,
+        adaptiveRange: adaptiveRange
+      };
     }
 
-    console.log(`❌ Fora do range de ${location.name} em todas as tentativas`);
-    console.log(`   Distância: ${Math.round(distance)}m / Range máximo testado: ${tolerances[tolerances.length - 1]}m`);
+    console.log(`❌ Fora do range adaptativo de ${location.name}`);
+    console.log(`   Distância: ${Math.round(distance)}m / Range adaptativo: ${adaptiveRange}m`);
   }
 
-  console.log(`🚫 NEGADO! Fora do range de todas as localizações`);
+  console.log(`🚫 NEGADO! Fora do range adaptativo de todas as localizações`);
   if (closestLocation) {
     console.log(`📍 Mais próximo: ${closestLocation.name} (${Math.round(minDistance)}m)`);
-    console.log(`🔍 DEBUG - Para ${closestLocation.name}:`);
+    console.log(`🔍 ANÁLISE DETALHADA - Para ${closestLocation.name}:`);
     console.log(`   GPS atual: ${currentLocation.latitude}, ${currentLocation.longitude}`);
     console.log(`   Cadastrado: ${closestLocation.latitude}, ${closestLocation.longitude}`);
-    console.log(`   Diferença: ${Math.round(minDistance)}m`);
+    console.log(`   Distância: ${Math.round(minDistance)}m`);
+    console.log(`   Range adaptativo usado: ${usedRange}m`);
+    console.log(`   Precisão GPS: ${gpsAccuracy}m`);
+    console.log(`   📊 DIAGNÓSTICO: ${minDistance <= 50 ? 'Muito próximo - possível problema de coordenadas' : minDistance <= 150 ? 'Próximo - GPS pode ser impreciso' : 'Distante - verificar localização'}`);
   }
 
   return { 
     allowed: false, 
     closestLocation, 
-    distance: minDistance 
+    distance: minDistance,
+    adaptiveRange: usedRange
   };
 };
 
-// Configurações otimizadas para GPS - melhoradas com fallback
+// Configurações otimizadas para GPS com qualidade melhorada
 const GPS_OPTIONS_HIGH_ACCURACY = {
   enableHighAccuracy: true,
-  timeout: 20000, // 20 segundos
-  maximumAge: 10000 // 10 segundos - forçar GPS mais atual
+  timeout: 30000, // 30 segundos - mais tempo para GPS preciso
+  maximumAge: 0 // Sempre buscar posição atual, nunca usar cache
 };
 
 const GPS_OPTIONS_MEDIUM_ACCURACY = {
   enableHighAccuracy: true,
-  timeout: 15000, // 15 segundos
-  maximumAge: 30000 // 30 segundos
+  timeout: 20000, // 20 segundos
+  maximumAge: 5000 // 5 segundos de cache máximo
 };
 
 const GPS_OPTIONS_LOW_ACCURACY = {
   enableHighAccuracy: false,
-  timeout: 10000, // 10 segundos
-  maximumAge: 60000 // 1 minuto
+  timeout: 15000, // 15 segundos
+  maximumAge: 10000 // 10 segundos de cache
 };
 
-// Obter localização atual do usuário com validação escalonada
-export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
+// Validar qualidade do GPS
+const validateGPSQuality = (accuracy: number): { quality: string; acceptable: boolean; message: string } => {
+  if (accuracy <= 10) {
+    return { quality: 'Excelente', acceptable: true, message: 'GPS de alta precisão' };
+  } else if (accuracy <= 30) {
+    return { quality: 'Muito Boa', acceptable: true, message: 'GPS de boa precisão' };
+  } else if (accuracy <= 50) {
+    return { quality: 'Boa', acceptable: true, message: 'GPS de precisão aceitável' };
+  } else if (accuracy <= 100) {
+    return { quality: 'Aceitável', acceptable: true, message: 'GPS de precisão média - range adaptativo será usado' };
+  } else if (accuracy <= 200) {
+    return { quality: 'Baixa', acceptable: true, message: 'GPS de baixa precisão - usando range aumentado' };
+  } else {
+    return { quality: 'Muito Baixa', acceptable: false, message: 'GPS muito impreciso - tente novamente' };
+  }
+};
+
+// Obter localização atual do usuário com validação de qualidade
+export const getCurrentLocation = (retryCount = 0): Promise<{ location: Location; accuracy: number }> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocalização não é suportada neste navegador'));
       return;
     }
 
-    // Selecionar configuração baseada na tentativa
     let gpsOptions;
     let accuracyLevel;
     
@@ -183,17 +214,22 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
         };
+        
+        const accuracy = position.coords.accuracy || 999;
+        const gpsQuality = validateGPSQuality(accuracy);
+        
         console.log(`✅ GPS - Localização obtida com precisão ${accuracyLevel}:`);
         console.log(`   Latitude: ${location.latitude} (${location.latitude.toFixed(6)})`);
         console.log(`   Longitude: ${location.longitude} (${location.longitude.toFixed(6)})`);
-        console.log(`   Precisão: ${position.coords.accuracy}m`);
+        console.log(`   Precisão: ${accuracy}m (${gpsQuality.quality})`);
+        console.log(`   Qualidade: ${gpsQuality.message}`);
         console.log(`   Timestamp: ${new Date(position.timestamp).toLocaleString()}`);
         console.log(`   Altitude: ${position.coords.altitude}m`);
         console.log(`   Velocidade: ${position.coords.speed}m/s`);
         
-        // Verificar se a precisão é aceitável
-        if (position.coords.accuracy > 500 && retryCount < 2) {
-          console.warn(`⚠️ GPS com baixa precisão (${position.coords.accuracy}m), tentando novamente...`);
+        // Se precisão for muito baixa e ainda temos tentativas, retry
+        if (!gpsQuality.acceptable && retryCount < 2) {
+          console.warn(`⚠️ GPS com precisão inaceitável (${accuracy}m), tentando novamente...`);
           setTimeout(() => {
             getCurrentLocation(retryCount + 1)
               .then(resolve)
@@ -202,7 +238,12 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
           return;
         }
         
-        resolve(location);
+        // Se ainda não temos boa precisão mas já tentamos muito, aceitar mesmo assim
+        if (accuracy > 100 && retryCount < 2) {
+          console.warn(`⚠️ GPS ainda com baixa precisão (${accuracy}m), mas continuando...`);
+        }
+        
+        resolve({ location, accuracy });
       },
       (error) => {
         console.error(`❌ GPS - Erro na tentativa ${retryCount + 1} (precisão ${accuracyLevel}):`, {
@@ -210,9 +251,8 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
           message: error.message
         });
         
-        // Implementar retry automático com configurações menos restritivas
         if (retryCount < 2) {
-          console.log(`🔄 Tentando novamente em 2 segundos com precisão ${retryCount === 0 ? 'MÉDIA' : 'BAIXA'}... (${retryCount + 1}/2)`);
+          console.log(`🔄 Tentando novamente em 2 segundos... (${retryCount + 1}/2)`);
           setTimeout(() => {
             getCurrentLocation(retryCount + 1)
               .then(resolve)
@@ -244,20 +284,21 @@ export const getCurrentLocation = (retryCount = 0): Promise<Location> => {
   });
 };
 
-// Validação completa com logs detalhados e tolerância aumentada
+// Validação completa com range adaptativo e logs detalhados
 export const validateLocationForTimeRecord = async (allowedLocations: AllowedLocation[]): Promise<{
   valid: boolean;
   location?: Location;
   message: string;
   closestLocation?: AllowedLocation;
   distance?: number;
+  gpsAccuracy?: number;
+  adaptiveRange?: number;
 }> => {
   try {
-    console.log('🎯 INICIANDO VALIDAÇÃO COMPLETA DE LOCALIZAÇÃO');
+    console.log('🎯 INICIANDO VALIDAÇÃO COMPLETA COM RANGE ADAPTATIVO');
     console.log('📅 Data/Hora:', new Date().toLocaleString());
     console.log('🌐 User Agent:', navigator.userAgent);
     
-    // Verificar se há localizações configuradas
     if (!allowedLocations || allowedLocations.length === 0) {
       console.warn('⚠️ Sistema sem localizações permitidas configuradas');
       return {
@@ -268,50 +309,61 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
 
     console.log(`🏢 Encontradas ${allowedLocations.length} localizações configuradas:`);
     allowedLocations.forEach((loc, i) => {
-      console.log(`   ${i + 1}. ${loc.name} - ${loc.address} (Range: ${loc.range_meters}m)`);
+      console.log(`   ${i + 1}. ${loc.name} - ${loc.address} (Range base: ${loc.range_meters}m)`);
     });
 
-    // Obter localização atual com retry
-    console.log('📡 Iniciando obtenção da localização GPS...');
-    const location = await getCurrentLocation();
-    console.log('✅ Localização GPS obtida, iniciando validação...');
+    console.log('📡 Iniciando obtenção da localização GPS com validação de qualidade...');
+    const gpsResult = await getCurrentLocation();
+    const { location, accuracy } = gpsResult;
     
-    // Validar contra localizações permitidas
-    const validation = isLocationAllowed(location, allowedLocations);
+    console.log('✅ Localização GPS obtida, iniciando validação com range adaptativo...');
+    console.log(`📊 Qualidade do GPS: ${accuracy}m de precisão`);
+    
+    const validation = isLocationAllowed(location, allowedLocations, accuracy);
     
     if (validation.allowed) {
       const successMessage = `Localização autorizada em ${validation.closestLocation?.name}`;
       console.log(`🎉 SUCESSO: ${successMessage}`);
-      console.log(`📊 RESUMO FINAL:`);
+      console.log(`📊 RESUMO FINAL - AUTORIZADO:`);
       console.log(`   Local: ${validation.closestLocation?.name}`);
       console.log(`   Distância: ${Math.round(validation.distance || 0)}m`);
-      console.log(`   Range: ${validation.closestLocation?.range_meters}m`);
+      console.log(`   Range base: ${validation.closestLocation?.range_meters}m`);
+      console.log(`   Range adaptativo usado: ${validation.adaptiveRange}m`);
+      console.log(`   Precisão GPS: ${accuracy}m`);
+      
       return {
         valid: true,
         location,
         message: successMessage,
         closestLocation: validation.closestLocation,
-        distance: validation.distance
+        distance: validation.distance,
+        gpsAccuracy: accuracy,
+        adaptiveRange: validation.adaptiveRange
       };
     } else {
       const message = validation.closestLocation 
-        ? `Você está a ${Math.round(validation.distance || 0)}m de ${validation.closestLocation.name}. Range permitido: ${validation.closestLocation.range_meters}m (teste com ${Math.max(validation.closestLocation.range_meters, 200)}m)`
+        ? `Você está a ${Math.round(validation.distance || 0)}m de ${validation.closestLocation.name}. Range adaptativo: ${validation.adaptiveRange}m (GPS: ${accuracy}m precisão)`
         : 'Nenhuma localização permitida encontrada próxima';
       
       console.log(`❌ FALHA: ${message}`);
-      console.log(`📊 RESUMO FINAL:`);
+      console.log(`📊 RESUMO FINAL - NEGADO:`);
       if (validation.closestLocation) {
         console.log(`   Local mais próximo: ${validation.closestLocation.name}`);
         console.log(`   Distância: ${Math.round(validation.distance || 0)}m`);
-        console.log(`   Range original: ${validation.closestLocation.range_meters}m`);
-        console.log(`   Range teste: ${Math.max(validation.closestLocation.range_meters, 200)}m`);
+        console.log(`   Range base: ${validation.closestLocation.range_meters}m`);
+        console.log(`   Range adaptativo: ${validation.adaptiveRange}m`);
+        console.log(`   Precisão GPS: ${accuracy}m`);
+        console.log(`   🔍 DIAGNÓSTICO: Distância muito grande mesmo com range adaptativo`);
       }
+      
       return {
         valid: false,
         location,
         message,
         closestLocation: validation.closestLocation,
-        distance: validation.distance
+        distance: validation.distance,
+        gpsAccuracy: accuracy,
+        adaptiveRange: validation.adaptiveRange
       };
     }
   } catch (error: any) {
