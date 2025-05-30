@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,6 +33,7 @@ const Settings = () => {
   const [editingLocation, setEditingLocation] = useState<AllowedLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
   const [locationForm, setLocationForm] = useState({
     name: '',
     address: '',
@@ -233,35 +233,111 @@ const Settings = () => {
     }
   };
 
-  const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocationForm({
-            ...locationForm,
-            latitude: position.coords.latitude.toString(),
-            longitude: position.coords.longitude.toString()
-          });
-          toast({
-            title: "Sucesso",
-            description: "Localização atual obtida!"
-          });
-        },
-        (error) => {
-          console.error('Erro ao obter localização:', error);
-          toast({
-            title: "Erro",
-            description: "Erro ao obter localização atual",
-            variant: "destructive"
-          });
-        }
-      );
-    } else {
+  // Função melhorada para obter localização atual com geocoding reverso
+  const getCurrentLocation = async () => {
+    if (!navigator.geolocation) {
       toast({
         title: "Erro",
         description: "Geolocalização não é suportada neste navegador",
         variant: "destructive"
       });
+      return;
+    }
+
+    try {
+      setGettingLocation(true);
+      console.log('🔍 Obtendo localização atual para administração...');
+
+      // Configurações otimizadas para GPS
+      const gpsOptions = {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 60000
+      };
+
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, gpsOptions);
+      });
+
+      const { latitude, longitude } = position.coords;
+      console.log('✅ Coordenadas obtidas:', { latitude, longitude });
+
+      // Fazer geocoding reverso para obter o endereço
+      try {
+        console.log('🌐 Fazendo geocoding reverso...');
+        const response = await fetch(
+          `https://api.opencagedata.com/geocode/v1/json?q=${latitude}+${longitude}&key=your-api-key&language=pt&pretty=1`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.results && data.results.length > 0) {
+            const result = data.results[0];
+            const formattedAddress = result.formatted;
+            
+            console.log('✅ Endereço encontrado:', formattedAddress);
+            
+            setLocationForm({
+              ...locationForm,
+              latitude: latitude.toString(),
+              longitude: longitude.toString(),
+              address: formattedAddress
+            });
+
+            toast({
+              title: "Sucesso",
+              description: "Localização e endereço obtidos com sucesso!"
+            });
+          } else {
+            throw new Error('Nenhum resultado encontrado');
+          }
+        } else {
+          throw new Error('Erro na API de geocoding');
+        }
+      } catch (geocodingError) {
+        console.warn('⚠️ Erro no geocoding, usando apenas coordenadas:', geocodingError);
+        
+        // Fallback: usar apenas as coordenadas
+        setLocationForm({
+          ...locationForm,
+          latitude: latitude.toString(),
+          longitude: longitude.toString()
+        });
+
+        toast({
+          title: "Localização Obtida",
+          description: "Coordenadas obtidas. Preencha o endereço manualmente."
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erro ao obter localização:', error);
+      
+      let errorMessage = 'Erro ao obter localização';
+      
+      if (error.code) {
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Permissão de localização negada. Ative a localização nas configurações do navegador';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Localização indisponível. Verifique se o GPS está ativado';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Timeout ao obter localização. Tente novamente';
+            break;
+          default:
+            errorMessage = `Erro: ${error.message}`;
+        }
+      }
+
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setGettingLocation(false);
     }
   };
 
@@ -368,10 +444,10 @@ const Settings = () => {
                       type="button"
                       variant="outline"
                       onClick={getCurrentLocation}
-                      disabled={submitting}
+                      disabled={submitting || gettingLocation}
                     >
                       <MapPin className="w-4 h-4 mr-2" />
-                      Usar Localização Atual
+                      {gettingLocation ? 'Obtendo...' : 'Usar Localização Atual'}
                     </Button>
                   </div>
 
