@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +20,7 @@ const Login = () => {
     console.log('Login: Verificando se usuário já está logado...');
     if (!loading && user) {
       console.log('Login: Usuário já logado, redirecionando...');
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [user, loading, navigate]);
 
@@ -41,11 +40,11 @@ const Login = () => {
     if (!result.success) {
       console.error('Login: Falha no login:', result.error);
       setError(result.error || 'Erro ao fazer login');
+      setIsLoading(false);
     } else {
-      console.log('Login: Login realizado com sucesso');
+      console.log('Login: Login realizado com sucesso, redirecionando...');
+      navigate('/', { replace: true });
     }
-    
-    setIsLoading(false);
   };
 
   if (loading) {
