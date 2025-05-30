@@ -21,7 +21,7 @@ const Login = () => {
     console.log('Login: Verificando se usuário já está logado...');
     if (!loading && user) {
       console.log('Login: Usuário já logado, redirecionando...');
-      navigate('/dashboard');
+      navigate('/');
     }
   }, [user, loading, navigate]);
 
