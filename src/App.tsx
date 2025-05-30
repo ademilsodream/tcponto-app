@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { 
   Menubar,
@@ -20,6 +21,17 @@ import SettingsPage from '@/components/Settings';
 import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
+
+// Criar uma instância do QueryClient
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const { user, logout } = useAuth();
@@ -168,14 +180,16 @@ function App() {
   }
 
   return (
-    <AuthProvider>
-      <CurrencyProvider>
-        <Router>
-          <AppContent />
-          <Toaster />
-        </Router>
-      </CurrencyProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <CurrencyProvider>
+          <Router>
+            <AppContent />
+            <Toaster />
+          </Router>
+        </CurrencyProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 

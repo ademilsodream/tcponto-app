@@ -8,8 +8,8 @@ export const initializeApp = async () => {
     // Fazer uma consulta simples para verificar se a conexão está funcionando
     const { data, error } = await supabase
       .from('profiles')
-      .select('count(*)')
-      .single();
+      .select('*')
+      .limit(1);
 
     if (error) {
       console.error('Erro ao conectar com o banco:', error);
