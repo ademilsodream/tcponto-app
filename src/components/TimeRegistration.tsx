@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,11 +5,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, MapPin, AlertTriangle } from 'lucide-react';
+import { Clock, MapPin, AlertTriangle, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCurrentLocation, isLocationAllowed } from '@/utils/locationValidation';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
 
 interface TimeRecord {
@@ -46,8 +47,18 @@ const TimeRegistration = () => {
   const [editField, setEditField] = useState<'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Atualizar relógio a cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -142,7 +153,6 @@ const TimeRegistration = () => {
   const handleTimeAction = async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
     if (!user) return;
 
-    // Verificar localização antes de permitir registro
     if (!locationValidated) {
       toast({
         title: "Localização não permitida",
@@ -163,7 +173,6 @@ const TimeRegistration = () => {
         updated_at: new Date().toISOString()
       };
 
-      // Incluir localização no registro
       if (currentLocation) {
         const locationData = {
           [action]: {
@@ -249,7 +258,6 @@ const TimeRegistration = () => {
     try {
       setSubmitting(true);
 
-      // Incluir localização na solicitação de edição
       let locationData = null;
       if (currentLocation) {
         locationData = {
@@ -310,6 +318,37 @@ const TimeRegistration = () => {
     );
   }
 
+  const steps = [
+    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
+    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'lunch_end', label: 'Fim Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
+  ];
+
+  const getValue = (key: string) => {
+    return timeRecord?.[key as keyof TimeRecord];
+  };
+
+  const completedCount = steps.filter(step => getValue(step.key)).length;
+
+  // Determinar próxima ação
+  const getNextAction = () => {
+    if (!timeRecord?.clock_in) return 'clock_in';
+    if (!timeRecord?.lunch_start) return 'lunch_start';
+    if (!timeRecord?.lunch_end) return 'lunch_end';
+    if (!timeRecord?.clock_out) return 'clock_out';
+    return null;
+  };
+
+  const nextAction = getNextAction();
+  
+  const actionLabels = {
+    clock_in: 'Registrar Entrada',
+    lunch_start: 'Registrar Saída',
+    lunch_end: 'Registrar Entrada',
+    clock_out: 'Registrar Saída'
+  };
+
   const fieldNames = {
     clock_in: 'Entrada',
     lunch_start: 'Início do Almoço',
@@ -318,87 +357,104 @@ const TimeRegistration = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <TimeRegistrationProgress record={timeRecord || {}} />
-
-      {/* Validação de Localização */}
-      <Card className={locationValidated ? 'border-green-200' : 'border-red-200'}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className={`w-5 h-5 ${locationValidated ? 'text-green-600' : 'text-red-600'}`} />
-            Status de Localização
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {locationValidated ? (
-            <div className="flex items-center gap-2 text-green-700">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span>Localização autorizada para registro de ponto</span>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Localização não autorizada</span>
-              </div>
-              {locationError && (
-                <p className="text-sm text-gray-600">{locationError}</p>
-              )}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={validateCurrentLocation}
-                disabled={submitting}
-              >
-                Verificar Localização Novamente
-              </Button>
-            </div>
-          )}
+    <div className="space-y-6 max-w-2xl mx-auto">
+      {/* Data e Hora Atual */}
+      <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+        <CardContent className="text-center py-8">
+          <div className="text-blue-700 text-lg font-medium mb-2">
+            {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          </div>
+          <div className="text-blue-900 text-5xl font-bold tracking-wider">
+            {format(currentTime, 'HH:mm:ss')}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Botões de Registro */}
-      <div className="grid grid-cols-2 gap-4">
-        <Button
-          onClick={() => handleTimeAction('clock_in')}
-          disabled={submitting || !!timeRecord?.clock_in || !locationValidated}
-          className="h-20 text-lg"
-          variant={timeRecord?.clock_in ? "secondary" : "default"}
-        >
-          <Clock className="w-6 h-6 mr-2" />
-          {timeRecord?.clock_in ? `Entrada: ${timeRecord.clock_in}` : 'Registrar Entrada'}
-        </Button>
+      {/* Progresso do Dia */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-700">Progresso do Dia</h3>
+            <div className="flex items-center gap-1">
+              <Clock className="w-4 h-4 text-orange-600" />
+              <span className="text-sm font-medium text-orange-600">
+                {completedCount}/4 registros
+              </span>
+            </div>
+          </div>
 
-        <Button
-          onClick={() => handleTimeAction('lunch_start')}
-          disabled={submitting || !timeRecord?.clock_in || !!timeRecord?.lunch_start || !locationValidated}
-          className="h-20 text-lg"
-          variant={timeRecord?.lunch_start ? "secondary" : "default"}
-        >
-          <Clock className="w-6 h-6 mr-2" />
-          {timeRecord?.lunch_start ? `Almoço: ${timeRecord.lunch_start}` : 'Início Almoço'}
-        </Button>
+          <div className="flex justify-between items-center mb-4">
+            {steps.map((step, index) => {
+              const Icon = step.icon;
+              const isCompleted = !!getValue(step.key);
+              const isNext = !isCompleted && completedCount === index;
 
-        <Button
-          onClick={() => handleTimeAction('lunch_end')}
-          disabled={submitting || !timeRecord?.lunch_start || !!timeRecord?.lunch_end || !locationValidated}
-          className="h-20 text-lg"
-          variant={timeRecord?.lunch_end ? "secondary" : "default"}
-        >
-          <Clock className="w-6 h-6 mr-2" />
-          {timeRecord?.lunch_end ? `Retorno: ${timeRecord.lunch_end}` : 'Fim Almoço'}
-        </Button>
+              return (
+                <div key={step.key} className="flex flex-col items-center flex-1">
+                  <div 
+                    className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-all duration-200 ${
+                      isCompleted 
+                        ? `${step.color} text-white shadow-md` 
+                        : isNext
+                          ? 'bg-gray-200 border-2 border-blue-400 text-gray-600'
+                          : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <span className={`text-sm text-center leading-tight ${
+                    isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
+                  }`}>
+                    {step.label}
+                  </span>
+                  {isCompleted && (
+                    <span className="text-sm text-gray-600 mt-1">
+                      {getValue(step.key)}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-        <Button
-          onClick={() => handleTimeAction('clock_out')}
-          disabled={submitting || !timeRecord?.clock_in || !!timeRecord?.clock_out || !locationValidated}
-          className="h-20 text-lg"
-          variant={timeRecord?.clock_out ? "secondary" : "default"}
-        >
-          <Clock className="w-6 h-6 mr-2" />
-          {timeRecord?.clock_out ? `Saída: ${timeRecord.clock_out}` : 'Registrar Saída'}
-        </Button>
-      </div>
+          {/* Barra de progresso */}
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div 
+              className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+              style={{ width: `${(completedCount / 4) * 100}%` }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Botão de Registro */}
+      {nextAction && (
+        <Card>
+          <CardContent className="p-6">
+            <Button
+              onClick={() => handleTimeAction(nextAction)}
+              disabled={submitting || !locationValidated}
+              className="w-full h-16 text-xl font-semibold bg-blue-600 hover:bg-blue-700"
+              size="lg"
+            >
+              <Clock className="w-6 h-6 mr-3" />
+              {actionLabels[nextAction]}
+            </Button>
+            
+            {!locationValidated && (
+              <div className="mt-3 text-center">
+                <div className="flex items-center justify-center gap-2 text-red-600 text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Localização não autorizada</span>
+                </div>
+                {locationError && (
+                  <p className="text-xs text-gray-600 mt-1">{locationError}</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Botões de Edição */}
       {timeRecord && (
