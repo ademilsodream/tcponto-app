@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, User, Settings, Menu } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('adminDashboard');
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -104,11 +106,82 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - RESTAURADO AO ORIGINAL
+  // Layout para funcionário comum - sem header, com sidebar
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
-        <main className="w-full px-6 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full flex">
+        {/* Sidebar para funcionário */}
+        <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white shadow-lg transition-all duration-300 flex flex-col border-r`}>
+          <div className="p-4 border-b">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded"
+            >
+              {sidebarOpen ? (
+                <div className="flex items-center gap-2">
+                  <img 
+                    src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                    alt="TCPonto Logo" 
+                    className="w-6 h-6 rounded-full"
+                  />
+                  <span className="font-semibold text-gray-800">TCPonto</span>
+                </div>
+              ) : (
+                <Menu className="w-6 h-6 text-gray-600" />
+              )}
+            </button>
+          </div>
+
+          <nav className="flex-1 p-4">
+            <div className="space-y-2">
+              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-blue-50 rounded-lg bg-blue-50 border-l-4 border-blue-500">
+                <Clock className="w-5 h-5 text-blue-600" />
+                {sidebarOpen && <span className="text-blue-700 font-medium">Registro de Ponto</span>}
+              </button>
+              
+              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg">
+                <BarChart3 className="w-5 h-5 text-gray-600" />
+                {sidebarOpen && <span className="text-gray-700">Relatórios</span>}
+              </button>
+              
+              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg">
+                <User className="w-5 h-5 text-gray-600" />
+                {sidebarOpen && <span className="text-gray-700">Perfil</span>}
+              </button>
+              
+              <button className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-100 rounded-lg">
+                <Settings className="w-5 h-5 text-gray-600" />
+                {sidebarOpen && <span className="text-gray-700">Configurações</span>}
+              </button>
+            </div>
+          </nav>
+
+          <div className="p-4 border-t">
+            <button 
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-3 p-3 text-left hover:bg-red-50 rounded-lg text-red-600"
+            >
+              <LogOut className="w-5 h-5" />
+              {sidebarOpen && <span>Sair</span>}
+            </button>
+          </div>
+        </div>
+
+        {/* Conteúdo principal para funcionário */}
+        <main className="flex-1 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <img 
+                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                alt="TCPonto Logo" 
+                className="w-8 h-8 rounded-full"
+              />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">TCPonto</h1>
+                <p className="text-sm text-gray-600">Olá, {userName}</p>
+              </div>
+            </div>
+          </div>
           <TimeRegistration />
         </main>
       </div>
