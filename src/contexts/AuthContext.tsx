@@ -119,6 +119,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } else {
+        // Verificar se o usuário está ativo
+        if (profile.status === 'inactive') {
+          console.log('AuthProvider: Usuário demitido tentando acessar, fazendo logout...');
+          await supabase.auth.signOut();
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
         console.log('AuthProvider: Perfil carregado com sucesso');
         setUser({
           id: profile.id,
@@ -158,6 +167,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('AuthProvider: Login realizado com sucesso');
       
       if (data.user) {
+        // Verificar status do usuário antes de fazer login
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('status')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profile?.status === 'inactive') {
+          await supabase.auth.signOut();
+          setLoading(false);
+          return { 
+            success: false, 
+            error: 'Acesso negado. Funcionário foi demitido e não pode mais acessar o sistema.'
+          };
+        }
+
         await loadUserProfile(data.user);
       }
 
