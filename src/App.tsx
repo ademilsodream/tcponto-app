@@ -1,62 +1,148 @@
 
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { CurrencyProvider } from "@/contexts/CurrencyContext";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import NotFound from "@/pages/NotFound";
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { 
+  Menubar,
+  MenubarContent,
+  MenubarItem,
+  MenubarMenu,
+  MenubarTrigger,
+} from '@/components/ui/menubar';
+import { Settings, LogOut, User, Building2 } from 'lucide-react';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { CurrencyProvider } from '@/contexts/CurrencyContext';
+import { Toaster } from '@/components/ui/toaster';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Login from '@/pages/Login';
+import Dashboard from '@/pages/Dashboard';
+import Settings from '@/components/Settings';
+import NotFound from '@/pages/NotFound';
+import { initializeApp } from '@/utils/initializeApp';
+import './App.css';
 
-// Configuração otimizada do React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutos - dados são considerados frescos por este tempo
-      gcTime: 10 * 60 * 1000, // 10 minutos - tempo que dados ficam em cache após não serem mais usados
-      retry: (failureCount, error) => {
-        // Retry logic mais inteligente
-        if (failureCount < 2) return true;
-        return false;
-      },
-      refetchOnWindowFocus: false, // Evita refetch desnecessário ao focar na janela
-      refetchOnMount: 'always' // Sempre refetch ao montar componente para dados atualizados
-    },
-    mutations: {
-      retry: 1 // Retry uma vez em mutações
+const AppContent = () => {
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
     }
-  }
-});
+  };
 
-const App = () => {
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <CurrencyProvider>
-          <AuthProvider>
-            <Toaster />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route 
-                  path="/dashboard" 
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="/" element={<Navigate to="/dashboard" />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </AuthProvider>
-        </CurrencyProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <Building2 className="w-8 h-8 text-primary" />
+              <h1 className="text-xl font-bold text-gray-900">Sistema de Ponto</h1>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              {/* Menu de Navegação */}
+              <Menubar>
+                <MenubarMenu>
+                  <MenubarTrigger asChild>
+                    <Link to="/" className="cursor-pointer">Dashboard</Link>
+                  </MenubarTrigger>
+                </MenubarMenu>
+
+                <MenubarMenu>
+                  <MenubarTrigger className="cursor-pointer">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configurações
+                  </MenubarTrigger>
+                  <MenubarContent>
+                    <MenubarItem asChild>
+                      <Link to="/settings" className="cursor-pointer">
+                        Configurações Gerais
+                      </Link>
+                    </MenubarItem>
+                  </MenubarContent>
+                </MenubarMenu>
+              </Menubar>
+
+              {/* Menu do Usuário */}
+              <Menubar>
+                <MenubarMenu>
+                  <MenubarTrigger className="cursor-pointer">
+                    <User className="w-4 h-4 mr-2" />
+                    {user.user_metadata?.name || user.email}
+                  </MenubarTrigger>
+                  <MenubarContent>
+                    <MenubarItem onClick={handleLogout} className="cursor-pointer">
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sair
+                    </MenubarItem>
+                  </MenubarContent>
+                </MenubarMenu>
+              </Menubar>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <Routes>
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/settings" element={
+            <ProtectedRoute adminOnly>
+              <Settings />
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+    </div>
   );
 };
+
+function App() {
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    initializeApp().then(() => {
+      setIsInitialized(true);
+    });
+  }, []);
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <CurrencyProvider>
+        <Router>
+          <AppContent />
+          <Toaster />
+        </Router>
+      </CurrencyProvider>
+    </AuthProvider>
+  );
+}
 
 export default App;

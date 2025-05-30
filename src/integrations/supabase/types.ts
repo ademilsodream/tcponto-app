@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      allowed_locations: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          is_active: boolean
+          latitude: number
+          longitude: number
+          name: string
+          range_meters: number
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latitude: number
+          longitude: number
+          name: string
+          range_meters?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latitude?: number
+          longitude?: number
+          name?: string
+          range_meters?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       edit_requests: {
         Row: {
           created_at: string
@@ -17,6 +53,7 @@ export type Database = {
           employee_name: string
           field: string
           id: string
+          location: Json | null
           new_value: string
           old_value: string | null
           reason: string
@@ -31,6 +68,7 @@ export type Database = {
           employee_name: string
           field: string
           id?: string
+          location?: Json | null
           new_value: string
           old_value?: string | null
           reason: string
@@ -45,6 +83,7 @@ export type Database = {
           employee_name?: string
           field?: string
           id?: string
+          location?: Json | null
           new_value?: string
           old_value?: string | null
           reason?: string
@@ -77,6 +116,7 @@ export type Database = {
           hourly_rate: number
           id: string
           name: string
+          overtime_rate: number | null
           role: string
           updated_at: string
         }
@@ -87,6 +127,7 @@ export type Database = {
           hourly_rate?: number
           id: string
           name: string
+          overtime_rate?: number | null
           role?: string
           updated_at?: string
         }
@@ -97,7 +138,35 @@ export type Database = {
           hourly_rate?: number
           id?: string
           name?: string
+          overtime_rate?: number | null
           role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          setting_key: string
+          setting_value: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key: string
+          setting_value: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: string
           updated_at?: string
         }
         Relationships: []

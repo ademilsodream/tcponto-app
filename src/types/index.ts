@@ -6,6 +6,7 @@ export interface User {
   role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
+  employeeCode?: string;
 }
 
 export interface TimeRecord {
@@ -21,6 +22,7 @@ export interface TimeRecord {
   normalPay: number;
   overtimePay: number;
   totalPay: number;
+  locations?: any;
 }
 
 export interface EditRequest {
@@ -34,4 +36,31 @@ export interface EditRequest {
   reason: string;
   timestamp: string;
   status: 'pending' | 'approved' | 'rejected';
+  location?: {
+    latitude: number;
+    longitude: number;
+    timestamp: string;
+    address: string;
+  };
+}
+
+export interface AllowedLocation {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  range_meters: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SystemSetting {
+  id: string;
+  setting_key: string;
+  setting_value: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
 }

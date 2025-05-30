@@ -1,436 +1,481 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Clock, CheckCircle } from 'lucide-react'; // Removido MapPin, XCircle, AlertCircle
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Clock, MapPin, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-import TimeRegistrationProgress from './TimeRegistrationProgress';
-
+import { getCurrentLocation, isLocationAllowed } from '@/utils/locationValidation';
+import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
 
 interface TimeRecord {
-  id: string;
-  date: string;
-  clock_in?: string;
-  lunch_start?: string;
-  lunch_end?: string;
-  clock_out?: string;
-  locations?: any; // Mantido para salvar a localização, mas não será exibido
+  id: string;
+  date: string;
+  clock_in?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  clock_out?: string;
+  total_hours: number;
+  locations?: any;
 }
 
-
-interface LocationData {
-  lat: number;
-  lng: number;
-  street: string;
-  houseNumber: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
-  fullAddress: string;
+interface AllowedLocation {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  range_meters: number;
+  is_active: boolean;
 }
 
-
-interface TimeRegistrationProps {
-  selectedDate?: string;
-}
-
-
-const TimeRegistration: React.FC<TimeRegistrationProps> = ({ selectedDate }) => {
-  const { user } = useAuth();
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [todayRecord, setTodayRecord] = useState<TimeRecord | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(false); // Mantido para a lógica interna
-  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null); // Mantido para a lógica interna
-  const intervalRef = useRef<NodeJS.Timeout>();
-
-
-  // Use selectedDate se fornecido, senão use a data atual
-  const displayDate = selectedDate ? new Date(selectedDate) : new Date();
-
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-
-    return () => clearInterval(timer);
-  }, []);
-
-
-  useEffect(() => {
-    if (user) {
-      loadTodayRecord();
-      getCurrentLocation(); // Ainda obtém a localização para salvar, mesmo sem exibir
-    }
-  }, [user, selectedDate]);
-
-
-  const getCurrentLocation = async () => {
-    setLocationLoading(true);
-    try {
-      if (!navigator.geolocation) {
-        console.warn('Geolocalização não é suportada por este navegador');
-        setCurrentLocation(null);
-        return;
-      }
-
-
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000
-        });
-      });
-
-
-      const { latitude, longitude } = position.coords;
-      //console.log('Coordenadas obtidas:', latitude, longitude); // Log removido para ser mais conciso
-
-
-      // Buscar detalhes do endereço usando Nominatim
-      try {
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&accept-language=pt-BR`,
-          {
-            headers: {
-              'User-Agent': 'TimeTracker/1.0'
-            }
-          }
-        );
-
-
-        if (response.ok) {
-          const data = await response.json();
-          //console.log('Resposta do Nominatim:', data); // Log removido
-
-
-          const address = data.address || {};
-          const locationData: LocationData = {
-            lat: latitude,
-            lng: longitude,
-            street: address.road || address.pedestrian || 'Não informado',
-            houseNumber: address.house_number || 'S/N',
-            neighborhood: address.neighbourhood || address.suburb || address.quarter || 'Não informado',
-            city: address.city || address.town || address.village || address.municipality || 'Não informado',
-            state: address.state || address.region || 'Não informado',
-            postalCode: address.postcode || 'Não informado',
-            country: address.country || 'Não informado',
-            fullAddress: data.display_name || `${latitude}, ${longitude}`
-          };
-
-
-          //console.log('Dados de localização processados:', locationData); // Log removido
-          setCurrentLocation(locationData);
-        } else {
-          throw new Error('Erro na resposta do Nominatim');
-        }
-      } catch (geocodeError) {
-        console.warn('Erro ao obter detalhes do endereço:', geocodeError);
-        // Fallback para coordenadas simples
-        const fallbackLocation: LocationData = {
-          lat: latitude,
-          lng: longitude,
-          street: 'Não informado',
-          houseNumber: 'S/N',
-          neighborhood: 'Não informado',
-          city: 'Não informado',
-          state: 'Não informado',
-          postalCode: 'Não informado',
-          country: 'Não informado',
-          fullAddress: `Coordenadas: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-        };
-        setCurrentLocation(fallbackLocation);
-      }
-    } catch (error) {
-      console.error('Erro ao obter localização:', error);
-      setCurrentLocation(null);
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
-
-  const loadTodayRecord = async () => {
-    if (!user) return;
-
-
-    try {
-      const today = selectedDate || format(new Date(), 'yyyy-MM-dd');
-      const { data, error } = await supabase
-        .from('time_records')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('date', today)
-        .maybeSingle();
-
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-
-
-      setTodayRecord(data);
-    } catch (error) {
-      console.error('Error loading today record:', error);
-      toast.error('Erro ao carregar registro do dia');
-    }
-  };
-
-
-  const updateTimeRecord = async (field: string, value: string, locationField: string) => {
-    // A localização ainda é necessária para a lógica de salvar, mesmo que não seja exibida
-    if (!user || !currentLocation) {
-      toast.error('Localização necessária para registrar ponto');
-      // Tenta obter a localização novamente se falhou
-      getCurrentLocation();
-      return;
-    }
-
-
-    setLoading(true);
-    try {
-      const today = selectedDate || format(new Date(), 'yyyy-MM-dd');
-      
-      if (todayRecord) {
-        // Atualizar registro existente
-        const existingLocations = todayRecord.locations || {};
-        const updatedLocations = {
-          ...existingLocations,
-          [locationField]: currentLocation
-        };
-
-
-        const { error } = await supabase
-          .from('time_records')
-          .update({
-            [field]: value,
-            locations: JSON.parse(JSON.stringify(updatedLocations)), // Converter para JSON válido
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', todayRecord.id);
-
-
-        if (error) throw error;
-      } else {
-        // Criar novo registro
-        const newLocations = {
-          [locationField]: currentLocation
-        };
-
-
-        const { error } = await supabase
-          .from('time_records')
-          .insert({
-            user_id: user.id,
-            date: today,
-            [field]: value,
-            locations: JSON.parse(JSON.stringify(newLocations)) // Converter para JSON válido
-          });
-
-
-        if (error) throw error;
-      }
-
-
-      await loadTodayRecord();
-      toast.success('Ponto registrado com sucesso!');
-    } catch (error) {
-      console.error('Error updating time record:', error);
-      toast.error('Erro ao registrar ponto');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const handleClockIn = () => {
-    const now = format(new Date(), 'HH:mm:ss');
-    updateTimeRecord('clock_in', now, 'clockIn');
-  };
-
-
-  const handleLunchStart = () => {
-    const now = format(new Date(), 'HH:mm:ss');
-    updateTimeRecord('lunch_start', now, 'lunchStart');
-  };
-
-
-  const handleLunchEnd = () => {
-    const now = format(new Date(), 'HH:mm:ss');
-    updateTimeRecord('lunch_end', now, 'lunchEnd');
-  };
-
-
-  const handleClockOut = () => {
-    const now = format(new Date(), 'HH:mm:ss');
-    updateTimeRecord('clock_out', now, 'clockOut');
-  };
-
-
-  const getStatusBadge = () => {
-    if (!todayRecord) {
-      return <Badge variant="secondary">Não iniciado</Badge>;
-    }
-
-
-    if (todayRecord.clock_out) {
-      return <Badge className="bg-blue-600">Finalizado</Badge>;
-    }
-
-
-    if (todayRecord.lunch_start && !todayRecord.lunch_end) {
-      return <Badge className="bg-yellow-600">Em horário de almoço</Badge>;
-    }
-
-
-    if (todayRecord.clock_in) {
-      return <Badge className="bg-green-600">Trabalhando</Badge>;
-    }
-
-
-    return <Badge variant="secondary">Não iniciado</Badge>;
-  };
-
-
-  // Lógica para determinar qual botão exibir
-  const renderActionButton = () => {
-    // Se o registro ainda não começou, mostre o botão de Entrada
-    if (!todayRecord?.clock_in) {
-      return (
-        <Button
-          onClick={handleClockIn}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          className="h-16 w-full" // w-full para ocupar a largura total
-          variant="default" // Alterado para default para ser azul
-        >
-          <Clock className="w-5 h-5 mr-2" />
-          Registrar Entrada
-        </Button>
-      );
-    }
-
-
-    // Se a Entrada foi registrada, mas o almoço não começou, mostre o botão de Saída Almoço
-    if (todayRecord.clock_in && !todayRecord.lunch_start) {
-      return (
-        <Button
-          onClick={handleLunchStart}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="default" // Alterado para default para ser azul
-          className="h-16 w-full"
-        >
-          <Clock className="w-5 h-5 mr-2" />
-          Registrar Saída Almoço
-        </Button>
-      );
-    }
-
-
-    // Se o almoço começou, mas não terminou, mostre o botão de Volta Almoço
-    if (todayRecord.lunch_start && !todayRecord.lunch_end) {
-      return (
-        <Button
-          onClick={handleLunchEnd}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="default" // Alterado para default para ser azul
-          className="h-16 w-full"
-        >
-          <Clock className="w-5 h-5 mr-2" />
-          Registrar Volta Almoço
-        </Button>
-      );
-    }
-
-
-    // Se o almoço terminou, mas a saída não foi registrada, mostre o botão de Saída
-    if (todayRecord.lunch_end && !todayRecord.clock_out) {
-      return (
-        <Button
-          onClick={handleClockOut}
-          disabled={loading || !currentLocation} // Desabilita se estiver carregando ou sem localização
-          variant="default" // Alterado para default para ser azul (era destructive)
-          className="h-16 w-full"
-        >
-          <Clock className="w-5 h-5 mr-2" />
-          Registrar Saída
-        </Button>
-      );
-    }
-
-
-    // Se todos os registros foram concluídos
-    if (todayRecord.clock_out) {
-        return (
-            <div className="text-center text-green-600 font-semibold py-4">
-                <CheckCircle className="w-8 h-8 mx-auto mb-2" /> {/* Ícone maior */}
-                Todos os registros do dia foram concluídos!
-            </div>
-        );
-    }
-
-
-    // Caso padrão (não deve acontecer se a lógica estiver correta)
-    return null;
-  };
-
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Registro de Ponto
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="text-center">
-            <div className="text-3xl font-mono font-bold">
-              {format(currentTime, 'HH:mm:ss')}
-            </div>
-            <div className="text-lg text-gray-600">
-              {format(displayDate, 'dd/MM/yyyy')}
-            </div>
-            <div className="mt-2">
-              {getStatusBadge()}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-
-      {/* Componente de Progresso */}
-      {todayRecord && (
-        <TimeRegistrationProgress 
-          record={{
-            clockIn: todayRecord.clock_in,
-            lunchStart: todayRecord.lunch_start,
-            lunchEnd: todayRecord.lunch_end,
-            clockOut: todayRecord.clock_out
-          }} 
-        />
-      )}
-
-
-      {/* Botões de Registro - Exibidos sequencialmente */}
-      <div className="flex justify-center"> {/* Centraliza o botão */}
-        {renderActionButton()}
-        {/* Indicador de carregamento de localização, se necessário */}
-        {locationLoading && <p className="text-sm text-gray-500 mt-2">Obtendo localização...</p>}
-      </div>
-
-
-    </div>
-  );
+const TimeRegistration = () => {
+  const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
+  const [currentLocation, setCurrentLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [locationValidated, setLocationValidated] = useState(false);
+  const [locationError, setLocationError] = useState<string>('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editField, setEditField] = useState<'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out' | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      loadTodayRecord();
+      loadAllowedLocations();
+      validateCurrentLocation();
+    }
+  }, [user]);
+
+  const loadAllowedLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('allowed_locations')
+        .select('*')
+        .eq('is_active', true);
+
+      if (error) throw error;
+      setAllowedLocations(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar localizações permitidas:', error);
+    }
+  };
+
+  const validateCurrentLocation = async () => {
+    try {
+      const location = await getCurrentLocation();
+      setCurrentLocation(location);
+
+      const validation = isLocationAllowed(location, allowedLocations);
+      
+      if (validation.allowed) {
+        setLocationValidated(true);
+        setLocationError('');
+        toast({
+          title: "Localização válida",
+          description: `Você está próximo a ${validation.closestLocation?.name}`,
+        });
+      } else {
+        setLocationValidated(false);
+        const message = validation.closestLocation 
+          ? `Você está a ${Math.round(validation.distance || 0)}m de ${validation.closestLocation.name}. Range permitido: ${validation.closestLocation.range_meters}m`
+          : 'Nenhuma localização permitida encontrada próxima';
+        setLocationError(message);
+        toast({
+          title: "Localização não permitida",
+          description: message,
+          variant: "destructive"
+        });
+      }
+    } catch (error: any) {
+      console.error('Erro ao validar localização:', error);
+      setLocationError(error.message || 'Erro ao obter localização');
+      toast({
+        title: "Erro de localização",
+        description: error.message || 'Não foi possível obter sua localização',
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadTodayRecord = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('date', today)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      setTimeRecord(data);
+    } catch (error) {
+      console.error('Erro ao carregar registro:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar registro do dia",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTimeAction = async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
+    if (!user) return;
+
+    // Verificar localização antes de permitir registro
+    if (!locationValidated) {
+      toast({
+        title: "Localização não permitida",
+        description: "Você precisa estar em uma localização autorizada para registrar o ponto",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+
+      let updateData: any = {
+        [action]: currentTime,
+        updated_at: new Date().toISOString()
+      };
+
+      // Incluir localização no registro
+      if (currentLocation) {
+        const locationData = {
+          [action]: {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+            timestamp: now.toISOString(),
+            address: allowedLocations.find(loc => {
+              const validation = isLocationAllowed(currentLocation, [loc]);
+              return validation.allowed;
+            })?.address || 'Localização não identificada'
+          }
+        };
+
+        if (timeRecord?.locations) {
+          updateData.locations = { ...timeRecord.locations, ...locationData };
+        } else {
+          updateData.locations = locationData;
+        }
+      }
+
+      if (timeRecord) {
+        const { error } = await supabase
+          .from('time_records')
+          .update(updateData)
+          .eq('id', timeRecord.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('time_records')
+          .insert({
+            user_id: user.id,
+            date: today,
+            ...updateData
+          });
+
+        if (error) throw error;
+      }
+
+      await loadTodayRecord();
+      
+      const actionNames = {
+        clock_in: 'Entrada',
+        lunch_start: 'Início do Almoço',
+        lunch_end: 'Fim do Almoço',
+        clock_out: 'Saída'
+      };
+
+      toast({
+        title: "Sucesso",
+        description: `${actionNames[action]} registrada às ${currentTime}`,
+      });
+
+    } catch (error) {
+      console.error('Erro ao registrar:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao registrar horário",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openEditDialog = (field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
+    setEditField(field);
+    setEditValue(timeRecord?.[field] || '');
+    setEditReason('');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!user || !editField || !editValue || !editReason) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      // Incluir localização na solicitação de edição
+      let locationData = null;
+      if (currentLocation) {
+        locationData = {
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          timestamp: new Date().toISOString(),
+          address: allowedLocations.find(loc => {
+            const validation = isLocationAllowed(currentLocation, [loc]);
+            return validation.allowed;
+          })?.address || 'Localização no momento da solicitação'
+        };
+      }
+
+      const { error } = await supabase
+        .from('edit_requests')
+        .insert({
+          employee_id: user.id,
+          employee_name: user.user_metadata?.name || user.email || 'Usuário',
+          date: new Date().toISOString().split('T')[0],
+          field: editField,
+          old_value: timeRecord?.[editField] || null,
+          new_value: editValue,
+          reason: editReason,
+          location: locationData,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Solicitação de alteração enviada para aprovação",
+      });
+
+      setIsEditDialogOpen(false);
+      setEditField(null);
+      setEditValue('');
+      setEditReason('');
+
+    } catch (error) {
+      console.error('Erro ao enviar solicitação:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao enviar solicitação de alteração",
+        variant: "destructive"
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-2">Carregando...</span>
+      </div>
+    );
+  }
+
+  const fieldNames = {
+    clock_in: 'Entrada',
+    lunch_start: 'Início do Almoço',
+    lunch_end: 'Fim do Almoço',
+    clock_out: 'Saída'
+  };
+
+  return (
+    <div className="space-y-6">
+      <TimeRegistrationProgress timeRecord={timeRecord} />
+
+      {/* Validação de Localização */}
+      <Card className={locationValidated ? 'border-green-200' : 'border-red-200'}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className={`w-5 h-5 ${locationValidated ? 'text-green-600' : 'text-red-600'}`} />
+            Status de Localização
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {locationValidated ? (
+            <div className="flex items-center gap-2 text-green-700">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span>Localização autorizada para registro de ponto</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Localização não autorizada</span>
+              </div>
+              {locationError && (
+                <p className="text-sm text-gray-600">{locationError}</p>
+              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={validateCurrentLocation}
+                disabled={submitting}
+              >
+                Verificar Localização Novamente
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Botões de Registro */}
+      <div className="grid grid-cols-2 gap-4">
+        <Button
+          onClick={() => handleTimeAction('clock_in')}
+          disabled={submitting || !!timeRecord?.clock_in || !locationValidated}
+          className="h-20 text-lg"
+          variant={timeRecord?.clock_in ? "secondary" : "default"}
+        >
+          <Clock className="w-6 h-6 mr-2" />
+          {timeRecord?.clock_in ? `Entrada: ${timeRecord.clock_in}` : 'Registrar Entrada'}
+        </Button>
+
+        <Button
+          onClick={() => handleTimeAction('lunch_start')}
+          disabled={submitting || !timeRecord?.clock_in || !!timeRecord?.lunch_start || !locationValidated}
+          className="h-20 text-lg"
+          variant={timeRecord?.lunch_start ? "secondary" : "default"}
+        >
+          <Clock className="w-6 h-6 mr-2" />
+          {timeRecord?.lunch_start ? `Almoço: ${timeRecord.lunch_start}` : 'Início Almoço'}
+        </Button>
+
+        <Button
+          onClick={() => handleTimeAction('lunch_end')}
+          disabled={submitting || !timeRecord?.lunch_start || !!timeRecord?.lunch_end || !locationValidated}
+          className="h-20 text-lg"
+          variant={timeRecord?.lunch_end ? "secondary" : "default"}
+        >
+          <Clock className="w-6 h-6 mr-2" />
+          {timeRecord?.lunch_end ? `Retorno: ${timeRecord.lunch_end}` : 'Fim Almoço'}
+        </Button>
+
+        <Button
+          onClick={() => handleTimeAction('clock_out')}
+          disabled={submitting || !timeRecord?.clock_in || !!timeRecord?.clock_out || !locationValidated}
+          className="h-20 text-lg"
+          variant={timeRecord?.clock_out ? "secondary" : "default"}
+        >
+          <Clock className="w-6 h-6 mr-2" />
+          {timeRecord?.clock_out ? `Saída: ${timeRecord.clock_out}` : 'Registrar Saída'}
+        </Button>
+      </div>
+
+      {/* Botões de Edição */}
+      {timeRecord && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Solicitar Alterações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-2">
+              {(['clock_in', 'lunch_start', 'lunch_end', 'clock_out'] as const).map((field) => (
+                <Button
+                  key={field}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditDialog(field)}
+                  disabled={!timeRecord[field]}
+                >
+                  Editar {fieldNames[field]}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog de Edição */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Solicitar Alteração - {editField ? fieldNames[editField] : ''}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-value">Novo Horário</Label>
+              <Input
+                id="edit-value"
+                type="time"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
+              <Textarea
+                id="edit-reason"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="Descreva o motivo da solicitação de alteração..."
+                required
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsEditDialogOpen(false)}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleEditSubmit}
+                disabled={submitting || !editValue || !editReason}
+              >
+                {submitting ? 'Enviando...' : 'Enviar Solicitação'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 };
-
 
 export default TimeRegistration;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,6 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-
 interface User {
   id: string;
   name: string;
@@ -21,11 +21,9 @@ interface User {
   employeeCode?: string;
 }
 
-
 interface UserManagementProps {
   onUserChange?: () => void;
 }
-
 
 const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const [users, setUsers] = useState<User[]>([]);
@@ -45,11 +43,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
 
-
   useEffect(() => {
     loadUsers();
   }, []);
-
 
   const loadUsers = async () => {
     try {
@@ -60,7 +56,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         .select('*')
         .order('name');
 
-
       if (error) {
         toast({
           title: "Erro",
@@ -70,17 +65,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         return;
       }
 
-
       const formattedUsers = data?.map(profile => ({
         id: profile.id,
         name: profile.name,
         email: profile.email,
         role: profile.role === 'admin' ? 'admin' : 'user' as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate) || 50,
-        overtimeRate: (Number(profile.hourly_rate) || 50) * 1.5,
+        overtimeRate: Number(profile.overtime_rate) || 75,
         employeeCode: profile.employee_code || ''
       })) || [];
-
 
       setUsers(formattedUsers);
     } catch (error) {
@@ -95,7 +88,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
-
   const resetForm = () => {
     setFormData({
       name: '',
@@ -109,7 +101,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     setEditingUser(null);
   };
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -122,13 +113,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       return;
     }
 
-
     const hourlyRate = parseFloat(formData.hourlyRate) || 50;
-
+    const overtimeRate = parseFloat(formData.overtimeRate) || 75;
 
     try {
       setSubmitting(true);
-
 
       if (editingUser) {
         // Atualizar usuário existente
@@ -139,98 +128,66 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             email: formData.email,
             role: formData.role,
             hourly_rate: hourlyRate,
+            overtime_rate: overtimeRate,
             employee_code: formData.employeeCode || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingUser.id);
 
-
         if (error) {
           throw error;
         }
-
 
         toast({
           title: "Sucesso",
           description: "Usuário atualizado com sucesso!"
         });
       } else {
-        // Criar novo usuário
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
+        // Criar novo usuário via Edge Function (não faz login automático)
+        const response = await fetch('/functions/v1/create-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            name: formData.name,
+            role: formData.role,
+            hourlyRate: hourlyRate,
+            overtimeRate: overtimeRate,
+            employeeCode: formData.employeeCode
+          })
         });
 
+        const result = await response.json();
 
-        if (authError) {
-          if (authError.message.includes('already registered')) {
-            toast({
-              title: "Erro",
-              description: "Este e-mail já está registrado no sistema",
-              variant: "destructive"
-            });
-          } else {
-            toast({
-              title: "Erro",
-              description: "Erro ao criar usuário: " + authError.message,
-              variant: "destructive"
-            });
-          }
-          return;
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao criar usuário');
         }
 
-
-        if (authData.user) {
-          // Criar perfil diretamente
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: authData.user.id,
-              name: formData.name,
-              email: formData.email,
-              role: formData.role,
-              hourly_rate: hourlyRate,
-              employee_code: formData.employeeCode || null
-            });
-
-
-          if (profileError) {
-            console.error('Erro ao criar perfil:', profileError);
-            toast({
-              title: "Erro",
-              description: "Erro ao salvar dados do perfil", // <-- Corrigido aqui
-              variant: "destructive"
-            });
-            // Considere reverter a criação do auth user aqui se o perfil falhar
-            // ou lidar com isso de outra forma
-          } else {
-            toast({
-              title: "Sucesso",
-              description: "Usuário criado com sucesso!"
-            });
-          }
-        }
+        toast({
+          title: "Sucesso",
+          description: "Usuário criado com sucesso!"
+        });
       }
 
-
       await loadUsers();
-      // Chamar callback para atualizar dados no componente pai
       onUserChange?.();
-
       setIsDialogOpen(false);
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar usuário:', error);
       toast({
         title: "Erro",
-        description: "Erro ao salvar usuário",
+        description: error.message || "Erro ao salvar usuário",
         variant: "destructive"
       });
     } finally {
       setSubmitting(false);
     }
   };
-
 
   const handleEdit = (user: User) => {
     setEditingUser(user);
@@ -246,12 +203,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     setIsDialogOpen(true);
   };
 
-
   const handleDelete = async (userId: string) => {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) {
       return;
     }
-
 
     try {
       const { error } = await supabase
@@ -259,21 +214,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         .delete()
         .eq('id', userId);
 
-
       if (error) {
         throw error;
       }
 
-
-      // Note: Excluir o perfil não exclui automaticamente o usuário de autenticação.
-      // A exclusão completa de um usuário (incluindo auth.users) geralmente requer
-      // privilégios de serviço ou a exclusão pelo próprio usuário.
-      // Para uma solução completa, você precisaria de uma função de backend (Edge Function)
-      // que possa excluir o usuário auth.
-
-
       await loadUsers();
-      // Chamar callback para atualizar dados no componente pai
       onUserChange?.();
 
       toast({
@@ -290,7 +235,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -301,7 +245,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       </div>
     );
   }
-
 
   return (
     <div className="space-y-6">
@@ -336,7 +279,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 />
               </div>
 
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input
@@ -349,7 +291,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 />
               </div>
 
-
               <div className="space-y-2">
                 <Label htmlFor="employeeCode">Código do Funcionário</Label>
                 <Input
@@ -360,7 +301,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                   disabled={submitting}
                 />
               </div>
-
 
               {!editingUser && (
                 <div className="space-y-2">
@@ -376,7 +316,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                   />
                 </div>
               )}
-
 
               <div className="space-y-2">
                 <Label htmlFor="role">Nível *</Label>
@@ -395,7 +334,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 </Select>
               </div>
 
-
               <div className="space-y-2">
                 <Label htmlFor="hourlyRate">Valor por Hora *</Label>
                 <Input
@@ -410,6 +348,22 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="overtimeRate">Valor Hora Extra *</Label>
+                <Input
+                  id="overtimeRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.overtimeRate}
+                  onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
+                  required
+                  disabled={submitting}
+                />
+                <p className="text-sm text-gray-600">
+                  Valor livre para hora extra (não calculado automaticamente)
+                </p>
+              </div>
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button
@@ -428,7 +382,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
           </DialogContent>
         </Dialog>
       </div>
-
 
       <Card>
         <CardHeader>
@@ -465,6 +418,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       Valor/Hora
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Hora Extra
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
@@ -492,6 +448,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatCurrency(user.hourlyRate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(user.overtimeRate)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
@@ -523,6 +482,5 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     </div>
   );
 };
-
 
 export default UserManagement;
