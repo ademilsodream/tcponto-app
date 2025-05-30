@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,8 +38,8 @@ interface AdminDashboardProps {
 const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const { formatCurrency } = useCurrency();
 
-  // Função otimizada para buscar dados do dashboard
-  const fetchDashboardData = async (): Promise<DashboardData> => {
+  // Função extremamente otimizada para buscar dados
+  const fetchDashboardData = useCallback(async (): Promise<DashboardData> => {
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
@@ -46,59 +47,43 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
 
-    // 1. Buscar TODOS os registros do mês em uma única query usando os campos corretos
-    const { data: allTimeRecords, error: recordsError } = await supabase
+    // Query única e otimizada para dados do mês usando apenas campos necessários
+    const { data: monthlyData, error: monthlyError } = await supabase
       .from('time_records')
-      .select(`
-        user_id,
-        date,
-        clock_in,
-        lunch_start,
-        lunch_end,
-        clock_out,
-        total_hours,
-        total_pay
-      `)
+      .select('total_hours, total_pay')
       .gte('date', startOfMonth)
       .lte('date', endOfMonth)
       .eq('status', 'active');
 
-    if (recordsError) throw recordsError;
+    if (monthlyError) throw monthlyError;
 
-    // 2. Buscar registros de hoje em uma única query
-    const { data: todayRecords, error: todayError } = await supabase
+    // Query separada e otimizada para dados de hoje
+    const { data: todayData, error: todayError } = await supabase
       .from('time_records')
-      .select(`
-        user_id,
-        clock_in,
-        lunch_start,
-        lunch_end,
-        clock_out
-      `)
+      .select('user_id, clock_in, lunch_start, lunch_end, clock_out')
       .eq('date', today);
 
     if (todayError) throw todayError;
 
-    // 3. Processar dados localmente usando os campos corretos da tabela
-    let totalHours = 0;
-    let totalEarnings = 0;
+    // Cálculos otimizados
+    const totals = monthlyData?.reduce(
+      (acc, record) => ({
+        hours: acc.hours + (Number(record.total_hours) || 0),
+        earnings: acc.earnings + (Number(record.total_pay) || 0)
+      }),
+      { hours: 0, earnings: 0 }
+    ) || { hours: 0, earnings: 0 };
 
-    // Calcular totais diretamente dos campos da tabela
-    allTimeRecords?.forEach(record => {
-      totalHours += Number(record.total_hours) || 0;
-      totalEarnings += Number(record.total_pay) || 0;
-    });
+    // Mapa otimizado para status dos funcionários
+    const todayRecordsMap = new Map(
+      todayData?.map(record => [record.user_id, record]) || []
+    );
 
-    // 4. Processar status dos funcionários
-    const todayRecordsByUser = todayRecords?.reduce((acc, record) => {
-      acc[record.user_id] = record;
-      return acc;
-    }, {} as Record<string, any>) || {};
-
+    // Filtrar apenas funcionários (não admins) e processar status
     const employeeStatuses: EmployeeStatus[] = employees
       .filter(emp => emp.role === 'user')
       .map(employee => {
-        const todayRecord = todayRecordsByUser[employee.id];
+        const todayRecord = todayRecordsMap.get(employee.id);
         const statusInfo = getEmployeeStatus(todayRecord);
         
         return {
@@ -113,13 +98,13 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     return {
       totalEmployees: employees.length,
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
-      totalHours,
-      totalEarnings,
+      totalHours: totals.hours,
+      totalEarnings: totals.earnings,
       employeeStatuses
     };
-  };
+  }, [employees]);
 
-  // React Query para cache e otimização
+  // Query otimizada com cache inteligente
   const {
     data: dashboardData,
     isLoading,
@@ -127,16 +112,19 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
   } = useQuery({
     queryKey: ['dashboard-data', employees.length],
     queryFn: fetchDashboardData,
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 10 * 60 * 1000, // Refetch a cada 10 minutos
-    enabled: employees.length > 0
+    staleTime: 15 * 60 * 1000, // Aumentado para 15 minutos
+    refetchInterval: false, // Removido refetch automático
+    refetchOnWindowFocus: false,
+    enabled: employees.length > 0,
+    retry: 1
   });
 
-  const getEmployeeStatus = (record: any): { status: string; label: string; color: string } => {
+  // Função memoizada para status
+  const getEmployeeStatus = useCallback((record: any): { status: string; label: string; color: string } => {
     if (!record?.clock_in) {
       return {
         status: 'not_working',
-        label: 'Não iniciou o trabalho',
+        label: 'Não iniciou',
         color: 'red'
       };
     }
@@ -144,7 +132,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     if (record.clock_out) {
       return {
         status: 'day_finished',
-        label: 'Finalizou o dia',
+        label: 'Finalizou',
         color: 'blue'
       };
     }
@@ -152,74 +140,77 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     if (record.lunch_start && !record.lunch_end) {
       return {
         status: 'lunch_break',
-        label: 'Em horário de almoço',
+        label: 'Almoço',
         color: 'yellow'
       };
     }
 
     return {
       status: 'working',
-      label: record.lunch_end ? 'Trabalhando (voltou do almoço)' : 'Trabalhando',
+      label: 'Trabalhando',
       color: 'green'
     };
-  };
+  }, []);
 
-  const getStatusColorClasses = (color: string) => {
-    switch (color) {
-      case 'green':
-        return 'bg-green-50 border-green-200 text-green-800';
-      case 'yellow':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
-      case 'blue':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
-      case 'red':
-        return 'bg-red-50 border-red-200 text-red-800';
-      default:
-        return 'bg-gray-50 border-gray-200 text-gray-800';
-    }
-  };
+  // Funções memoizadas para classes CSS
+  const getStatusColorClasses = useCallback((color: string) => {
+    const classMap = {
+      green: 'bg-green-50 border-green-200 text-green-800',
+      yellow: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+      blue: 'bg-blue-50 border-blue-200 text-blue-800',
+      red: 'bg-red-50 border-red-200 text-red-800'
+    };
+    return classMap[color as keyof typeof classMap] || 'bg-gray-50 border-gray-200 text-gray-800';
+  }, []);
 
-  const getStatusBadgeClasses = (color: string) => {
-    switch (color) {
-      case 'green':
-        return 'bg-green-200 text-green-800';
-      case 'yellow':
-        return 'bg-yellow-200 text-yellow-800';
-      case 'blue':
-        return 'bg-blue-200 text-blue-800';
-      case 'red':
-        return 'bg-red-200 text-red-800';
-      default:
-        return 'bg-gray-200 text-gray-800';
-    }
-  };
+  const getStatusBadgeClasses = useCallback((color: string) => {
+    const classMap = {
+      green: 'bg-green-200 text-green-800',
+      yellow: 'bg-yellow-200 text-yellow-800',
+      blue: 'bg-blue-200 text-blue-800',
+      red: 'bg-red-200 text-red-800'
+    };
+    return classMap[color as keyof typeof classMap] || 'bg-gray-200 text-gray-800';
+  }, []);
 
+  // Loading skeleton otimizado
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        <span className="ml-2">Carregando dados do painel...</span>
+      <div className="space-y-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="animate-pulse h-6 bg-gray-200 rounded w-3/4"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="animate-pulse h-8 bg-gray-200 rounded w-1/2"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
-    console.error('Error loading dashboard:', error);
+    console.error('Dashboard error:', error);
     return (
       <div className="text-center p-8">
-        <p className="text-red-600">Erro ao carregar dados do painel</p>
+        <p className="text-red-600">Erro ao carregar dados</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Cards de Métricas Otimizados */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Total de Funcionários
+              Funcionários
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -231,7 +222,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-purple-500" />
-              Total de Administradores
+              Administradores
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -243,12 +234,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-500" />
-              Total de Horas Trabalhadas
+              Horas Trabalhadas
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{(dashboardData?.totalHours || 0).toFixed(1)}</div>
-            <div className="text-sm text-gray-500">Mês vigente</div>
+            <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
         </Card>
 
@@ -261,18 +252,17 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(dashboardData?.totalEarnings || 0)}</div>
-            <div className="text-sm text-gray-500">Mês vigente</div>
+            <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Status Detalhado dos Funcionários */}
+      {/* Status dos Funcionários Otimizado */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <UserCheck className="w-5 h-5" />
             Status dos Funcionários
-            <span className="text-sm bg-blue-100 px-2 py-1 rounded-full">Em Tempo Real</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -295,10 +285,10 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
                       <div>Entrada: {empStatus.record.clock_in}</div>
                     )}
                     {empStatus.record.lunch_start && (
-                      <div>Saída almoço: {empStatus.record.lunch_start}</div>
+                      <div>Almoço: {empStatus.record.lunch_start}</div>
                     )}
                     {empStatus.record.lunch_end && (
-                      <div>Volta almoço: {empStatus.record.lunch_end}</div>
+                      <div>Volta: {empStatus.record.lunch_end}</div>
                     )}
                     {empStatus.record.clock_out && (
                       <div>Saída: {empStatus.record.clock_out}</div>
@@ -311,7 +301,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             {(!dashboardData?.employeeStatuses || dashboardData.employeeStatuses.length === 0) && (
               <div className="col-span-full text-center py-8">
                 <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">Nenhum funcionário cadastrado</p>
+                <p className="text-gray-500 text-sm">Nenhum funcionário</p>
               </div>
             )}
           </div>

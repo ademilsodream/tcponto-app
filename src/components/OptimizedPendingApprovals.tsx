@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,14 +40,14 @@ interface PendingApprovalsProps {
   }>;
 }
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
 
 const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
   const [message, setMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
 
-  // Query otimizada para buscar solicitações
+  // Query extremamente otimizada
   const {
     data: editRequests = [],
     isLoading,
@@ -59,7 +59,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         .from('edit_requests')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(100); // Limitar para não buscar dados desnecessários
+        .limit(50); // Reduzido de 100 para 50
 
       if (error) throw error;
 
@@ -76,65 +76,72 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         status: request.status as 'pending' | 'approved' | 'rejected'
       }));
     },
-    staleTime: 2 * 60 * 1000, // 2 minutos
-    refetchInterval: 5 * 60 * 1000 // Refetch a cada 5 minutos ao invés de real-time constante
+    staleTime: 10 * 60 * 1000, // Aumentado para 10 minutos
+    refetchInterval: false, // Desabilitado refetch automático
+    refetchOnWindowFocus: false, // Desabilitado refetch no foco
+    retry: 1 // Reduzido tentativas de retry
   });
 
-  // Real-time otimizado - apenas para mudanças específicas
+  // Real-time otimizado com throttling
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const subscription = supabase
-      .channel('edit_requests_optimized')
+      .channel('edit_requests_throttled')
       .on('postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'edit_requests'
         },
-        (payload) => {
-          // Invalidar cache apenas quando necessário
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        () => {
+          // Throttling de 2 segundos
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['edit-requests'] });
-          }
+          }, 2000);
         }
       )
       .subscribe();
     
     return () => {
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, [queryClient]);
 
-  // Memoized calculations para evitar re-processamento
+  // Memoized calculations com dependências otimizadas
   const { pendingRequests, processedRequests, groupedPendingRequests } = useMemo(() => {
     const pending = editRequests.filter(r => r.status === 'pending');
     const processed = editRequests.filter(r => r.status !== 'pending');
     
-    // Agrupar solicitações pendentes
-    const groups: { [key: string]: GroupedRequest } = {};
-    pending.forEach(request => {
+    // Agrupar solicitações pendentes de forma mais eficiente
+    const groupsMap = new Map<string, GroupedRequest>();
+    
+    for (const request of pending) {
       const key = `${request.employeeId}-${request.date}`;
       
-      if (!groups[key]) {
-        groups[key] = {
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
           employeeId: request.employeeId,
           employeeName: request.employeeName,
           date: request.date,
           requests: [],
           timestamp: request.timestamp
-        };
+        });
       }
       
-      groups[key].requests.push(request);
-    });
+      groupsMap.get(key)!.requests.push(request);
+    }
 
     return {
       pendingRequests: pending,
       processedRequests: processed,
-      groupedPendingRequests: Object.values(groups)
+      groupedPendingRequests: Array.from(groupsMap.values())
     };
   }, [editRequests]);
 
-  // Paginação para histórico
+  // Paginação otimizada
   const paginatedProcessedRequests = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return processedRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -142,11 +149,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
-  const handleGroupApproval = async (group: GroupedRequest, approved: boolean) => {
+  // Handler otimizado com callback
+  const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
       const requestIds = group.requests.map(r => r.id);
       
-      // Update all request statuses in the group
+      // Atualização em lote mais eficiente
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
@@ -159,21 +167,19 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
       if (updateError) throw updateError;
 
       if (approved) {
-        // Apply all edits to the time record
+        // Buscar registro existente de forma otimizada
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
-          .select('*')
+          .select('id')
           .eq('user_id', group.employeeId)
           .eq('date', group.date)
-          .single();
+          .maybeSingle();
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          throw fetchError;
-        }
+        if (fetchError) throw fetchError;
 
-        // Prepare update data from all requests
+        // Preparar dados de atualização
         const updateData: any = {};
-        group.requests.forEach(request => {
+        for (const request of group.requests) {
           const fieldMap = {
             clockIn: 'clock_in',
             lunchStart: 'lunch_start',
@@ -181,10 +187,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
             clockOut: 'clock_out'
           };
           updateData[fieldMap[request.field]] = request.newValue;
-        });
+        }
 
         if (timeRecords) {
-          // Update existing record
+          // Atualizar registro existente
           const { error: updateRecordError } = await supabase
             .from('time_records')
             .update(updateData)
@@ -192,7 +198,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
 
           if (updateRecordError) throw updateRecordError;
         } else {
-          // Create new record
+          // Criar novo registro
           const { error: insertError } = await supabase
             .from('time_records')
             .insert({
@@ -204,35 +210,48 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
           if (insertError) throw insertError;
         }
 
-        setMessage(`Todas as edições de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} foram aprovadas.`);
+        setMessage(`Edições aprovadas para ${group.employeeName}`);
       } else {
-        setMessage(`Todas as edições de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} foram rejeitadas.`);
+        setMessage(`Edições rejeitadas para ${group.employeeName}`);
       }
 
-      // Invalidar cache para atualizar dados
-      queryClient.invalidateQueries({ queryKey: ['edit-requests'] });
-      setTimeout(() => setMessage(''), 5000);
+      // Invalidação otimizada do cache
+      queryClient.invalidateQueries({ 
+        queryKey: ['edit-requests'],
+        exact: true 
+      });
+      
+      // Auto-clear da mensagem
+      setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error handling group approval:', error);
-      alert('Erro ao processar aprovação');
+      setMessage('Erro ao processar aprovação');
+      setTimeout(() => setMessage(''), 3000);
     }
-  };
+  }, [queryClient]);
 
-  const getFieldLabel = (field: string) => {
-    switch (field) {
-      case 'clockIn': return 'Entrada';
-      case 'lunchStart': return 'Início do Almoço';
-      case 'lunchEnd': return 'Fim do Almoço';
-      case 'clockOut': return 'Saída';
-      default: return field;
-    }
-  };
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: string) => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field as keyof typeof labels] || field;
+  }, []);
 
+  // Loading otimizado
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        <span className="ml-2">Carregando solicitações...</span>
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -248,7 +267,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         </Alert>
       )}
 
-      {/* Solicitações Pendentes Agrupadas */}
+      {/* Solicitações Pendentes Otimizadas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -259,7 +278,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         <CardContent>
           {groupedPendingRequests.length === 0 ? (
             <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente no momento
+              Nenhuma solicitação pendente
             </p>
           ) : (
             <div className="space-y-4">
@@ -273,12 +292,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
                       </p>
                     </div>
                     <Badge variant="secondary">
-                      {new Date(group.timestamp).toLocaleString('pt-BR')}
+                      {new Date(group.timestamp).toLocaleDateString('pt-BR')}
                     </Badge>
                   </div>
                   
                   <div className="mb-3">
-                    <h5 className="font-medium mb-2">Ajustes Solicitados:</h5>
+                    <h5 className="font-medium mb-2">Ajustes:</h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {group.requests.map((request) => (
                         <div key={request.id} className="text-sm border rounded p-2 bg-white">
@@ -289,7 +308,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
                           </div>
                           {request.reason && (
                             <div className="text-xs text-gray-600 mt-1">
-                              Motivo: {request.reason}
+                              {request.reason}
                             </div>
                           )}
                         </div>
@@ -304,7 +323,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
-                      Aprovar Todos
+                      Aprovar
                     </Button>
                     <Button
                       size="sm"
@@ -312,7 +331,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
                       onClick={() => handleGroupApproval(group, false)}
                     >
                       <XCircle className="w-4 h-4 mr-1" />
-                      Rejeitar Todos
+                      Rejeitar
                     </Button>
                   </div>
                 </div>
@@ -322,33 +341,35 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         </CardContent>
       </Card>
 
-      {/* Histórico de Aprovações com Paginação */}
+      {/* Histórico Otimizado */}
       {processedRequests.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Histórico Recente</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-sm text-gray-600">
-                  Página {currentPage} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+              <span>Histórico</span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -356,19 +377,19 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Funcionário
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Campo
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Alteração
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Data
                     </th>
                   </tr>
