@@ -482,30 +482,6 @@ const TimeRegistration = () => {
         </Card>
       )}
 
-      {/* Botões de Edição */}
-      {timeRecord && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Solicitar Alterações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-2">
-              {(['clock_in', 'lunch_start', 'lunch_end', 'clock_out'] as const).map((field) => (
-                <Button
-                  key={field}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditDialog(field)}
-                  disabled={!timeRecord[field]}
-                >
-                  Editar {fieldNames[field]}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
