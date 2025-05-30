@@ -114,9 +114,20 @@ const Dashboard = () => {
       case 'timeRegistration':
         return <TimeRegistration />;
       case 'monthlySummary':
-        return <EmployeeMonthlySummary onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+        return (
+          <EmployeeMonthlySummary 
+            selectedMonth={selectedDate}
+            onShowDetailedReport={() => setEmployeeActiveScreen('detailedReport')}
+            onBack={() => setEmployeeActiveScreen('timeRegistration')} 
+          />
+        );
       case 'detailedReport':
-        return <EmployeeDetailedReport onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+        return (
+          <EmployeeDetailedReport 
+            selectedMonth={selectedDate}
+            onBack={() => setEmployeeActiveScreen('timeRegistration')} 
+          />
+        );
       case 'incompleteRecords':
         return <IncompleteRecordsProfile onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
       case 'adjustPreviousDays':
