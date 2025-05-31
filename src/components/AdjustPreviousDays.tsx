@@ -10,12 +10,15 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
 }
 
-interface TimeRecord {
+type TimeRecord = Database['public']['Tables']['time_records']['Row'];
+
+interface TimeRecordDisplay {
   id: string;
   date: string;
   clock_in: string | null;
@@ -31,7 +34,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [editedDates, setEditedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
+  const [timeRecord, setTimeRecord] = useState<TimeRecordDisplay | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -50,16 +53,21 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const endOfCurrentMonth = endOfMonth(currentMonth);
       const oneDayAgo = subDays(today, 1);
 
-      // Buscar registros do mês atual
+      if (!user?.id) return;
+
+      // Buscar registros do mês atual com tipo correto
       const { data: records, error } = await supabase
         .from('time_records')
         .select('date, id')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id as Database['public']['Tables']['time_records']['Row']['user_id'])
         .gte('date', format(currentMonth, 'yyyy-MM-dd'))
         .lte('date', format(endOfCurrentMonth, 'yyyy-MM-dd'))
-        .eq('status', 'active');
+        .eq('status', 'active' as Database['public']['Tables']['time_records']['Row']['status']);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao buscar registros:', error);
+        throw error;
+      }
 
       // Buscar quais dias já foram editados (simulando com uma coluna que poderíamos adicionar)
       const editedDatesSet = new Set<string>();
@@ -68,7 +76,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       // Gerar lista de datas disponíveis (dias do mês atual até ontem)
       const available: Date[] = [];
-      const existingRecordDates = new Set(records?.map(r => r.date) || []);
+      const existingRecordDates = new Set((records || []).map(r => r.date));
       
       for (let d = new Date(currentMonth); d <= oneDayAgo; d.setDate(d.getDate() + 1)) {
         const dateString = format(d, 'yyyy-MM-dd');
@@ -97,17 +105,20 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
   const loadTimeRecord = async (date: Date) => {
     try {
+      if (!user?.id) return;
+
       const dateString = format(date, 'yyyy-MM-dd');
       
       const { data: record, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user?.id)
-        .eq('date', dateString)
-        .eq('status', 'active')
-        .single();
+        .eq('user_id', user.id as Database['public']['Tables']['time_records']['Row']['user_id'])
+        .eq('date', dateString as Database['public']['Tables']['time_records']['Row']['date'])
+        .eq('status', 'active' as Database['public']['Tables']['time_records']['Row']['status'])
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
+        console.error('Erro ao buscar registro:', error);
         throw error;
       }
 

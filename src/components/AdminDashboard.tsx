@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import type { Database } from '@/integrations/supabase/types';
 
 interface User {
   id: string;
@@ -25,6 +26,8 @@ interface EmployeeStatus {
 interface AdminDashboardProps {
   employees: User[];
 }
+
+type TimeRecord = Database['public']['Tables']['time_records']['Row'];
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const [totalEmployees, setTotalEmployees] = useState(0);
@@ -97,34 +100,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
       // Buscar registros do mês vigente de funcionários ATIVOS apenas
       const activeEmployeeIds = employees.map(emp => emp.id);
       
-      const { data: timeRecords, error: recordsError } = await supabase
-        .from('time_records')
-        .select(`
-          total_hours,
-          total_pay,
-          user_id
-        `)
-        .gte('date', startOfMonth)
-        .lte('date', endOfMonth)
-        .eq('status', 'active')
-        .in('user_id', activeEmployeeIds);
+      if (activeEmployeeIds.length > 0) {
+        const { data: timeRecords, error: recordsError } = await supabase
+          .from('time_records')
+          .select(`
+            total_hours,
+            total_pay,
+            user_id
+          `)
+          .gte('date', startOfMonth)
+          .lte('date', endOfMonth)
+          .eq('status', 'active' as Database['public']['Tables']['time_records']['Row']['status'])
+          .in('user_id', activeEmployeeIds as Database['public']['Tables']['time_records']['Row']['user_id'][]);
 
-      if (recordsError) {
-        console.error('Erro ao buscar registros de tempo:', recordsError);
+        if (recordsError) {
+          console.error('Erro ao buscar registros de tempo:', recordsError);
+          setTotalHours(0);
+          setTotalEarnings(0);
+        } else if (timeRecords) {
+          // Calcular totais diretamente dos campos da tabela
+          let monthTotalHours = 0;
+          let monthTotalEarnings = 0;
+
+          timeRecords.forEach(record => {
+            monthTotalHours += Number(record.total_hours) || 0;
+            monthTotalEarnings += Number(record.total_pay) || 0;
+          });
+
+          setTotalHours(monthTotalHours);
+          setTotalEarnings(monthTotalEarnings);
+        }
+      } else {
         setTotalHours(0);
         setTotalEarnings(0);
-      } else {
-        // Calcular totais diretamente dos campos da tabela
-        let monthTotalHours = 0;
-        let monthTotalEarnings = 0;
-
-        timeRecords?.forEach(record => {
-          monthTotalHours += Number(record.total_hours) || 0;
-          monthTotalEarnings += Number(record.total_pay) || 0;
-        });
-
-        setTotalHours(monthTotalHours);
-        setTotalEarnings(monthTotalEarnings);
       }
 
       // Verificar status detalhado dos funcionários ATIVOS apenas
@@ -137,20 +145,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             const { data: todayRecord, error } = await supabase
               .from('time_records')
               .select('*')
-              .eq('user_id', employee.id)
-              .eq('date', today)
-              .single();
+              .eq('user_id', employee.id as Database['public']['Tables']['time_records']['Row']['user_id'])
+              .eq('date', today as Database['public']['Tables']['time_records']['Row']['date'])
+              .maybeSingle();
 
-            const statusInfo = getEmployeeStatus(error ? null : todayRecord);
+            if (error) {
+              console.error('Erro ao buscar registro do funcionário:', error);
+            }
+
+            const statusInfo = getEmployeeStatus(todayRecord);
             
             statuses.push({
               employee,
               status: statusInfo.status as any,
               statusLabel: statusInfo.label,
               statusColor: statusInfo.color,
-              record: error ? null : todayRecord
+              record: todayRecord
             });
           } catch (error) {
+            console.error('Erro ao processar funcionário:', error);
             statuses.push({
               employee,
               status: 'not_working',
