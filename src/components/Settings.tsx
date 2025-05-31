@@ -2,13 +2,14 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, MapPin, Clock } from 'lucide-react';
+import { Settings2, MapPin, Clock, Timer, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import HourBankSettings from './HourBankSettings';
+import CurrencySelector from './CurrencySelector';
 
 interface Location {
   id: string;
@@ -30,10 +31,14 @@ const Settings = () => {
     longitude: 0,
     range_meters: 100
   });
+  const [currency, setCurrency] = useState<'EUR' | 'BRL'>('BRL');
+  const [tolerance, setTolerance] = useState(15);
+  const [savingTolerance, setSavingTolerance] = useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
     loadLocations();
+    loadSystemSettings();
   }, []);
 
   const loadLocations = async () => {
@@ -55,6 +60,27 @@ const Settings = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSystemSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['default_currency', 'tolerance_minutes']);
+
+      if (error) throw error;
+
+      data?.forEach(setting => {
+        if (setting.setting_key === 'default_currency') {
+          setCurrency(setting.setting_value as 'EUR' | 'BRL');
+        } else if (setting.setting_key === 'tolerance_minutes') {
+          setTolerance(parseInt(setting.setting_value) || 15);
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao carregar configurações do sistema:', error);
     }
   };
 
@@ -124,6 +150,64 @@ const Settings = () => {
     }
   };
 
+  const handleCurrencyChange = async (newCurrency: 'EUR' | 'BRL') => {
+    try {
+      setCurrency(newCurrency);
+      
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({
+          setting_key: 'default_currency',
+          setting_value: newCurrency,
+          description: 'Moeda padrão do sistema'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Moeda padrão atualizada com sucesso"
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar moeda:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar moeda padrão",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleToleranceSave = async () => {
+    try {
+      setSavingTolerance(true);
+      
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({
+          setting_key: 'tolerance_minutes',
+          setting_value: tolerance.toString(),
+          description: 'Tolerância em minutos para cálculos de ponto'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Tolerância atualizada com sucesso"
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar tolerância:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar tolerância",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingTolerance(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6">
       <div className="flex items-center gap-2 mb-6">
@@ -140,6 +224,14 @@ const Settings = () => {
           <TabsTrigger value="hour-bank" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
             Banco de Horas
+          </TabsTrigger>
+          <TabsTrigger value="tolerance" className="flex items-center gap-2">
+            <Timer className="w-4 h-4" />
+            Tolerância
+          </TabsTrigger>
+          <TabsTrigger value="currency" className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            Moeda
           </TabsTrigger>
         </TabsList>
 
@@ -258,6 +350,55 @@ const Settings = () => {
 
         <TabsContent value="hour-bank">
           <HourBankSettings />
+        </TabsContent>
+
+        <TabsContent value="tolerance">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Tolerância</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="tolerance">Tolerância (minutos)</Label>
+                <Input
+                  id="tolerance"
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={tolerance}
+                  onChange={(e) => setTolerance(parseInt(e.target.value) || 15)}
+                  className="max-w-xs"
+                />
+                <div className="text-xs text-muted-foreground">
+                  Tolerância em minutos para cálculos de ponto eletrônico
+                </div>
+              </div>
+              
+              <Button onClick={handleToleranceSave} disabled={savingTolerance}>
+                {savingTolerance ? 'Salvando...' : 'Salvar Tolerância'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="currency">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Moeda</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Moeda Padrão do Sistema</Label>
+                <CurrencySelector
+                  currency={currency}
+                  onCurrencyChange={handleCurrencyChange}
+                />
+                <div className="text-xs text-muted-foreground">
+                  Esta será a moeda padrão utilizada em todos os cálculos do sistema
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
