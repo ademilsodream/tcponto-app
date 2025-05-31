@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getWorkingDaysInMonth, isWorkingDay } from '@/utils/workingDays';
-import { filterValidTimeRecords, safeIdCast, isValidTimeRecord } from '@/utils/queryValidation';
+import { filterValidTimeRecords, safeIdCast, isValidTimeRecord, safeGet } from '@/utils/queryValidation';
 
 interface IncompleteRecord {
   date: string;
@@ -78,7 +78,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         const dateString = d.toISOString().split('T')[0];
         const isWeekendDay = !isWorkingDay(d);
         
-        if (isWeekendDay && records?.find(r => isValidTimeRecord(r) && r.date === dateString)) {
+        if (isWeekendDay && records?.find(r => isValidTimeRecord(r) && safeGet(r, 'date') === dateString)) {
           allDaysToCheck.push(dateString);
         }
       }
@@ -86,7 +86,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records)');
 
       allDaysToCheck.forEach(date => {
-        const record = records?.find(r => isValidTimeRecord(r) && r.date === date);
+        const record = records?.find(r => isValidTimeRecord(r) && safeGet(r, 'date') === date);
         const dateObj = new Date(date + 'T00:00:00');
         const isWeekendDay = !isWorkingDay(dateObj);
         
@@ -105,16 +105,16 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             const missingFields: string[] = [];
             let completedCount = 0;
 
-            if (!record.clock_in) missingFields.push('Entrada');
+            if (!safeGet(record, 'clock_in')) missingFields.push('Entrada');
             else completedCount++;
 
-            if (!record.lunch_start) missingFields.push('Início do Almoço');
+            if (!safeGet(record, 'lunch_start')) missingFields.push('Início do Almoço');
             else completedCount++;
 
-            if (!record.lunch_end) missingFields.push('Fim do Almoço');
+            if (!safeGet(record, 'lunch_end')) missingFields.push('Fim do Almoço');
             else completedCount++;
 
-            if (!record.clock_out) missingFields.push('Saída');
+            if (!safeGet(record, 'clock_out')) missingFields.push('Saída');
             else completedCount++;
 
             if (missingFields.length > 0) {

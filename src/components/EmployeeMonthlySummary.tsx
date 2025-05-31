@@ -8,7 +8,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast, isValidSingleResult, isValidObject, safeGet } from '@/utils/queryValidation';
 
 interface MonthlySummary {
   totalHours: number;
@@ -75,8 +75,8 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         throw error;
       }
 
-      if (isValidProfile(data)) {
-        const rate = Number(data.hourly_rate);
+      if (isValidSingleResult(data, error) && isValidObject(data)) {
+        const rate = Number(safeGet(data, 'hourly_rate', 50));
         setHourlyRate(rate);
       }
     } catch (error) {

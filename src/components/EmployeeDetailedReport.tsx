@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { isWorkingDay } from '@/utils/workingDays';
-import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast, isValidSingleResult, isValidObject, safeGet } from '@/utils/queryValidation';
 
 interface TimeRecord {
   id: string;
@@ -114,8 +114,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         throw error;
       }
 
-      if (isValidProfile(data)) {
-        const rate = Number(data.hourly_rate);
+      if (isValidSingleResult(data, error) && isValidObject(data)) {
+        const rate = Number(safeGet(data, 'hourly_rate', 50));
         console.log('Valor da hora carregado do perfil:', rate);
         setHourlyRate(rate);
       } else {

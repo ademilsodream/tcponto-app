@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, filterValidTimeRecords, filterValidProfiles, isValidProfile, safeIdCast } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidTimeRecords, filterValidProfiles, isValidProfile, safeIdCast, isValidSingleResult, isValidObject, safeGet } from '@/utils/queryValidation';
 
 interface Employee {
   id: string;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -146,15 +145,19 @@ const TimeRegistration = () => {
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('date', today)
+        .eq('user_id', user.id as any)
+        .eq('date', today as any)
         .single();
 
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
-      setTimeRecord(data);
+      if (isValidSingleResult(data, error)) {
+        setTimeRecord(data);
+      } else {
+        setTimeRecord(null);
+      }
     } catch (error) {
       console.error('Erro ao carregar registro:', error);
       toast({
@@ -235,7 +238,7 @@ const TimeRegistration = () => {
         const { error } = await supabase
           .from('time_records')
           .update(updateData)
-          .eq('id', timeRecord.id);
+          .eq('id', timeRecord.id as any);
 
         if (error) throw error;
       } else {
@@ -245,7 +248,7 @@ const TimeRegistration = () => {
             user_id: user.id,
             date: today,
             ...updateData
-          });
+          } as any);
 
         if (error) throw error;
       }
@@ -326,7 +329,7 @@ const TimeRegistration = () => {
           reason: editReason,
           location: locationData,
           status: 'pending'
-        });
+        } as any);
 
       if (error) throw error;
 

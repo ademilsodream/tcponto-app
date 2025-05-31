@@ -175,7 +175,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           updateData[fieldMap[request.field]] = request.newValue;
         });
 
-        if (timeRecords && timeRecords.id) {
+        if (timeRecords && typeof timeRecords === 'object' && 'id' in timeRecords && timeRecords.id) {
           // Update existing record - casting direto do id
           const { error: updateRecordError } = await supabase
             .from('time_records')

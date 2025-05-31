@@ -42,6 +42,14 @@ export function safeStringCast(value: any): any {
   return value;
 }
 
+// Função auxiliar para cast seguro de arrays de strings
+export function safeStringArrayCast(value: any[]): any[] {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item)) as any[];
+  }
+  return value as any[];
+}
+
 // Função para validar se é uma query de perfil válida
 export function isValidProfileQuery(data: any, error: any): data is { hourly_rate: number } {
   return isValidSingleResult(data, error) && isValidObject(data) && 'hourly_rate' in data;
