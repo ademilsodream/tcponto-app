@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,6 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import HourBankSettings from './HourBankSettings';
 import CurrencySelector from './CurrencySelector';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface Location {
   id: string;
@@ -31,10 +31,10 @@ const Settings = () => {
     longitude: 0,
     range_meters: 100
   });
-  const [currency, setCurrency] = useState<'EUR' | 'BRL'>('BRL');
   const [tolerance, setTolerance] = useState(15);
   const [savingTolerance, setSavingTolerance] = useState(false);
   const { toast } = useToast();
+  const { currency, setCurrency, loadSystemCurrency } = useCurrency();
 
   React.useEffect(() => {
     loadLocations();
@@ -68,14 +68,12 @@ const Settings = () => {
       const { data, error } = await supabase
         .from('system_settings')
         .select('setting_key, setting_value')
-        .in('setting_key', ['default_currency', 'tolerance_minutes']);
+        .eq('setting_key', 'tolerance_minutes');
 
       if (error) throw error;
 
       data?.forEach(setting => {
-        if (setting.setting_key === 'default_currency') {
-          setCurrency(setting.setting_value as 'EUR' | 'BRL');
-        } else if (setting.setting_key === 'tolerance_minutes') {
+        if (setting.setting_key === 'tolerance_minutes') {
           setTolerance(parseInt(setting.setting_value) || 15);
         }
       });
@@ -152,50 +150,15 @@ const Settings = () => {
 
   const handleCurrencyChange = async (newCurrency: 'EUR' | 'BRL') => {
     try {
-      setCurrency(newCurrency);
-      
-      // Verificar se já existe a configuração
-      const { data: existingSetting, error: selectError } = await supabase
-        .from('system_settings')
-        .select('id')
-        .eq('setting_key', 'default_currency')
-        .single();
-
-      if (selectError && selectError.code !== 'PGRST116') {
-        throw selectError;
-      }
-
-      if (existingSetting) {
-        // Atualizar configuração existente
-        const { error } = await supabase
-          .from('system_settings')
-          .update({
-            setting_value: newCurrency,
-            updated_at: new Date().toISOString()
-          })
-          .eq('setting_key', 'default_currency');
-
-        if (error) throw error;
-      } else {
-        // Inserir nova configuração
-        const { error } = await supabase
-          .from('system_settings')
-          .insert({
-            setting_key: 'default_currency',
-            setting_value: newCurrency,
-            description: 'Moeda padrão do sistema'
-          });
-
-        if (error) throw error;
-      }
-
+      await setCurrency(newCurrency);
       toast({
         title: "Sucesso",
         description: "Moeda padrão atualizada com sucesso"
       });
+      // Recarregar a moeda do sistema para sincronizar
+      await loadSystemCurrency();
     } catch (error) {
       console.error('Erro ao atualizar moeda:', error);
-      setCurrency(currency); // Reverter para o valor anterior
       toast({
         title: "Erro",
         description: "Erro ao atualizar moeda padrão",
