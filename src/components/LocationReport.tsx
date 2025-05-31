@@ -6,11 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { MapPin, ArrowLeft, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
-import { Database } from '@/integrations/supabase/types';
 import { filterValidTimeRecords, isValidTimeRecord } from '@/utils/queryValidation';
-
-// Importar o tipo Database do arquivo de tipos Supabase
-import { TimeRecordRow } from '@/integrations/supabase/types';
 
 interface User {
   id: string;
@@ -55,7 +51,7 @@ interface LocationReportProps {
 }
 
 // Função melhorada para processar os dados de localização com múltiplos formatos
-const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
+const processLocationData = (locations: any, fieldName: string): LocationDetails | null => {
   console.log(`Processando localização para campo ${fieldName}:`, locations);
   
   if (!locations || typeof locations !== 'object' || Array.isArray(locations)) {
@@ -221,6 +217,12 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
       const validRecords = filterValidTimeRecords(data || []);
 
       const formattedData: TimeRecordReportRow[] = validRecords.map((record, index) => {
+        // Verificar se é um time record válido
+        if (!isValidTimeRecord(record)) {
+          console.log(`Registro ${index + 1} é inválido, pulando...`);
+          return null;
+        }
+
         console.log(`\n--- Processando registro ${index + 1}/${validRecords.length} ---`);
         console.log('Record ID:', record.id);
         console.log('User ID:', record.user_id);
@@ -262,7 +264,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           clockOutTime: record.clock_out || null,
           clockOutLocation,
         };
-      });
+      }).filter((record): record is TimeRecordReportRow => record !== null);
 
       console.log('=== DADOS FINAIS FORMATADOS ===');
       console.log('Total de registros processados:', formattedData.length);
@@ -409,31 +411,13 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os funcionários</SelectItem>
-                      {employees
-                        .filter(employee => employee.id && typeof employee.id === 'string' && employee.id !== '')
-                        .map(employee => (
-                          <SelectItem key={employee.id} value={employee.id}>
-                            {employee.name}
-                          </SelectItem>
-                        ))}
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Registros</label>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {filteredTimeRecords.length}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Registros com Localização</label>
-                  <div className="text-2xl font-bold text-green-600">
-                    {filteredTimeRecords.filter(r => 
-                      r.clockInLocation || r.lunchStartLocation || r.lunchEndLocation || r.clockOutLocation
-                    ).length}
-                  </div>
                 </div>
               </div>
             </CardContent>
@@ -441,67 +425,72 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
           <Card>
             <CardHeader>
-              <CardTitle>Registros de Ponto com Localização Detalhada</CardTitle>
+              <CardTitle>Registros de Localização ({filteredTimeRecords.length})</CardTitle>
             </CardHeader>
-            <CardContent>
-              {filteredTimeRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Funcionário</TableHead>
-                        <TableHead>Entrada</TableHead>
-                        <TableHead className="min-w-[200px]">Local Entrada</TableHead>
-                        <TableHead>Saída Almoço</TableHead>
-                        <TableHead className="min-w-[200px]">Local Saída Almoço</TableHead>
-                        <TableHead>Volta Almoço</TableHead>
-                        <TableHead className="min-w-[200px]">Local Volta Almoço</TableHead>
-                        <TableHead>Saída</TableHead>
-                        <TableHead className="min-w-[200px]">Local Saída</TableHead>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Funcionário</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Entrada</TableHead>
+                      <TableHead>Saída Almoço</TableHead>
+                      <TableHead>Volta Almoço</TableHead>
+                      <TableHead>Saída</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTimeRecords.map((record) => (
+                      <TableRow key={record.recordId}>
+                        <TableCell className="font-medium">{record.employeeName}</TableCell>
+                        <TableCell>
+                          {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {record.clockInTime && (
+                            <div className="space-y-1">
+                              <div className="font-medium">{record.clockInTime}</div>
+                              {renderLocationInfo(record.clockInLocation)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {record.lunchStartTime && (
+                            <div className="space-y-1">
+                              <div className="font-medium">{record.lunchStartTime}</div>
+                              {renderLocationInfo(record.lunchStartLocation)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {record.lunchEndTime && (
+                            <div className="space-y-1">
+                              <div className="font-medium">{record.lunchEndTime}</div>
+                              {renderLocationInfo(record.lunchEndLocation)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {record.clockOutTime && (
+                            <div className="space-y-1">
+                              <div className="font-medium">{record.clockOutTime}</div>
+                              {renderLocationInfo(record.clockOutLocation)}
+                            </div>
+                          )}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredTimeRecords.map((record) => (
-                        <TableRow key={record.recordId}>
-                          <TableCell>
-                            {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {record.employeeName}
-                          </TableCell>
-                          <TableCell>{record.clockInTime || '-'}</TableCell>
-                          <TableCell>{renderLocationInfo(record.clockInLocation)}</TableCell>
-                          <TableCell>{record.lunchStartTime || '-'}</TableCell>
-                          <TableCell>{renderLocationInfo(record.lunchStartLocation)}</TableCell>
-                          <TableCell>{record.lunchEndTime || '-'}</TableCell>
-                          <TableCell>{renderLocationInfo(record.lunchEndLocation)}</TableCell>
-                          <TableCell>{record.clockOutTime || '-'}</TableCell>
-                          <TableCell>{renderLocationInfo(record.clockOutLocation)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-12">
-                  <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">
-                     {employees.length === 0
-                      ? 'Nenhum funcionário cadastrado'
-                      : 'Nenhum registro de ponto encontrado'
-                    }
-                  </h3>
-                  <p className="text-sm">
-                     {employees.length === 0
-                      ? 'Cadastre funcionários para ver os registros de ponto e localização'
-                      : selectedEmployee === 'all'
-                        ? 'Nenhum registro de ponto encontrado para todos os funcionários.'
-                        : `Nenhum registro de ponto encontrado para o funcionário selecionado.`
-                    }
-                  </p>
-                </div>
-              )}
+                    ))}
+                    {filteredTimeRecords.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                          Nenhum registro encontrado
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -76,6 +76,31 @@ export function isValidTimeRecord(data: any): data is {
   return isValidObject(data) && 'id' in data && 'date' in data;
 }
 
+// Type guard específico para edit_requests
+export function isValidEditRequest(data: any): data is {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  date: string;
+  field: string;
+  old_value?: string;
+  new_value: string;
+  reason: string;
+  created_at: string;
+  status: string;
+} {
+  return isValidObject(data) && 
+         'id' in data && 
+         'employee_id' in data && 
+         'employee_name' in data && 
+         'date' in data && 
+         'field' in data && 
+         'new_value' in data && 
+         'reason' in data && 
+         'created_at' in data && 
+         'status' in data;
+}
+
 // Função para filtrar apenas registros válidos de time_records
 export function filterValidTimeRecords(records: any[]): Array<{
   id: string;
@@ -130,6 +155,37 @@ export function filterValidProfiles(records: any[]): Array<{
   });
 }
 
+// Função para filtrar apenas registros válidos de edit_requests
+export function filterValidEditRequests(records: any[]): Array<{
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  date: string;
+  field: string;
+  old_value?: string;
+  new_value: string;
+  reason: string;
+  created_at: string;
+  status: string;
+}> {
+  if (!Array.isArray(records)) return [];
+  
+  return records.filter((record): record is {
+    id: string;
+    employee_id: string;
+    employee_name: string;
+    date: string;
+    field: string;
+    old_value?: string;
+    new_value: string;
+    reason: string;
+    created_at: string;
+    status: string;
+  } => {
+    return isValidEditRequest(record);
+  });
+}
+
 // Função genérica para filtrar apenas registros válidos (mantida para compatibilidade)
 export function filterValidRecords<T = any>(records: any[]): T[] {
   if (!Array.isArray(records)) return [];
@@ -152,10 +208,48 @@ export function safeIdCast(id: any): any {
   return id;
 }
 
+// Função auxiliar para cast seguro de strings
+export function safeStringCast(value: any): any {
+  if (typeof value === 'string') {
+    return value as any;
+  }
+  if (value !== null && value !== undefined) {
+    return String(value) as any;
+  }
+  return value;
+}
+
+// Função auxiliar para cast seguro de arrays de strings
+export function safeStringArrayCast(values: any[]): any {
+  if (Array.isArray(values)) {
+    return values.map(v => safeStringCast(v)) as any;
+  }
+  return values;
+}
+
 // Função auxiliar para extrair valor seguro de propriedades
 export function safePropertyAccess<T>(obj: any, property: string, defaultValue: T): T {
   if (isValidObject(obj) && property in obj) {
     return obj[property] as T;
   }
   return defaultValue;
+}
+
+// Função para validar se é uma query de perfil válida
+export function isValidProfileQuery(data: any, error: any): data is { hourly_rate: number } {
+  return isValidSingleResult(data, error) && isValidProfile(data);
+}
+
+// Função para validar se é uma query de time record válida  
+export function isValidTimeRecordQuery(data: any, error: any): data is {
+  id: string;
+  date: string;
+  clock_in?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  clock_out?: string;
+  user_id?: string;
+  locations?: any;
+} {
+  return isValidSingleResult(data, error) && isValidTimeRecord(data);
 }

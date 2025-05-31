@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast } from '@/utils/queryValidation';
 
 interface EditRequest {
   id: string;
@@ -63,7 +64,16 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
 
       if (error) throw error;
 
-      return data.map(request => ({
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(data, error)) {
+        console.error('Dados inválidos retornados para edit_requests');
+        return [];
+      }
+
+      // Filtrar apenas registros válidos
+      const validData = filterValidEditRequests(data);
+
+      return validData.map(request => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
@@ -158,11 +168,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
-          status: approved ? 'approved' : 'rejected',
+          status: safeStringCast(approved ? 'approved' : 'rejected'),
           reviewed_at: new Date().toISOString(),
-          reviewed_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .in('id', requestIds);
+          reviewed_by: safeStringCast((await supabase.auth.getUser()).data.user?.id || '')
+        } as any)
+        .in('id', safeStringArrayCast(requestIds));
 
       if (updateError) throw updateError;
 
@@ -171,8 +181,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
           .select('id')
-          .eq('user_id', group.employeeId)
-          .eq('date', group.date)
+          .eq('user_id', safeStringCast(group.employeeId))
+          .eq('date', safeStringCast(group.date))
           .maybeSingle();
 
         if (fetchError) throw fetchError;

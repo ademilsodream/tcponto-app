@@ -100,28 +100,31 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             });
           }
         } else {
-          const missingFields: string[] = [];
-          let completedCount = 0;
+          // Verificar se o record é válido antes de acessar suas propriedades
+          if (isValidTimeRecord(record)) {
+            const missingFields: string[] = [];
+            let completedCount = 0;
 
-          if (!record.clock_in) missingFields.push('Entrada');
-          else completedCount++;
+            if (!record.clock_in) missingFields.push('Entrada');
+            else completedCount++;
 
-          if (!record.lunch_start) missingFields.push('Início do Almoço');
-          else completedCount++;
+            if (!record.lunch_start) missingFields.push('Início do Almoço');
+            else completedCount++;
 
-          if (!record.lunch_end) missingFields.push('Fim do Almoço');
-          else completedCount++;
+            if (!record.lunch_end) missingFields.push('Fim do Almoço');
+            else completedCount++;
 
-          if (!record.clock_out) missingFields.push('Saída');
-          else completedCount++;
+            if (!record.clock_out) missingFields.push('Saída');
+            else completedCount++;
 
-          if (missingFields.length > 0) {
-            incomplete.push({
-              date,
-              missingFields,
-              completedCount,
-              isWeekend: isWeekendDay
-            });
+            if (missingFields.length > 0) {
+              incomplete.push({
+                date,
+                missingFields,
+                completedCount,
+                isWeekend: isWeekendDay
+              });
+            }
           }
         }
       });
