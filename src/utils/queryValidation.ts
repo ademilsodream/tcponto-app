@@ -42,22 +42,6 @@ export function safeStringCast(value: any): any {
   return value;
 }
 
-// Função auxiliar para cast seguro de arrays de strings
-export function safeStringArrayCast(values: any[]): any {
-  if (Array.isArray(values)) {
-    return values.map(v => safeStringCast(v)) as any;
-  }
-  return values;
-}
-
-// Função auxiliar para extrair valor seguro de propriedades
-export function safePropertyAccess<T>(obj: any, property: string, defaultValue: T): T {
-  if (isValidObject(obj) && property in obj) {
-    return obj[property] as T;
-  }
-  return defaultValue;
-}
-
 // Função para validar se é uma query de perfil válida
 export function isValidProfileQuery(data: any, error: any): data is { hourly_rate: number } {
   return isValidSingleResult(data, error) && isValidObject(data) && 'hourly_rate' in data;
@@ -117,6 +101,18 @@ export function filterValidProfiles(data: any[]): any[] {
   );
 }
 
+// Função para filtrar solicitações de edição válidas
+export function filterValidEditRequests(data: any[]): any[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(item => 
+    item && 
+    typeof item === 'object' && 
+    !isSupabaseError(item) &&
+    'id' in item &&
+    'employee_id' in item
+  );
+}
+
 // Type guard para verificar se é um registro de tempo válido
 export function isTimeRecord(obj: any): boolean {
   return obj && 
@@ -143,4 +139,20 @@ export function isProfile(obj: any): boolean {
 // Type guard para verificar se é um perfil válido (alias)
 export function isValidProfile(obj: any): boolean {
   return isProfile(obj);
+}
+
+// Função auxiliar para acesso seguro a propriedades
+export function safeGet(obj: any, key: string, defaultValue: any = null): any {
+  if (obj && typeof obj === 'object' && !isSupabaseError(obj) && key in obj) {
+    return obj[key];
+  }
+  return defaultValue;
+}
+
+// Função auxiliar para extrair valor seguro de propriedades
+export function safePropertyAccess<T>(obj: any, property: string, defaultValue: T): T {
+  if (isValidObject(obj) && property in obj) {
+    return obj[property] as T;
+  }
+  return defaultValue;
 }

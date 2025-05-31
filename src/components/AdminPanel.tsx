@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,7 +9,7 @@ import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { isValidQueryResult, safeArrayFilter } from '@/utils/queryValidation';
+import { isValidQueryResult, safeArrayFilter, safeGet } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -45,17 +46,16 @@ const AdminPanel = () => {
       const validProfiles = safeArrayFilter(data);
 
       return validProfiles
-        .filter(profile => profile && 
-          'id' in profile && 
-          'name' in profile && 
-          'email' in profile)
+        .filter(profile => safeGet(profile, 'id') && 
+          safeGet(profile, 'name') && 
+          safeGet(profile, 'email'))
         .map(profile => ({
-          id: profile.id || '',
-          name: profile.name || '',
-          email: profile.email || '',
-          role: (profile.role as 'admin' | 'user') || 'user',
-          hourlyRate: Number(profile.hourly_rate) || 0,
-          overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5 || 0
+          id: safeGet(profile, 'id', ''),
+          name: safeGet(profile, 'name', ''),
+          email: safeGet(profile, 'email', ''),
+          role: (safeGet(profile, 'role', 'user') as 'admin' | 'user'),
+          hourlyRate: Number(safeGet(profile, 'hourly_rate', 0)),
+          overtimeRate: Number(safeGet(profile, 'overtime_rate', 0)) || Number(safeGet(profile, 'hourly_rate', 0)) * 1.5 || 0
         }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos

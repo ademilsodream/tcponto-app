@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, safeArrayFilter } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, safeArrayFilter, safeGet } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -119,9 +120,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           let monthTotalEarnings = 0;
 
           validTimeRecords.forEach(record => {
-            if (record && typeof record.total_hours === 'number' && typeof record.total_pay === 'number') {
-              monthTotalHours += record.total_hours;
-              monthTotalEarnings += record.total_pay;
+            const totalHours = safeGet(record, 'total_hours');
+            const totalPay = safeGet(record, 'total_pay');
+            
+            if (typeof totalHours === 'number' && typeof totalPay === 'number') {
+              monthTotalHours += totalHours;
+              monthTotalEarnings += totalPay;
             }
           });
 
