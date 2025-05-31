@@ -84,7 +84,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const available: Date[] = [];
       const existingRecordDates = new Set(
         records
-          .filter(r => r && typeof r === 'object' && 'date' in r)
+          .filter(r => r && typeof r === 'object' && 'date' in r && r.date)
           .map(r => r.date)
       );
       

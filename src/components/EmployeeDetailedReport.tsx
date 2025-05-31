@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { isWorkingDay } from '@/utils/workingDays';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties } from '@/utils/queryValidation';
 
 interface TimeRecord {
   id: string;
@@ -106,7 +107,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
       const { data, error } = await supabase
         .from('profiles')
         .select('hourly_rate')
-        .eq('id', user.id)
+        .eq('id', user.id as any)
         .single();
 
       if (error) {
@@ -114,7 +115,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         throw error;
       }
 
-      if (data) {
+      if (isValidSingleResult(data, error) && hasValidProperties(data, ['hourly_rate'])) {
         const rate = Number(data.hourly_rate);
         console.log('Valor da hora carregado do perfil:', rate);
         setHourlyRate(rate);
@@ -144,24 +145,31 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id as any)
         .gte('date', startDate)
         .lte('date', endDate)
-        .eq('status', 'active')
+        .eq('status', 'active' as any)
         .order('date');
 
       if (error) throw error;
 
       console.log('Registros encontrados na consulta:', data);
 
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(data, error)) {
+        console.error('Dados inválidos retornados para time_records');
+        setRecords([]);
+        return;
+      }
+
       // Criar um mapa dos registros por data
-      const recordsMap = (data || []).reduce((acc, record) => {
+      const recordsMap = data.reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (isDateInPeriod(record.date, startDate, endDate)) {
+        if (record && hasValidProperties(record, ['date']) && isDateInPeriod(record.date, startDate, endDate)) {
           acc[record.date] = record;
           console.log('Registro adicionado ao mapa:', record.date, record);
         } else {
-          console.log('Registro REJEITADO (fora do período):', record.date);
+          console.log('Registro REJEITADO (fora do período):', record?.date);
         }
         return acc;
       }, {} as Record<string, any>);
