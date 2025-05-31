@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser } from '@supabase/supabase-js';
+import { queryClient } from '@/providers/QueryProvider';
 
 interface User {
   id: string;
@@ -61,9 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('AuthProvider: Usuário deslogou');
             setUser(null);
             setLoading(false);
+            // Limpar cache de queries quando logout
+            queryClient.clear();
           } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-            console.log('AuthProvider: Token renovado, mantendo usuário');
-            // Manter o usuário atual, apenas log
+            console.log('AuthProvider: Token renovado, verificando status do usuário...');
+            // Quando token é renovado, verificar se usuário ainda está ativo
+            await loadUserProfile(session.user);
           }
         }
       );
@@ -138,6 +142,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('AuthProvider: Erro inesperado ao carregar perfil:', error);
+      // Em caso de erro inesperado, fazer logout para evitar estado inconsistente
+      await supabase.auth.signOut();
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -199,6 +206,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('AuthProvider: Fazendo logout...');
       await supabase.auth.signOut();
       setUser(null);
+      // Limpar cache de queries no logout
+      queryClient.clear();
       console.log('AuthProvider: Logout realizado com sucesso');
     } catch (error) {
       console.error('AuthProvider: Erro ao fazer logout:', error);

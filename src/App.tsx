@@ -1,11 +1,12 @@
+
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from '@/components/ui/menubar';
 import { Settings, LogOut, User, Building2 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
+import { QueryProvider } from '@/providers/QueryProvider';
 import { Toaster } from '@/components/ui/toaster';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/pages/Login';
@@ -15,17 +16,6 @@ import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
-// Criar uma instância do QueryClient
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      // 5 minutos
-      retry: 1,
-      refetchOnWindowFocus: false
-    }
-  }
-});
 const Layout = ({
   children
 }: {
@@ -102,6 +92,7 @@ const Layout = ({
       </main>
     </div>;
 };
+
 const AppContent = () => {
   const {
     user,
@@ -132,6 +123,7 @@ const AppContent = () => {
       </Routes>
     </div>;
 };
+
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
   useEffect(() => {
@@ -144,7 +136,7 @@ function App() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>;
   }
-  return <QueryClientProvider client={queryClient}>
+  return <QueryProvider>
       <AuthProvider>
         <CurrencyProvider>
           <Router>
@@ -153,6 +145,7 @@ function App() {
           </Router>
         </CurrencyProvider>
       </AuthProvider>
-    </QueryClientProvider>;
+    </QueryProvider>;
 }
+
 export default App;
