@@ -154,15 +154,40 @@ const Settings = () => {
     try {
       setCurrency(newCurrency);
       
-      const { error } = await supabase
+      // Verificar se já existe a configuração
+      const { data: existingSetting, error: selectError } = await supabase
         .from('system_settings')
-        .upsert({
-          setting_key: 'default_currency',
-          setting_value: newCurrency,
-          description: 'Moeda padrão do sistema'
-        });
+        .select('id')
+        .eq('setting_key', 'default_currency')
+        .single();
 
-      if (error) throw error;
+      if (selectError && selectError.code !== 'PGRST116') {
+        throw selectError;
+      }
+
+      if (existingSetting) {
+        // Atualizar configuração existente
+        const { error } = await supabase
+          .from('system_settings')
+          .update({
+            setting_value: newCurrency,
+            updated_at: new Date().toISOString()
+          })
+          .eq('setting_key', 'default_currency');
+
+        if (error) throw error;
+      } else {
+        // Inserir nova configuração
+        const { error } = await supabase
+          .from('system_settings')
+          .insert({
+            setting_key: 'default_currency',
+            setting_value: newCurrency,
+            description: 'Moeda padrão do sistema'
+          });
+
+        if (error) throw error;
+      }
 
       toast({
         title: "Sucesso",
@@ -170,6 +195,7 @@ const Settings = () => {
       });
     } catch (error) {
       console.error('Erro ao atualizar moeda:', error);
+      setCurrency(currency); // Reverter para o valor anterior
       toast({
         title: "Erro",
         description: "Erro ao atualizar moeda padrão",
