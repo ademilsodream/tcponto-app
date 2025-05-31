@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,7 +8,7 @@ import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { isValidQueryResult, isProfile } from '@/utils/queryValidation';
+import { isValidQueryResult, safeArrayFilter } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -43,15 +42,20 @@ const AdminPanel = () => {
         return [];
       }
 
-      return data
-        .filter(profile => isProfile(profile))
+      const validProfiles = safeArrayFilter(data);
+
+      return validProfiles
+        .filter(profile => profile && 
+          'id' in profile && 
+          'name' in profile && 
+          'email' in profile)
         .map(profile => ({
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          role: profile.role as 'admin' | 'user',
-          hourlyRate: Number(profile.hourly_rate),
-          overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5
+          id: profile.id || '',
+          name: profile.name || '',
+          email: profile.email || '',
+          role: (profile.role as 'admin' | 'user') || 'user',
+          hourlyRate: Number(profile.hourly_rate) || 0,
+          overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5 || 0
         }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos

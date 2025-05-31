@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { isValidQueryResult, isValidSingleResult, isTimeRecord, filterValidTimeRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, isValidObject, safeIdCast } from '@/utils/queryValidation';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
@@ -57,7 +56,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const { data: records, error } = await supabase
         .from('time_records')
         .select('date, id')
-        .eq('user_id', user.id as any)
+        .eq('user_id', safeIdCast(user.id))
         .gte('date', format(currentMonth, 'yyyy-MM-dd'))
         .lte('date', format(endOfCurrentMonth, 'yyyy-MM-dd'))
         .eq('status', 'active' as any);
@@ -75,8 +74,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         return;
       }
 
-      // Filtrar apenas registros válidos usando a função específica
-      const validRecords = filterValidTimeRecords(records);
+      // Filtrar apenas registros válidos
+      const validRecords = records.filter(r => r && typeof r === 'object' && 'date' in r);
 
       // Buscar quais dias já foram editados (simulando com uma coluna que poderíamos adicionar)
       const editedDatesSet = new Set<string>();
@@ -125,7 +124,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const { data: record, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id as any)
+        .eq('user_id', safeIdCast(user.id))
         .eq('date', dateString as any)
         .eq('status', 'active' as any)
         .maybeSingle();
@@ -135,15 +134,15 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         throw error;
       }
 
-      if (isValidSingleResult(record, error) && isTimeRecord(record)) {
+      if (isValidSingleResult(record, error) && isValidObject(record)) {
         setTimeRecord({
-          id: record.id,
-          date: record.date,
-          clock_in: record.clock_in,
-          lunch_start: record.lunch_start,
-          lunch_end: record.lunch_end,
-          clock_out: record.clock_out,
-          total_hours: record.total_hours || 0,
+          id: record.id || '',
+          date: record.date || dateString,
+          clock_in: record.clock_in || null,
+          lunch_start: record.lunch_start || null,
+          lunch_end: record.lunch_end || null,
+          clock_out: record.clock_out || null,
+          total_hours: Number(record.total_hours) || 0,
           has_been_edited: false // Por enquanto sempre false
         });
       } else {

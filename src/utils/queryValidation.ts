@@ -93,3 +93,54 @@ export function safeNumberCast(value: any): any {
   const num = Number(value);
   return isNaN(num) ? 0 : num;
 }
+
+// Função para filtrar registros de tempo válidos
+export function filterValidTimeRecords(data: any[]): any[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(item => 
+    item && 
+    typeof item === 'object' && 
+    !isSupabaseError(item) &&
+    'date' in item
+  );
+}
+
+// Função para filtrar perfis válidos
+export function filterValidProfiles(data: any[]): any[] {
+  if (!Array.isArray(data)) return [];
+  return data.filter(item => 
+    item && 
+    typeof item === 'object' && 
+    !isSupabaseError(item) &&
+    'id' in item &&
+    'name' in item
+  );
+}
+
+// Type guard para verificar se é um registro de tempo válido
+export function isTimeRecord(obj: any): boolean {
+  return obj && 
+    typeof obj === 'object' && 
+    !isSupabaseError(obj) &&
+    'date' in obj;
+}
+
+// Type guard para verificar se é um registro de tempo válido (alias)
+export function isValidTimeRecord(obj: any): boolean {
+  return isTimeRecord(obj);
+}
+
+// Type guard para verificar se é um perfil válido
+export function isProfile(obj: any): boolean {
+  return obj && 
+    typeof obj === 'object' && 
+    !isSupabaseError(obj) &&
+    'id' in obj &&
+    'name' in obj &&
+    'email' in obj;
+}
+
+// Type guard para verificar se é um perfil válido (alias)
+export function isValidProfile(obj: any): boolean {
+  return isProfile(obj);
+}

@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, safeArrayFilter } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -112,8 +111,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           setTotalHours(0);
           setTotalEarnings(0);
         } else if (isValidQueryResult(timeRecords, recordsError) && timeRecords.length > 0) {
-          // Filtrar apenas registros válidos usando a função específica
-          const validTimeRecords = filterValidTimeRecords(timeRecords);
+          // Filtrar apenas registros válidos
+          const validTimeRecords = safeArrayFilter(timeRecords);
           
           // Calcular totais diretamente dos campos da tabela
           let monthTotalHours = 0;
