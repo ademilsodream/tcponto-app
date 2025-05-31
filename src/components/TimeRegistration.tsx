@@ -381,10 +381,10 @@ const TimeRegistration = () => {
   const nextAction = getNextAction();
   
   const actionLabels = {
-    clock_in: 'Registrar Entrada',
-    lunch_start: 'Registrar Início Almoço',
-    lunch_end: 'Registrar Saída Almoço',
-    clock_out: 'Registrar Saída'
+    clock_in: 'Registrar',
+    lunch_start: 'Registrar',
+    lunch_end: 'Registrar',
+    clock_out: 'Registrar'
   };
 
   const fieldNames = {
