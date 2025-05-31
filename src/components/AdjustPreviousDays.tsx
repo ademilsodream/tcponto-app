@@ -10,13 +10,10 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { Database } from '@/integrations/supabase/types';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
 }
-
-type TimeRecord = Database['public']['Tables']['time_records']['Row'];
 
 interface TimeRecordDisplay {
   id: string;
@@ -59,10 +56,10 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const { data: records, error } = await supabase
         .from('time_records')
         .select('date, id')
-        .eq('user_id', user.id)
+        .eq('user_id', user.id as any)
         .gte('date', format(currentMonth, 'yyyy-MM-dd'))
         .lte('date', format(endOfCurrentMonth, 'yyyy-MM-dd'))
-        .eq('status', 'active');
+        .eq('status', 'active' as any);
 
       if (error) {
         console.error('Erro ao buscar registros:', error);
@@ -76,7 +73,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       // Gerar lista de datas disponíveis (dias do mês atual até ontem)
       const available: Date[] = [];
-      const existingRecordDates = new Set(records?.map(r => r.date) || []);
+      const existingRecordDates = new Set((records || []).map(r => r.date));
       
       for (let d = new Date(currentMonth); d <= oneDayAgo; d.setDate(d.getDate() + 1)) {
         const dateString = format(d, 'yyyy-MM-dd');
@@ -112,9 +109,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const { data: record, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('date', dateString)
-        .eq('status', 'active')
+        .eq('user_id', user.id as any)
+        .eq('date', dateString as any)
+        .eq('status', 'active' as any)
         .maybeSingle();
 
       if (error) {

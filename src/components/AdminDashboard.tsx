@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import type { Database } from '@/integrations/supabase/types';
 
 interface User {
   id: string;
@@ -26,8 +25,6 @@ interface EmployeeStatus {
 interface AdminDashboardProps {
   employees: User[];
 }
-
-type TimeRecord = Database['public']['Tables']['time_records']['Row'];
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const [totalEmployees, setTotalEmployees] = useState(0);
@@ -106,8 +103,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           .select('total_hours, total_pay, user_id')
           .gte('date', startOfMonth)
           .lte('date', endOfMonth)
-          .eq('status', 'active')
-          .in('user_id', activeEmployeeIds);
+          .eq('status', 'active' as any)
+          .in('user_id', activeEmployeeIds as any);
 
         if (recordsError) {
           console.error('Erro ao buscar registros de tempo:', recordsError);
@@ -144,8 +141,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             const { data: todayRecord, error } = await supabase
               .from('time_records')
               .select('*')
-              .eq('user_id', employee.id)
-              .eq('date', today)
+              .eq('user_id', employee.id as any)
+              .eq('date', today as any)
               .maybeSingle();
 
             if (error) {

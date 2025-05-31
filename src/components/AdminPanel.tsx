@@ -9,7 +9,6 @@ import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import type { Database } from '@/integrations/supabase/types';
 
 interface User {
   id: string;
@@ -19,8 +18,6 @@ interface User {
   hourlyRate: number;
   overtimeRate: number;
 }
-
-type Profile = Database['public']['Tables']['profiles']['Row'];
 
 const AdminPanel = () => {
   // Query otimizada para buscar funcionários ATIVOS apenas
@@ -34,7 +31,7 @@ const AdminPanel = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('status', 'active')
+        .eq('status', 'active' as any)
         .order('name');
 
       if (error) throw error;
