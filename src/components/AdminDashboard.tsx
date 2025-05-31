@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -110,14 +111,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           console.error('Erro ao buscar registros de tempo:', recordsError);
           setTotalHours(0);
           setTotalEarnings(0);
-        } else if (timeRecords && timeRecords.length > 0) {
+        } else if (isValidQueryResult(timeRecords, recordsError) && timeRecords.length > 0) {
           // Calcular totais diretamente dos campos da tabela
           let monthTotalHours = 0;
           let monthTotalEarnings = 0;
 
           timeRecords.forEach(record => {
-            monthTotalHours += Number(record.total_hours) || 0;
-            monthTotalEarnings += Number(record.total_pay) || 0;
+            if (hasValidProperties(record, ['total_hours', 'total_pay'])) {
+              monthTotalHours += Number(record.total_hours) || 0;
+              monthTotalEarnings += Number(record.total_pay) || 0;
+            }
           });
 
           setTotalHours(monthTotalHours);
@@ -149,14 +152,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
               console.error('Erro ao buscar registro do funcionário:', error);
             }
 
-            const statusInfo = getEmployeeStatus(todayRecord);
+            const validRecord = isValidSingleResult(todayRecord, error) ? todayRecord : null;
+            const statusInfo = getEmployeeStatus(validRecord);
             
             statuses.push({
               employee,
               status: statusInfo.status as any,
               statusLabel: statusInfo.label,
               statusColor: statusInfo.color,
-              record: todayRecord
+              record: validRecord
             });
           } catch (error) {
             console.error('Erro ao processar funcionário:', error);

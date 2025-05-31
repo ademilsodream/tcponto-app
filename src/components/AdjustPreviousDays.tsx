@@ -10,6 +10,7 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { isValidQueryResult, isValidSingleResult, isTimeRecord } from '@/utils/queryValidation';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
@@ -66,6 +67,14 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         throw error;
       }
 
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(records, error)) {
+        console.error('Dados inválidos retornados pela query');
+        setAvailableDates([]);
+        setEditedDates(new Set());
+        return;
+      }
+
       // Buscar quais dias já foram editados (simulando com uma coluna que poderíamos adicionar)
       const editedDatesSet = new Set<string>();
       // Por enquanto, vamos simular que nenhum dia foi editado ainda
@@ -73,7 +82,11 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       // Gerar lista de datas disponíveis (dias do mês atual até ontem)
       const available: Date[] = [];
-      const existingRecordDates = new Set((records || []).map(r => r.date));
+      const existingRecordDates = new Set(
+        records
+          .filter(r => r && typeof r === 'object' && 'date' in r)
+          .map(r => r.date)
+      );
       
       for (let d = new Date(currentMonth); d <= oneDayAgo; d.setDate(d.getDate() + 1)) {
         const dateString = format(d, 'yyyy-MM-dd');
@@ -119,7 +132,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         throw error;
       }
 
-      if (record) {
+      if (isValidSingleResult(record, error) && isTimeRecord(record)) {
         setTimeRecord({
           id: record.id,
           date: record.date,
@@ -127,7 +140,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           lunch_start: record.lunch_start,
           lunch_end: record.lunch_end,
           clock_out: record.clock_out,
-          total_hours: record.total_hours,
+          total_hours: record.total_hours || 0,
           has_been_edited: false // Por enquanto sempre false
         });
       } else {

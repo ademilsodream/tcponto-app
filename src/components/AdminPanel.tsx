@@ -9,6 +9,7 @@ import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { isValidQueryResult, isProfile } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -36,14 +37,22 @@ const AdminPanel = () => {
 
       if (error) throw error;
 
-      return (data || []).map(profile => ({
-        id: profile.id,
-        name: profile.name,
-        email: profile.email,
-        role: profile.role as 'admin' | 'user',
-        hourlyRate: Number(profile.hourly_rate),
-        overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5
-      }));
+      // Verificar se os dados são válidos antes de processar
+      if (!isValidQueryResult(data, error)) {
+        console.error('Dados inválidos retornados para profiles');
+        return [];
+      }
+
+      return data
+        .filter(profile => isProfile(profile))
+        .map(profile => ({
+          id: profile.id,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role as 'admin' | 'user',
+          hourlyRate: Number(profile.hourly_rate),
+          overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5
+        }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
     refetchInterval: 10 * 60 * 1000 // Refetch a cada 10 minutos
@@ -58,7 +67,7 @@ const AdminPanel = () => {
       const { count, error } = await supabase
         .from('edit_requests')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+        .eq('status', 'pending' as any);
 
       if (error) throw error;
       return count || 0;

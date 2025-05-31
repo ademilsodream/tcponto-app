@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties } from '@/utils/queryValidation';
 
 interface Employee {
   id: string;
@@ -129,7 +131,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', selectedEmployeeId)
+        .eq('user_id', selectedEmployeeId as any)
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: true });
@@ -146,21 +148,28 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
-        .eq('id', selectedEmployeeId)
+        .eq('id', selectedEmployeeId as any)
         .single();
 
       if (profileError) {
         console.error('Erro ao carregar perfil do funcionário:', profileError);
       }
 
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(data, error)) {
+        console.error('Dados inválidos retornados para time_records');
+        setTimeRecords([]);
+        return;
+      }
+
       // Criar um mapa dos registros por data
-      const recordsMap = (data || []).reduce((acc, record) => {
+      const recordsMap = data.reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (isDateInPeriod(record.date, startDate, endDate)) {
+        if (record && hasValidProperties(record, ['date']) && isDateInPeriod(record.date, startDate, endDate)) {
           acc[record.date] = record;
           console.log('Registro adicionado ao mapa:', record.date, record);
         } else {
-          console.log('Registro REJEITADO (fora do período):', record.date);
+          console.log('Registro REJEITADO (fora do período ou inválido):', record?.date);
         }
         return acc;
       }, {} as Record<string, any>);
@@ -171,7 +180,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       const completeRecords: TimeRecord[] = dateRange.map(date => {
         const record = recordsMap[date];
         
-        if (record && profileData) {
+        if (record && profileData && hasValidProperties(profileData, ['hourly_rate'])) {
           // Usar a função padronizada com tolerância de 15 minutos
           const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
             record.clock_in || '',
@@ -259,7 +268,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
-        .in('id', nonAdminIds);
+        .in('id', nonAdminIds as any);
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
@@ -267,15 +276,28 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(data, error)) {
+        console.error('Dados inválidos retornados para time_records');
+        setTimeRecords([]);
+        return;
+      }
+
+      if (!isValidQueryResult(profilesData, profilesError)) {
+        console.error('Dados inválidos retornados para profiles');
+        setTimeRecords([]);
+        return;
+      }
+
       // Criar um mapa dos registros por usuário e data
-      const recordsMap = (data || []).reduce((acc, record) => {
+      const recordsMap = data.reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (isDateInPeriod(record.date, startDate, endDate)) {
+        if (record && hasValidProperties(record, ['date', 'user_id']) && isDateInPeriod(record.date, startDate, endDate)) {
           const key = `${record.user_id}-${record.date}`;
           acc[key] = record;
           console.log('Registro adicionado ao mapa:', key, record);
         } else {
-          console.log('Registro REJEITADO (fora do período):', record.date);
+          console.log('Registro REJEITADO (fora do período ou inválido):', record?.date);
         }
         return acc;
       }, {} as Record<string, any>);
@@ -285,47 +307,49 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // Criar registros completos APENAS para o período selecionado
       const completeRecords: TimeRecord[] = [];
       
-      profilesData?.forEach(profile => {
-        dateRange.forEach(date => {
-          const key = `${profile.id}-${date}`;
-          const record = recordsMap[key];
-          
-          if (record) {
-            // Usar a função padronizada com tolerância de 15 minutos
-            const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-              record.clock_in || '',
-              record.lunch_start || '',
-              record.lunch_end || '',
-              record.clock_out || ''
-            );
+      profilesData.forEach(profile => {
+        if (hasValidProperties(profile, ['id', 'hourly_rate'])) {
+          dateRange.forEach(date => {
+            const key = `${profile.id}-${date}`;
+            const record = recordsMap[key];
             
-            // Calcular valores com hora extra igual à hora normal
-            const { normalPay, overtimePay, totalPay } = calculatePay(
-              normalHours,
-              overtimeHours,
-              Number(profile.hourly_rate)
-            );
+            if (record) {
+              // Usar a função padronizada com tolerância de 15 minutos
+              const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
+                record.clock_in || '',
+                record.lunch_start || '',
+                record.lunch_end || '',
+                record.clock_out || ''
+              );
+              
+              // Calcular valores com hora extra igual à hora normal
+              const { normalPay, overtimePay, totalPay } = calculatePay(
+                normalHours,
+                overtimeHours,
+                Number(profile.hourly_rate)
+              );
 
-            completeRecords.push({
-              date,
-              user_id: profile.id,
-              profiles: profile,
-              ...record,
-              total_hours: totalHours,
-              normal_hours: normalHours,
-              overtime_hours: overtimeHours,
-              normal_pay: normalPay,
-              overtime_pay: overtimePay,
-              total_pay: totalPay
-            });
-          } else {
-            completeRecords.push({
-              date,
-              user_id: profile.id,
-              profiles: profile
-            });
-          }
-        });
+              completeRecords.push({
+                date,
+                user_id: profile.id,
+                profiles: profile,
+                ...record,
+                total_hours: totalHours,
+                normal_hours: normalHours,
+                overtime_hours: overtimeHours,
+                normal_pay: normalPay,
+                overtime_pay: overtimePay,
+                total_pay: totalPay
+              });
+            } else {
+              completeRecords.push({
+                date,
+                user_id: profile.id,
+                profiles: profile
+              });
+            }
+          });
+        }
       });
 
       console.log('Registros completos para exibição:', completeRecords);
