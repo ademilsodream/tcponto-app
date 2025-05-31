@@ -9,7 +9,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidRecords } from '@/utils/queryValidation';
 
 interface MonthlySummary {
   totalHours: number;
@@ -129,8 +129,16 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         return;
       }
 
+      // Filtrar apenas registros válidos
+      const validRecords = filterValidRecords(records);
+
       // Recalcular tudo usando os dados brutos e o hourlyRate correto
-      const summary = records.reduce((acc, record) => {
+      const summary = validRecords.reduce((acc, record) => {
+        // Verificar se o record tem todas as propriedades necessárias
+        if (!hasValidProperties(record, ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'])) {
+          return acc;
+        }
+
         // Usar a função padronizada para calcular horas
         const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
           record.clock_in || '',

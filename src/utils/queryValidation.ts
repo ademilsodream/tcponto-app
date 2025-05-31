@@ -10,7 +10,7 @@ export function isValidSingleResult<T>(data: any, error: any): data is T {
 
 export function hasValidProperties(obj: any, properties: string[]): boolean {
   if (!obj || typeof obj !== 'object') return false;
-  return properties.every(prop => prop in obj);
+  return properties.every(prop => prop in obj && obj[prop] !== undefined);
 }
 
 // Type guard específico para time records
@@ -45,4 +45,18 @@ export function isProfile(data: any): data is {
          'email' in data &&
          'role' in data &&
          'hourly_rate' in data;
+}
+
+// Type guard para verificar se é um erro
+export function isSupabaseError(data: any): boolean {
+  return data && typeof data === 'object' && 'error' in data;
+}
+
+// Função para filtrar apenas registros válidos
+export function filterValidRecords<T>(records: any[]): T[] {
+  return records.filter(record => 
+    record && 
+    typeof record === 'object' && 
+    !isSupabaseError(record)
+  );
 }
