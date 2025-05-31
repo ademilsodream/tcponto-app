@@ -20,12 +20,22 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
     ...otherOptions
   } = options;
 
-  // QueryFn otimizada com error handling
+  // QueryFn otimizada com error handling aprimorado
   const optimizedQueryFn = useCallback(async () => {
     try {
       return await queryFn();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Query error:', error);
+      
+      // Se for erro de autenticação, não tentar novamente
+      const errorMessage = error?.message?.toLowerCase() || '';
+      if (errorMessage.includes('jwt') || 
+          errorMessage.includes('unauthorized') || 
+          errorMessage.includes('invalid_token') ||
+          errorMessage.includes('session_not_found')) {
+        console.log('useOptimizedQuery: Erro de autenticação detectado');
+      }
+      
       throw error;
     }
   }, [queryFn]);
@@ -37,13 +47,30 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
     refetchInterval,
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
-    retry: (failureCount, error) => {
-      // Retry logic inteligente
+    retry: (failureCount, error: any) => {
+      // Retry logic inteligente com foco em auth
       if (failureCount >= 2) return false;
-      if (error?.message?.includes('network')) return true;
+      
+      const errorMessage = error?.message?.toLowerCase() || '';
+      
+      // Não retry para erros de autenticação
+      if (errorMessage.includes('jwt') || 
+          errorMessage.includes('unauthorized') || 
+          errorMessage.includes('invalid_token') ||
+          errorMessage.includes('session_not_found')) {
+        return false;
+      }
+      
+      // Retry para erros de rede
+      if (errorMessage.includes('network') || 
+          errorMessage.includes('fetch') ||
+          errorMessage.includes('timeout')) {
+        return true;
+      }
+      
       return false;
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
     ...otherOptions
   });
 }
