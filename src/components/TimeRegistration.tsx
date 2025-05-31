@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
+import { safeArrayFilter } from '@/utils/queryValidation';
 
 interface TimeRecord {
   id: string;
@@ -91,19 +93,22 @@ const TimeRegistration = () => {
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('*')
-        .eq('is_active', true)
+        .eq('is_active', true as any)
         .order('name');
 
       if (error) throw error;
       
       console.log('✅ Dados brutos do banco:', data);
       
-      // Garantir conversão correta dos dados do banco
-      const processedLocations = (data || []).map(location => ({
-        ...location,
+      // Usar filtro seguro e casting direto
+      const processedLocations = safeArrayFilter(data).map((location: any) => ({
+        id: location.id,
+        name: location.name,
+        address: location.address,
         latitude: Number(location.latitude),
         longitude: Number(location.longitude),
-        range_meters: Number(location.range_meters)
+        range_meters: Number(location.range_meters),
+        is_active: Boolean(location.is_active)
       }));
       
       console.log('🔄 Dados processados:', processedLocations);

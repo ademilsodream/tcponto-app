@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,7 +9,7 @@ import { MapPin, Plus, Edit, Trash2, Settings as SettingsIcon, Globe } from 'luc
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
-import { isValidQueryResult, safeIdCast } from '@/utils/queryValidation';
+import { isValidQueryResult, safeArrayFilter, safeIdCast } from '@/utils/queryValidation';
 
 interface AllowedLocation {
   id: string;
@@ -73,30 +72,29 @@ const Settings = () => {
         throw settingsError;
       }
 
-      // Validar e definir localizações
-      if (isValidQueryResult(locationsData, locationsError)) {
-        const validLocations = locationsData.filter((loc): loc is AllowedLocation => 
-          loc && typeof loc === 'object' && 'id' in loc && 'name' in loc
-        );
-        setLocations(validLocations);
-      } else {
-        setLocations([]);
-      }
+      // Usar validação simples e casting direto
+      const validLocations = safeArrayFilter(locationsData).map((loc: any) => ({
+        id: loc.id,
+        name: loc.name,
+        address: loc.address,
+        latitude: Number(loc.latitude),
+        longitude: Number(loc.longitude),
+        range_meters: Number(loc.range_meters),
+        is_active: Boolean(loc.is_active)
+      }));
+      setLocations(validLocations);
       
-      // Validar e definir configurações
-      if (isValidQueryResult(settingsData, settingsError)) {
-        const validSettings = settingsData.filter((setting): setting is SystemSetting => 
-          setting && typeof setting === 'object' && 'setting_key' in setting
-        );
-        setSettings(validSettings);
-        
-        // Definir tolerância de atraso
-        const delayToleranceSetting = validSettings.find(s => s.setting_key === 'delay_tolerance_minutes');
-        if (delayToleranceSetting) {
-          setDelayTolerance(delayToleranceSetting.setting_value);
-        }
-      } else {
-        setSettings([]);
+      const validSettings = safeArrayFilter(settingsData).map((setting: any) => ({
+        setting_key: setting.setting_key,
+        setting_value: setting.setting_value,
+        description: setting.description || ''
+      }));
+      setSettings(validSettings);
+      
+      // Definir tolerância de atraso
+      const delayToleranceSetting = validSettings.find((s: any) => s.setting_key === 'delay_tolerance_minutes');
+      if (delayToleranceSetting) {
+        setDelayTolerance(delayToleranceSetting.setting_value);
       }
 
     } catch (error) {
@@ -144,13 +142,13 @@ const Settings = () => {
         longitude: parseFloat(locationForm.longitude),
         range_meters: parseInt(locationForm.range_meters) || 100,
         is_active: true
-      } as any;
+      };
 
       if (editingLocation) {
         const { error } = await supabase
           .from('allowed_locations')
-          .update(locationData)
-          .eq('id', safeIdCast(editingLocation.id));
+          .update(locationData as any)
+          .eq('id', editingLocation.id as any);
 
         if (error) throw error;
 
@@ -161,7 +159,7 @@ const Settings = () => {
       } else {
         const { error } = await supabase
           .from('allowed_locations')
-          .insert(locationData);
+          .insert(locationData as any);
 
         if (error) throw error;
 
@@ -207,7 +205,7 @@ const Settings = () => {
       const { error } = await supabase
         .from('allowed_locations')
         .delete()
-        .eq('id', safeIdCast(locationId));
+        .eq('id', locationId as any);
 
       if (error) throw error;
 

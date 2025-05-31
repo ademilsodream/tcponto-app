@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast, safeIdCast, isValidTimeRecord } from '@/utils/queryValidation';
+import { isValidQueryResult, safeArrayFilter, safeStringCast, safeStringArrayCast, safeIdCast } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -63,17 +63,10 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
       if (error) throw error;
 
-      // Verificar se os dados são válidos
-      if (!isValidQueryResult(data, error)) {
-        console.error('Dados inválidos retornados para edit_requests');
-        setEditRequests([]);
-        return;
-      }
+      // Usar filtro simples e seguro
+      const validData = safeArrayFilter(data);
 
-      // Filtrar apenas registros válidos
-      const validData = filterValidEditRequests(data);
-
-      const formattedRequests = validData.map(request => ({
+      const formattedRequests = validData.map((request: any) => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
@@ -182,12 +175,12 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           updateData[fieldMap[request.field]] = request.newValue;
         });
 
-        if (timeRecords && isValidTimeRecord(timeRecords)) {
-          // Update existing record
+        if (timeRecords && timeRecords.id) {
+          // Update existing record - casting direto do id
           const { error: updateRecordError } = await supabase
             .from('time_records')
             .update(updateData)
-            .eq('id', timeRecords.id);
+            .eq('id', timeRecords.id as any);
 
           if (updateRecordError) throw updateRecordError;
         } else {
