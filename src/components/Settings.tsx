@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import HourBankSettings from './HourBankSettings';
 import CurrencySelector from './CurrencySelector';
-import { useCurrency } from '@/contexts/CurrencyContext';
+import { useCurrency, Currency } from '@/contexts/CurrencyContext';
 
 interface Location {
   id: string;
@@ -19,11 +19,6 @@ interface Location {
   longitude: number;
   range_meters: number;
   is_active: boolean;
-}
-
-interface Currency {
-  code: string;
-  name: string;
 }
 
 const Settings = () => {
