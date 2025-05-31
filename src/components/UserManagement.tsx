@@ -9,8 +9,6 @@ import { Users, Plus, Edit, UserX, UserCheck } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { z } from 'zod';
-import { isValidSingleResult, safeGet } from '@/utils';
 
 interface User {
   id: string;
@@ -316,50 +314,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       toast({
         title: "Erro",
         description: error.message || "Erro ao reativar usuário",
-        variant: "destructive"
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const updateProfile = async (values: z.infer<typeof formSchema>) => {
-    if (!selectedProfile) return;
-
-    setSubmitting(true);
-    try {
-      // Validar se os dados do selectedProfile são válidos
-      if (!isValidSingleResult(selectedProfile, null)) {
-        throw new Error('Perfil inválido selecionado');
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: values.name,
-          email: values.email,
-          role: values.role,
-          hourly_rate: values.hourlyRate,
-          overtime_rate: values.overtimeRate,
-          status: values.status
-        } as any)
-        .eq('id', safeGet(selectedProfile, 'id'));
-
-      if (error) throw error;
-
-      toast({
-        title: "Sucesso",
-        description: "Perfil atualizado com sucesso"
-      });
-
-      setIsEditDialogOpen(false);
-      await loadProfiles();
-      if (onUserChange) onUserChange();
-    } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao atualizar perfil",
         variant: "destructive"
       });
     } finally {

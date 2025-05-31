@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast, safeIdCast } from '@/utils/queryValidation';
 
 interface EditRequest {
   id: string;
@@ -64,16 +63,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
 
       if (error) throw error;
 
-      // Verificar se os dados são válidos
-      if (!isValidQueryResult(data, error)) {
-        console.error('Dados inválidos retornados para edit_requests');
-        return [];
-      }
-
-      // Filtrar apenas registros válidos
-      const validData = filterValidEditRequests(data);
-
-      return validData.map(request => ({
+      return data.map(request => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
@@ -168,11 +158,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
-          status: safeStringCast(approved ? 'approved' : 'rejected'),
+          status: approved ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: safeStringCast((await supabase.auth.getUser()).data.user?.id || '')
-        } as any)
-        .in('id', safeStringArrayCast(requestIds));
+          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .in('id', requestIds);
 
       if (updateError) throw updateError;
 
@@ -181,8 +171,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
           .select('id')
-          .eq('user_id', safeIdCast(group.employeeId))
-          .eq('date', safeStringCast(group.date))
+          .eq('user_id', group.employeeId)
+          .eq('date', group.date)
           .maybeSingle();
 
         if (fetchError) throw fetchError;
@@ -199,8 +189,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
           updateData[fieldMap[request.field]] = request.newValue;
         }
 
-        // Verificar se timeRecords é válido e tem id
-        if (timeRecords && typeof timeRecords === 'object' && 'id' in timeRecords && timeRecords.id) {
+        if (timeRecords) {
           // Atualizar registro existente
           const { error: updateRecordError } = await supabase
             .from('time_records')

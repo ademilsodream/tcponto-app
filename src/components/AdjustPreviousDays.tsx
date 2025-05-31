@@ -10,13 +10,12 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { isValidQueryResult, isValidSingleResult, isValidObject, safeIdCast, safeGet } from '@/utils/queryValidation';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
 }
 
-interface TimeRecordDisplay {
+interface TimeRecord {
   id: string;
   date: string;
   clock_in: string | null;
@@ -32,7 +31,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [editedDates, setEditedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [timeRecord, setTimeRecord] = useState<TimeRecordDisplay | null>(null);
+  const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -51,32 +50,16 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const endOfCurrentMonth = endOfMonth(currentMonth);
       const oneDayAgo = subDays(today, 1);
 
-      if (!user?.id) return;
-
       // Buscar registros do mês atual
       const { data: records, error } = await supabase
         .from('time_records')
         .select('date, id')
-        .eq('user_id', safeIdCast(user.id))
+        .eq('user_id', user?.id)
         .gte('date', format(currentMonth, 'yyyy-MM-dd'))
         .lte('date', format(endOfCurrentMonth, 'yyyy-MM-dd'))
-        .eq('status', 'active' as any);
+        .eq('status', 'active');
 
-      if (error) {
-        console.error('Erro ao buscar registros:', error);
-        throw error;
-      }
-
-      // Verificar se os dados são válidos
-      if (!isValidQueryResult(records, error)) {
-        console.error('Dados inválidos retornados pela query');
-        setAvailableDates([]);
-        setEditedDates(new Set());
-        return;
-      }
-
-      // Filtrar apenas registros válidos
-      const validRecords = records.filter(r => r && typeof r === 'object' && safeGet(r, 'date'));
+      if (error) throw error;
 
       // Buscar quais dias já foram editados (simulando com uma coluna que poderíamos adicionar)
       const editedDatesSet = new Set<string>();
@@ -85,11 +68,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       // Gerar lista de datas disponíveis (dias do mês atual até ontem)
       const available: Date[] = [];
-      const existingRecordDates = new Set(
-        validRecords
-          .filter(r => safeGet(r, 'date'))
-          .map(r => safeGet(r, 'date'))
-      );
+      const existingRecordDates = new Set(records?.map(r => r.date) || []);
       
       for (let d = new Date(currentMonth); d <= oneDayAgo; d.setDate(d.getDate() + 1)) {
         const dateString = format(d, 'yyyy-MM-dd');
@@ -118,32 +97,29 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
   const loadTimeRecord = async (date: Date) => {
     try {
-      if (!user?.id) return;
-
       const dateString = format(date, 'yyyy-MM-dd');
       
       const { data: record, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', safeIdCast(user.id))
-        .eq('date', dateString as any)
-        .eq('status', 'active' as any)
-        .maybeSingle();
+        .eq('user_id', user?.id)
+        .eq('date', dateString)
+        .eq('status', 'active')
+        .single();
 
-      if (error) {
-        console.error('Erro ao buscar registro:', error);
+      if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
-      if (isValidSingleResult(record, error) && isValidObject(record)) {
+      if (record) {
         setTimeRecord({
-          id: safeGet(record, 'id', ''),
-          date: safeGet(record, 'date', dateString),
-          clock_in: safeGet(record, 'clock_in'),
-          lunch_start: safeGet(record, 'lunch_start'),
-          lunch_end: safeGet(record, 'lunch_end'),
-          clock_out: safeGet(record, 'clock_out'),
-          total_hours: Number(safeGet(record, 'total_hours', 0)),
+          id: record.id,
+          date: record.date,
+          clock_in: record.clock_in,
+          lunch_start: record.lunch_start,
+          lunch_end: record.lunch_end,
+          clock_out: record.clock_out,
+          total_hours: record.total_hours,
           has_been_edited: false // Por enquanto sempre false
         });
       } else {

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, safeArrayFilter, safeGet } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -98,46 +97,34 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
       // Buscar registros do mês vigente de funcionários ATIVOS apenas
       const activeEmployeeIds = employees.map(emp => emp.id);
       
-      if (activeEmployeeIds.length > 0) {
-        const { data: timeRecords, error: recordsError } = await supabase
-          .from('time_records')
-          .select('total_hours, total_pay, user_id')
-          .gte('date', startOfMonth)
-          .lte('date', endOfMonth)
-          .eq('status', 'active' as any)
-          .in('user_id', activeEmployeeIds as any);
+      const { data: timeRecords, error: recordsError } = await supabase
+        .from('time_records')
+        .select(`
+          total_hours,
+          total_pay,
+          user_id
+        `)
+        .gte('date', startOfMonth)
+        .lte('date', endOfMonth)
+        .eq('status', 'active')
+        .in('user_id', activeEmployeeIds);
 
-        if (recordsError) {
-          console.error('Erro ao buscar registros de tempo:', recordsError);
-          setTotalHours(0);
-          setTotalEarnings(0);
-        } else if (isValidQueryResult(timeRecords, recordsError) && timeRecords.length > 0) {
-          // Filtrar apenas registros válidos
-          const validTimeRecords = safeArrayFilter(timeRecords);
-          
-          // Calcular totais diretamente dos campos da tabela
-          let monthTotalHours = 0;
-          let monthTotalEarnings = 0;
-
-          validTimeRecords.forEach(record => {
-            const totalHours = safeGet(record, 'total_hours');
-            const totalPay = safeGet(record, 'total_pay');
-            
-            if (typeof totalHours === 'number' && typeof totalPay === 'number') {
-              monthTotalHours += totalHours;
-              monthTotalEarnings += totalPay;
-            }
-          });
-
-          setTotalHours(monthTotalHours);
-          setTotalEarnings(monthTotalEarnings);
-        } else {
-          setTotalHours(0);
-          setTotalEarnings(0);
-        }
-      } else {
+      if (recordsError) {
+        console.error('Erro ao buscar registros de tempo:', recordsError);
         setTotalHours(0);
         setTotalEarnings(0);
+      } else {
+        // Calcular totais diretamente dos campos da tabela
+        let monthTotalHours = 0;
+        let monthTotalEarnings = 0;
+
+        timeRecords?.forEach(record => {
+          monthTotalHours += Number(record.total_hours) || 0;
+          monthTotalEarnings += Number(record.total_pay) || 0;
+        });
+
+        setTotalHours(monthTotalHours);
+        setTotalEarnings(monthTotalEarnings);
       }
 
       // Verificar status detalhado dos funcionários ATIVOS apenas
@@ -150,26 +137,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             const { data: todayRecord, error } = await supabase
               .from('time_records')
               .select('*')
-              .eq('user_id', employee.id as any)
-              .eq('date', today as any)
-              .maybeSingle();
+              .eq('user_id', employee.id)
+              .eq('date', today)
+              .single();
 
-            if (error) {
-              console.error('Erro ao buscar registro do funcionário:', error);
-            }
-
-            const validRecord = isValidSingleResult(todayRecord, error) ? todayRecord : null;
-            const statusInfo = getEmployeeStatus(validRecord);
+            const statusInfo = getEmployeeStatus(error ? null : todayRecord);
             
             statuses.push({
               employee,
               status: statusInfo.status as any,
               statusLabel: statusInfo.label,
               statusColor: statusInfo.color,
-              record: validRecord
+              record: error ? null : todayRecord
             });
           } catch (error) {
-            console.error('Erro ao processar funcionário:', error);
             statuses.push({
               employee,
               status: 'not_working',

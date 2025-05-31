@@ -13,7 +13,6 @@ import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
-import { safeArrayFilter } from '@/utils/queryValidation';
 
 interface TimeRecord {
   id: string;
@@ -92,22 +91,19 @@ const TimeRegistration = () => {
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('*')
-        .eq('is_active', true as any)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
       
       console.log('✅ Dados brutos do banco:', data);
       
-      // Usar filtro seguro e casting direto
-      const processedLocations = safeArrayFilter(data).map((location: any) => ({
-        id: location.id,
-        name: location.name,
-        address: location.address,
+      // Garantir conversão correta dos dados do banco
+      const processedLocations = (data || []).map(location => ({
+        ...location,
         latitude: Number(location.latitude),
         longitude: Number(location.longitude),
-        range_meters: Number(location.range_meters),
-        is_active: Boolean(location.is_active)
+        range_meters: Number(location.range_meters)
       }));
       
       console.log('🔄 Dados processados:', processedLocations);
@@ -145,19 +141,15 @@ const TimeRegistration = () => {
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id as any)
-        .eq('date', today as any)
+        .eq('user_id', user.id)
+        .eq('date', today)
         .single();
 
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
-      if (isValidSingleResult(data, error)) {
-        setTimeRecord(data);
-      } else {
-        setTimeRecord(null);
-      }
+      setTimeRecord(data);
     } catch (error) {
       console.error('Erro ao carregar registro:', error);
       toast({
@@ -238,7 +230,7 @@ const TimeRegistration = () => {
         const { error } = await supabase
           .from('time_records')
           .update(updateData)
-          .eq('id', timeRecord.id as any);
+          .eq('id', timeRecord.id);
 
         if (error) throw error;
       } else {
@@ -248,7 +240,7 @@ const TimeRegistration = () => {
             user_id: user.id,
             date: today,
             ...updateData
-          } as any);
+          });
 
         if (error) throw error;
       }
@@ -329,7 +321,7 @@ const TimeRegistration = () => {
           reason: editReason,
           location: locationData,
           status: 'pending'
-        } as any);
+        });
 
       if (error) throw error;
 
@@ -390,8 +382,8 @@ const TimeRegistration = () => {
   
   const actionLabels = {
     clock_in: 'Registrar Entrada',
-    lunch_start: 'Registrar Entrada Almoço',
-    lunch_end: 'Registrar Saída Almoço',
+    lunch_start: 'Registrar Saída',
+    lunch_end: 'Registrar Entrada',
     clock_out: 'Registrar Saída'
   };
 

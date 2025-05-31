@@ -5,7 +5,6 @@ import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-rea
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useQuery } from '@tanstack/react-query';
-import { isValidQueryResult, filterValidTimeRecords, safeStringCast } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -54,7 +53,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       .select('total_hours, total_pay')
       .gte('date', startOfMonth)
       .lte('date', endOfMonth)
-      .eq('status', safeStringCast('active'));
+      .eq('status', 'active');
 
     if (monthlyError) throw monthlyError;
 
@@ -62,37 +61,22 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const { data: todayData, error: todayError } = await supabase
       .from('time_records')
       .select('user_id, clock_in, lunch_start, lunch_end, clock_out')
-      .eq('date', safeStringCast(today));
+      .eq('date', today);
 
     if (todayError) throw todayError;
 
-    // Verificar se os dados são válidos
-    if (!isValidQueryResult(monthlyData, monthlyError)) {
-      console.error('Dados mensais inválidos');
-      throw new Error('Dados mensais inválidos');
-    }
-
-    if (!isValidQueryResult(todayData, todayError)) {
-      console.error('Dados de hoje inválidos');
-      throw new Error('Dados de hoje inválidos');
-    }
-
-    // Filtrar apenas registros válidos
-    const validMonthlyData = filterValidTimeRecords(monthlyData);
-    const validTodayData = filterValidTimeRecords(todayData);
-
     // Cálculos otimizados
-    const totals = validMonthlyData.reduce(
+    const totals = monthlyData?.reduce(
       (acc, record) => ({
         hours: acc.hours + (Number(record.total_hours) || 0),
         earnings: acc.earnings + (Number(record.total_pay) || 0)
       }),
       { hours: 0, earnings: 0 }
-    );
+    ) || { hours: 0, earnings: 0 };
 
     // Mapa otimizado para status dos funcionários
     const todayRecordsMap = new Map(
-      validTodayData.map(record => [record.user_id, record])
+      todayData?.map(record => [record.user_id, record]) || []
     );
 
     // Filtrar apenas funcionários (não admins) e processar status

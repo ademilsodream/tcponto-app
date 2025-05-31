@@ -9,7 +9,6 @@ import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { isValidQueryResult, safeArrayFilter, safeGet } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -32,31 +31,19 @@ const AdminPanel = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('status', 'active' as any)
+        .eq('status', 'active')
         .order('name');
 
       if (error) throw error;
 
-      // Verificar se os dados são válidos antes de processar
-      if (!isValidQueryResult(data, error)) {
-        console.error('Dados inválidos retornados para profiles');
-        return [];
-      }
-
-      const validProfiles = safeArrayFilter(data);
-
-      return validProfiles
-        .filter(profile => safeGet(profile, 'id') && 
-          safeGet(profile, 'name') && 
-          safeGet(profile, 'email'))
-        .map(profile => ({
-          id: safeGet(profile, 'id', ''),
-          name: safeGet(profile, 'name', ''),
-          email: safeGet(profile, 'email', ''),
-          role: (safeGet(profile, 'role', 'user') as 'admin' | 'user'),
-          hourlyRate: Number(safeGet(profile, 'hourly_rate', 0)),
-          overtimeRate: Number(safeGet(profile, 'overtime_rate', 0)) || Number(safeGet(profile, 'hourly_rate', 0)) * 1.5 || 0
-        }));
+      return data.map(profile => ({
+        id: profile.id,
+        name: profile.name,
+        email: profile.email,
+        role: profile.role as 'admin' | 'user',
+        hourlyRate: Number(profile.hourly_rate),
+        overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5
+      }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
     refetchInterval: 10 * 60 * 1000 // Refetch a cada 10 minutos
@@ -71,7 +58,7 @@ const AdminPanel = () => {
       const { count, error } = await supabase
         .from('edit_requests')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending' as any);
+        .eq('status', 'pending');
 
       if (error) throw error;
       return count || 0;

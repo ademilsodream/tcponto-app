@@ -8,7 +8,6 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast, isValidSingleResult, isValidObject, safeGet } from '@/utils/queryValidation';
 
 interface MonthlySummary {
   totalHours: number;
@@ -67,7 +66,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
       const { data, error } = await supabase
         .from('profiles')
         .select('hourly_rate')
-        .eq('id', safeIdCast(user.id))
+        .eq('id', user.id)
         .single();
 
       if (error) {
@@ -75,8 +74,8 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         throw error;
       }
 
-      if (isValidSingleResult(data, error) && isValidObject(data)) {
-        const rate = Number(safeGet(data, 'hourly_rate', 50));
+      if (data) {
+        const rate = Number(data.hourly_rate);
         setHourlyRate(rate);
       }
     } catch (error) {
@@ -106,44 +105,21 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
       const { data: records, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', safeIdCast(user.id))
+        .eq('user_id', user.id)
         .gte('date', startDate)
         .lte('date', endDate)
-        .eq('status', 'active' as any);
+        .eq('status', 'active');
 
       if (error) throw error;
 
-      // Verificar se os dados são válidos
-      if (!isValidQueryResult(records, error)) {
-        console.error('Dados inválidos retornados para time_records');
-        setSummary({
-          totalHours: 0,
-          normalHours: 0,
-          overtimeHours: 0,
-          totalPay: 0,
-          normalPay: 0,
-          overtimePay: 0,
-          workingDays: 0
-        });
-        return;
-      }
-
-      // Filtrar apenas registros válidos usando a função específica
-      const validRecords = filterValidTimeRecords(records);
-
       // Recalcular tudo usando os dados brutos e o hourlyRate correto
-      const calculatedSummary = validRecords.reduce((acc, record) => {
-        // Verificar se o record tem todas as propriedades necessárias
-        if (!record || !record.clock_in || !record.lunch_start || !record.lunch_end || !record.clock_out) {
-          return acc;
-        }
-
+      const summary = records.reduce((acc, record) => {
         // Usar a função padronizada para calcular horas
         const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-          record.clock_in,
-          record.lunch_start,
-          record.lunch_end,
-          record.clock_out
+          record.clock_in || '',
+          record.lunch_start || '',
+          record.lunch_end || '',
+          record.clock_out || ''
         );
 
         // Calcular valores com o hourlyRate correto
@@ -172,7 +148,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         workingDays: 0
       });
 
-      setSummary(calculatedSummary);
+      setSummary(summary);
     } catch (error) {
       console.error('Error loading monthly summary:', error);
     } finally {

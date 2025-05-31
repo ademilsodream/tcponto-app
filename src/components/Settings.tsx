@@ -9,7 +9,6 @@ import { MapPin, Plus, Edit, Trash2, Settings as SettingsIcon, Globe } from 'luc
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
-import { isValidQueryResult, safeArrayFilter, safeIdCast } from '@/utils/queryValidation';
 
 interface AllowedLocation {
   id: string;
@@ -72,27 +71,11 @@ const Settings = () => {
         throw settingsError;
       }
 
-      // Usar validação simples e casting direto
-      const validLocations = safeArrayFilter(locationsData).map((loc: any) => ({
-        id: loc.id,
-        name: loc.name,
-        address: loc.address,
-        latitude: Number(loc.latitude),
-        longitude: Number(loc.longitude),
-        range_meters: Number(loc.range_meters),
-        is_active: Boolean(loc.is_active)
-      }));
-      setLocations(validLocations);
-      
-      const validSettings = safeArrayFilter(settingsData).map((setting: any) => ({
-        setting_key: setting.setting_key,
-        setting_value: setting.setting_value,
-        description: setting.description || ''
-      }));
-      setSettings(validSettings);
+      setLocations(locationsData || []);
+      setSettings(settingsData || []);
       
       // Definir tolerância de atraso
-      const delayToleranceSetting = validSettings.find((s: any) => s.setting_key === 'delay_tolerance_minutes');
+      const delayToleranceSetting = settingsData?.find(s => s.setting_key === 'delay_tolerance_minutes');
       if (delayToleranceSetting) {
         setDelayTolerance(delayToleranceSetting.setting_value);
       }
@@ -147,8 +130,8 @@ const Settings = () => {
       if (editingLocation) {
         const { error } = await supabase
           .from('allowed_locations')
-          .update(locationData as any)
-          .eq('id', editingLocation.id as any);
+          .update(locationData)
+          .eq('id', editingLocation.id);
 
         if (error) throw error;
 
@@ -159,7 +142,7 @@ const Settings = () => {
       } else {
         const { error } = await supabase
           .from('allowed_locations')
-          .insert(locationData as any);
+          .insert(locationData);
 
         if (error) throw error;
 
@@ -205,7 +188,7 @@ const Settings = () => {
       const { error } = await supabase
         .from('allowed_locations')
         .delete()
-        .eq('id', locationId as any);
+        .eq('id', locationId);
 
       if (error) throw error;
 
@@ -232,7 +215,7 @@ const Settings = () => {
           setting_key: 'delay_tolerance_minutes',
           setting_value: delayTolerance,
           description: 'Tolerância de atraso em minutos'
-        } as any);
+        });
 
       if (error) throw error;
 

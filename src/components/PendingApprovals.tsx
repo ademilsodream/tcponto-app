@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { isValidQueryResult, safeArrayFilter, safeStringCast, safeStringArrayCast, safeIdCast } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -63,10 +61,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
       if (error) throw error;
 
-      // Usar filtro simples e seguro
-      const validData = safeArrayFilter(data);
-
-      const formattedRequests = validData.map((request: any) => ({
+      const formattedRequests = data.map(request => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
@@ -82,7 +77,6 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
       setEditRequests(formattedRequests);
     } catch (error) {
       console.error('Error loading edit requests:', error);
-      setEditRequests([]);
     } finally {
       setLoading(false);
     }
@@ -142,11 +136,11 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
-          status: safeStringCast(approved ? 'approved' : 'rejected'),
+          status: approved ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: safeStringCast((await supabase.auth.getUser()).data.user?.id || '')
-        } as any)
-        .in('id', safeStringArrayCast(requestIds));
+          reviewed_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .in('id', requestIds);
 
       if (updateError) throw updateError;
 
@@ -155,11 +149,11 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
           .select('*')
-          .eq('user_id', safeIdCast(group.employeeId))
-          .eq('date', safeStringCast(group.date))
-          .maybeSingle();
+          .eq('user_id', group.employeeId)
+          .eq('date', group.date)
+          .single();
 
-        if (fetchError) {
+        if (fetchError && fetchError.code !== 'PGRST116') {
           throw fetchError;
         }
 
@@ -175,12 +169,12 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           updateData[fieldMap[request.field]] = request.newValue;
         });
 
-        if (timeRecords && typeof timeRecords === 'object' && 'id' in timeRecords && timeRecords.id) {
-          // Update existing record - casting direto do id
+        if (timeRecords) {
+          // Update existing record
           const { error: updateRecordError } = await supabase
             .from('time_records')
             .update(updateData)
-            .eq('id', timeRecords.id as any);
+            .eq('id', timeRecords.id);
 
           if (updateRecordError) throw updateRecordError;
         } else {

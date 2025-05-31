@@ -1,8 +1,7 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase, checkSessionHealth } from '@/integrations/supabase/client';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
-import { queryClient } from '@/providers/QueryProvider';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -13,7 +12,6 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   loading: boolean;
@@ -21,47 +19,66 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Sistema de debouncing para invalidações de cache
-let invalidationTimeout: NodeJS.Timeout | null = null;
-
-const debouncedInvalidateCache = (reason: string) => {
-  if (invalidationTimeout) {
-    clearTimeout(invalidationTimeout);
-  }
-  
-  invalidationTimeout = setTimeout(() => {
-    console.log(`AuthProvider: Invalidando cache (razão: ${reason})`);
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const queryKey = query.queryKey[0] as string;
-        return queryKey?.includes('profile') || queryKey?.includes('time_records') || queryKey?.includes('employee');
-      }
-    });
-  }, 1000);
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Sistema de health check periódico
   useEffect(() => {
-    const healthCheckInterval = setInterval(async () => {
-      if (session && !loading) {
-        const isHealthy = await checkSessionHealth();
-        if (!isHealthy) {
-          console.log('AuthProvider: Sessão não saudável detectada, fazendo logout...');
-          await handleLogout();
-        }
+    console.log('AuthProvider: Iniciando verificação de autenticação');
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      console.log('AuthProvider: Verificando sessão existente...');
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('AuthProvider: Erro ao obter sessão:', error);
+        setLoading(false);
+        return;
       }
-    }, 300000); // A cada 5 minutos
+      
+      console.log('AuthProvider: Sessão obtida:', session ? 'existe' : 'não existe');
+      
+      if (session?.user) {
+        console.log('AuthProvider: Usuário encontrado na sessão, carregando perfil...');
+        await loadUserProfile(session.user);
+      } else {
+        console.log('AuthProvider: Nenhuma sessão ativa encontrada');
+        setLoading(false);
+      }
 
-    return () => clearInterval(healthCheckInterval);
-  }, [session, loading]);
+      // Configurar listener de mudanças de autenticação
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          console.log('AuthProvider: Evento de autenticação:', event, session ? 'com sessão' : 'sem sessão');
+          
+          if (event === 'SIGNED_IN' && session?.user) {
+            console.log('AuthProvider: Usuário logou, carregando perfil...');
+            await loadUserProfile(session.user);
+          } else if (event === 'SIGNED_OUT') {
+            console.log('AuthProvider: Usuário deslogou');
+            setUser(null);
+            setLoading(false);
+          } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+            console.log('AuthProvider: Token renovado, mantendo usuário');
+            // Manter o usuário atual, apenas log
+          }
+        }
+      );
 
-  const loadUserProfile = useCallback(async (authUser: SupabaseUser, currentSession: Session) => {
+      return () => {
+        console.log('AuthProvider: Removendo listener de autenticação');
+        subscription.unsubscribe();
+      };
+    } catch (error) {
+      console.error('AuthProvider: Erro inesperado na verificação de autenticação:', error);
+      setLoading(false);
+    }
+  };
+
+  const loadUserProfile = async (authUser: SupabaseUser) => {
     try {
       console.log('AuthProvider: Carregando perfil do usuário:', authUser.id);
       
@@ -76,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (error.code === 'PGRST116') {
           console.log('AuthProvider: Perfil não encontrado, criando novo...');
+          // Se não encontrou o perfil, cria um novo
           const newProfile = {
             id: authUser.id,
             name: authUser.email?.split('@')[0] || 'Usuário',
@@ -90,7 +108,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (insertError) {
             console.error('AuthProvider: Erro ao criar perfil:', insertError);
-            throw insertError;
           } else {
             console.log('AuthProvider: Perfil criado com sucesso');
             setUser({
@@ -99,16 +116,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: newProfile.email,
               role: newProfile.role as 'admin' | 'user'
             });
-            setSession(currentSession);
           }
-        } else {
-          throw error;
         }
       } else {
         // Verificar se o usuário está ativo
         if (profile.status === 'inactive') {
           console.log('AuthProvider: Usuário demitido tentando acessar, fazendo logout...');
-          await handleLogout();
+          await supabase.auth.signOut();
+          setUser(null);
+          setLoading(false);
           return;
         }
 
@@ -119,101 +135,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: profile.email,
           role: profile.role === 'admin' ? 'admin' : 'user'
         });
-        setSession(currentSession);
       }
     } catch (error) {
       console.error('AuthProvider: Erro inesperado ao carregar perfil:', error);
-      await handleLogout();
+    } finally {
+      setLoading(false);
     }
-  }, []);
-
-  const handleLogout = useCallback(async () => {
-    try {
-      console.log('AuthProvider: Executando logout...');
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      queryClient.clear();
-    } catch (error) {
-      console.error('AuthProvider: Erro ao fazer logout:', error);
-      // Forçar limpeza mesmo com erro
-      setUser(null);
-      setSession(null);
-      queryClient.clear();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isInitialized) return;
-
-    console.log('AuthProvider: Iniciando verificação de autenticação');
-    
-    let mounted = true;
-
-    const initializeAuth = async () => {
-      try {
-        // Configurar listener primeiro
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, currentSession) => {
-            if (!mounted) return;
-
-            console.log('AuthProvider: Evento de autenticação:', event, currentSession ? 'com sessão' : 'sem sessão');
-            
-            if (event === 'SIGNED_IN' && currentSession?.user) {
-              console.log('AuthProvider: Usuário logou, carregando perfil...');
-              await loadUserProfile(currentSession.user, currentSession);
-              debouncedInvalidateCache('login');
-            } else if (event === 'SIGNED_OUT') {
-              console.log('AuthProvider: Usuário deslogou');
-              setUser(null);
-              setSession(null);
-              queryClient.clear();
-            } else if (event === 'TOKEN_REFRESHED' && currentSession?.user) {
-              console.log('AuthProvider: Token renovado, atualizando sessão...');
-              setSession(currentSession);
-              // Invalidação mais seletiva em token refresh
-              debouncedInvalidateCache('token_refresh');
-            } else if (event === 'INITIAL_SESSION' && currentSession?.user) {
-              console.log('AuthProvider: Sessão inicial encontrada');
-              await loadUserProfile(currentSession.user, currentSession);
-            }
-            
-            if (!loading) setLoading(false);
-          }
-        );
-
-        // Depois verificar sessão existente
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('AuthProvider: Erro ao obter sessão:', error);
-        } else if (initialSession?.user && mounted) {
-          console.log('AuthProvider: Sessão existente encontrada');
-          await loadUserProfile(initialSession.user, initialSession);
-        }
-
-        setIsInitialized(true);
-        setLoading(false);
-
-        return () => {
-          mounted = false;
-          subscription.unsubscribe();
-        };
-      } catch (error) {
-        console.error('AuthProvider: Erro na inicialização:', error);
-        if (mounted) {
-          setLoading(false);
-          setIsInitialized(true);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      mounted = false;
-    };
-  }, [isInitialized, loading, loadUserProfile]);
+  };
 
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -238,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('AuthProvider: Login realizado com sucesso');
       
-      if (data.user && data.session) {
+      if (data.user) {
         // Verificar status do usuário antes de fazer login
         const { data: profile } = await supabase
           .from('profiles')
@@ -255,10 +183,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
         }
 
-        await loadUserProfile(data.user, data.session);
+        await loadUserProfile(data.user);
       }
 
-      setLoading(false);
       return { success: true };
     } catch (error) {
       console.error('AuthProvider: Erro inesperado no login:', error);
@@ -267,12 +194,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = useCallback(() => {
-    handleLogout();
-  }, [handleLogout]);
+  const logout = async () => {
+    try {
+      console.log('AuthProvider: Fazendo logout...');
+      await supabase.auth.signOut();
+      setUser(null);
+      console.log('AuthProvider: Logout realizado com sucesso');
+    } catch (error) {
+      console.error('AuthProvider: Erro ao fazer logout:', error);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, session, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
