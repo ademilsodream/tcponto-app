@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast, safeIdCast } from '@/utils/queryValidation';
 
 interface EditRequest {
   id: string;
@@ -181,7 +181,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
           .select('id')
-          .eq('user_id', safeStringCast(group.employeeId))
+          .eq('user_id', safeIdCast(group.employeeId))
           .eq('date', safeStringCast(group.date))
           .maybeSingle();
 
@@ -199,7 +199,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
           updateData[fieldMap[request.field]] = request.newValue;
         }
 
-        if (timeRecords) {
+        // Verificar se timeRecords é válido e tem id
+        if (timeRecords && typeof timeRecords === 'object' && 'id' in timeRecords && timeRecords.id) {
           // Atualizar registro existente
           const { error: updateRecordError } = await supabase
             .from('time_records')

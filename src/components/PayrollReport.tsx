@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Calendar, DollarSign, Clock } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
+import { isValidQueryResult, filterValidProfiles, filterValidTimeRecords, safeStringCast, isValidProfile } from '@/utils/queryValidation';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -75,7 +77,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       const { data: dbEmployees, error: employeesError } = await supabase
         .from('profiles')
         .select('*')
-        .neq('email', 'admin@tcponto.com');
+        .neq('email', safeStringCast('admin@tcponto.com'));
 
       if (employeesError) {
         console.error('Erro ao buscar funcionários:', employeesError);
@@ -83,9 +85,24 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log('Funcionários encontrados:', dbEmployees);
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(dbEmployees, employeesError)) {
+        console.error('Dados inválidos retornados para profiles');
+        alert('Erro: dados de funcionários inválidos');
+        return;
+      }
 
-      for (const employee of dbEmployees) {
+      // Filtrar apenas registros válidos de profiles
+      const validEmployees = filterValidProfiles(dbEmployees);
+      console.log('Funcionários encontrados:', validEmployees);
+
+      for (const employee of validEmployees) {
+        // Verificar se o funcionário é válido antes de processar
+        if (!isValidProfile(employee)) {
+          console.log(`Funcionário inválido ignorado:`, employee);
+          continue;
+        }
+
         console.log(`\n=== Processando funcionário: ${employee.name} ===`);
         
         // Buscar registros do funcionário APENAS no período selecionado
@@ -101,15 +118,23 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           continue;
         }
 
-        console.log(`Registros encontrados na consulta para ${employee.name}:`, timeRecords);
+        // Verificar se os dados são válidos
+        if (!isValidQueryResult(timeRecords, error)) {
+          console.log(`Registros inválidos para ${employee.name}`);
+          continue;
+        }
+
+        // Filtrar apenas registros válidos
+        const validRecords = filterValidTimeRecords(timeRecords);
+        console.log(`Registros encontrados na consulta para ${employee.name}:`, validRecords);
 
         let totalHours = 0;
         let totalNormalHours = 0;
         let totalOvertimeHours = 0;
 
         // Calcular horas APENAS dos registros VÁLIDOS do período selecionado
-        if (timeRecords && timeRecords.length > 0) {
-          const validRecords = timeRecords.filter(record => {
+        if (validRecords && validRecords.length > 0) {
+          const periodRecords = validRecords.filter(record => {
             const isValid = isDateInPeriod(record.date, startDate, endDate);
             if (!isValid) {
               console.log(`Registro REJEITADO para ${employee.name}:`, record.date);
@@ -117,9 +142,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             return isValid;
           });
 
-          console.log(`Registros VÁLIDOS para ${employee.name}:`, validRecords);
+          console.log(`Registros VÁLIDOS para ${employee.name}:`, periodRecords);
 
-          validRecords.forEach(record => {
+          periodRecords.forEach(record => {
             // Usar a função padronizada com tolerância de 15 minutos
             const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } = 
               calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast, safeIdCast } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -61,7 +63,17 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
       if (error) throw error;
 
-      const formattedRequests = data.map(request => ({
+      // Verificar se os dados são válidos
+      if (!isValidQueryResult(data, error)) {
+        console.error('Dados inválidos retornados para edit_requests');
+        setEditRequests([]);
+        return;
+      }
+
+      // Filtrar apenas registros válidos
+      const validData = filterValidEditRequests(data);
+
+      const formattedRequests = validData.map(request => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
@@ -77,6 +89,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
       setEditRequests(formattedRequests);
     } catch (error) {
       console.error('Error loading edit requests:', error);
+      setEditRequests([]);
     } finally {
       setLoading(false);
     }
@@ -136,11 +149,11 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
-          status: approved ? 'approved' : 'rejected',
+          status: safeStringCast(approved ? 'approved' : 'rejected'),
           reviewed_at: new Date().toISOString(),
-          reviewed_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .in('id', requestIds);
+          reviewed_by: safeStringCast((await supabase.auth.getUser()).data.user?.id || '')
+        } as any)
+        .in('id', safeStringArrayCast(requestIds));
 
       if (updateError) throw updateError;
 
@@ -149,8 +162,8 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
           .select('*')
-          .eq('user_id', group.employeeId)
-          .eq('date', group.date)
+          .eq('user_id', safeIdCast(group.employeeId))
+          .eq('date', safeStringCast(group.date))
           .single();
 
         if (fetchError && fetchError.code !== 'PGRST116') {
