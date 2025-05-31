@@ -64,3 +64,51 @@ export interface SystemSetting {
   created_at: string;
   updated_at: string;
 }
+
+// Novas interfaces para Banco de Horas
+export interface HourBankBalance {
+  id: string;
+  employee_id: string;
+  current_balance: number;
+  last_updated: string;
+  created_at: string;
+}
+
+export interface HourBankTransaction {
+  id: string;
+  employee_id: string;
+  time_record_id?: string;
+  transaction_type: 'ACUMULO' | 'DESCONTO' | 'AJUSTE_MANUAL' | 'EXPIRACAO';
+  hours_amount: number;
+  previous_balance: number;
+  new_balance: number;
+  description?: string;
+  admin_user_id?: string;
+  transaction_date: string;
+  expiration_date?: string;
+  created_at: string;
+}
+
+export interface EmployeeWorkSchedule {
+  id: string;
+  employee_id: string;
+  daily_hours: number;
+  weekly_hours?: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HourBankSettings {
+  usar_banco_horas: boolean;
+  limite_maximo_horas: number;
+  validade_horas_meses: number;
+  jornada_padrao_horas: number;
+}
+
+export interface HourBankSummary {
+  accumulated: number;
+  discounted: number;
+  currentBalance: number;
+  transactions: HourBankTransaction[];
+}

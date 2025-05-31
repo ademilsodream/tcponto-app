@@ -108,6 +108,143 @@ export type Database = {
           },
         ]
       }
+      employee_work_schedules: {
+        Row: {
+          created_at: string
+          daily_hours: number
+          employee_id: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          weekly_hours: number | null
+        }
+        Insert: {
+          created_at?: string
+          daily_hours?: number
+          employee_id: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          weekly_hours?: number | null
+        }
+        Update: {
+          created_at?: string
+          daily_hours?: number
+          employee_id?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          weekly_hours?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_work_schedules_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hour_bank_balances: {
+        Row: {
+          created_at: string
+          current_balance: number
+          employee_id: string
+          id: string
+          last_updated: string
+        }
+        Insert: {
+          created_at?: string
+          current_balance?: number
+          employee_id: string
+          id?: string
+          last_updated?: string
+        }
+        Update: {
+          created_at?: string
+          current_balance?: number
+          employee_id?: string
+          id?: string
+          last_updated?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hour_bank_balances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hour_bank_transactions: {
+        Row: {
+          admin_user_id: string | null
+          created_at: string
+          description: string | null
+          employee_id: string
+          expiration_date: string | null
+          hours_amount: number
+          id: string
+          new_balance: number
+          previous_balance: number
+          time_record_id: string | null
+          transaction_date: string
+          transaction_type: string
+        }
+        Insert: {
+          admin_user_id?: string | null
+          created_at?: string
+          description?: string | null
+          employee_id: string
+          expiration_date?: string | null
+          hours_amount: number
+          id?: string
+          new_balance: number
+          previous_balance: number
+          time_record_id?: string | null
+          transaction_date?: string
+          transaction_type: string
+        }
+        Update: {
+          admin_user_id?: string | null
+          created_at?: string
+          description?: string | null
+          employee_id?: string
+          expiration_date?: string | null
+          hours_amount?: number
+          id?: string
+          new_balance?: number
+          previous_balance?: number
+          time_record_id?: string | null
+          transaction_date?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hour_bank_transactions_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hour_bank_transactions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hour_bank_transactions_time_record_id_fkey"
+            columns: ["time_record_id"]
+            isOneToOne: false
+            referencedRelation: "time_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -295,9 +432,26 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      expire_old_hour_bank_hours: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      process_hour_bank: {
+        Args: {
+          p_employee_id: string
+          p_time_record_id: string
+          p_worked_hours: number
+          p_work_date: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
