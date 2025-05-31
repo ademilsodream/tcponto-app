@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { isValidQueryResult, isValidSingleResult, isTimeRecord, filterValidRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, isTimeRecord, filterValidTimeRecords } from '@/utils/queryValidation';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
@@ -74,8 +75,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         return;
       }
 
-      // Filtrar apenas registros válidos
-      const validRecords = filterValidRecords(records);
+      // Filtrar apenas registros válidos usando a função específica
+      const validRecords = filterValidTimeRecords(records);
 
       // Buscar quais dias já foram editados (simulando com uma coluna que poderíamos adicionar)
       const editedDatesSet = new Set<string>();
@@ -86,7 +87,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const available: Date[] = [];
       const existingRecordDates = new Set(
         validRecords
-          .filter(r => r && typeof r === 'object' && 'date' in r && r.date)
+          .filter(r => r && r.date)
           .map(r => r.date)
       );
       

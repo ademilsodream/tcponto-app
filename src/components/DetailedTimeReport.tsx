@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords, filterValidProfiles } from '@/utils/queryValidation';
 
 interface Employee {
   id: string;
@@ -59,7 +59,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   
-  // CORREÇÃO 2: Usar o contexto de moeda
   const { formatCurrency } = useCurrency();
 
   // Filtrar funcionários para não exibir administradores
@@ -162,10 +161,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
+      // Filtrar apenas registros válidos usando a função específica
+      const validData = filterValidTimeRecords(data);
+
       // Criar um mapa dos registros por data
-      const recordsMap = data.reduce((acc, record) => {
+      const recordsMap = validData.reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (record && hasValidProperties(record, ['date']) && isDateInPeriod(record.date, startDate, endDate)) {
+        if (record && record.date && isDateInPeriod(record.date, startDate, endDate)) {
           acc[record.date] = record;
           console.log('Registro adicionado ao mapa:', record.date, record);
         } else {
@@ -289,10 +291,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
+      // Filtrar apenas registros válidos usando as funções específicas
+      const validData = filterValidTimeRecords(data);
+      const validProfiles = filterValidProfiles(profilesData);
+
       // Criar um mapa dos registros por usuário e data
-      const recordsMap = data.reduce((acc, record) => {
+      const recordsMap = validData.reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (record && hasValidProperties(record, ['date', 'user_id']) && isDateInPeriod(record.date, startDate, endDate)) {
+        if (record && record.date && record.user_id && isDateInPeriod(record.date, startDate, endDate)) {
           const key = `${record.user_id}-${record.date}`;
           acc[key] = record;
           console.log('Registro adicionado ao mapa:', key, record);
@@ -307,8 +313,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // Criar registros completos APENAS para o período selecionado
       const completeRecords: TimeRecord[] = [];
       
-      profilesData.forEach(profile => {
-        if (hasValidProperties(profile, ['id', 'hourly_rate'])) {
+      validProfiles.forEach(profile => {
+        if (profile && profile.id && typeof profile.hourly_rate === 'number') {
           dateRange.forEach(date => {
             const key = `${profile.id}-${date}`;
             const record = recordsMap[key];
@@ -326,7 +332,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               const { normalPay, overtimePay, totalPay } = calculatePay(
                 normalHours,
                 overtimeHours,
-                Number(profile.hourly_rate)
+                profile.hourly_rate
               );
 
               completeRecords.push({

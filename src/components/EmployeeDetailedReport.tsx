@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { isWorkingDay } from '@/utils/workingDays';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords } from '@/utils/queryValidation';
 
 interface TimeRecord {
   id: string;
@@ -162,13 +162,13 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         return;
       }
 
-      // Filtrar apenas registros válidos
-      const validData = filterValidRecords(data);
+      // Filtrar apenas registros válidos usando a função específica
+      const validData = filterValidTimeRecords(data);
 
       // Criar um mapa dos registros por data
       const recordsMap = validData.reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (record && hasValidProperties(record, ['date']) && isDateInPeriod(record.date, startDate, endDate)) {
+        if (record && record.date && isDateInPeriod(record.date, startDate, endDate)) {
           acc[record.date] = record;
           console.log('Registro adicionado ao mapa:', record.date, record);
         } else {

@@ -9,7 +9,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords } from '@/utils/queryValidation';
 
 interface MonthlySummary {
   totalHours: number;
@@ -129,22 +129,22 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         return;
       }
 
-      // Filtrar apenas registros válidos
-      const validRecords = filterValidRecords(records);
+      // Filtrar apenas registros válidos usando a função específica
+      const validRecords = filterValidTimeRecords(records);
 
       // Recalcular tudo usando os dados brutos e o hourlyRate correto
-      const summary = validRecords.reduce((acc, record) => {
+      const calculatedSummary = validRecords.reduce((acc, record) => {
         // Verificar se o record tem todas as propriedades necessárias
-        if (!hasValidProperties(record, ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'])) {
+        if (!record || !record.clock_in || !record.lunch_start || !record.lunch_end || !record.clock_out) {
           return acc;
         }
 
         // Usar a função padronizada para calcular horas
         const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-          record.clock_in || '',
-          record.lunch_start || '',
-          record.lunch_end || '',
-          record.clock_out || ''
+          record.clock_in,
+          record.lunch_start,
+          record.lunch_end,
+          record.clock_out
         );
 
         // Calcular valores com o hourlyRate correto
@@ -173,7 +173,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         workingDays: 0
       });
 
-      setSummary(summary);
+      setSummary(calculatedSummary);
     } catch (error) {
       console.error('Error loading monthly summary:', error);
     } finally {

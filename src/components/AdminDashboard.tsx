@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -112,17 +112,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
           setTotalHours(0);
           setTotalEarnings(0);
         } else if (isValidQueryResult(timeRecords, recordsError) && timeRecords.length > 0) {
-          // Filtrar apenas registros válidos
-          const validTimeRecords = filterValidRecords(timeRecords);
+          // Filtrar apenas registros válidos usando a função específica
+          const validTimeRecords = filterValidTimeRecords(timeRecords);
           
           // Calcular totais diretamente dos campos da tabela
           let monthTotalHours = 0;
           let monthTotalEarnings = 0;
 
           validTimeRecords.forEach(record => {
-            if (hasValidProperties(record, ['total_hours', 'total_pay'])) {
-              monthTotalHours += Number(record.total_hours) || 0;
-              monthTotalEarnings += Number(record.total_pay) || 0;
+            if (record && typeof record.total_hours === 'number' && typeof record.total_pay === 'number') {
+              monthTotalHours += record.total_hours;
+              monthTotalEarnings += record.total_pay;
             }
           });
 
