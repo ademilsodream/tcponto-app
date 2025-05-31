@@ -72,7 +72,7 @@ const Layout = ({
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
                     <User className="w-4 h-4 mr-2" />
-                    {user?.email}
+                    {user?.name}
                   </MenubarTrigger>
                   <MenubarContent>
                     <MenubarItem onClick={handleLogout} className="cursor-pointer">
