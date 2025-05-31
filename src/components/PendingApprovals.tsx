@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast, safeIdCast } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidEditRequests, safeStringCast, safeStringArrayCast, safeIdCast, isValidTimeRecord } from '@/utils/queryValidation';
 
 interface User {
   id: string;
@@ -164,9 +164,9 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           .select('*')
           .eq('user_id', safeIdCast(group.employeeId))
           .eq('date', safeStringCast(group.date))
-          .single();
+          .maybeSingle();
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
+        if (fetchError) {
           throw fetchError;
         }
 
@@ -182,7 +182,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           updateData[fieldMap[request.field]] = request.newValue;
         });
 
-        if (timeRecords) {
+        if (timeRecords && isValidTimeRecord(timeRecords)) {
           // Update existing record
           const { error: updateRecordError } = await supabase
             .from('time_records')

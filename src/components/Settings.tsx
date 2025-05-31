@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +10,7 @@ import { MapPin, Plus, Edit, Trash2, Settings as SettingsIcon, Globe } from 'luc
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import GlobalCurrencySelector from '@/components/GlobalCurrencySelector';
+import { isValidQueryResult, safeIdCast } from '@/utils/queryValidation';
 
 interface AllowedLocation {
   id: string;
@@ -71,13 +73,30 @@ const Settings = () => {
         throw settingsError;
       }
 
-      setLocations(locationsData || []);
-      setSettings(settingsData || []);
+      // Validar e definir localizações
+      if (isValidQueryResult(locationsData, locationsError)) {
+        const validLocations = locationsData.filter((loc): loc is AllowedLocation => 
+          loc && typeof loc === 'object' && 'id' in loc && 'name' in loc
+        );
+        setLocations(validLocations);
+      } else {
+        setLocations([]);
+      }
       
-      // Definir tolerância de atraso
-      const delayToleranceSetting = settingsData?.find(s => s.setting_key === 'delay_tolerance_minutes');
-      if (delayToleranceSetting) {
-        setDelayTolerance(delayToleranceSetting.setting_value);
+      // Validar e definir configurações
+      if (isValidQueryResult(settingsData, settingsError)) {
+        const validSettings = settingsData.filter((setting): setting is SystemSetting => 
+          setting && typeof setting === 'object' && 'setting_key' in setting
+        );
+        setSettings(validSettings);
+        
+        // Definir tolerância de atraso
+        const delayToleranceSetting = validSettings.find(s => s.setting_key === 'delay_tolerance_minutes');
+        if (delayToleranceSetting) {
+          setDelayTolerance(delayToleranceSetting.setting_value);
+        }
+      } else {
+        setSettings([]);
       }
 
     } catch (error) {
@@ -125,13 +144,13 @@ const Settings = () => {
         longitude: parseFloat(locationForm.longitude),
         range_meters: parseInt(locationForm.range_meters) || 100,
         is_active: true
-      };
+      } as any;
 
       if (editingLocation) {
         const { error } = await supabase
           .from('allowed_locations')
           .update(locationData)
-          .eq('id', editingLocation.id);
+          .eq('id', safeIdCast(editingLocation.id));
 
         if (error) throw error;
 
@@ -188,7 +207,7 @@ const Settings = () => {
       const { error } = await supabase
         .from('allowed_locations')
         .delete()
-        .eq('id', locationId);
+        .eq('id', safeIdCast(locationId));
 
       if (error) throw error;
 
@@ -215,7 +234,7 @@ const Settings = () => {
           setting_key: 'delay_tolerance_minutes',
           setting_value: delayTolerance,
           description: 'Tolerância de atraso em minutos'
-        });
+        } as any);
 
       if (error) throw error;
 

@@ -8,7 +8,7 @@ import { Calendar, DollarSign, Clock } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { isValidQueryResult, filterValidProfiles, filterValidTimeRecords, safeStringCast, isValidProfile } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidProfiles, filterValidTimeRecords, safeIdCast, isValidProfile } from '@/utils/queryValidation';
 
 interface PayrollReportProps {
   employees: Array<{
@@ -77,7 +77,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       const { data: dbEmployees, error: employeesError } = await supabase
         .from('profiles')
         .select('*')
-        .neq('email', safeStringCast('admin@tcponto.com'));
+        .neq('email', 'admin@tcponto.com' as any);
 
       if (employeesError) {
         console.error('Erro ao buscar funcionários:', employeesError);
@@ -109,9 +109,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         const { data: timeRecords, error } = await supabase
           .from('time_records')
           .select('*')
-          .eq('user_id', employee.id)
-          .gte('date', startDate)
-          .lte('date', endDate);
+          .eq('user_id', safeIdCast(employee.id))
+          .gte('date', startDate as any)
+          .lte('date', endDate as any);
 
         if (error) {
           console.error('Erro ao buscar registros:', error);
