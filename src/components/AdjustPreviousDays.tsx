@@ -55,14 +55,14 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       if (!user?.id) return;
 
-      // Buscar registros do mês atual com tipo correto
+      // Buscar registros do mês atual
       const { data: records, error } = await supabase
         .from('time_records')
         .select('date, id')
-        .eq('user_id', user.id as Database['public']['Tables']['time_records']['Row']['user_id'])
+        .eq('user_id', user.id)
         .gte('date', format(currentMonth, 'yyyy-MM-dd'))
         .lte('date', format(endOfCurrentMonth, 'yyyy-MM-dd'))
-        .eq('status', 'active' as Database['public']['Tables']['time_records']['Row']['status']);
+        .eq('status', 'active');
 
       if (error) {
         console.error('Erro ao buscar registros:', error);
@@ -76,7 +76,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       // Gerar lista de datas disponíveis (dias do mês atual até ontem)
       const available: Date[] = [];
-      const existingRecordDates = new Set((records || []).map(r => r.date));
+      const existingRecordDates = new Set(records?.map(r => r.date) || []);
       
       for (let d = new Date(currentMonth); d <= oneDayAgo; d.setDate(d.getDate() + 1)) {
         const dateString = format(d, 'yyyy-MM-dd');
@@ -112,9 +112,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       const { data: record, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id as Database['public']['Tables']['time_records']['Row']['user_id'])
-        .eq('date', dateString as Database['public']['Tables']['time_records']['Row']['date'])
-        .eq('status', 'active' as Database['public']['Tables']['time_records']['Row']['status'])
+        .eq('user_id', user.id)
+        .eq('date', dateString)
+        .eq('status', 'active')
         .maybeSingle();
 
       if (error) {

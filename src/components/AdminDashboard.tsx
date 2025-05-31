@@ -103,21 +103,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
       if (activeEmployeeIds.length > 0) {
         const { data: timeRecords, error: recordsError } = await supabase
           .from('time_records')
-          .select(`
-            total_hours,
-            total_pay,
-            user_id
-          `)
+          .select('total_hours, total_pay, user_id')
           .gte('date', startOfMonth)
           .lte('date', endOfMonth)
-          .eq('status', 'active' as Database['public']['Tables']['time_records']['Row']['status'])
-          .in('user_id', activeEmployeeIds as Database['public']['Tables']['time_records']['Row']['user_id'][]);
+          .eq('status', 'active')
+          .in('user_id', activeEmployeeIds);
 
         if (recordsError) {
           console.error('Erro ao buscar registros de tempo:', recordsError);
           setTotalHours(0);
           setTotalEarnings(0);
-        } else if (timeRecords) {
+        } else if (timeRecords && timeRecords.length > 0) {
           // Calcular totais diretamente dos campos da tabela
           let monthTotalHours = 0;
           let monthTotalEarnings = 0;
@@ -129,6 +125,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
 
           setTotalHours(monthTotalHours);
           setTotalEarnings(monthTotalEarnings);
+        } else {
+          setTotalHours(0);
+          setTotalEarnings(0);
         }
       } else {
         setTotalHours(0);
@@ -145,8 +144,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
             const { data: todayRecord, error } = await supabase
               .from('time_records')
               .select('*')
-              .eq('user_id', employee.id as Database['public']['Tables']['time_records']['Row']['user_id'])
-              .eq('date', today as Database['public']['Tables']['time_records']['Row']['date'])
+              .eq('user_id', employee.id)
+              .eq('date', today)
               .maybeSingle();
 
             if (error) {

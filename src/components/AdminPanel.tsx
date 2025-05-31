@@ -34,7 +34,7 @@ const AdminPanel = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('status', 'active' as Database['public']['Tables']['profiles']['Row']['status'])
+        .eq('status', 'active')
         .order('name');
 
       if (error) throw error;
