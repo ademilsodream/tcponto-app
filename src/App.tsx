@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from '@/components/ui/menubar';
-import { Settings, LogOut, User, Building2 } from 'lucide-react';
+import { Settings, LogOut, User } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { QueryProvider } from '@/providers/QueryProvider';
@@ -16,24 +16,22 @@ import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
-const Layout = ({
-  children
-}: {
-  children: React.ReactNode;
-}) => {
-  const {
-    user,
-    logout
-  } = useAuth();
+const Layout = ({ children }: { children: React.ReactNode }) => {
+  const { user, logout } = useAuth();
+  
   const handleLogout = async () => {
     try {
+      console.log('Layout: Executando logout...');
       await logout();
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      console.error('Layout: Erro ao fazer logout:', error);
     }
   };
+  
   const isAdmin = user?.role === 'admin';
-  return <div className="min-h-screen bg-gray-50 w-full">
+  
+  return (
+    <div className="min-h-screen bg-gray-50 w-full">
       <header className="bg-white shadow-sm border-b w-full">
         <div className="w-full px-6">
           <div className="flex justify-between items-center h-16">
@@ -44,29 +42,29 @@ const Layout = ({
 
             <div className="flex items-center space-x-4">
               {/* Só mostrar menus para admin */}
-              {isAdmin && <>
-                  <Menubar>
-                    <MenubarMenu>
-                      <MenubarTrigger asChild>
-                        <Link to="/" className="cursor-pointer">Dashboard</Link>
-                      </MenubarTrigger>
-                    </MenubarMenu>
+              {isAdmin && (
+                <Menubar>
+                  <MenubarMenu>
+                    <MenubarTrigger asChild>
+                      <Link to="/" className="cursor-pointer">Dashboard</Link>
+                    </MenubarTrigger>
+                  </MenubarMenu>
 
-                    <MenubarMenu>
-                      <MenubarTrigger className="cursor-pointer">
-                        <Settings className="w-4 h-4 mr-2" />
-                        Configurações
-                      </MenubarTrigger>
-                      <MenubarContent>
-                        <MenubarItem asChild>
-                          <Link to="/settings" className="cursor-pointer">
-                            Configurações Gerais
-                          </Link>
-                        </MenubarItem>
-                      </MenubarContent>
-                    </MenubarMenu>
-                  </Menubar>
-                </>}
+                  <MenubarMenu>
+                    <MenubarTrigger className="cursor-pointer">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configurações
+                    </MenubarTrigger>
+                    <MenubarContent>
+                      <MenubarItem asChild>
+                        <Link to="/settings" className="cursor-pointer">
+                          Configurações Gerais
+                        </Link>
+                      </MenubarItem>
+                    </MenubarContent>
+                  </MenubarMenu>
+                </Menubar>
+              )}
 
               <Menubar>
                 <MenubarMenu>
@@ -90,53 +88,75 @@ const Layout = ({
       <main className="w-full py-6 px-6">
         {children}
       </main>
-    </div>;
+    </div>
+  );
 };
 
 const AppContent = () => {
-  const {
-    user,
-    loading
-  } = useAuth();
+  const { user, loading } = useAuth();
+  
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center w-full">
+    return (
+      <div className="min-h-screen flex items-center justify-center w-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>;
+      </div>
+    );
   }
-  return <div className="min-h-screen bg-gray-50 w-full">
+  
+  return (
+    <div className="min-h-screen bg-gray-50 w-full">
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
         
-        <Route path="/" element={user ? <Layout>
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              </Layout> : <Navigate to="/login" replace />} />
+        <Route path="/" element={user ? (
+          <Layout>
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          </Layout>
+        ) : <Navigate to="/login" replace />} />
         
-        <Route path="/settings" element={user ? <Layout>
-                <ProtectedRoute>
-                  <SettingsPage />
-                </ProtectedRoute>
-              </Layout> : <Navigate to="/login" replace />} />
+        <Route path="/settings" element={user ? (
+          <Layout>
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          </Layout>
+        ) : <Navigate to="/login" replace />} />
         
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </div>;
+    </div>
+  );
 };
 
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
+  
   useEffect(() => {
-    initializeApp().then(() => {
-      setIsInitialized(true);
-    });
+    console.log('App: Iniciando inicialização...');
+    
+    initializeApp()
+      .then(() => {
+        console.log('App: Inicialização concluída');
+        setIsInitialized(true);
+      })
+      .catch((error) => {
+        console.error('App: Erro na inicialização:', error);
+        setIsInitialized(true); // Continuar mesmo com erro
+      });
   }, []);
+  
   if (!isInitialized) {
-    return <div className="min-h-screen flex items-center justify-center w-full">
+    return (
+      <div className="min-h-screen flex items-center justify-center w-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>;
+      </div>
+    );
   }
-  return <QueryProvider>
+  
+  return (
+    <QueryProvider>
       <AuthProvider>
         <CurrencyProvider>
           <Router>
@@ -145,7 +165,8 @@ function App() {
           </Router>
         </CurrencyProvider>
       </AuthProvider>
-    </QueryProvider>;
+    </QueryProvider>
+  );
 }
 
 export default App;

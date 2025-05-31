@@ -1,89 +1,104 @@
 
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 
-// Configuração otimizada do QueryClient
+// Configuração otimizada do QueryClient para evitar travamentos
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Cache por 10 minutos por padrão
-      staleTime: 10 * 60 * 1000,
-      // Dados ficam no cache por 15 minutos
-      gcTime: 15 * 60 * 1000,
-      // Não refetch automático em focus
+      // Cache otimizado - 5 minutos para dados normais
+      staleTime: 5 * 60 * 1000,
+      // Dados ficam no cache por 10 minutos
+      gcTime: 10 * 60 * 1000,
+      // Configurações para evitar refetch excessivo
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-      // Retry inteligente com foco em erros de auth
+      refetchOnReconnect: 'always',
+      refetchOnMount: true,
+      // Retry configurado de forma mais conservadora
       retry: (failureCount, error) => {
+        // Máximo 2 tentativas
         if (failureCount >= 2) return false;
         
         const errorMessage = error?.message?.toLowerCase() || '';
         
-        // Se for erro de autenticação, não retry
+        // Para erros de auth, não tentar novamente
         if (errorMessage.includes('jwt') || 
             errorMessage.includes('unauthorized') || 
             errorMessage.includes('invalid_token') ||
-            errorMessage.includes('session_not_found')) {
-          console.log('QueryProvider: Erro de autenticação detectado, invalidando cache...');
-          queryClient.invalidateQueries();
+            errorMessage.includes('session_not_found') ||
+            errorMessage.includes('refresh_token_not_found')) {
+          console.log('QueryProvider: Erro de autenticação detectado, não fazendo retry');
           return false;
         }
         
-        // Retry para erros de rede
+        // Para erros de rede, tentar novamente
         if (errorMessage.includes('network') || 
             errorMessage.includes('fetch') ||
-            errorMessage.includes('timeout')) {
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('connection')) {
+          console.log('QueryProvider: Erro de rede detectado, fazendo retry');
           return true;
         }
         
         return false;
       },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+      retryDelay: (attemptIndex) => {
+        // Delay progressivo mas limitado a 3 segundos
+        return Math.min(1000 * Math.pow(1.5, attemptIndex), 3000);
+      },
     },
     mutations: {
       retry: 1,
       onError: (error) => {
-        console.error('Mutation error:', error);
+        console.error('QueryProvider: Erro em mutation:', error);
         
-        // Se erro de auth em mutation, invalidar todas as queries
         const errorMessage = error?.message?.toLowerCase() || '';
+        
+        // Se erro de auth em mutation, invalidar cache de forma seletiva
         if (errorMessage.includes('jwt') || 
             errorMessage.includes('unauthorized') || 
             errorMessage.includes('invalid_token')) {
-          console.log('QueryProvider: Erro de auth em mutation, invalidando cache...');
-          queryClient.invalidateQueries();
+          console.log('QueryProvider: Erro de auth em mutation, invalidando queries específicas...');
+          
+          // Invalidar apenas queries relacionadas a auth, não tudo
+          queryClient.invalidateQueries({ 
+            predicate: (query) => {
+              const queryKey = query.queryKey[0] as string;
+              return queryKey?.includes('profile') || queryKey?.includes('user') || queryKey?.includes('auth');
+            }
+          });
         }
       },
     },
   },
 });
 
-// Configurar listener para mudanças de auth state que invalida cache
-let authStateListenerSetup = false;
+// Sistema de monitoramento para detectar invalidações excessivas
+let invalidationCount = 0;
+let lastInvalidationReset = Date.now();
 
-const setupAuthStateListener = () => {
-  if (authStateListenerSetup) return;
+const originalInvalidateQueries = queryClient.invalidateQueries.bind(queryClient);
+
+queryClient.invalidateQueries = function(...args) {
+  const now = Date.now();
   
-  console.log('QueryProvider: Configurando listener de mudanças de auth...');
+  // Reset contador a cada minuto
+  if (now - lastInvalidationReset > 60000) {
+    invalidationCount = 0;
+    lastInvalidationReset = now;
+  }
   
-  supabase.auth.onAuthStateChange((event, session) => {
-    console.log('QueryProvider: Evento de auth:', event);
-    
-    if (event === 'SIGNED_OUT') {
-      console.log('QueryProvider: Usuário deslogou, limpando cache...');
-      queryClient.clear();
-    } else if (event === 'TOKEN_REFRESHED') {
-      console.log('QueryProvider: Token renovado, invalidando queries...');
-      // Invalidar queries para garantir que usem o novo token
-      queryClient.invalidateQueries();
-    } else if (event === 'SIGNED_IN') {
-      console.log('QueryProvider: Usuário logou, limpando cache anterior...');
-      queryClient.clear();
-    }
-  });
+  invalidationCount++;
   
-  authStateListenerSetup = true;
+  // Alertar se muitas invalidações
+  if (invalidationCount > 10) {
+    console.warn('QueryProvider: Muitas invalidações de cache detectadas!', {
+      count: invalidationCount,
+      args: args
+    });
+  }
+  
+  return originalInvalidateQueries.apply(this, args);
 };
 
 interface QueryProviderProps {
@@ -91,11 +106,9 @@ interface QueryProviderProps {
 }
 
 export const QueryProvider: React.FC<QueryProviderProps> = ({ children }) => {
-  // Configurar listener apenas uma vez
-  React.useEffect(() => {
-    setupAuthStateListener();
-  }, []);
-
+  // REMOVIDO: listener de auth state change duplicado
+  // O controle de auth agora é totalmente centralizado no AuthContext
+  
   return (
     <QueryClientProvider client={queryClient}>
       {children}
