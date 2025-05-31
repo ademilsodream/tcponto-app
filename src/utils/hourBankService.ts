@@ -172,7 +172,12 @@ class HourBankService {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      
+      // Type cast the transaction_type to the expected union type
+      return (data || []).map(transaction => ({
+        ...transaction,
+        transaction_type: transaction.transaction_type as 'ACUMULO' | 'DESCONTO' | 'AJUSTE_MANUAL' | 'EXPIRACAO'
+      }));
     } catch (error) {
       console.error('Erro ao obter transações do banco de horas:', error);
       return [];
