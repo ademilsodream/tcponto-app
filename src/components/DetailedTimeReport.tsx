@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords, filterValidProfiles } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidTimeRecords, filterValidProfiles, isValidProfile, safeIdCast } from '@/utils/queryValidation';
 
 interface Employee {
   id: string;
@@ -115,7 +114,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
 
     setLoading(true);
-    // Limpar dados anteriores
     setTimeRecords([]);
     
     try {
@@ -123,14 +121,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.log('Funcionário selecionado:', selectedEmployeeId);
       console.log('Período selecionado:', startDate, 'até', endDate);
 
-      // Gerar APENAS as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
       console.log('Range de datas gerado:', dateRange);
 
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', selectedEmployeeId as any)
+        .eq('user_id', safeIdCast(selectedEmployeeId))
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: true });
@@ -143,30 +140,24 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados na consulta:', data);
 
-      // Buscar informações do funcionário separadamente
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
-        .eq('id', selectedEmployeeId as any)
+        .eq('id', safeIdCast(selectedEmployeeId))
         .single();
 
       if (profileError) {
         console.error('Erro ao carregar perfil do funcionário:', profileError);
       }
 
-      // Verificar se os dados são válidos
       if (!isValidQueryResult(data, error)) {
         console.error('Dados inválidos retornados para time_records');
         setTimeRecords([]);
         return;
       }
 
-      // Filtrar apenas registros válidos usando a função específica
       const validData = filterValidTimeRecords(data);
-
-      // Criar um mapa dos registros por data
       const recordsMap = validData.reduce((acc, record) => {
-        // Validar se a data do registro está REALMENTE no período
         if (record && record.date && isDateInPeriod(record.date, startDate, endDate)) {
           acc[record.date] = record;
           console.log('Registro adicionado ao mapa:', record.date, record);
@@ -178,12 +169,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Mapa de registros válidos:', recordsMap);
 
-      // Combinar APENAS as datas do período com os registros existentes
       const completeRecords: TimeRecord[] = dateRange.map(date => {
         const record = recordsMap[date];
         
-        if (record && profileData && hasValidProperties(profileData, ['hourly_rate'])) {
-          // Usar a função padronizada com tolerância de 15 minutos
+        if (record && isValidProfile(profileData)) {
           const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
             record.clock_in || '',
             record.lunch_start || '',
@@ -191,11 +180,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             record.clock_out || ''
           );
           
-          // Calcular valores com hora extra igual à hora normal
           const { normalPay, overtimePay, totalPay } = calculatePay(
             normalHours,
             overtimeHours,
-            Number(profileData.hourly_rate)
+            profileData.hourly_rate
           );
 
           return {
@@ -237,14 +225,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
 
     setLoading(true);
-    // Limpar dados anteriores
     setTimeRecords([]);
 
     try {
       console.log('=== INÍCIO GERAÇÃO RELATÓRIO TODOS OS FUNCIONÁRIOS ===');
       console.log('Período selecionado:', startDate, 'até', endDate);
 
-      // Gerar APENAS as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
       console.log('Range de datas gerado:', dateRange);
 
@@ -264,7 +250,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados na consulta:', data);
 
-      // Buscar informações de todos os funcionários (somente não-administradores)
       const nonAdminIds = nonAdminEmployees.map(emp => emp.id);
       
       const { data: profilesData, error: profilesError } = await supabase
@@ -278,7 +263,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      // Verificar se os dados são válidos
       if (!isValidQueryResult(data, error)) {
         console.error('Dados inválidos retornados para time_records');
         setTimeRecords([]);
@@ -291,13 +275,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
-      // Filtrar apenas registros válidos usando as funções específicas
       const validData = filterValidTimeRecords(data);
       const validProfiles = filterValidProfiles(profilesData);
 
-      // Criar um mapa dos registros por usuário e data
       const recordsMap = validData.reduce((acc, record) => {
-        // Validar se a data do registro está REALMENTE no período
         if (record && record.date && record.user_id && isDateInPeriod(record.date, startDate, endDate)) {
           const key = `${record.user_id}-${record.date}`;
           acc[key] = record;
@@ -310,7 +291,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Mapa de registros válidos:', recordsMap);
 
-      // Criar registros completos APENAS para o período selecionado
       const completeRecords: TimeRecord[] = [];
       
       validProfiles.forEach(profile => {
@@ -320,7 +300,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
             const record = recordsMap[key];
             
             if (record) {
-              // Usar a função padronizada com tolerância de 15 minutos
               const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
                 record.clock_in || '',
                 record.lunch_start || '',
@@ -328,7 +307,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 record.clock_out || ''
               );
               
-              // Calcular valores com hora extra igual à hora normal
               const { normalPay, overtimePay, totalPay } = calculatePay(
                 normalHours,
                 overtimeHours,

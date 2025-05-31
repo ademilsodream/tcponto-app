@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast } from '@/utils/queryValidation';
 
 interface MonthlySummary {
   totalHours: number;
@@ -68,7 +67,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
       const { data, error } = await supabase
         .from('profiles')
         .select('hourly_rate')
-        .eq('id', user.id as any)
+        .eq('id', safeIdCast(user.id))
         .single();
 
       if (error) {
@@ -76,7 +75,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         throw error;
       }
 
-      if (isValidSingleResult(data, error) && hasValidProperties(data, ['hourly_rate'])) {
+      if (isValidProfile(data)) {
         const rate = Number(data.hourly_rate);
         setHourlyRate(rate);
       }
@@ -107,7 +106,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
       const { data: records, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id as any)
+        .eq('user_id', safeIdCast(user.id))
         .gte('date', startDate)
         .lte('date', endDate)
         .eq('status', 'active' as any);

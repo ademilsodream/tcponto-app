@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,12 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { MapPin, ArrowLeft, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { Database } from '@/integrations/supabase/types';
+import { filterValidTimeRecords, isValidTimeRecord } from '@/utils/queryValidation';
 
 // Importar o tipo Database do arquivo de tipos Supabase
-import { Database } from '@/integrations/supabase/types';
-
-// Tipos inferidos do banco de dados
-type TimeRecordRow = Database['public']['Tables']['time_records']['Row'];
+import { TimeRecordRow } from '@/integrations/supabase/types';
 
 interface User {
   id: string;
@@ -199,7 +197,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           locations,
           user_id
         `)
-        .eq('status', 'active')
+        .eq('status', 'active' as any)
         .order('date', { ascending: false })
         .order('clock_in', { ascending: true });
 
@@ -220,17 +218,18 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       console.log('Mapeamento de funcionários:', employeeMap);
 
-      const formattedData: TimeRecordReportRow[] = data?.map((record, index) => {
-        console.log(`\n--- Processando registro ${index + 1}/${data.length} ---`);
+      const validRecords = filterValidTimeRecords(data || []);
+
+      const formattedData: TimeRecordReportRow[] = validRecords.map((record, index) => {
+        console.log(`\n--- Processando registro ${index + 1}/${validRecords.length} ---`);
         console.log('Record ID:', record.id);
         console.log('User ID:', record.user_id);
         console.log('Data:', record.date);
         console.log('Locations raw:', record.locations);
 
-        const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
+        const employeeName = employeeMap[record.user_id || ''] || 'Funcionário Desconhecido';
         const locations = record.locations;
 
-        // Processar cada tipo de localização com logs detalhados
         console.log('Processando clockIn...');
         const clockInLocation = processLocationData(locations, 'clockIn');
         
@@ -250,20 +249,20 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         console.log('- clockOutLocation:', clockOutLocation ? 'OK' : 'NULL');
 
         return {
-          recordId: record.id,
-          userId: record.user_id,
+          recordId: record.id || '',
+          userId: record.user_id || '',
           employeeName,
           date: record.date,
-          clockInTime: record.clock_in,
+          clockInTime: record.clock_in || null,
           clockInLocation,
-          lunchStartTime: record.lunch_start,
+          lunchStartTime: record.lunch_start || null,
           lunchStartLocation,
-          lunchEndTime: record.lunch_end,
+          lunchEndTime: record.lunch_end || null,
           lunchEndLocation,
-          clockOutTime: record.clock_out,
+          clockOutTime: record.clock_out || null,
           clockOutLocation,
         };
-      }) || [];
+      });
 
       console.log('=== DADOS FINAIS FORMATADOS ===');
       console.log('Total de registros processados:', formattedData.length);

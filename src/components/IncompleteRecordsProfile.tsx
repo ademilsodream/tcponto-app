@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getWorkingDaysInMonth, isWorkingDay } from '@/utils/workingDays';
+import { filterValidTimeRecords, safeIdCast, isValidTimeRecord } from '@/utils/queryValidation';
 
 interface IncompleteRecord {
   date: string;
@@ -45,7 +46,6 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       setLoading(true);
       setError(null);
       
-      // Buscar registros do mês atual
       const currentDate = new Date();
       const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
@@ -55,10 +55,10 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       const { data: records, error: fetchError } = await supabase
         .from('time_records')
         .select('date, clock_in, lunch_start, lunch_end, clock_out')
-        .eq('user_id', user.id)
+        .eq('user_id', safeIdCast(user.id))
         .gte('date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('date', lastDayOfMonth.toISOString().split('T')[0])
-        .eq('status', 'active')
+        .eq('status', 'active' as any)
         .order('date', { ascending: false });
 
       if (fetchError) {
@@ -68,36 +68,29 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
 
       console.log('IncompleteRecordsProfile: Fetched records:', records?.length || 0);
 
-      // Obter apenas dias úteis do mês
       const workingDays = getWorkingDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
       console.log('IncompleteRecordsProfile: Working days in month:', workingDays.length);
 
-      // Processar registros incompletos
       const incomplete: IncompleteRecord[] = [];
-      
-      // Verificar cada dia útil + fins de semana com registros
       const allDaysToCheck = [...workingDays];
       
-      // Adicionar fins de semana que têm registros
       for (let d = new Date(firstDayOfMonth); d <= lastDayOfMonth; d.setDate(d.getDate() + 1)) {
         const dateString = d.toISOString().split('T')[0];
         const isWeekendDay = !isWorkingDay(d);
         
-        if (isWeekendDay && records?.find(r => r.date === dateString)) {
+        if (isWeekendDay && records?.find(r => isValidTimeRecord(r) && r.date === dateString)) {
           allDaysToCheck.push(dateString);
         }
       }
 
       console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records)');
 
-      // Verificar cada dia
       allDaysToCheck.forEach(date => {
-        const record = records?.find(r => r.date === date);
+        const record = records?.find(r => isValidTimeRecord(r) && r.date === date);
         const dateObj = new Date(date + 'T00:00:00');
         const isWeekendDay = !isWorkingDay(dateObj);
         
         if (!record) {
-          // Dia sem nenhum registro (apenas dias úteis aparecem aqui)
           if (!isWeekendDay) {
             incomplete.push({
               date,
@@ -107,7 +100,6 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             });
           }
         } else {
-          // Verificar quais campos estão faltando
           const missingFields: string[] = [];
           let completedCount = 0;
 

@@ -47,9 +47,33 @@ export function isProfile(data: any): data is {
          'hourly_rate' in data;
 }
 
-// Type guard para verificar se é um erro
+// Type guard para verificar se é um erro Supabase
 export function isSupabaseError(data: any): boolean {
-  return data && typeof data === 'object' && 'error' in data;
+  return data && typeof data === 'object' && ('error' in data || data.error === true);
+}
+
+// Type guard robusto para verificar se um objeto tem as propriedades esperadas
+export function isValidObject(obj: any): obj is Record<string, any> {
+  return obj && typeof obj === 'object' && !isSupabaseError(obj);
+}
+
+// Type guard específico para profile com hourly_rate
+export function isValidProfile(data: any): data is { hourly_rate: number } & Record<string, any> {
+  return isValidObject(data) && 'hourly_rate' in data && typeof data.hourly_rate === 'number';
+}
+
+// Type guard para time record completo
+export function isValidTimeRecord(data: any): data is {
+  id: string;
+  date: string;
+  clock_in?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  clock_out?: string;
+  user_id?: string;
+  locations?: any;
+} {
+  return isValidObject(data) && 'id' in data && 'date' in data;
 }
 
 // Função para filtrar apenas registros válidos de time_records
@@ -63,6 +87,7 @@ export function filterValidTimeRecords(records: any[]): Array<{
   total_hours?: number;
   user_id?: string;
   total_pay?: number;
+  locations?: any;
 }> {
   if (!Array.isArray(records)) return [];
   
@@ -76,12 +101,9 @@ export function filterValidTimeRecords(records: any[]): Array<{
     total_hours?: number;
     user_id?: string;
     total_pay?: number;
+    locations?: any;
   } => {
-    return record && 
-           typeof record === 'object' && 
-           !isSupabaseError(record) &&
-           'id' in record &&
-           'date' in record;
+    return isValidTimeRecord(record);
   });
 }
 
@@ -104,14 +126,7 @@ export function filterValidProfiles(records: any[]): Array<{
     hourly_rate: number;
     overtime_rate?: number;
   } => {
-    return record && 
-           typeof record === 'object' && 
-           !isSupabaseError(record) &&
-           'id' in record &&
-           'name' in record &&
-           'email' in record &&
-           'role' in record &&
-           'hourly_rate' in record;
+    return isProfile(record);
   });
 }
 
@@ -120,16 +135,27 @@ export function filterValidRecords<T = any>(records: any[]): T[] {
   if (!Array.isArray(records)) return [];
   
   return records.filter((record): record is T => 
-    record && 
-    typeof record === 'object' && 
-    !isSupabaseError(record)
+    isValidObject(record)
   );
 }
 
 // Type guard para verificar se um valor é válido e tem propriedades específicas
 export function isValidRecord<T>(data: any, requiredProps: string[]): data is T {
-  return data && 
-         typeof data === 'object' && 
-         !isSupabaseError(data) &&
-         requiredProps.every(prop => prop in data);
+  return isValidObject(data) && requiredProps.every(prop => prop in data);
+}
+
+// Função auxiliar para cast seguro de IDs
+export function safeIdCast(id: any): any {
+  if (typeof id === 'string' && id !== '') {
+    return id as any;
+  }
+  return id;
+}
+
+// Função auxiliar para extrair valor seguro de propriedades
+export function safePropertyAccess<T>(obj: any, property: string, defaultValue: T): T {
+  if (isValidObject(obj) && property in obj) {
+    return obj[property] as T;
+  }
+  return defaultValue;
 }

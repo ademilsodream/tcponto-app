@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { isWorkingDay } from '@/utils/workingDays';
-import { isValidQueryResult, isValidSingleResult, hasValidProperties, filterValidTimeRecords } from '@/utils/queryValidation';
+import { isValidQueryResult, filterValidTimeRecords, isValidProfile, safeIdCast } from '@/utils/queryValidation';
 
 interface TimeRecord {
   id: string;
@@ -107,7 +106,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
       const { data, error } = await supabase
         .from('profiles')
         .select('hourly_rate')
-        .eq('id', user.id as any)
+        .eq('id', safeIdCast(user.id))
         .single();
 
       if (error) {
@@ -115,7 +114,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         throw error;
       }
 
-      if (isValidSingleResult(data, error) && hasValidProperties(data, ['hourly_rate'])) {
+      if (isValidProfile(data)) {
         const rate = Number(data.hourly_rate);
         console.log('Valor da hora carregado do perfil:', rate);
         setHourlyRate(rate);
@@ -138,14 +137,13 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     
     setLoading(true);
     try {
-      // Gerar APENAS as datas do período selecionado
       const dateRange = generateDateRange(startDate, endDate);
       console.log('Range de datas gerado:', dateRange);
 
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
-        .eq('user_id', user.id as any)
+        .eq('user_id', safeIdCast(user.id))
         .gte('date', startDate)
         .lte('date', endDate)
         .eq('status', 'active' as any)
@@ -155,19 +153,15 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
 
       console.log('Registros encontrados na consulta:', data);
 
-      // Verificar se os dados são válidos
       if (!isValidQueryResult(data, error)) {
         console.error('Dados inválidos retornados para time_records');
         setRecords([]);
         return;
       }
 
-      // Filtrar apenas registros válidos usando a função específica
       const validData = filterValidTimeRecords(data);
 
-      // Criar um mapa dos registros por data
       const recordsMap = validData.reduce((acc, record) => {
-        // Validar se a data do registro está REALMENTE no período
         if (record && record.date && isDateInPeriod(record.date, startDate, endDate)) {
           acc[record.date] = record;
           console.log('Registro adicionado ao mapa:', record.date, record);
@@ -179,8 +173,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
 
       console.log('Mapa de registros válidos:', recordsMap);
 
-      // Combinar APENAS as datas do período com os registros existentes
-      // Filtrar para mostrar apenas dias úteis OU fins de semana com registros
       const completeRecords: TimeRecord[] = [];
       
       for (const dateString of dateRange) {
@@ -188,10 +180,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
         const dateObj = new Date(dateString + 'T00:00:00');
         const isWeekendDay = !isWorkingDay(dateObj);
         
-        // Mostrar se for dia útil OU se for fim de semana com registro
         if (!isWeekendDay || record) {
           if (record) {
-            // Usar a função padronizada com tolerância de 15 minutos
             const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
               record.clock_in || '',
               record.lunch_start || '',
@@ -199,7 +189,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
               record.clock_out || ''
             );
             
-            // Calcular valores com o hourlyRate correto carregado do perfil
             const { normalPay, overtimePay, totalPay } = calculatePay(
               normalHours,
               overtimeHours,
@@ -224,7 +213,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
               isWeekend: isWeekendDay
             });
           } else {
-            // Dia útil sem registro
             completeRecords.push({
               id: `empty-${dateString}`,
               date: dateString,
