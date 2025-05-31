@@ -21,6 +21,11 @@ interface Location {
   is_active: boolean;
 }
 
+interface Currency {
+  code: string;
+  name: string;
+}
+
 const Settings = () => {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
@@ -148,7 +153,7 @@ const Settings = () => {
     }
   };
 
-  const handleCurrencyChange = async (newCurrency: 'EUR' | 'BRL') => {
+  const handleCurrencyChange = async (newCurrency: Currency) => {
     try {
       await setCurrency(newCurrency);
       toast({
