@@ -108,6 +108,51 @@ export type Database = {
           },
         ]
       }
+      employee_analytics: {
+        Row: {
+          anomaly_flags: Json | null
+          average_daily_hours: number | null
+          created_at: string | null
+          days_worked: number | null
+          employee_id: string
+          id: string
+          month: number
+          productivity_score: number | null
+          total_hours_worked: number | null
+          total_overtime_hours: number | null
+          updated_at: string | null
+          year: number
+        }
+        Insert: {
+          anomaly_flags?: Json | null
+          average_daily_hours?: number | null
+          created_at?: string | null
+          days_worked?: number | null
+          employee_id: string
+          id?: string
+          month: number
+          productivity_score?: number | null
+          total_hours_worked?: number | null
+          total_overtime_hours?: number | null
+          updated_at?: string | null
+          year: number
+        }
+        Update: {
+          anomaly_flags?: Json | null
+          average_daily_hours?: number | null
+          created_at?: string | null
+          days_worked?: number | null
+          employee_id?: string
+          id?: string
+          month?: number
+          productivity_score?: number | null
+          total_hours_worked?: number | null
+          total_overtime_hours?: number | null
+          updated_at?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       employee_work_schedules: {
         Row: {
           created_at: string
@@ -287,6 +332,45 @@ export type Database = {
         }
         Relationships: []
       }
+      system_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          employee_id: string | null
+          expires_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          metadata: Json | null
+          severity: string | null
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          employee_id?: string | null
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          metadata?: Json | null
+          severity?: string | null
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          employee_id?: string | null
+          expires_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          metadata?: Json | null
+          severity?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           created_at: string
@@ -428,6 +512,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_monthly_analytics: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_expired_sessions: {
         Args: Record<PropertyKey, never>
         Returns: undefined

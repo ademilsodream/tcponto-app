@@ -1,10 +1,13 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Clock, DollarSign, Calendar, UserCheck, UserX } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Users, Clock, DollarSign, Calendar, UserCheck, UserX, BarChart3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useQuery } from '@tanstack/react-query';
+import AdvancedAnalytics from './AdvancedAnalytics';
+import AnalyticsButton from './AnalyticsButton';
 
 interface User {
   id: string;
@@ -257,56 +260,76 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         </Card>
       </div>
 
-      {/* Status dos Funcionários Otimizado */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCheck className="w-5 h-5" />
-            Status dos Funcionários
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {dashboardData?.employeeStatuses?.map((empStatus) => (
-              <div 
-                key={empStatus.employee.id} 
-                className={`p-4 rounded-lg border ${getStatusColorClasses(empStatus.statusColor)}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">{empStatus.employee.name}</span>
-                  <span className={`text-xs px-2 py-1 rounded ${getStatusBadgeClasses(empStatus.statusColor)}`}>
-                    {empStatus.statusLabel}
-                  </span>
-                </div>
+      {/* Tabs para Dashboard e Analytics */}
+      <Tabs defaultValue="status" className="space-y-6">
+        <div className="flex justify-between items-center">
+          <TabsList>
+            <TabsTrigger value="status">Status dos Funcionários</TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Analytics Avançado
+            </TabsTrigger>
+          </TabsList>
+          <AnalyticsButton />
+        </div>
+
+        <TabsContent value="status">
+          {/* Status dos Funcionários Otimizado */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5" />
+                Status dos Funcionários
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {dashboardData?.employeeStatuses?.map((empStatus) => (
+                  <div 
+                    key={empStatus.employee.id} 
+                    className={`p-4 rounded-lg border ${getStatusColorClasses(empStatus.statusColor)}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{empStatus.employee.name}</span>
+                      <span className={`text-xs px-2 py-1 rounded ${getStatusBadgeClasses(empStatus.statusColor)}`}>
+                        {empStatus.statusLabel}
+                      </span>
+                    </div>
+                    
+                    {empStatus.record && (
+                      <div className="text-xs space-y-1 text-gray-600">
+                        {empStatus.record.clock_in && (
+                          <div>Entrada: {empStatus.record.clock_in}</div>
+                        )}
+                        {empStatus.record.lunch_start && (
+                          <div>Almoço: {empStatus.record.lunch_start}</div>
+                        )}
+                        {empStatus.record.lunch_end && (
+                          <div>Volta: {empStatus.record.lunch_end}</div>
+                        )}
+                        {empStatus.record.clock_out && (
+                          <div>Saída: {empStatus.record.clock_out}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
                 
-                {empStatus.record && (
-                  <div className="text-xs space-y-1 text-gray-600">
-                    {empStatus.record.clock_in && (
-                      <div>Entrada: {empStatus.record.clock_in}</div>
-                    )}
-                    {empStatus.record.lunch_start && (
-                      <div>Almoço: {empStatus.record.lunch_start}</div>
-                    )}
-                    {empStatus.record.lunch_end && (
-                      <div>Volta: {empStatus.record.lunch_end}</div>
-                    )}
-                    {empStatus.record.clock_out && (
-                      <div>Saída: {empStatus.record.clock_out}</div>
-                    )}
+                {(!dashboardData?.employeeStatuses || dashboardData.employeeStatuses.length === 0) && (
+                  <div className="col-span-full text-center py-8">
+                    <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500 text-sm">Nenhum funcionário</p>
                   </div>
                 )}
               </div>
-            ))}
-            
-            {(!dashboardData?.employeeStatuses || dashboardData.employeeStatuses.length === 0) && (
-              <div className="col-span-full text-center py-8">
-                <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">Nenhum funcionário</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <AdvancedAnalytics employees={employees} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
