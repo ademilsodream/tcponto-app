@@ -232,7 +232,7 @@ export class SecurityEnforcement {
 }
 
 // Executar verificações de segurança automaticamente
-export function initializeSecurityMonitoring(userId: string): void {
+export function initializeSecurityMonitoring(userId: string): () => void {
   // Verificar integridade a cada 5 minutos
   const integrityCheck = setInterval(async () => {
     await SecurityEnforcement.detectManipulationAttempts(userId);
