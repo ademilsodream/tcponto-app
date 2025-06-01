@@ -33,6 +33,12 @@ interface AdvancedAnalyticsProps {
   employees: User[];
 }
 
+interface AnomalyFlags {
+  excessive_overtime?: boolean;
+  long_daily_hours?: boolean;
+  low_attendance?: boolean;
+}
+
 const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<'current' | 'last3' | 'last6'>('current');
 
@@ -270,43 +276,46 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {anomalies.map((anomaly, index) => (
-                    <div key={index} className="border rounded-lg p-4 bg-yellow-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">{anomaly.employee_name}</h4>
-                          <p className="text-sm text-gray-600">
-                            Período: {anomaly.month}/{anomaly.year}
-                          </p>
-                          <div className="mt-2 space-y-1">
-                            {anomaly.anomaly_flags.excessive_overtime && (
-                              <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded">
-                                Horas extras excessivas
-                              </span>
-                            )}
-                            {anomaly.anomaly_flags.long_daily_hours && (
-                              <span className="inline-block bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded ml-1">
-                                Jornada muito longa
-                              </span>
-                            )}
-                            {anomaly.anomaly_flags.low_attendance && (
-                              <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded ml-1">
-                                Baixa frequência
-                              </span>
-                            )}
+                  {anomalies.map((anomaly, index) => {
+                    const flags = anomaly.anomaly_flags as AnomalyFlags;
+                    return (
+                      <div key={index} className="border rounded-lg p-4 bg-yellow-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-medium">{anomaly.employee_name}</h4>
+                            <p className="text-sm text-gray-600">
+                              Período: {anomaly.month}/{anomaly.year}
+                            </p>
+                            <div className="mt-2 space-y-1">
+                              {flags?.excessive_overtime && (
+                                <span className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded">
+                                  Horas extras excessivas
+                                </span>
+                              )}
+                              {flags?.long_daily_hours && (
+                                <span className="inline-block bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded ml-1">
+                                  Jornada muito longa
+                                </span>
+                              )}
+                              {flags?.low_attendance && (
+                                <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded ml-1">
+                                  Baixa frequência
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm">
+                              <strong>{anomaly.total_hours_worked}h</strong> trabalhadas
+                            </p>
+                            <p className="text-sm">
+                              <strong>{anomaly.total_overtime_hours}h</strong> extras
+                            </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm">
-                            <strong>{anomaly.total_hours_worked}h</strong> trabalhadas
-                          </p>
-                          <p className="text-sm">
-                            <strong>{anomaly.total_overtime_hours}h</strong> extras
-                          </p>
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
