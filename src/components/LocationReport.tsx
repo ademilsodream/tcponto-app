@@ -3,9 +3,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, ArrowLeft, Search, User } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MapPin, ArrowLeft, Search, User, CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 // Importar o tipo Database do arquivo de tipos Supabase
 import { Database } from '@/integrations/supabase/types';
@@ -211,6 +215,8 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
   const [timeRecordsReportData, setTimeRecordsReportData] = useState<TimeRecordReportRow[]>([]);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -223,7 +229,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     if (allowedLocations.length > 0) {
       loadTimeRecordsData();
     }
-  }, [employees, allowedLocations]);
+  }, [employees, allowedLocations, startDate, endDate]);
 
   const loadAllowedLocations = async () => {
     try {
@@ -256,7 +262,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     console.log('=== INÍCIO CARREGAMENTO DADOS DE LOCALIZAÇÃO ===');
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('time_records')
         .select(`
           id,
@@ -271,6 +277,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         .eq('status', 'active')
         .order('date', { ascending: false })
         .order('clock_in', { ascending: true });
+
+      // Aplicar filtros de data se existirem
+      if (startDate) {
+        query = query.gte('date', format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        query = query.lte('date', format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Erro ao carregar dados de localização:', error);
@@ -494,7 +510,61 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Inicial</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !startDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Final</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Funcionário</label>
                   <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>

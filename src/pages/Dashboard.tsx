@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +11,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, Edit } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, Edit, Building2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ import AdminPanel from '@/components/AdminPanel';
 import PayrollReport from '@/components/PayrollReport';
 import DetailedTimeReport from '@/components/DetailedTimeReport';
 import LocationReport from '@/components/LocationReport';
+import AutoDeObras from '@/components/AutoDeObras';
 import MonthlyControl from '@/components/MonthlyControl';
 import EmployeeMonthlySummary from '@/components/EmployeeMonthlySummary';
 import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
@@ -108,6 +110,8 @@ const Dashboard = () => {
         return <DetailedTimeReport employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       case 'locationReport':
         return <LocationReport employees={employees} />;
+      case 'autoDeObras':
+        return <AutoDeObras employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       default:
         return <AdminPanel />;
     }
@@ -282,6 +286,18 @@ const Dashboard = () => {
             >
               <MapPin className="w-4 h-4 mr-2" />
               Relatório de Localização
+            </button>
+
+            <button
+              onClick={() => setActiveTab('autoDeObras')}
+              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+                activeTab === 'autoDeObras'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Building2 className="w-4 h-4 mr-2" />
+              Auto de Obras
             </button>
           </nav>
         </div>
