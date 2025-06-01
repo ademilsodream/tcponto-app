@@ -89,12 +89,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
   };
 
-  // Função de cálculo de distância com logs detalhados
+  // Função de cálculo de distância
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    console.log(`🧮 Calculando distância entre:`);
-    console.log(`   Ponto 1: ${lat1}, ${lng1}`);
-    console.log(`   Ponto 2: ${lat2}, ${lng2}`);
-    
     const R = 6371000; // Raio da Terra em metros
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -103,13 +99,16 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       Math.sin(dLng/2) * Math.sin(dLng/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     const distance = R * c;
-    
-    console.log(`📏 Distância calculada: ${distance.toFixed(2)} metros`);
     return distance;
   };
 
+  // Verificar se uma localização existe na lista de permitidas
+  const isValidLocationName = (locationName: string): boolean => {
+    return allowedLocations.some(loc => loc.name === locationName);
+  };
+
   const findLocationName = (lat: number, lng: number): string | null => {
-    console.log(`🔍 AutoDeObras: Buscando localização para coordenadas: ${lat}, ${lng}`);
+    console.log(`🔍 AutoDeObras: Calculando localização para coordenadas: ${lat}, ${lng}`);
     
     if (!lat || !lng || allowedLocations.length === 0) {
       console.log('❌ Coordenadas inválidas ou sem localizações cadastradas');
@@ -148,7 +147,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       console.log(`   Diferença: ${(minDistance - closestLocation.range_meters).toFixed(2)}m a mais que o permitido`);
     }
     
-    console.log('❌ Nenhuma localização válida encontrada');
+    console.log('❌ Nenhuma localização válida encontrada por coordenadas');
     return null;
   };
 
@@ -199,7 +198,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   };
 
   const loadAutoObrasData = async () => {
-    if (!startDate || !endDate || employees.length === 0 || allowedLocations.length === 0) {
+    if (!startDate || !endDate || employees.length === 0) {
       console.log('⚠️ AutoDeObras: Dados insuficientes para carregar');
       return;
     }
@@ -302,6 +301,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           return;
         }
         
+        recordsWithAutoValue++;
+        
         // FILTRO 2: Verificar localização válida
         const locationData = extractLocationData(record.locations);
         if (!locationData) {
@@ -311,21 +312,34 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         
         recordsWithValidLocation++;
         
-        const locationName = locationData.locationName || findLocationName(
-          locationData.lat, 
-          locationData.lng
-        );
+        // NOVA LÓGICA: Priorizar locationName existente
+        let finalLocationName = null;
+        
+        if (locationData.locationName) {
+          console.log(`🏷️ LocationName encontrado nos dados: "${locationData.locationName}"`);
+          
+          // Verificar se é uma localização válida
+          if (isValidLocationName(locationData.locationName)) {
+            finalLocationName = locationData.locationName;
+            console.log(`✅ LocationName válido - usando: "${finalLocationName}"`);
+          } else {
+            console.log(`⚠️ LocationName "${locationData.locationName}" não está na lista de permitidas, calculando por coordenadas...`);
+            finalLocationName = findLocationName(locationData.lat, locationData.lng);
+          }
+        } else {
+          console.log(`📍 Sem locationName nos dados, calculando por coordenadas...`);
+          finalLocationName = findLocationName(locationData.lat, locationData.lng);
+        }
         
         // FILTRO 3: Pular se não conseguiu determinar localização
-        if (!locationName) {
+        if (!finalLocationName) {
           console.log(`❌ Registro descartado - localização não identificada`);
           return;
         }
         
-        recordsWithAutoValue++;
         recordsProcessed++;
         
-        console.log(`✅ Registro VÁLIDO processado - ${profile.name} em ${locationName}`);
+        console.log(`✅ Registro VÁLIDO processado - ${profile.name} em ${finalLocationName}`);
 
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
@@ -340,10 +354,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
         const employeeData = employeeMap.get(record.user_id)!;
 
-        let locationEntry = employeeData.locations.find(loc => loc.locationName === locationName);
+        let locationEntry = employeeData.locations.find(loc => loc.locationName === finalLocationName);
         if (!locationEntry) {
           locationEntry = {
-            locationName,
+            locationName: finalLocationName,
             totalHours: 0,
             totalDays: 0,
             totalValue: 0
@@ -368,23 +382,27 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         const locationData = extractLocationData(record.locations);
         if (!locationData) return;
         
-        const locationName = locationData.locationName || findLocationName(
-          locationData.lat, 
-          locationData.lng
-        );
+        // Usar mesma lógica para determinar localização final
+        let finalLocationName = null;
         
-        if (!locationName) return;
+        if (locationData.locationName && isValidLocationName(locationData.locationName)) {
+          finalLocationName = locationData.locationName;
+        } else {
+          finalLocationName = findLocationName(locationData.lat, locationData.lng);
+        }
+        
+        if (!finalLocationName) return;
 
         if (!locationDaysMap.has(record.user_id)) {
           locationDaysMap.set(record.user_id, new Map());
         }
         
         const userLocationDays = locationDaysMap.get(record.user_id)!;
-        if (!userLocationDays.has(locationName)) {
-          userLocationDays.set(locationName, new Set());
+        if (!userLocationDays.has(finalLocationName)) {
+          userLocationDays.set(finalLocationName, new Set());
         }
         
-        userLocationDays.get(locationName)!.add(record.date);
+        userLocationDays.get(finalLocationName)!.add(record.date);
       });
 
       // Atualizar contagem de dias
@@ -413,8 +431,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       console.log('\n📊 Resumo final do processamento:');
       console.log(`   Total de registros: ${debug.totalRecords}`);
-      console.log(`   Com localização válida: ${debug.recordsWithValidLocation}`);
       console.log(`   Com valor do auto: ${debug.recordsWithAutoValue}`);
+      console.log(`   Com localização válida: ${debug.recordsWithValidLocation}`);
       console.log(`   Processados com sucesso: ${debug.recordsProcessed}`);
       console.log(`   Funcionários no resultado: ${debug.employeesWithData}`);
       console.log(`   Registros descartados: ${debug.recordsDiscarded}`);
@@ -436,7 +454,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   };
 
   useEffect(() => {
-    if (startDate && endDate && allowedLocations.length > 0) {
+    if (startDate && endDate) {
       loadAutoObrasData();
     }
   }, [startDate, endDate, selectedEmployee, employees, allowedLocations]);
@@ -610,8 +628,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
                   <div>Processados: {debugInfo.recordsProcessed}</div>
                   <div>Descartados: {debugInfo.recordsDiscarded}</div>
-                  <div>Com localização válida: {debugInfo.recordsWithValidLocation}</div>
                   <div>Com valor do auto: {debugInfo.recordsWithAutoValue}</div>
+                  <div>Com localização válida: {debugInfo.recordsWithValidLocation}</div>
                   <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
                 </div>
               </CardContent>
