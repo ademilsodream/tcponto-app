@@ -55,91 +55,29 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [endDate, setEndDate] = useState<Date>();
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
-  const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>({});
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadAllowedLocations();
-  }, []);
-
-  const loadAllowedLocations = async () => {
-    try {
-      console.log('🏢 AutoDeObras: Carregando localizações permitidas...');
-      const { data, error } = await supabase
-        .from('allowed_locations')
-        .select('id, name, latitude, longitude, range_meters, address')
-        .eq('is_active', true);
-
-      if (error) {
-        console.error('❌ Erro ao carregar localizações permitidas:', error);
-        setAllowedLocations([]);
-        return;
-      }
-
-      console.log(`✅ AutoDeObras: ${data?.length || 0} localizações carregadas:`);
-      data?.forEach((loc, i) => {
-        console.log(`   ${i + 1}. "${loc.name}"`);
-      });
-      setAllowedLocations(data || []);
-    } catch (error) {
-      console.error('💥 Erro inesperado ao carregar localizações:', error);
-      setAllowedLocations([]);
-    }
-  };
-
-  // CORREÇÃO FINAL: Validação simplificada e robusta
-  const isValidLocationName = (locationName: string): boolean => {
-    if (!locationName || typeof locationName !== 'string') {
-      console.log(`❌ LocationName inválido: "${locationName}"`);
-      return false;
-    }
-
-    console.log(`🔍 Validando locationName: "${locationName}"`);
-    console.log(`📋 Localizações disponíveis: ${allowedLocations.map(l => `"${l.name}"`).join(', ')}`);
-    
-    // Primeiro: comparação exata
-    const exactMatch = allowedLocations.some(loc => loc.name === locationName);
-    if (exactMatch) {
-      console.log(`✅ MATCH EXATO encontrado para: "${locationName}"`);
-      return true;
-    }
-    
-    // Segundo: comparação case-insensitive simples
-    const lowerLocationName = locationName.toLowerCase();
-    const caseInsensitiveMatch = allowedLocations.some(loc => loc.name.toLowerCase() === lowerLocationName);
-    if (caseInsensitiveMatch) {
-      console.log(`✅ MATCH CASE-INSENSITIVE encontrado para: "${locationName}"`);
-      return true;
-    }
-    
-    console.log(`❌ NENHUM MATCH encontrado para: "${locationName}"`);
-    return false;
-  };
-
   const extractLocationName = (locations: any): string | null => {
-    console.log('📍 AutoDeObras: Extraindo locationName dos dados:', JSON.stringify(locations, null, 2));
+    console.log('📍 Extraindo locationName dos dados:', JSON.stringify(locations, null, 2));
     
     if (!locations || typeof locations !== 'object') {
-      console.log('❌ Dados de localização inválidos ou nulos');
+      console.log('❌ Dados de localização inválidos');
       return null;
     }
 
     let locationName = null;
     
-    // Verificar estrutura clock_in primeiro
     if (locations.clock_in && locations.clock_in.locationName) {
       locationName = locations.clock_in.locationName;
       console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
     }
-    // Fallback para clockIn (sem underscore)
     else if (locations.clockIn && locations.clockIn.locationName) {
       locationName = locations.clockIn.locationName;
       console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
     }
-    // Fallback para locationName na raiz
     else if (locations.locationName) {
       locationName = locations.locationName;
       console.log(`✅ LocationName encontrado na raiz: "${locationName}"`);
@@ -155,12 +93,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   const loadAutoObrasData = async () => {
     if (!startDate || !endDate || employees.length === 0) {
-      console.log('⚠️ AutoDeObras: Dados insuficientes para carregar');
+      console.log('⚠️ Dados insuficientes para carregar');
       return;
     }
 
     setLoading(true);
-    console.log('\n🚀 === INICIANDO PROCESSAMENTO FINAL ===');
+    console.log('\n🚀 === PROCESSAMENTO FINAL SIMPLIFICADO ===');
     
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
@@ -228,12 +166,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         console.log(`💰 Auto-valor: ${key} = R$ ${av.auto_value}`);
       });
 
-      // PROCESSAMENTO SIMPLIFICADO
+      // PROCESSAMENTO ULTRA SIMPLIFICADO
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
       let totalProcessed = 0;
       let totalValid = 0;
 
-      console.log('\n=== PROCESSANDO REGISTROS ===');
+      console.log('\n=== PROCESSANDO REGISTROS (SEM VALIDAÇÃO) ===');
 
       timeRecords?.forEach((record, index) => {
         console.log(`\n📝 REGISTRO ${index + 1}: ${record.profiles.name} - ${record.date}`);
@@ -256,13 +194,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           return;
         }
         
-        // Validar locationName
-        if (!isValidLocationName(locationName)) {
-          console.log(`❌ LocationName "${locationName}" não é válido`);
-          return;
-        }
+        // *** REMOVIDA A VALIDAÇÃO COMPLEXA ***
+        console.log(`🎉 REGISTRO PROCESSADO SEM VALIDAÇÃO! LocationName: "${locationName}"`);
         
-        console.log(`🎉 REGISTRO VÁLIDO!`);
         totalProcessed++;
         totalValid++;
 
@@ -306,7 +240,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         if (autoValue <= 0) return;
         
         const locationName = extractLocationName(record.locations);
-        if (!locationName || !isValidLocationName(locationName)) return;
+        if (!locationName) return;
 
         if (!locationDaysMap.has(record.user_id)) {
           locationDaysMap.set(record.user_id, new Map());
@@ -334,7 +268,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const result = Array.from(employeeMap.values())
         .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
-      console.log('\n=== RESULTADO FINAL ===');
+      console.log('\n=== RESULTADO FINAL (SEM VALIDAÇÃO) ===');
       console.log(`📊 Registros processados: ${totalProcessed}`);
       console.log(`✅ Registros válidos: ${totalValid}`);
       console.log(`👥 Funcionários no resultado: ${result.length}`);
@@ -373,7 +307,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     if (startDate && endDate) {
       loadAutoObrasData();
     }
-  }, [startDate, endDate, selectedEmployee, employees, allowedLocations]);
+  }, [startDate, endDate, selectedEmployee, employees]);
 
   const filteredData = useMemo(() => {
     if (selectedEmployee === 'all') {
@@ -546,7 +480,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <div>Processados: {debugInfo.recordsProcessed}</div>
                   <div>Válidos: {debugInfo.recordsValid}</div>
                   <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
-                  <div>Localizações permitidas: {allowedLocations.length}</div>
+                  <div><strong>SEM VALIDAÇÃO DE LOCALIZAÇÃO</strong></div>
                 </div>
               </CardContent>
             </Card>
@@ -611,7 +545,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <p className="text-sm">
                     {!startDate || !endDate
                       ? 'Escolha as datas inicial e final para gerar o relatório'
-                      : 'Nenhum registro com locationName válido foi encontrado para o período selecionado.'
+                      : 'Nenhum registro com locationName foi encontrado para o período selecionado.'
                     }
                   </p>
                 </div>
