@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Building2, ArrowLeft, CalendarIcon, Search, AlertTriangle } from 'lucide-react';
+import { Building2, ArrowLeft, CalendarIcon, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,10 +34,9 @@ interface AllowedLocation {
 interface EmployeeAutoObrasData {
   employeeId: string;
   employeeName: string;
-  departmentId: string | null;
-  jobFunctionId: string | null;
+  departmentId: string;
+  jobFunctionId: string;
   autoValue: number;
-  hasAutoValue: boolean;
   locations: Array<{
     locationName: string;
     totalHours: number;
@@ -101,61 +100,47 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   const findLocationName = (lat: number, lng: number): string => {
     if (!lat || !lng || allowedLocations.length === 0) {
-      console.log('AutoDeObras: Coordenadas inválidas ou sem localizações', { lat, lng, locationsCount: allowedLocations.length });
-      return 'Localização não identificada';
+      return null; // Retorna null para indicar localização inválida
     }
 
     for (const location of allowedLocations) {
       const distance = calculateDistance(lat, lng, location.latitude, location.longitude);
-      console.log(`AutoDeObras: Distância para ${location.name}: ${distance}m (limite: ${location.range_meters}m)`);
       if (distance <= location.range_meters) {
         console.log(`AutoDeObras: Localização encontrada: ${location.name}`);
         return location.name;
       }
     }
     
-    console.log('AutoDeObras: Nenhuma localização encontrada para coordenadas', { lat, lng });
-    return 'Localização não identificada';
+    return null; // Retorna null se não encontrar localização válida
   };
 
   const extractLocationData = (locations: any): { lat: number, lng: number, locationName?: string } | null => {
     if (!locations || typeof locations !== 'object') {
-      console.log('AutoDeObras: Locations inválido:', locations);
       return null;
     }
 
-    console.log('AutoDeObras: Estrutura de locations:', locations);
-
-    // Tentar diferentes estruturas possíveis
     let clockInData = null;
     
-    // Estrutura 1: locations.clockIn
+    // Tentar diferentes estruturas possíveis
     if (locations.clockIn && typeof locations.clockIn === 'object') {
       clockInData = locations.clockIn;
-    }
-    // Estrutura 2: locations.clock_in  
-    else if (locations.clock_in && typeof locations.clock_in === 'object') {
+    } else if (locations.clock_in && typeof locations.clock_in === 'object') {
       clockInData = locations.clock_in;
-    }
-    // Estrutura 3: locations direto com lat/lng
-    else if (locations.lat && locations.lng) {
+    } else if (locations.lat && locations.lng) {
       clockInData = locations;
     }
 
     if (!clockInData) {
-      console.log('AutoDeObras: Nenhuma estrutura de clockIn encontrada');
       return null;
     }
 
     const lat = Number(clockInData.lat || clockInData.latitude);
     const lng = Number(clockInData.lng || clockInData.longitude);
 
-    if (!lat || !lng) {
-      console.log('AutoDeObras: Coordenadas inválidas:', { lat, lng });
+    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
       return null;
     }
 
-    console.log('AutoDeObras: Coordenadas extraídas:', { lat, lng });
     return {
       lat,
       lng,
@@ -165,12 +150,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   const loadAutoObrasData = async () => {
     if (!startDate || !endDate || employees.length === 0 || allowedLocations.length === 0) {
-      console.log('AutoDeObras: Dados insuficientes para carregar', {
-        startDate,
-        endDate,
-        employeesCount: employees.length,
-        locationsCount: allowedLocations.length
-      });
+      console.log('AutoDeObras: Dados insuficientes para carregar');
       return;
     }
 
@@ -178,7 +158,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     console.log('AutoDeObras: Iniciando carregamento de dados...');
 
     try {
-      // Consulta time_records
+      // Consulta time_records - FILTRAR registros sem department_id ou job_function_id na query
       let query = supabase
         .from('time_records')
         .select(`
@@ -198,7 +178,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         .gte('date', format(startDate, 'yyyy-MM-dd'))
         .lte('date', format(endDate, 'yyyy-MM-dd'))
         .not('total_hours', 'is', null)
-        .gt('total_hours', 0); // Filtrar registros com 0 horas
+        .gt('total_hours', 0)
+        .not('profiles.department_id', 'is', null)  // Filtrar registros sem departamento
+        .not('profiles.job_function_id', 'is', null); // Filtrar registros sem função
 
       if (selectedEmployee !== 'all') {
         query = query.eq('user_id', selectedEmployee);
@@ -217,7 +199,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log('AutoDeObras: Time records carregados:', timeRecords?.length || 0);
+      console.log('AutoDeObras: Time records carregados (com dept/função):', timeRecords?.length || 0);
 
       // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
@@ -242,31 +224,50 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         autoValuesMap.set(key, av.auto_value);
       });
 
-      console.log('AutoDeObras: Mapa de valores do auto:', autoValuesMap);
-
       // Processar dados por funcionário e localização
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
-      let recordsProcessed = 0;
-      let recordsWithLocation = 0;
+      let totalRecords = timeRecords?.length || 0;
+      let recordsWithValidLocation = 0;
       let recordsWithAutoValue = 0;
+      let recordsProcessed = 0;
 
       timeRecords?.forEach((record) => {
-        recordsProcessed++;
         const profile = record.profiles;
-        if (!profile || !record.total_hours) {
-          console.log('AutoDeObras: Registro ignorado - sem profile ou total_hours:', record.id);
-          return;
-        }
-
+        
+        // Verificar se tem valor do auto ANTES de processar
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
-        const hasAutoValue = autoValue > 0;
-
-        if (hasAutoValue) {
-          recordsWithAutoValue++;
+        
+        // FILTRO 1: Pular se não tem valor do auto
+        if (autoValue <= 0) {
+          console.log(`AutoDeObras: Registro ${record.id} descartado - sem valor do auto`);
+          return;
         }
-
-        console.log(`AutoDeObras: Processando ${profile.name} - Dept: ${profile.department_id}, Job: ${profile.job_function_id}, Auto: ${autoValue}`);
+        
+        // FILTRO 2: Verificar localização válida
+        const locationData = extractLocationData(record.locations);
+        if (!locationData) {
+          console.log(`AutoDeObras: Registro ${record.id} descartado - sem dados de localização`);
+          return;
+        }
+        
+        recordsWithValidLocation++;
+        
+        const locationName = locationData.locationName || findLocationName(
+          locationData.lat, 
+          locationData.lng
+        );
+        
+        // FILTRO 3: Pular se não conseguiu determinar localização
+        if (!locationName) {
+          console.log(`AutoDeObras: Registro ${record.id} descartado - localização não identificada`);
+          return;
+        }
+        
+        recordsWithAutoValue++;
+        recordsProcessed++;
+        
+        console.log(`AutoDeObras: Processando registro válido - ${profile.name} em ${locationName}`);
 
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
@@ -275,27 +276,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             departmentId: profile.department_id,
             jobFunctionId: profile.job_function_id,
             autoValue: autoValue,
-            hasAutoValue: hasAutoValue,
             locations: []
           });
         }
 
         const employeeData = employeeMap.get(record.user_id)!;
-        
-        const locationData = extractLocationData(record.locations);
-        if (!locationData) {
-          console.log('AutoDeObras: Registro sem localização válida:', record.id);
-          return;
-        }
-
-        recordsWithLocation++;
-        
-        const locationName = locationData.locationName || findLocationName(
-          locationData.lat, 
-          locationData.lng
-        );
-
-        console.log(`AutoDeObras: Localização determinada: ${locationName}`);
 
         let locationEntry = employeeData.locations.find(loc => loc.locationName === locationName);
         if (!locationEntry) {
@@ -316,15 +301,21 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const locationDaysMap = new Map<string, Map<string, Set<string>>>();
       
       timeRecords?.forEach((record) => {
-        if (!record.profiles || !record.total_hours || record.total_hours <= 0) return;
+        const profile = record.profiles;
+        const autoKey = `${profile.department_id}-${profile.job_function_id}`;
+        const autoValue = autoValuesMap.get(autoKey) || 0;
+        
+        if (autoValue <= 0) return; // Pular registros sem valor do auto
         
         const locationData = extractLocationData(record.locations);
-        if (!locationData) return;
-
+        if (!locationData) return; // Pular registros sem localização
+        
         const locationName = locationData.locationName || findLocationName(
           locationData.lat, 
           locationData.lng
         );
+        
+        if (!locationName) return; // Pular se não conseguiu determinar localização
 
         if (!locationDaysMap.has(record.user_id)) {
           locationDaysMap.set(record.user_id, new Map());
@@ -352,29 +343,19 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const result = Array.from(employeeMap.values())
         .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
-      // Debug info
+      // Debug info atualizado
       const debug = {
-        totalRecords: timeRecords?.length || 0,
-        recordsProcessed,
-        recordsWithLocation,
+        totalRecords,
+        recordsWithValidLocation,
         recordsWithAutoValue,
+        recordsProcessed,
         employeesWithData: result.length,
-        employeesWithAutoValue: result.filter(e => e.hasAutoValue).length,
-        autoValuesCount: autoValues?.length || 0
+        recordsDiscarded: totalRecords - recordsProcessed
       };
 
       console.log('AutoDeObras: Debug info:', debug);
       setDebugInfo(debug);
       setEmployeeAutoObrasData(result);
-
-      // Mostrar warnings se necessário
-      if (debug.employeesWithAutoValue === 0) {
-        toast({
-          title: "Aviso",
-          description: "Nenhum funcionário tem valores de auto de obras configurados",
-          variant: "destructive"
-        });
-      }
 
     } catch (error) {
       console.error('Erro inesperado ao carregar dados:', error);
@@ -411,7 +392,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       totalHours: number;
       totalDays: number;
       totalValue: number;
-      hasAutoValue: boolean;
     }> = [];
 
     filteredData.forEach(employee => {
@@ -423,8 +403,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             locationName: location.locationName,
             totalHours: location.totalHours,
             totalDays: location.totalDays,
-            totalValue: location.totalValue,
-            hasAutoValue: employee.hasAutoValue
+            totalValue: location.totalValue
           });
         });
       }
@@ -432,8 +411,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     return result;
   }, [filteredData]);
-
-  const employeesWithoutAutoValue = filteredData.filter(emp => !emp.hasAutoValue);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -549,7 +526,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Registros</label>
+                  <label className="text-sm font-medium">Registros Válidos</label>
                   <div className="text-2xl font-bold text-blue-600">
                     {expandedData.length}
                   </div>
@@ -562,35 +539,17 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           {debugInfo.totalRecords > 0 && (
             <Card className="border-blue-200 bg-blue-50">
               <CardHeader>
-                <CardTitle className="text-blue-800 text-sm">Informações de Debug</CardTitle>
+                <CardTitle className="text-blue-800 text-sm">Informações de Processamento</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-blue-700">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
-                  <div>Com localização: {debugInfo.recordsWithLocation}</div>
-                  <div>Com valor auto: {debugInfo.recordsWithAutoValue}</div>
-                  <div>Funcionários: {debugInfo.employeesWithData}</div>
+                  <div>Processados: {debugInfo.recordsProcessed}</div>
+                  <div>Descartados: {debugInfo.recordsDiscarded}</div>
+                  <div>Com localização válida: {debugInfo.recordsWithValidLocation}</div>
+                  <div>Com valor do auto: {debugInfo.recordsWithAutoValue}</div>
+                  <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Warnings */}
-          {employeesWithoutAutoValue.length > 0 && (
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardHeader>
-                <CardTitle className="text-yellow-800 text-sm flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  Funcionários sem Valor de Auto de Obras
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-yellow-700">
-                <p className="mb-2">Os seguintes funcionários não têm departamento/função configurados ou não têm valores de auto definidos:</p>
-                <ul className="list-disc list-inside">
-                  {employeesWithoutAutoValue.map(emp => (
-                    <li key={emp.employeeId}>{emp.employeeName}</li>
-                  ))}
-                </ul>
               </CardContent>
             </Card>
           )}
@@ -631,9 +590,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                             {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            {row.hasAutoValue ? formatCurrency(row.totalValue) : (
-                              <span className="text-gray-400">Não configurado</span>
-                            )}
+                            {formatCurrency(row.totalValue)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -650,13 +607,13 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <h3 className="text-lg font-medium mb-2">
                     {!startDate || !endDate 
                       ? 'Selecione o período para visualizar os dados'
-                      : 'Nenhum registro encontrado'
+                      : 'Nenhum registro válido encontrado'
                     }
                   </h3>
                   <p className="text-sm">
                     {!startDate || !endDate
                       ? 'Escolha as datas inicial e final para gerar o relatório'
-                      : 'Nenhum registro de ponto encontrado para o período selecionado.'
+                      : 'Nenhum registro com departamento, função, valor do auto e localização válidos foi encontrado para o período selecionado.'
                     }
                   </p>
                 </div>
