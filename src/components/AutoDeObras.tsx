@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,7 +81,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       console.log(`✅ AutoDeObras: ${data?.length || 0} localizações carregadas:`);
       data?.forEach((loc, i) => {
-        console.log(`   ${i + 1}. ${loc.name} - Range: ${loc.range_meters}m - Coords: ${loc.latitude}, ${loc.longitude}`);
+        console.log(`   ${i + 1}. ${loc.name}`);
       });
       setAllowedLocations(data || []);
     } catch (error) {
@@ -89,112 +90,40 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
   };
 
-  // Função de cálculo de distância
-  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 6371000; // Raio da Terra em metros
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distance = R * c;
-    return distance;
-  };
-
   // Verificar se uma localização existe na lista de permitidas
   const isValidLocationName = (locationName: string): boolean => {
     return allowedLocations.some(loc => loc.name === locationName);
   };
 
-  const findLocationName = (lat: number, lng: number): string | null => {
-    console.log(`🔍 AutoDeObras: Calculando localização para coordenadas: ${lat}, ${lng}`);
-    
-    if (!lat || !lng || allowedLocations.length === 0) {
-      console.log('❌ Coordenadas inválidas ou sem localizações cadastradas');
-      return null;
-    }
-
-    let closestLocation = null;
-    let minDistance = Infinity;
-
-    for (const location of allowedLocations) {
-      console.log(`\n🏢 Verificando localização: ${location.name}`);
-      console.log(`   Coordenadas cadastradas: ${location.latitude}, ${location.longitude}`);
-      console.log(`   Range permitido: ${location.range_meters}m`);
-      
-      const distance = calculateDistance(lat, lng, location.latitude, location.longitude);
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestLocation = location;
-      }
-      
-      console.log(`   Distância: ${distance.toFixed(2)}m vs Range: ${location.range_meters}m`);
-      
-      if (distance <= location.range_meters) {
-        console.log(`✅ MATCH! Funcionário está dentro do range de ${location.name}`);
-        console.log(`   Distância final: ${distance.toFixed(2)}m`);
-        return location.name;
-      } else {
-        console.log(`❌ Fora do range de ${location.name} (${distance.toFixed(2)}m > ${location.range_meters}m)`);
-      }
-    }
-    
-    if (closestLocation) {
-      console.log(`\n📍 Localização mais próxima: ${closestLocation.name}`);
-      console.log(`   Distância: ${minDistance.toFixed(2)}m (Range necessário: ${closestLocation.range_meters}m)`);
-      console.log(`   Diferença: ${(minDistance - closestLocation.range_meters).toFixed(2)}m a mais que o permitido`);
-    }
-    
-    console.log('❌ Nenhuma localização válida encontrada por coordenadas');
-    return null;
-  };
-
-  const extractLocationData = (locations: any): { lat: number, lng: number, locationName?: string } | null => {
-    console.log('📍 AutoDeObras: Extraindo dados de localização:', locations);
+  const extractLocationName = (locations: any): string | null => {
+    console.log('📍 AutoDeObras: Extraindo locationName dos dados:', locations);
     
     if (!locations || typeof locations !== 'object') {
       console.log('❌ Dados de localização inválidos');
       return null;
     }
 
-    let clockInData = null;
-    let foundFieldName = '';
+    let locationName = null;
     
     // Tentar diferentes estruturas possíveis
-    if (locations.clockIn && typeof locations.clockIn === 'object') {
-      clockInData = locations.clockIn;
-      foundFieldName = 'clockIn';
-    } else if (locations.clock_in && typeof locations.clock_in === 'object') {
-      clockInData = locations.clock_in;
-      foundFieldName = 'clock_in';
-    } else if (locations.lat && locations.lng) {
-      clockInData = locations;
-      foundFieldName = 'root';
+    if (locations.clockIn && locations.clockIn.locationName) {
+      locationName = locations.clockIn.locationName;
+      console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
+    } else if (locations.clock_in && locations.clock_in.locationName) {
+      locationName = locations.clock_in.locationName;
+      console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
+    } else if (locations.locationName) {
+      locationName = locations.locationName;
+      console.log(`✅ LocationName encontrado na raiz: "${locationName}"`);
     }
 
-    if (!clockInData) {
-      console.log('❌ Nenhum dado de clock-in encontrado');
+    if (!locationName) {
+      console.log('❌ Nenhum locationName encontrado nos dados');
       return null;
     }
 
-    console.log(`✅ Dados encontrados no campo: ${foundFieldName}`, clockInData);
-
-    const lat = Number(clockInData.lat || clockInData.latitude);
-    const lng = Number(clockInData.lng || clockInData.longitude);
-
-    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-      console.log(`❌ Coordenadas inválidas: lat=${lat}, lng=${lng}`);
-      return null;
-    }
-
-    console.log(`✅ Coordenadas extraídas: ${lat}, ${lng}`);
-    return {
-      lat,
-      lng,
-      locationName: clockInData.locationName
-    };
+    console.log(`📍 LocationName extraído: "${locationName}"`);
+    return locationName;
   };
 
   const loadAutoObrasData = async () => {
@@ -288,14 +217,13 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         
         const profile = record.profiles;
         
-        // Verificar se tem valor do auto ANTES de processar
+        // FILTRO 1: Verificar se tem valor do auto
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
         
         console.log(`   Auto-valor key: ${autoKey}`);
         console.log(`   Auto-valor encontrado: R$ ${autoValue}`);
         
-        // FILTRO 1: Pular se não tem valor do auto
         if (autoValue <= 0) {
           console.log(`❌ Registro descartado - sem valor do auto`);
           return;
@@ -303,43 +231,23 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         
         recordsWithAutoValue++;
         
-        // FILTRO 2: Verificar localização válida
-        const locationData = extractLocationData(record.locations);
-        if (!locationData) {
-          console.log(`❌ Registro descartado - sem dados de localização`);
+        // FILTRO 2: Extrair locationName dos dados
+        const locationName = extractLocationName(record.locations);
+        if (!locationName) {
+          console.log(`❌ Registro descartado - sem locationName nos dados`);
+          return;
+        }
+        
+        // FILTRO 3: Verificar se locationName é válido (existe na lista de permitidas)
+        if (!isValidLocationName(locationName)) {
+          console.log(`❌ Registro descartado - locationName "${locationName}" não está na lista de permitidas`);
           return;
         }
         
         recordsWithValidLocation++;
-        
-        // NOVA LÓGICA: Priorizar locationName existente
-        let finalLocationName = null;
-        
-        if (locationData.locationName) {
-          console.log(`🏷️ LocationName encontrado nos dados: "${locationData.locationName}"`);
-          
-          // Verificar se é uma localização válida
-          if (isValidLocationName(locationData.locationName)) {
-            finalLocationName = locationData.locationName;
-            console.log(`✅ LocationName válido - usando: "${finalLocationName}"`);
-          } else {
-            console.log(`⚠️ LocationName "${locationData.locationName}" não está na lista de permitidas, calculando por coordenadas...`);
-            finalLocationName = findLocationName(locationData.lat, locationData.lng);
-          }
-        } else {
-          console.log(`📍 Sem locationName nos dados, calculando por coordenadas...`);
-          finalLocationName = findLocationName(locationData.lat, locationData.lng);
-        }
-        
-        // FILTRO 3: Pular se não conseguiu determinar localização
-        if (!finalLocationName) {
-          console.log(`❌ Registro descartado - localização não identificada`);
-          return;
-        }
-        
         recordsProcessed++;
         
-        console.log(`✅ Registro VÁLIDO processado - ${profile.name} em ${finalLocationName}`);
+        console.log(`✅ Registro VÁLIDO processado - ${profile.name} em ${locationName}`);
 
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
@@ -354,10 +262,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
         const employeeData = employeeMap.get(record.user_id)!;
 
-        let locationEntry = employeeData.locations.find(loc => loc.locationName === finalLocationName);
+        let locationEntry = employeeData.locations.find(loc => loc.locationName === locationName);
         if (!locationEntry) {
           locationEntry = {
-            locationName: finalLocationName,
+            locationName: locationName,
             totalHours: 0,
             totalDays: 0,
             totalValue: 0
@@ -379,30 +287,19 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         
         if (autoValue <= 0) return;
         
-        const locationData = extractLocationData(record.locations);
-        if (!locationData) return;
-        
-        // Usar mesma lógica para determinar localização final
-        let finalLocationName = null;
-        
-        if (locationData.locationName && isValidLocationName(locationData.locationName)) {
-          finalLocationName = locationData.locationName;
-        } else {
-          finalLocationName = findLocationName(locationData.lat, locationData.lng);
-        }
-        
-        if (!finalLocationName) return;
+        const locationName = extractLocationName(record.locations);
+        if (!locationName || !isValidLocationName(locationName)) return;
 
         if (!locationDaysMap.has(record.user_id)) {
           locationDaysMap.set(record.user_id, new Map());
         }
         
         const userLocationDays = locationDaysMap.get(record.user_id)!;
-        if (!userLocationDays.has(finalLocationName)) {
-          userLocationDays.set(finalLocationName, new Set());
+        if (!userLocationDays.has(locationName)) {
+          userLocationDays.set(locationName, new Set());
         }
         
-        userLocationDays.get(finalLocationName)!.add(record.date);
+        userLocationDays.get(locationName)!.add(record.date);
       });
 
       // Atualizar contagem de dias
@@ -426,7 +323,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         recordsWithAutoValue,
         recordsProcessed,
         employeesWithData: result.length,
-        recordsDiscarded: totalRecords - recordsProcessed
+        recordsDiscarded: totalRecords - recordsProcessed,
+        allowedLocationsCount: allowedLocations.length
       };
 
       console.log('\n📊 Resumo final do processamento:');
@@ -436,6 +334,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       console.log(`   Processados com sucesso: ${debug.recordsProcessed}`);
       console.log(`   Funcionários no resultado: ${debug.employeesWithData}`);
       console.log(`   Registros descartados: ${debug.recordsDiscarded}`);
+      console.log(`   Localizações permitidas: ${debug.allowedLocationsCount}`);
 
       setDebugInfo(debug);
       setEmployeeAutoObrasData(result);
@@ -624,13 +523,14 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 <CardTitle className="text-blue-800 text-sm">Informações de Processamento</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-blue-700">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
                   <div>Processados: {debugInfo.recordsProcessed}</div>
                   <div>Descartados: {debugInfo.recordsDiscarded}</div>
                   <div>Com valor do auto: {debugInfo.recordsWithAutoValue}</div>
                   <div>Com localização válida: {debugInfo.recordsWithValidLocation}</div>
                   <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
+                  <div>Localizações permitidas: {debugInfo.allowedLocationsCount}</div>
                 </div>
               </CardContent>
             </Card>
@@ -695,7 +595,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <p className="text-sm">
                     {!startDate || !endDate
                       ? 'Escolha as datas inicial e final para gerar o relatório'
-                      : 'Nenhum registro com departamento, função, valor do auto e localização válidos foi encontrado para o período selecionado.'
+                      : 'Nenhum registro com locationName válido foi encontrado para o período selecionado.'
                     }
                   </p>
                 </div>
