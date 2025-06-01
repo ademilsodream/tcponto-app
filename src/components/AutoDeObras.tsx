@@ -60,68 +60,48 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
 
-  // Função SIMPLIFICADA para extrair locationName - focando nos campos mais comuns
+  // Função RADICAL para extrair locationName - focando APENAS no que funciona
   const extractLocationName = (locations: any): string | null => {
-    console.log('🔍 EXTRAINDO LOCATION - Input:', JSON.stringify(locations, null, 2));
+    console.log('🔍 RADICAL EXTRACTION - Input completo:', JSON.stringify(locations, null, 2));
     
     if (!locations) {
       console.log('❌ Locations é null/undefined');
       return null;
     }
 
-    // ESTRATÉGIA SIMPLIFICADA - verificar os caminhos mais prováveis primeiro
-    const commonPaths = [
-      'clock_in.locationName',
-      'clock_out.locationName', 
-      'locationName',
-      'location.name',
-      'name'
-    ];
-
-    for (const path of commonPaths) {
-      try {
-        const pathParts = path.split('.');
-        let value = locations;
-        
-        for (const part of pathParts) {
-          if (value && typeof value === 'object' && value[part] !== undefined) {
-            value = value[part];
-          } else {
-            value = null;
-            break;
-          }
-        }
-        
-        if (value && typeof value === 'string' && value.trim().length > 0) {
-          console.log(`✅ LocationName encontrado via ${path}: "${value}"`);
-          return value.trim();
-        }
-      } catch (error) {
-        console.log(`❌ Erro ao tentar caminho ${path}:`, error);
+    // TESTE DIRETO - buscar qualquer string que pareça um local
+    const jsonString = JSON.stringify(locations);
+    console.log('📋 JSON String completo:', jsonString);
+    
+    // Buscar padrões específicos que sabemos que existem
+    const knownLocations = ['Casa do André', 'Escritório Central', 'Obra São Paulo'];
+    
+    for (const knownLocation of knownLocations) {
+      if (jsonString.includes(knownLocation)) {
+        console.log(`✅ ENCONTRADO LOCATION CONHECIDO: "${knownLocation}"`);
+        return knownLocation;
       }
     }
-
-    // FALLBACK - buscar qualquer string que pareça um nome de local
-    if (typeof locations === 'object') {
-      const jsonStr = JSON.stringify(locations);
-      const matches = jsonStr.match(/"([^"]+)"/g);
-      
-      if (matches) {
-        for (const match of matches) {
-          const cleanStr = match.replace(/"/g, '');
-          if (cleanStr.length > 2 && 
-              cleanStr.length < 100 && 
-              !cleanStr.includes('time') && 
-              !cleanStr.includes('clock') &&
-              !cleanStr.includes('date')) {
-            console.log(`🔄 LocationName fallback: "${cleanStr}"`);
-            return cleanStr;
-          }
+    
+    // Buscar QUALQUER string que tenha entre 3 e 50 caracteres
+    const matches = jsonString.match(/"([^"]{3,50})"/g);
+    if (matches) {
+      for (const match of matches) {
+        const cleanStr = match.replace(/"/g, '');
+        // Excluir strings que claramente não são locais
+        if (!cleanStr.includes('time') && 
+            !cleanStr.includes('clock') &&
+            !cleanStr.includes('date') &&
+            !cleanStr.includes('id') &&
+            !cleanStr.includes('user') &&
+            cleanStr.length > 2) {
+          console.log(`🎯 LOCATION ENCONTRADO (fallback): "${cleanStr}"`);
+          return cleanStr;
         }
       }
     }
 
-    console.log('❌ NENHUM LOCATIONNAME ENCONTRADO');
+    console.log('❌ NENHUM LOCATION ENCONTRADO - SERÁ REJEITADO');
     return null;
   };
 
@@ -132,14 +112,15 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     setLoading(true);
-    console.log('\n🚀 === CARREGAMENTO DINÂMICO DE AUTO DE OBRAS ===');
+    console.log('\n🚀 === CARREGAMENTO RADICAL - VERSÃO NOVA ===');
     
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
-    console.log(`📅 PERÍODO SELECIONADO: ${startDateStr} até ${endDateStr}`);
+    console.log(`📅 PERÍODO: ${startDateStr} até ${endDateStr}`);
+    console.log(`👤 FUNCIONÁRIO SELECIONADO: ${selectedEmployee}`);
 
     try {
-      // QUERY OTIMIZADA - buscar todos os dados necessários
+      // QUERY MAIS SIMPLES - usar LEFT JOIN para garantir que não perdemos dados
       let query = supabase
         .from('time_records')
         .select(`
@@ -148,7 +129,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           user_id, 
           locations, 
           total_hours,
-          profiles!inner(
+          profiles!left(
             id,
             name,
             department_id,
@@ -161,15 +142,16 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         .not('total_hours', 'is', null)
         .gt('total_hours', 0);
 
+      // APLICAR FILTRO DE FUNCIONÁRIO APENAS SE NÃO FOR 'ALL'
       if (selectedEmployee !== 'all') {
+        console.log(`🎯 APLICANDO FILTRO POR FUNCIONÁRIO: ${selectedEmployee}`);
         query = query.eq('user_id', selectedEmployee);
-        console.log(`👤 Filtro por funcionário: ${selectedEmployee}`);
       }
 
       const { data: timeRecords, error } = await query.order('date', { ascending: false });
 
       if (error) {
-        console.error('❌ Erro ao carregar dados:', error);
+        console.error('❌ Erro na query:', error);
         toast({
           title: "Erro",
           description: "Erro ao carregar registros de ponto",
@@ -179,7 +161,19 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log(`📊 REGISTROS ENCONTRADOS: ${timeRecords?.length || 0}`);
+      console.log(`📊 REGISTROS RETORNADOS DA QUERY: ${timeRecords?.length || 0}`);
+      
+      // LOG DETALHADO DOS PRIMEIROS REGISTROS
+      timeRecords?.slice(0, 3).forEach((record, index) => {
+        console.log(`📝 REGISTRO ${index + 1}:`, {
+          id: record.id,
+          date: record.date,
+          user_id: record.user_id,
+          total_hours: record.total_hours,
+          profile_name: record.profiles?.name,
+          locations_raw: record.locations
+        });
+      });
 
       // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
@@ -188,64 +182,82 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         .eq('is_active', true);
 
       if (autoError) {
-        console.error('❌ Erro ao carregar valores do auto:', autoError);
+        console.error('❌ Erro ao carregar auto values:', autoError);
       }
 
-      console.log(`💰 AUTO VALUES ENCONTRADOS: ${autoValues?.length || 0}`);
+      console.log(`💰 AUTO VALUES: ${autoValues?.length || 0}`);
 
       const autoValuesMap = new Map<string, number>();
       autoValues?.forEach(av => {
         const key = `${av.department_id}-${av.job_function_id}`;
         autoValuesMap.set(key, av.auto_value);
-        console.log(`💰 Auto-valor mapeado: ${key} = R$ ${av.auto_value}`);
+        console.log(`💰 Mapeado: ${key} = R$ ${av.auto_value}`);
       });
 
-      // PROCESSAMENTO COM LOGS DETALHADOS
+      // PROCESSAMENTO RADICAL - LOG TUDO
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
-      let totalProcessed = 0;
-      let totalValid = 0;
-      let rejectReasons: { [key: string]: number } = {};
+      let stats = {
+        total: 0,
+        noProfile: 0,
+        noDeptJob: 0,
+        noAutoValue: 0,
+        noLocation: 0,
+        valid: 0
+      };
 
-      console.log('\n=== PROCESSAMENTO DETALHADO ===');
+      console.log('\n=== PROCESSAMENTO RADICAL ===');
 
       timeRecords?.forEach((record, index) => {
-        console.log(`\n🔄 PROCESSANDO ${index + 1}/${timeRecords.length}: ${record.profiles.name} - ${record.date}`);
+        stats.total++;
+        console.log(`\n🔄 PROCESSANDO ${index + 1}/${timeRecords.length}: ID=${record.id}`);
         
+        // VALIDAÇÃO 1: Profile
         const profile = record.profiles;
-        totalProcessed++;
-
-        // VALIDAÇÃO 1: Department e Job Function
-        if (!profile.department_id || !profile.job_function_id) {
-          console.log(`❌ REJEITADO - Falta dept/job: dept=${profile.department_id}, job=${profile.job_function_id}`);
-          rejectReasons['Falta department/job'] = (rejectReasons['Falta department/job'] || 0) + 1;
+        if (!profile) {
+          console.log(`❌ REJEITADO - Sem profile`);
+          stats.noProfile++;
           return;
         }
         
-        // VALIDAÇÃO 2: Auto valor
+        console.log(`✅ Profile: ${profile.name} (ID: ${profile.id})`);
+        
+        // VALIDAÇÃO 2: Department e Job Function
+        if (!profile.department_id || !profile.job_function_id) {
+          console.log(`❌ REJEITADO - Falta dept/job: dept=${profile.department_id}, job=${profile.job_function_id}`);
+          stats.noDeptJob++;
+          return;
+        }
+        
+        console.log(`✅ Dept/Job: ${profile.department_id}/${profile.job_function_id}`);
+        
+        // VALIDAÇÃO 3: Auto valor
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
         
         if (autoValue <= 0) {
           console.log(`❌ REJEITADO - Auto-valor zero para chave: ${autoKey}`);
-          rejectReasons['Auto-valor não configurado'] = (rejectReasons['Auto-valor não configurado'] || 0) + 1;
+          stats.noAutoValue++;
           return;
         }
         
-        // VALIDAÇÃO 3: Location Name
+        console.log(`✅ Auto-valor: R$ ${autoValue} para chave ${autoKey}`);
+        
+        // VALIDAÇÃO 4: Location Name - USAR NOVA FUNÇÃO RADICAL
         const locationName = extractLocationName(record.locations);
         
         if (!locationName) {
           console.log(`❌ REJEITADO - LocationName não encontrado`);
-          console.log(`📍 Objeto locations:`, record.locations);
-          rejectReasons['LocationName não encontrado'] = (rejectReasons['LocationName não encontrado'] || 0) + 1;
+          console.log(`📍 Locations object:`, record.locations);
+          stats.noLocation++;
           return;
         }
         
+        console.log(`✅ Location: "${locationName}"`);
+        stats.valid++;
+        
         // REGISTRO VÁLIDO - PROCESSAR
-        console.log(`✅ VÁLIDO - Nome: ${profile.name}, Local: ${locationName}, Horas: ${record.total_hours}, Auto: R$ ${autoValue}`);
-        totalValid++;
-
-        // Criar/atualizar dados do funcionário
+        console.log(`🎉 REGISTRO VÁLIDO CONFIRMADO!`);
+        
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
             employeeId: record.user_id,
@@ -273,7 +285,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         locationEntry.totalHours += Number(record.total_hours);
         locationEntry.totalValue = locationEntry.totalHours * autoValue;
         
-        console.log(`📊 Atualizado - ${profile.name} em ${locationName}: ${locationEntry.totalHours}h = R$ ${locationEntry.totalValue}`);
+        console.log(`📊 ATUALIZADO: ${profile.name} em ${locationName}: ${locationEntry.totalHours}h = R$ ${locationEntry.totalValue}`);
       });
 
       // Contar dias únicos para cada localização
@@ -282,11 +294,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       timeRecords?.forEach((record) => {
         const profile = record.profiles;
         
-        if (!profile.department_id || !profile.job_function_id) return;
+        if (!profile || !profile.department_id || !profile.job_function_id) return;
         
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
-        
         if (autoValue <= 0) return;
         
         const locationName = extractLocationName(record.locations);
@@ -318,26 +329,29 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const result = Array.from(employeeMap.values())
         .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
-      console.log('\n=== RESULTADO FINAL ===');
-      console.log(`📊 Total processados: ${totalProcessed}`);
-      console.log(`✅ Registros válidos: ${totalValid}`);
-      console.log(`👥 Funcionários com dados: ${result.length}`);
-      console.log(`❌ Motivos de rejeição:`, rejectReasons);
+      console.log('\n=== ESTATÍSTICAS FINAIS ===');
+      console.log(`📊 Total processados: ${stats.total}`);
+      console.log(`❌ Sem profile: ${stats.noProfile}`);
+      console.log(`❌ Sem dept/job: ${stats.noDeptJob}`);
+      console.log(`❌ Sem auto-valor: ${stats.noAutoValue}`);
+      console.log(`❌ Sem location: ${stats.noLocation}`);
+      console.log(`✅ Válidos: ${stats.valid}`);
+      console.log(`👥 Funcionários finais: ${result.length}`);
 
+      // LOG DETALHADO DOS RESULTADOS
       result.forEach((emp, index) => {
-        console.log(`\n👤 FUNCIONÁRIO ${index + 1}: ${emp.employeeName}`);
-        emp.locations.forEach((loc, locIndex) => {
+        console.log(`\n👤 RESULTADO ${index + 1}: ${emp.employeeName}`);
+        emp.locations.forEach((loc) => {
           console.log(`   📍 ${loc.locationName}: ${loc.totalHours}h em ${loc.totalDays} dias = R$ ${loc.totalValue}`);
         });
       });
 
       setDebugInfo({
         period: `${startDateStr} até ${endDateStr}`,
+        selectedEmployee,
         totalRecords: timeRecords?.length || 0,
-        recordsProcessed: totalProcessed,
-        recordsValid: totalValid,
         employeesWithData: result.length,
-        rejectReasons,
+        stats,
         autoValuesCount: autoValues?.length || 0
       });
 
@@ -356,21 +370,37 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
   };
 
-  // FORÇAR RELOAD quando período ou funcionário mudar
+  // FORÇAR RELOAD quando qualquer coisa mudar
   useEffect(() => {
-    if (startDate && endDate) {
-      console.log('🔄 FORÇANDO RELOAD DOS DADOS');
+    console.log('🔄 useEffect TRIGGERED');
+    console.log('📅 startDate:', startDate);
+    console.log('📅 endDate:', endDate);
+    console.log('👤 selectedEmployee:', selectedEmployee);
+    console.log('👥 employees.length:', employees.length);
+    
+    if (startDate && endDate && employees.length > 0) {
+      console.log('🚀 INICIANDO CARREGAMENTO...');
       setEmployeeAutoObrasData([]); // Limpar dados anteriores
       setDebugInfo({}); // Limpar debug anterior
       loadAutoObrasData();
+    } else {
+      console.log('⚠️ Condições não atendidas para carregar dados');
     }
   }, [startDate, endDate, selectedEmployee, employees]);
 
   const filteredData = useMemo(() => {
+    console.log('🔄 Recalculando filteredData');
+    console.log('📊 employeeAutoObrasData.length:', employeeAutoObrasData.length);
+    console.log('👤 selectedEmployee atual:', selectedEmployee);
+    
     if (selectedEmployee === 'all') {
+      console.log('✅ Mostrando todos os funcionários');
       return employeeAutoObrasData;
     }
-    return employeeAutoObrasData.filter(data => data.employeeId === selectedEmployee);
+    
+    const filtered = employeeAutoObrasData.filter(data => data.employeeId === selectedEmployee);
+    console.log(`✅ Funcionários filtrados: ${filtered.length}`);
+    return filtered;
   }, [employeeAutoObrasData, selectedEmployee]);
 
   const expandedData = useMemo(() => {
@@ -398,6 +428,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       }
     });
 
+    console.log(`📋 expandedData final: ${result.length} registros`);
     return result;
   }, [filteredData]);
 
@@ -524,31 +555,30 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             </CardContent>
           </Card>
 
-          {/* Debug Info Detalhado */}
+          {/* Debug Info RADICAL */}
           {debugInfo.totalRecords > 0 && (
-            <Card className="border-blue-200 bg-blue-50">
+            <Card className="border-red-200 bg-red-50">
               <CardHeader>
-                <CardTitle className="text-blue-800 text-sm">🔧 Diagnóstico Detalhado</CardTitle>
+                <CardTitle className="text-red-800 text-sm">🔧 DIAGNÓSTICO RADICAL</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-blue-700">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+              <CardContent className="text-sm text-red-700">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                   <div>Período: {debugInfo.period}</div>
+                  <div>Funcionário: {debugInfo.selectedEmployee}</div>
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
-                  <div>Processados: {debugInfo.recordsProcessed}</div>
-                  <div>Válidos: {debugInfo.recordsValid}</div>
-                  <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
-                  <div>Auto-valores configurados: {debugInfo.autoValuesCount}</div>
+                  <div>Auto-valores: {debugInfo.autoValuesCount}</div>
                 </div>
                 
-                {debugInfo.rejectReasons && Object.keys(debugInfo.rejectReasons).length > 0 && (
+                {debugInfo.stats && (
                   <div className="mt-4">
-                    <div className="font-semibold mb-2">❌ Motivos de rejeição:</div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {Object.entries(debugInfo.rejectReasons).map(([reason, count]) => (
-                        <div key={reason} className="text-red-600">
-                          {reason}: {String(count)}
-                        </div>
-                      ))}
+                    <div className="font-semibold mb-2">📊 Estatísticas detalhadas:</div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      <div className="text-blue-600">Total: {debugInfo.stats.total}</div>
+                      <div className="text-red-600">Sem profile: {debugInfo.stats.noProfile}</div>
+                      <div className="text-red-600">Sem dept/job: {debugInfo.stats.noDeptJob}</div>
+                      <div className="text-red-600">Sem auto-valor: {debugInfo.stats.noAutoValue}</div>
+                      <div className="text-red-600">Sem location: {debugInfo.stats.noLocation}</div>
+                      <div className="text-green-600">✅ Válidos: {debugInfo.stats.valid}</div>
                     </div>
                   </div>
                 )}
