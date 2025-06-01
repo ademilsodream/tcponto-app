@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Building2, ArrowLeft, CalendarIcon, Search } from 'lucide-react';
+import { Building2, ArrowLeft, CalendarIcon, Search, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { useToast } from '@/components/ui/use-toast';
 
 interface User {
   id: string;
@@ -36,6 +37,7 @@ interface EmployeeAutoObrasData {
   departmentId: string | null;
   jobFunctionId: string | null;
   autoValue: number;
+  hasAutoValue: boolean;
   locations: Array<{
     locationName: string;
     totalHours: number;
@@ -56,7 +58,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>({});
   const { formatCurrency, currency } = useCurrency();
+  const { toast } = useToast();
 
   useEffect(() => {
     loadAllowedLocations();
@@ -64,6 +68,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   const loadAllowedLocations = async () => {
     try {
+      console.log('AutoDeObras: Carregando localizações permitidas...');
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('id, name, latitude, longitude, range_meters, address')
@@ -75,6 +80,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         return;
       }
 
+      console.log('AutoDeObras: Localizações carregadas:', data?.length || 0);
       setAllowedLocations(data || []);
     } catch (error) {
       console.error('Erro inesperado ao carregar localizações:', error);
@@ -94,23 +100,85 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   };
 
   const findLocationName = (lat: number, lng: number): string => {
+    if (!lat || !lng || allowedLocations.length === 0) {
+      console.log('AutoDeObras: Coordenadas inválidas ou sem localizações', { lat, lng, locationsCount: allowedLocations.length });
+      return 'Localização não identificada';
+    }
+
     for (const location of allowedLocations) {
       const distance = calculateDistance(lat, lng, location.latitude, location.longitude);
+      console.log(`AutoDeObras: Distância para ${location.name}: ${distance}m (limite: ${location.range_meters}m)`);
       if (distance <= location.range_meters) {
+        console.log(`AutoDeObras: Localização encontrada: ${location.name}`);
         return location.name;
       }
     }
+    
+    console.log('AutoDeObras: Nenhuma localização encontrada para coordenadas', { lat, lng });
     return 'Localização não identificada';
+  };
+
+  const extractLocationData = (locations: any): { lat: number, lng: number, locationName?: string } | null => {
+    if (!locations || typeof locations !== 'object') {
+      console.log('AutoDeObras: Locations inválido:', locations);
+      return null;
+    }
+
+    console.log('AutoDeObras: Estrutura de locations:', locations);
+
+    // Tentar diferentes estruturas possíveis
+    let clockInData = null;
+    
+    // Estrutura 1: locations.clockIn
+    if (locations.clockIn && typeof locations.clockIn === 'object') {
+      clockInData = locations.clockIn;
+    }
+    // Estrutura 2: locations.clock_in  
+    else if (locations.clock_in && typeof locations.clock_in === 'object') {
+      clockInData = locations.clock_in;
+    }
+    // Estrutura 3: locations direto com lat/lng
+    else if (locations.lat && locations.lng) {
+      clockInData = locations;
+    }
+
+    if (!clockInData) {
+      console.log('AutoDeObras: Nenhuma estrutura de clockIn encontrada');
+      return null;
+    }
+
+    const lat = Number(clockInData.lat || clockInData.latitude);
+    const lng = Number(clockInData.lng || clockInData.longitude);
+
+    if (!lat || !lng) {
+      console.log('AutoDeObras: Coordenadas inválidas:', { lat, lng });
+      return null;
+    }
+
+    console.log('AutoDeObras: Coordenadas extraídas:', { lat, lng });
+    return {
+      lat,
+      lng,
+      locationName: clockInData.locationName
+    };
   };
 
   const loadAutoObrasData = async () => {
     if (!startDate || !endDate || employees.length === 0 || allowedLocations.length === 0) {
+      console.log('AutoDeObras: Dados insuficientes para carregar', {
+        startDate,
+        endDate,
+        employeesCount: employees.length,
+        locationsCount: allowedLocations.length
+      });
       return;
     }
 
     setLoading(true);
+    console.log('AutoDeObras: Iniciando carregamento de dados...');
 
     try {
+      // Consulta time_records
       let query = supabase
         .from('time_records')
         .select(`
@@ -129,7 +197,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         .eq('status', 'active')
         .gte('date', format(startDate, 'yyyy-MM-dd'))
         .lte('date', format(endDate, 'yyyy-MM-dd'))
-        .not('total_hours', 'is', null);
+        .not('total_hours', 'is', null)
+        .gt('total_hours', 0); // Filtrar registros com 0 horas
 
       if (selectedEmployee !== 'all') {
         query = query.eq('user_id', selectedEmployee);
@@ -139,9 +208,16 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       if (error) {
         console.error('Erro ao carregar dados:', error);
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar registros de ponto",
+          variant: "destructive"
+        });
         setEmployeeAutoObrasData([]);
         return;
       }
+
+      console.log('AutoDeObras: Time records carregados:', timeRecords?.length || 0);
 
       // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
@@ -151,7 +227,14 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       if (autoError) {
         console.error('Erro ao carregar valores do auto:', autoError);
+        toast({
+          title: "Aviso",
+          description: "Erro ao carregar valores do auto de obras",
+          variant: "destructive"
+        });
       }
+
+      console.log('AutoDeObras: Valores do auto carregados:', autoValues?.length || 0);
 
       const autoValuesMap = new Map<string, number>();
       autoValues?.forEach(av => {
@@ -159,15 +242,31 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         autoValuesMap.set(key, av.auto_value);
       });
 
+      console.log('AutoDeObras: Mapa de valores do auto:', autoValuesMap);
+
       // Processar dados por funcionário e localização
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
+      let recordsProcessed = 0;
+      let recordsWithLocation = 0;
+      let recordsWithAutoValue = 0;
 
       timeRecords?.forEach((record) => {
+        recordsProcessed++;
         const profile = record.profiles;
-        if (!profile || !record.total_hours) return;
+        if (!profile || !record.total_hours) {
+          console.log('AutoDeObras: Registro ignorado - sem profile ou total_hours:', record.id);
+          return;
+        }
 
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
+        const hasAutoValue = autoValue > 0;
+
+        if (hasAutoValue) {
+          recordsWithAutoValue++;
+        }
+
+        console.log(`AutoDeObras: Processando ${profile.name} - Dept: ${profile.department_id}, Job: ${profile.job_function_id}, Auto: ${autoValue}`);
 
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
@@ -176,83 +275,114 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             departmentId: profile.department_id,
             jobFunctionId: profile.job_function_id,
             autoValue: autoValue,
+            hasAutoValue: hasAutoValue,
             locations: []
           });
         }
 
         const employeeData = employeeMap.get(record.user_id)!;
         
-        const locations = record.locations;
-        if (!locations || typeof locations !== 'object') return;
-
-        const locObject = locations as Record<string, any>;
-        const clockInData = locObject.clockIn || locObject.clock_in;
-        
-        if (clockInData && typeof clockInData === 'object' && clockInData.lat && clockInData.lng) {
-          const locationName = clockInData.locationName || findLocationName(
-            Number(clockInData.lat), 
-            Number(clockInData.lng)
-          );
-
-          let locationData = employeeData.locations.find(loc => loc.locationName === locationName);
-          if (!locationData) {
-            locationData = {
-              locationName,
-              totalHours: 0,
-              totalDays: 0,
-              totalValue: 0
-            };
-            employeeData.locations.push(locationData);
-          }
-
-          locationData.totalHours += Number(record.total_hours);
-          locationData.totalDays += 1;
-          locationData.totalValue = locationData.totalHours * autoValue;
+        const locationData = extractLocationData(record.locations);
+        if (!locationData) {
+          console.log('AutoDeObras: Registro sem localização válida:', record.id);
+          return;
         }
+
+        recordsWithLocation++;
+        
+        const locationName = locationData.locationName || findLocationName(
+          locationData.lat, 
+          locationData.lng
+        );
+
+        console.log(`AutoDeObras: Localização determinada: ${locationName}`);
+
+        let locationEntry = employeeData.locations.find(loc => loc.locationName === locationName);
+        if (!locationEntry) {
+          locationEntry = {
+            locationName,
+            totalHours: 0,
+            totalDays: 0,
+            totalValue: 0
+          };
+          employeeData.locations.push(locationEntry);
+        }
+
+        locationEntry.totalHours += Number(record.total_hours);
+        locationEntry.totalValue = locationEntry.totalHours * autoValue;
       });
 
-      // Converter para array e contar dias únicos por localização
-      const result: EmployeeAutoObrasData[] = [];
+      // Recontar dias únicos por localização
+      const locationDaysMap = new Map<string, Map<string, Set<string>>>();
       
-      for (const [userId, employeeData] of employeeMap) {
-        // Recontar dias únicos por localização
-        const locationDaysMap = new Map<string, Set<string>>();
+      timeRecords?.forEach((record) => {
+        if (!record.profiles || !record.total_hours || record.total_hours <= 0) return;
         
-        timeRecords?.forEach((record) => {
-          if (record.user_id !== userId) return;
-          
-          const locations = record.locations;
-          if (!locations || typeof locations !== 'object') return;
+        const locationData = extractLocationData(record.locations);
+        if (!locationData) return;
 
-          const locObject = locations as Record<string, any>;
-          const clockInData = locObject.clockIn || locObject.clock_in;
-          
-          if (clockInData && typeof clockInData === 'object' && clockInData.lat && clockInData.lng) {
-            const locationName = clockInData.locationName || findLocationName(
-              Number(clockInData.lat), 
-              Number(clockInData.lng)
-            );
+        const locationName = locationData.locationName || findLocationName(
+          locationData.lat, 
+          locationData.lng
+        );
 
-            if (!locationDaysMap.has(locationName)) {
-              locationDaysMap.set(locationName, new Set());
-            }
-            locationDaysMap.get(locationName)!.add(record.date);
-          }
-        });
+        if (!locationDaysMap.has(record.user_id)) {
+          locationDaysMap.set(record.user_id, new Map());
+        }
+        
+        const userLocationDays = locationDaysMap.get(record.user_id)!;
+        if (!userLocationDays.has(locationName)) {
+          userLocationDays.set(locationName, new Set());
+        }
+        
+        userLocationDays.get(locationName)!.add(record.date);
+      });
 
-        // Atualizar contagem de dias
-        employeeData.locations.forEach(loc => {
-          const daysSet = locationDaysMap.get(loc.locationName);
-          loc.totalDays = daysSet ? daysSet.size : 0;
-        });
-
-        result.push(employeeData);
+      // Atualizar contagem de dias
+      for (const [userId, employeeData] of employeeMap) {
+        const userLocationDays = locationDaysMap.get(userId);
+        if (userLocationDays) {
+          employeeData.locations.forEach(loc => {
+            const daysSet = userLocationDays.get(loc.locationName);
+            loc.totalDays = daysSet ? daysSet.size : 0;
+          });
+        }
       }
 
-      setEmployeeAutoObrasData(result.sort((a, b) => a.employeeName.localeCompare(b.employeeName)));
+      const result = Array.from(employeeMap.values())
+        .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+
+      // Debug info
+      const debug = {
+        totalRecords: timeRecords?.length || 0,
+        recordsProcessed,
+        recordsWithLocation,
+        recordsWithAutoValue,
+        employeesWithData: result.length,
+        employeesWithAutoValue: result.filter(e => e.hasAutoValue).length,
+        autoValuesCount: autoValues?.length || 0
+      };
+
+      console.log('AutoDeObras: Debug info:', debug);
+      setDebugInfo(debug);
+      setEmployeeAutoObrasData(result);
+
+      // Mostrar warnings se necessário
+      if (debug.employeesWithAutoValue === 0) {
+        toast({
+          title: "Aviso",
+          description: "Nenhum funcionário tem valores de auto de obras configurados",
+          variant: "destructive"
+        });
+      }
 
     } catch (error) {
       console.error('Erro inesperado ao carregar dados:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao carregar dados",
+        variant: "destructive"
+      });
       setEmployeeAutoObrasData([]);
     } finally {
       setLoading(false);
@@ -281,23 +411,29 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       totalHours: number;
       totalDays: number;
       totalValue: number;
+      hasAutoValue: boolean;
     }> = [];
 
     filteredData.forEach(employee => {
-      employee.locations.forEach(location => {
-        result.push({
-          employeeId: employee.employeeId,
-          employeeName: employee.employeeName,
-          locationName: location.locationName,
-          totalHours: location.totalHours,
-          totalDays: location.totalDays,
-          totalValue: location.totalValue
+      if (employee.locations.length > 0) {
+        employee.locations.forEach(location => {
+          result.push({
+            employeeId: employee.employeeId,
+            employeeName: employee.employeeName,
+            locationName: location.locationName,
+            totalHours: location.totalHours,
+            totalDays: location.totalDays,
+            totalValue: location.totalValue,
+            hasAutoValue: employee.hasAutoValue
+          });
         });
-      });
+      }
     });
 
     return result;
   }, [filteredData]);
+
+  const employeesWithoutAutoValue = filteredData.filter(emp => !emp.hasAutoValue);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -422,6 +558,43 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             </CardContent>
           </Card>
 
+          {/* Debug Info */}
+          {debugInfo.totalRecords > 0 && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardHeader>
+                <CardTitle className="text-blue-800 text-sm">Informações de Debug</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-blue-700">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div>Registros encontrados: {debugInfo.totalRecords}</div>
+                  <div>Com localização: {debugInfo.recordsWithLocation}</div>
+                  <div>Com valor auto: {debugInfo.recordsWithAutoValue}</div>
+                  <div>Funcionários: {debugInfo.employeesWithData}</div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Warnings */}
+          {employeesWithoutAutoValue.length > 0 && (
+            <Card className="border-yellow-200 bg-yellow-50">
+              <CardHeader>
+                <CardTitle className="text-yellow-800 text-sm flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Funcionários sem Valor de Auto de Obras
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-yellow-700">
+                <p className="mb-2">Os seguintes funcionários não têm departamento/função configurados ou não têm valores de auto definidos:</p>
+                <ul className="list-disc list-inside">
+                  {employeesWithoutAutoValue.map(emp => (
+                    <li key={emp.employeeId}>{emp.employeeName}</li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
           {loading ? (
             <Card>
               <CardContent className="p-6">
@@ -458,7 +631,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                             {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
                           </TableCell>
                           <TableCell className="text-right font-semibold">
-                            {formatCurrency(row.totalValue)}
+                            {row.hasAutoValue ? formatCurrency(row.totalValue) : (
+                              <span className="text-gray-400">Não configurado</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
