@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,22 @@ interface User {
   employeeCode?: string;
   status?: 'active' | 'inactive';
   terminationDate?: string;
+  departmentId?: string;
+  jobFunctionId?: string;
+  department?: { name: string };
+  jobFunction?: { name: string };
+}
+
+interface Department {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
+interface JobFunction {
+  id: string;
+  name: string;
+  is_active: boolean;
 }
 
 interface UserManagementProps {
@@ -28,6 +45,8 @@ interface UserManagementProps {
 
 const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const [users, setUsers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [jobFunctions, setJobFunctions] = useState<JobFunction[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTerminationDialogOpen, setIsTerminationDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -42,13 +61,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     role: 'user' as 'admin' | 'user',
     hourlyRate: '50',
     overtimeRate: '75',
-    employeeCode: ''
+    employeeCode: '',
+    departmentId: '',
+    jobFunctionId: ''
   });
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
 
   useEffect(() => {
     loadUsers();
+    loadDepartmentsAndJobFunctions();
   }, []);
 
   const loadUsers = async () => {
@@ -57,7 +79,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+          *,
+          departments(name),
+          job_functions(name)
+        `)
         .order('name');
 
       if (error) {
@@ -78,7 +104,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         overtimeRate: Number(profile.overtime_rate) || 75,
         employeeCode: profile.employee_code || '',
         status: profile.status || 'active',
-        terminationDate: profile.termination_date || undefined
+        terminationDate: profile.termination_date || undefined,
+        departmentId: profile.department_id || '',
+        jobFunctionId: profile.job_function_id || '',
+        department: profile.departments,
+        jobFunction: profile.job_functions
       })) || [];
 
       setUsers(formattedUsers);
@@ -94,6 +124,28 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+  const loadDepartmentsAndJobFunctions = async () => {
+    try {
+      const [deptResult, jobResult] = await Promise.all([
+        supabase.from('departments').select('id, name, is_active').eq('is_active', true).order('name'),
+        supabase.from('job_functions').select('id, name, is_active').eq('is_active', true).order('name')
+      ]);
+
+      if (deptResult.error) throw deptResult.error;
+      if (jobResult.error) throw jobResult.error;
+
+      setDepartments(deptResult.data || []);
+      setJobFunctions(jobResult.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar departamentos e funções:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar departamentos e funções",
+        variant: "destructive"
+      });
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -102,7 +154,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       role: 'user',
       hourlyRate: '50',
       overtimeRate: '75',
-      employeeCode: ''
+      employeeCode: '',
+      departmentId: '',
+      jobFunctionId: ''
     });
     setEditingUser(null);
   };
@@ -110,10 +164,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || (!editingUser && !formData.password)) {
+    if (!formData.name || !formData.email || (!editingUser && !formData.password) || !formData.departmentId || !formData.jobFunctionId) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios (incluindo Departamento e Função)",
         variant: "destructive"
       });
       return;
@@ -136,6 +190,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             hourly_rate: hourlyRate,
             overtime_rate: overtimeRate,
             employee_code: formData.employeeCode || null,
+            department_id: formData.departmentId,
+            job_function_id: formData.jobFunctionId,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingUser.id);
@@ -149,7 +205,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
           description: "Usuário atualizado com sucesso!"
         });
       } else {
-        // Criar novo usuário via Edge Function (não faz login automático)
+        // Criar novo usuário via Edge Function
         const response = await supabase.functions.invoke('create-user', {
           body: {
             email: formData.email,
@@ -158,7 +214,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             role: formData.role,
             hourlyRate: hourlyRate,
             overtimeRate: overtimeRate,
-            employeeCode: formData.employeeCode
+            employeeCode: formData.employeeCode,
+            departmentId: formData.departmentId,
+            jobFunctionId: formData.jobFunctionId
           }
         });
 
@@ -197,7 +255,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       role: user.role,
       hourlyRate: user.hourlyRate.toString(),
       overtimeRate: user.overtimeRate.toString(),
-      employeeCode: user.employeeCode || ''
+      employeeCode: user.employeeCode || '',
+      departmentId: user.departmentId || '',
+      jobFunctionId: user.jobFunctionId || ''
     });
     setIsDialogOpen(true);
   };
@@ -347,108 +407,150 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
               Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {editingUser ? 'Editar Usuário' : 'Criar Novo Usuário'}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  disabled={submitting || !!editingUser}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="employeeCode">Código do Funcionário</Label>
-                <Input
-                  id="employeeCode"
-                  value={formData.employeeCode}
-                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
-                  placeholder="Ex: EMP001"
-                  disabled={submitting}
-                />
-              </div>
-
-              {!editingUser && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha * (mínimo 6 caracteres)</Label>
+                  <Label htmlFor="name">Nome *</Label>
                   <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
-                    minLength={6}
                     disabled={submitting}
                   />
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Nível *</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
-                  disabled={submitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">Funcionário</SelectItem>
-                    <SelectItem value="admin">Administrador</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    disabled={submitting || !!editingUser}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="hourlyRate">Valor por Hora *</Label>
-                <Input
-                  id="hourlyRate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.hourlyRate}
-                  onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
-                  required
-                  disabled={submitting}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employeeCode">Código do Funcionário</Label>
+                  <Input
+                    id="employeeCode"
+                    value={formData.employeeCode}
+                    onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
+                    placeholder="Ex: EMP001"
+                    disabled={submitting}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="overtimeRate">Valor Hora Extra * (Campo Livre)</Label>
-                <Input
-                  id="overtimeRate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.overtimeRate}
-                  onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
-                  required
-                  disabled={submitting}
-                />
-                <p className="text-sm text-gray-600">
-                  Valor livre para hora extra (não calculado automaticamente)
-                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="department">Departamento *</Label>
+                  <Select
+                    value={formData.departmentId}
+                    onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o departamento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="jobFunction">Função *</Label>
+                  <Select
+                    value={formData.jobFunctionId}
+                    onValueChange={(value) => setFormData({ ...formData, jobFunctionId: value })}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a função" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobFunctions.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {!editingUser && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha * (mínimo 6 caracteres)</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      minLength={6}
+                      disabled={submitting}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Nível *</Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">Funcionário</SelectItem>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="hourlyRate">Valor por Hora *</Label>
+                  <Input
+                    id="hourlyRate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.hourlyRate}
+                    onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                    required
+                    disabled={submitting}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="overtimeRate">Valor Hora Extra * (Campo Livre)</Label>
+                  <Input
+                    id="overtimeRate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.overtimeRate}
+                    onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
+                    required
+                    disabled={submitting}
+                  />
+                  <p className="text-sm text-gray-600">
+                    Valor livre para hora extra (não calculado automaticamente)
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2 pt-4">
@@ -538,6 +640,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       Código
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Departamento
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Função
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -565,6 +673,12 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {user.employeeCode || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {user.department?.name || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {user.jobFunction?.name || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

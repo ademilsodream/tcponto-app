@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, MapPin, Clock, Timer, DollarSign } from 'lucide-react';
+import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import HourBankSettings from './HourBankSettings';
 import CurrencySelector from './CurrencySelector';
+import DepartmentJobManagement from './DepartmentJobManagement';
+import AutoObrasManagement from './AutoObrasManagement';
 import { useCurrency, Currency } from '@/contexts/CurrencyContext';
 
 interface Location {
@@ -222,6 +224,14 @@ const Settings = () => {
             <DollarSign className="w-4 h-4" />
             Moeda
           </TabsTrigger>
+          <TabsTrigger value="departments-jobs" className="flex items-center gap-2">
+            <Building2 className="w-4 h-4" />
+            Departamentos & Funções
+          </TabsTrigger>
+          <TabsTrigger value="auto-obras" className="flex items-center gap-2">
+            <Briefcase className="w-4 h-4" />
+            Auto de Obras
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="locations" className="space-y-6">
@@ -388,6 +398,14 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="departments-jobs">
+          <DepartmentJobManagement />
+        </TabsContent>
+
+        <TabsContent value="auto-obras">
+          <AutoObrasManagement />
         </TabsContent>
       </Tabs>
     </div>

@@ -99,6 +99,78 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_obras_values: {
+        Row: {
+          auto_value: number
+          created_at: string
+          department_id: string
+          id: string
+          is_active: boolean
+          job_function_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_value: number
+          created_at?: string
+          department_id: string
+          id?: string
+          is_active?: boolean
+          job_function_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_value?: number
+          created_at?: string
+          department_id?: string
+          id?: string
+          is_active?: boolean
+          job_function_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_obras_values_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auto_obras_values_job_function_id_fkey"
+            columns: ["job_function_id"]
+            isOneToOne: false
+            referencedRelation: "job_functions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       edit_requests: {
         Row: {
           created_at: string
@@ -344,6 +416,33 @@ export type Database = {
           },
         ]
       }
+      job_functions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_logs: {
         Row: {
           created_at: string | null
@@ -424,10 +523,12 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          department_id: string | null
           email: string
           employee_code: string | null
           hourly_rate: number
           id: string
+          job_function_id: string | null
           name: string
           overtime_rate: number | null
           role: string
@@ -437,10 +538,12 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          department_id?: string | null
           email: string
           employee_code?: string | null
           hourly_rate?: number
           id: string
+          job_function_id?: string | null
           name: string
           overtime_rate?: number | null
           role?: string
@@ -450,10 +553,12 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          department_id?: string | null
           email?: string
           employee_code?: string | null
           hourly_rate?: number
           id?: string
+          job_function_id?: string | null
           name?: string
           overtime_rate?: number | null
           role?: string
@@ -461,7 +566,22 @@ export type Database = {
           termination_date?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_job_function_id_fkey"
+            columns: ["job_function_id"]
+            isOneToOne: false
+            referencedRelation: "job_functions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_alerts: {
         Row: {
