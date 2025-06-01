@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface User {
   id: string;
@@ -29,16 +30,18 @@ interface AllowedLocation {
   address: string;
 }
 
-interface LocationWorkCount {
-  locationName: string;
-  daysWorked: number;
-}
-
-interface EmployeeLocationData {
+interface EmployeeAutoObrasData {
   employeeId: string;
   employeeName: string;
-  locations: LocationWorkCount[];
-  totalDays: number;
+  departmentId: string | null;
+  jobFunctionId: string | null;
+  autoValue: number;
+  locations: Array<{
+    locationName: string;
+    totalHours: number;
+    totalDays: number;
+    totalValue: number;
+  }>;
 }
 
 interface AutoDeObrasProps {
@@ -50,9 +53,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
-  const [employeeLocationData, setEmployeeLocationData] = useState<EmployeeLocationData[]>([]);
+  const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(false);
+  const { formatCurrency, currency } = useCurrency();
 
   useEffect(() => {
     loadAllowedLocations();
@@ -99,7 +103,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     return 'Localização não identificada';
   };
 
-  const loadLocationWorkData = async () => {
+  const loadAutoObrasData = async () => {
     if (!startDate || !endDate || employees.length === 0 || allowedLocations.length === 0) {
       return;
     }
@@ -109,40 +113,75 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     try {
       let query = supabase
         .from('time_records')
-        .select('id, date, user_id, locations')
+        .select(`
+          id, 
+          date, 
+          user_id, 
+          locations, 
+          total_hours,
+          profiles!inner(
+            id,
+            name,
+            department_id,
+            job_function_id
+          )
+        `)
         .eq('status', 'active')
         .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'));
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .not('total_hours', 'is', null);
 
       if (selectedEmployee !== 'all') {
         query = query.eq('user_id', selectedEmployee);
       }
 
-      const { data, error } = await query.order('date', { ascending: false });
+      const { data: timeRecords, error } = await query.order('date', { ascending: false });
 
       if (error) {
         console.error('Erro ao carregar dados:', error);
-        setEmployeeLocationData([]);
+        setEmployeeAutoObrasData([]);
         return;
       }
 
-      const employeeMap = employees.reduce((map, employee) => {
-        if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
-          map[employee.id] = employee.name;
+      // Buscar valores do auto de obras
+      const { data: autoValues, error: autoError } = await supabase
+        .from('auto_obras_values')
+        .select('department_id, job_function_id, auto_value')
+        .eq('is_active', true);
+
+      if (autoError) {
+        console.error('Erro ao carregar valores do auto:', autoError);
+      }
+
+      const autoValuesMap = new Map<string, number>();
+      autoValues?.forEach(av => {
+        const key = `${av.department_id}-${av.job_function_id}`;
+        autoValuesMap.set(key, av.auto_value);
+      });
+
+      // Processar dados por funcionário e localização
+      const employeeMap = new Map<string, EmployeeAutoObrasData>();
+
+      timeRecords?.forEach((record) => {
+        const profile = record.profiles;
+        if (!profile || !record.total_hours) return;
+
+        const autoKey = `${profile.department_id}-${profile.job_function_id}`;
+        const autoValue = autoValuesMap.get(autoKey) || 0;
+
+        if (!employeeMap.has(record.user_id)) {
+          employeeMap.set(record.user_id, {
+            employeeId: record.user_id,
+            employeeName: profile.name,
+            departmentId: profile.department_id,
+            jobFunctionId: profile.job_function_id,
+            autoValue: autoValue,
+            locations: []
+          });
         }
-        return map;
-      }, {} as Record<string, string>);
 
-      const locationCounts: Record<string, Record<string, Set<string>>> = {};
-
-      data?.forEach((record) => {
-        const employeeName = employeeMap[record.user_id];
-        if (!employeeName) return;
-
-        if (!locationCounts[record.user_id]) {
-          locationCounts[record.user_id] = {};
-        }
-
+        const employeeData = employeeMap.get(record.user_id)!;
+        
         const locations = record.locations;
         if (!locations || typeof locations !== 'object') return;
 
@@ -155,34 +194,66 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             Number(clockInData.lng)
           );
 
-          if (!locationCounts[record.user_id][locationName]) {
-            locationCounts[record.user_id][locationName] = new Set();
+          let locationData = employeeData.locations.find(loc => loc.locationName === locationName);
+          if (!locationData) {
+            locationData = {
+              locationName,
+              totalHours: 0,
+              totalDays: 0,
+              totalValue: 0
+            };
+            employeeData.locations.push(locationData);
           }
-          locationCounts[record.user_id][locationName].add(record.date);
+
+          locationData.totalHours += Number(record.total_hours);
+          locationData.totalDays += 1;
+          locationData.totalValue = locationData.totalHours * autoValue;
         }
       });
 
-      const result: EmployeeLocationData[] = Object.entries(locationCounts).map(([userId, userLocations]) => {
-        const locations: LocationWorkCount[] = Object.entries(userLocations).map(([locationName, datesSet]) => ({
-          locationName,
-          daysWorked: datesSet.size
-        }));
+      // Converter para array e contar dias únicos por localização
+      const result: EmployeeAutoObrasData[] = [];
+      
+      for (const [userId, employeeData] of employeeMap) {
+        // Recontar dias únicos por localização
+        const locationDaysMap = new Map<string, Set<string>>();
+        
+        timeRecords?.forEach((record) => {
+          if (record.user_id !== userId) return;
+          
+          const locations = record.locations;
+          if (!locations || typeof locations !== 'object') return;
 
-        const totalDays = locations.reduce((sum, loc) => sum + loc.daysWorked, 0);
+          const locObject = locations as Record<string, any>;
+          const clockInData = locObject.clockIn || locObject.clock_in;
+          
+          if (clockInData && typeof clockInData === 'object' && clockInData.lat && clockInData.lng) {
+            const locationName = clockInData.locationName || findLocationName(
+              Number(clockInData.lat), 
+              Number(clockInData.lng)
+            );
 
-        return {
-          employeeId: userId,
-          employeeName: employeeMap[userId],
-          locations: locations.sort((a, b) => b.daysWorked - a.daysWorked),
-          totalDays
-        };
-      });
+            if (!locationDaysMap.has(locationName)) {
+              locationDaysMap.set(locationName, new Set());
+            }
+            locationDaysMap.get(locationName)!.add(record.date);
+          }
+        });
 
-      setEmployeeLocationData(result.sort((a, b) => a.employeeName.localeCompare(b.employeeName)));
+        // Atualizar contagem de dias
+        employeeData.locations.forEach(loc => {
+          const daysSet = locationDaysMap.get(loc.locationName);
+          loc.totalDays = daysSet ? daysSet.size : 0;
+        });
+
+        result.push(employeeData);
+      }
+
+      setEmployeeAutoObrasData(result.sort((a, b) => a.employeeName.localeCompare(b.employeeName)));
 
     } catch (error) {
       console.error('Erro inesperado ao carregar dados:', error);
-      setEmployeeLocationData([]);
+      setEmployeeAutoObrasData([]);
     } finally {
       setLoading(false);
     }
@@ -190,26 +261,43 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   useEffect(() => {
     if (startDate && endDate && allowedLocations.length > 0) {
-      loadLocationWorkData();
+      loadAutoObrasData();
     }
   }, [startDate, endDate, selectedEmployee, employees, allowedLocations]);
 
   const filteredData = useMemo(() => {
     if (selectedEmployee === 'all') {
-      return employeeLocationData;
+      return employeeAutoObrasData;
     }
-    return employeeLocationData.filter(data => data.employeeId === selectedEmployee);
-  }, [employeeLocationData, selectedEmployee]);
+    return employeeAutoObrasData.filter(data => data.employeeId === selectedEmployee);
+  }, [employeeAutoObrasData, selectedEmployee]);
 
-  const allLocationNames = useMemo(() => {
-    const locationSet = new Set<string>();
-    employeeLocationData.forEach(employee => {
-      employee.locations.forEach(loc => {
-        locationSet.add(loc.locationName);
+  // Expandir dados para exibir uma linha por funcionário/local
+  const expandedData = useMemo(() => {
+    const result: Array<{
+      employeeId: string;
+      employeeName: string;
+      locationName: string;
+      totalHours: number;
+      totalDays: number;
+      totalValue: number;
+    }> = [];
+
+    filteredData.forEach(employee => {
+      employee.locations.forEach(location => {
+        result.push({
+          employeeId: employee.employeeId,
+          employeeName: employee.employeeName,
+          locationName: location.locationName,
+          totalHours: location.totalHours,
+          totalDays: location.totalDays,
+          totalValue: location.totalValue
+        });
       });
     });
-    return Array.from(locationSet).sort();
-  }, [employeeLocationData]);
+
+    return result;
+  }, [filteredData]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -233,7 +321,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <Building2 className="w-5 h-5" />
                   Auto de Obras
                 </h1>
-                <p className="text-sm text-gray-600">Contagem de dias trabalhados por localização</p>
+                <p className="text-sm text-gray-600">Relatório de valores por localização e funcionário</p>
               </div>
             </div>
           </div>
@@ -325,9 +413,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Total de Funcionários</label>
+                  <label className="text-sm font-medium">Total de Registros</label>
                   <div className="text-2xl font-bold text-blue-600">
-                    {filteredData.length}
+                    {expandedData.length}
                   </div>
                 </div>
               </div>
@@ -340,10 +428,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 <div className="text-center">Carregando dados...</div>
               </CardContent>
             </Card>
-          ) : filteredData.length > 0 ? (
+          ) : expandedData.length > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle>Contagem de Dias por Localização</CardTitle>
+                <CardTitle>Relatório de Auto de Obras ({currency})</CardTitle>
+                <p className="text-sm text-gray-600">Valores calculados com base no valor do auto por função</p>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -351,28 +440,25 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="font-semibold">Funcionário</TableHead>
-                        {allLocationNames.map(locationName => (
-                          <TableHead key={locationName} className="text-center font-semibold">
-                            {locationName}
-                          </TableHead>
-                        ))}
-                        <TableHead className="text-center font-semibold">Total</TableHead>
+                        <TableHead className="font-semibold">Local</TableHead>
+                        <TableHead className="text-center font-semibold">Total de Horas</TableHead>
+                        <TableHead className="text-center font-semibold">Total de Dias</TableHead>
+                        <TableHead className="text-right font-semibold">Valor Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredData.map(employee => (
-                        <TableRow key={employee.employeeId}>
-                          <TableCell className="font-medium">{employee.employeeName}</TableCell>
-                          {allLocationNames.map(locationName => {
-                            const locationData = employee.locations.find(loc => loc.locationName === locationName);
-                            return (
-                              <TableCell key={locationName} className="text-center">
-                                {locationData ? `${locationData.daysWorked} dia${locationData.daysWorked !== 1 ? 's' : ''}` : '-'}
-                              </TableCell>
-                            );
-                          })}
-                          <TableCell className="text-center font-semibold">
-                            {employee.totalDays} dia{employee.totalDays !== 1 ? 's' : ''}
+                      {expandedData.map((row, index) => (
+                        <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
+                          <TableCell className="font-medium">{row.employeeName}</TableCell>
+                          <TableCell>{row.locationName}</TableCell>
+                          <TableCell className="text-center">
+                            {row.totalHours.toFixed(2)}h
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">
+                            {formatCurrency(row.totalValue)}
                           </TableCell>
                         </TableRow>
                       ))}
