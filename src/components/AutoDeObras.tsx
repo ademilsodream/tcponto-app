@@ -110,32 +110,22 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     let locationName = null;
     
-    // Verificar todas as estruturas possíveis com logs detalhados
-    if (locations.clockIn) {
-      console.log('🔍 Encontrada estrutura clockIn:', JSON.stringify(locations.clockIn, null, 2));
-      if (locations.clockIn.locationName) {
-        locationName = locations.clockIn.locationName;
-        console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
-      }
+    // CORREÇÃO: Verificar estrutura clock_in (com underscore) primeiro
+    if (locations.clock_in && locations.clock_in.locationName) {
+      locationName = locations.clock_in.locationName;
+      console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
     }
-    
-    if (!locationName && locations.clock_in) {
-      console.log('🔍 Encontrada estrutura clock_in:', JSON.stringify(locations.clock_in, null, 2));
-      if (locations.clock_in.locationName) {
-        locationName = locations.clock_in.locationName;
-        console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
-      }
+    // Fallback para clockIn (sem underscore) caso ainda exista
+    else if (locations.clockIn && locations.clockIn.locationName) {
+      locationName = locations.clockIn.locationName;
+      console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
     }
-    
-    if (!locationName && locations.locationName) {
-      console.log('🔍 Encontrada locationName na raiz');
+    // Fallback para locationName na raiz
+    else if (locations.locationName) {
       locationName = locations.locationName;
       console.log(`✅ LocationName encontrado na raiz: "${locationName}"`);
     }
 
-    // Verificar todas as chaves do objeto locations para debug
-    console.log('🔍 Todas as chaves no objeto locations:', Object.keys(locations));
-    
     if (!locationName) {
       console.log('❌ Nenhum locationName encontrado em nenhuma estrutura');
       console.log('📋 Estrutura completa para análise:', JSON.stringify(locations, null, 2));
@@ -157,7 +147,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
-    console.log(`📅 Período selecionado: ${startDateStr} até ${endDateStr}`);
+    console.log(`📅 PERÍODO SELECIONADO: ${startDateStr} até ${endDateStr}`);
     console.log(`📅 Período formatado: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`);
 
     try {
@@ -206,6 +196,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       console.log(`📊 Registros encontrados no período: ${timeRecords?.length || 0}`);
       timeRecords?.forEach((record, i) => {
         console.log(`   ${i + 1}. ${record.profiles.name} - ${record.date} - ${record.total_hours}h`);
+        console.log(`      Locations: ${JSON.stringify(record.locations)}`);
       });
 
       // Buscar valores do auto de obras
