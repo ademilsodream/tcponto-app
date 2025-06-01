@@ -89,19 +89,29 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
   };
 
-  // Verificar se uma localização existe na lista de permitidas
+  // CORREÇÃO: Função simplificada e mais robusta para validar locationName
   const isValidLocationName = (locationName: string): boolean => {
+    if (!locationName || typeof locationName !== 'string') {
+      console.log(`❌ LocationName inválido: "${locationName}"`);
+      return false;
+    }
+
+    const normalizedInput = locationName.toLowerCase().trim();
+    console.log(`🔍 Validando locationName normalizado: "${normalizedInput}"`);
+    
     const isValid = allowedLocations.some(loc => {
-      const match = loc.name.trim() === locationName.trim();
-      console.log(`🔍 Comparando: "${loc.name.trim()}" === "${locationName.trim()}" = ${match}`);
+      const normalizedLocation = loc.name.toLowerCase().trim();
+      const match = normalizedLocation === normalizedInput;
+      console.log(`   Comparando: "${normalizedLocation}" === "${normalizedInput}" = ${match}`);
       return match;
     });
+    
     console.log(`📍 LocationName "${locationName}" é válido: ${isValid}`);
     return isValid;
   };
 
   const extractLocationName = (locations: any): string | null => {
-    console.log('📍 AutoDeObras: Extraindo locationName dos dados completos:', JSON.stringify(locations, null, 2));
+    console.log('📍 AutoDeObras: Extraindo locationName dos dados:', JSON.stringify(locations, null, 2));
     
     if (!locations || typeof locations !== 'object') {
       console.log('❌ Dados de localização inválidos ou nulos');
@@ -127,13 +137,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     if (!locationName) {
-      console.log('❌ Nenhum locationName encontrado em nenhuma estrutura');
-      console.log('📋 Estrutura completa para análise:', JSON.stringify(locations, null, 2));
+      console.log('❌ Nenhum locationName encontrado');
       return null;
     }
 
-    console.log(`📍 LocationName extraído final: "${locationName}"`);
-    return locationName.trim();
+    return locationName;
   };
 
   const loadAutoObrasData = async () => {
@@ -148,7 +156,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
     console.log(`📅 PERÍODO SELECIONADO: ${startDateStr} até ${endDateStr}`);
-    console.log(`📅 Período formatado: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`);
 
     try {
       // Consulta time_records
@@ -215,62 +222,51 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       autoValues?.forEach(av => {
         const key = `${av.department_id}-${av.job_function_id}`;
         autoValuesMap.set(key, av.auto_value);
-        console.log(`💰 Auto-valor configurado: ${key} = R$ ${av.auto_value}`);
+        console.log(`💰 Auto-valor: ${key} = R$ ${av.auto_value}`);
       });
 
-      // Processar dados por funcionário e localização
+      // CORREÇÃO: Processamento simplificado dos dados
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
       let totalRecords = timeRecords?.length || 0;
-      let recordsWithValidLocation = 0;
-      let recordsWithAutoValue = 0;
       let recordsProcessed = 0;
 
-      console.log('\n🔄 Iniciando processamento dos registros...');
+      console.log('\n🔄 Iniciando processamento simplificado...');
 
       timeRecords?.forEach((record, index) => {
         console.log(`\n📝 === PROCESSANDO REGISTRO ${index + 1}/${totalRecords} ===`);
-        console.log(`   ID: ${record.id}`);
         console.log(`   Funcionário: ${record.profiles.name}`);
         console.log(`   Data: ${record.date}`);
         console.log(`   Horas: ${record.total_hours}`);
         
         const profile = record.profiles;
         
-        // FILTRO 1: Verificar se tem valor do auto
+        // Verificar valor do auto
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
         
-        console.log(`   Auto-valor key: ${autoKey}`);
-        console.log(`   Auto-valor encontrado: R$ ${autoValue}`);
-        
         if (autoValue <= 0) {
-          console.log(`❌ Registro descartado - sem valor do auto`);
+          console.log(`❌ Sem valor do auto para: ${autoKey}`);
           return;
         }
         
-        recordsWithAutoValue++;
-        console.log(`✅ Registro tem valor do auto válido`);
+        console.log(`✅ Auto-valor: R$ ${autoValue}`);
         
-        // FILTRO 2: Extrair locationName dos dados
+        // Extrair e validar locationName
         const locationName = extractLocationName(record.locations);
         if (!locationName) {
-          console.log(`❌ Registro descartado - sem locationName nos dados`);
+          console.log(`❌ Sem locationName nos dados`);
           return;
         }
         
-        console.log(`✅ LocationName extraído: "${locationName}"`);
-        
-        // FILTRO 3: Verificar se locationName é válido (existe na lista de permitidas)
         if (!isValidLocationName(locationName)) {
-          console.log(`❌ Registro descartado - locationName "${locationName}" não está na lista de permitidas`);
+          console.log(`❌ LocationName "${locationName}" não é válido`);
           return;
         }
         
-        recordsWithValidLocation++;
         recordsProcessed++;
-        
-        console.log(`🎉 REGISTRO VÁLIDO PROCESSADO - ${profile.name} em ${locationName}`);
+        console.log(`🎉 REGISTRO VÁLIDO: ${profile.name} em ${locationName}`);
 
+        // Adicionar ao mapa de funcionários
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
             employeeId: record.user_id,
@@ -299,7 +295,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         locationEntry.totalValue = locationEntry.totalHours * autoValue;
       });
 
-      // Recontar dias únicos por localização
+      // Contar dias únicos por funcionário e localização
       const locationDaysMap = new Map<string, Map<string, Set<string>>>();
       
       timeRecords?.forEach((record) => {
@@ -338,33 +334,27 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const result = Array.from(employeeMap.values())
         .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
-      // Debug info atualizado
       const debug = {
         period: `${startDateStr} até ${endDateStr}`,
         totalRecords,
-        recordsWithValidLocation,
-        recordsWithAutoValue,
         recordsProcessed,
         employeesWithData: result.length,
         recordsDiscarded: totalRecords - recordsProcessed,
         allowedLocationsCount: allowedLocations.length
       };
 
-      console.log('\n📊 === RESUMO FINAL DO PROCESSAMENTO ===');
+      console.log('\n📊 === RESUMO FINAL ===');
       console.log(`   Período: ${debug.period}`);
       console.log(`   Total de registros: ${debug.totalRecords}`);
-      console.log(`   Com valor do auto: ${debug.recordsWithAutoValue}`);
-      console.log(`   Com localização válida: ${debug.recordsWithValidLocation}`);
-      console.log(`   Processados com sucesso: ${debug.recordsProcessed}`);
+      console.log(`   Processados: ${debug.recordsProcessed}`);
       console.log(`   Funcionários no resultado: ${debug.employeesWithData}`);
-      console.log(`   Registros descartados: ${debug.recordsDiscarded}`);
-      console.log(`   Localizações permitidas: ${debug.allowedLocationsCount}`);
+      console.log(`   Descartados: ${debug.recordsDiscarded}`);
 
       setDebugInfo(debug);
       setEmployeeAutoObrasData(result);
 
     } catch (error) {
-      console.error('💥 Erro inesperado ao carregar dados:', error);
+      console.error('💥 Erro inesperado:', error);
       toast({
         title: "Erro",
         description: "Erro inesperado ao carregar dados",
@@ -547,13 +537,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 <CardTitle className="text-blue-800 text-sm">Informações de Processamento</CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-blue-700">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div>Período: {debugInfo.period}</div>
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
                   <div>Processados: {debugInfo.recordsProcessed}</div>
                   <div>Descartados: {debugInfo.recordsDiscarded}</div>
-                  <div>Com valor do auto: {debugInfo.recordsWithAutoValue}</div>
-                  <div>Com localização válida: {debugInfo.recordsWithValidLocation}</div>
                   <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
                   <div>Localizações permitidas: {debugInfo.allowedLocationsCount}</div>
                 </div>
