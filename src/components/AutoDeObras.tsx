@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,25 +90,33 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
   };
 
-  // CORREÇÃO: Função simplificada e mais robusta para validar locationName
+  // CORREÇÃO FINAL: Validação simplificada e robusta
   const isValidLocationName = (locationName: string): boolean => {
     if (!locationName || typeof locationName !== 'string') {
       console.log(`❌ LocationName inválido: "${locationName}"`);
       return false;
     }
 
-    const normalizedInput = locationName.toLowerCase().trim();
-    console.log(`🔍 Validando locationName normalizado: "${normalizedInput}"`);
+    console.log(`🔍 Validando locationName: "${locationName}"`);
+    console.log(`📋 Localizações disponíveis: ${allowedLocations.map(l => `"${l.name}"`).join(', ')}`);
     
-    const isValid = allowedLocations.some(loc => {
-      const normalizedLocation = loc.name.toLowerCase().trim();
-      const match = normalizedLocation === normalizedInput;
-      console.log(`   Comparando: "${normalizedLocation}" === "${normalizedInput}" = ${match}`);
-      return match;
-    });
+    // Primeiro: comparação exata
+    const exactMatch = allowedLocations.some(loc => loc.name === locationName);
+    if (exactMatch) {
+      console.log(`✅ MATCH EXATO encontrado para: "${locationName}"`);
+      return true;
+    }
     
-    console.log(`📍 LocationName "${locationName}" é válido: ${isValid}`);
-    return isValid;
+    // Segundo: comparação case-insensitive simples
+    const lowerLocationName = locationName.toLowerCase();
+    const caseInsensitiveMatch = allowedLocations.some(loc => loc.name.toLowerCase() === lowerLocationName);
+    if (caseInsensitiveMatch) {
+      console.log(`✅ MATCH CASE-INSENSITIVE encontrado para: "${locationName}"`);
+      return true;
+    }
+    
+    console.log(`❌ NENHUM MATCH encontrado para: "${locationName}"`);
+    return false;
   };
 
   const extractLocationName = (locations: any): string | null => {
@@ -120,12 +129,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     let locationName = null;
     
-    // CORREÇÃO: Verificar estrutura clock_in (com underscore) primeiro
+    // Verificar estrutura clock_in primeiro
     if (locations.clock_in && locations.clock_in.locationName) {
       locationName = locations.clock_in.locationName;
       console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
     }
-    // Fallback para clockIn (sem underscore) caso ainda exista
+    // Fallback para clockIn (sem underscore)
     else if (locations.clockIn && locations.clockIn.locationName) {
       locationName = locations.clockIn.locationName;
       console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
@@ -151,11 +160,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     setLoading(true);
-    console.log('\n🚀 AutoDeObras: Iniciando carregamento de dados...');
+    console.log('\n🚀 === INICIANDO PROCESSAMENTO FINAL ===');
     
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
-    console.log(`📅 PERÍODO SELECIONADO: ${startDateStr} até ${endDateStr}`);
+    console.log(`📅 PERÍODO: ${startDateStr} até ${endDateStr}`);
 
     try {
       // Consulta time_records
@@ -200,11 +209,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log(`📊 Registros encontrados no período: ${timeRecords?.length || 0}`);
-      timeRecords?.forEach((record, i) => {
-        console.log(`   ${i + 1}. ${record.profiles.name} - ${record.date} - ${record.total_hours}h`);
-        console.log(`      Locations: ${JSON.stringify(record.locations)}`);
-      });
+      console.log(`📊 Registros encontrados: ${timeRecords?.length || 0}`);
 
       // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
@@ -216,8 +221,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         console.error('❌ Erro ao carregar valores do auto:', autoError);
       }
 
-      console.log(`💰 Valores do auto carregados: ${autoValues?.length || 0}`);
-
       const autoValuesMap = new Map<string, number>();
       autoValues?.forEach(av => {
         const key = `${av.department_id}-${av.job_function_id}`;
@@ -225,22 +228,17 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         console.log(`💰 Auto-valor: ${key} = R$ ${av.auto_value}`);
       });
 
-      // CORREÇÃO: Processamento simplificado dos dados
+      // PROCESSAMENTO SIMPLIFICADO
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
-      let totalRecords = timeRecords?.length || 0;
-      let recordsProcessed = 0;
+      let totalProcessed = 0;
+      let totalValid = 0;
 
-      console.log('\n🔄 Iniciando processamento simplificado...');
+      console.log('\n=== PROCESSANDO REGISTROS ===');
 
       timeRecords?.forEach((record, index) => {
-        console.log(`\n📝 === PROCESSANDO REGISTRO ${index + 1}/${totalRecords} ===`);
-        console.log(`   Funcionário: ${record.profiles.name}`);
-        console.log(`   Data: ${record.date}`);
-        console.log(`   Horas: ${record.total_hours}`);
+        console.log(`\n📝 REGISTRO ${index + 1}: ${record.profiles.name} - ${record.date}`);
         
         const profile = record.profiles;
-        
-        // Verificar valor do auto
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
         
@@ -249,24 +247,26 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           return;
         }
         
-        console.log(`✅ Auto-valor: R$ ${autoValue}`);
+        console.log(`💰 Auto-valor: R$ ${autoValue}`);
         
-        // Extrair e validar locationName
+        // Extrair locationName
         const locationName = extractLocationName(record.locations);
         if (!locationName) {
-          console.log(`❌ Sem locationName nos dados`);
+          console.log(`❌ Sem locationName`);
           return;
         }
         
+        // Validar locationName
         if (!isValidLocationName(locationName)) {
           console.log(`❌ LocationName "${locationName}" não é válido`);
           return;
         }
         
-        recordsProcessed++;
-        console.log(`🎉 REGISTRO VÁLIDO: ${profile.name} em ${locationName}`);
+        console.log(`🎉 REGISTRO VÁLIDO!`);
+        totalProcessed++;
+        totalValid++;
 
-        // Adicionar ao mapa de funcionários
+        // Criar/atualizar dados do funcionário
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
             employeeId: record.user_id,
@@ -279,8 +279,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         }
 
         const employeeData = employeeMap.get(record.user_id)!;
-
         let locationEntry = employeeData.locations.find(loc => loc.locationName === locationName);
+        
         if (!locationEntry) {
           locationEntry = {
             locationName: locationName,
@@ -295,7 +295,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         locationEntry.totalValue = locationEntry.totalHours * autoValue;
       });
 
-      // Contar dias únicos por funcionário e localização
+      // Contar dias únicos
       const locationDaysMap = new Map<string, Map<string, Set<string>>>();
       
       timeRecords?.forEach((record) => {
@@ -334,23 +334,26 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const result = Array.from(employeeMap.values())
         .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
-      const debug = {
+      console.log('\n=== RESULTADO FINAL ===');
+      console.log(`📊 Registros processados: ${totalProcessed}`);
+      console.log(`✅ Registros válidos: ${totalValid}`);
+      console.log(`👥 Funcionários no resultado: ${result.length}`);
+
+      result.forEach(emp => {
+        console.log(`👤 ${emp.employeeName}:`);
+        emp.locations.forEach(loc => {
+          console.log(`   📍 ${loc.locationName}: ${loc.totalHours}h = R$ ${loc.totalValue}`);
+        });
+      });
+
+      setDebugInfo({
         period: `${startDateStr} até ${endDateStr}`,
-        totalRecords,
-        recordsProcessed,
-        employeesWithData: result.length,
-        recordsDiscarded: totalRecords - recordsProcessed,
-        allowedLocationsCount: allowedLocations.length
-      };
+        totalRecords: timeRecords?.length || 0,
+        recordsProcessed: totalProcessed,
+        recordsValid: totalValid,
+        employeesWithData: result.length
+      });
 
-      console.log('\n📊 === RESUMO FINAL ===');
-      console.log(`   Período: ${debug.period}`);
-      console.log(`   Total de registros: ${debug.totalRecords}`);
-      console.log(`   Processados: ${debug.recordsProcessed}`);
-      console.log(`   Funcionários no resultado: ${debug.employeesWithData}`);
-      console.log(`   Descartados: ${debug.recordsDiscarded}`);
-
-      setDebugInfo(debug);
       setEmployeeAutoObrasData(result);
 
     } catch (error) {
@@ -541,9 +544,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <div>Período: {debugInfo.period}</div>
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
                   <div>Processados: {debugInfo.recordsProcessed}</div>
-                  <div>Descartados: {debugInfo.recordsDiscarded}</div>
+                  <div>Válidos: {debugInfo.recordsValid}</div>
                   <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
-                  <div>Localizações permitidas: {debugInfo.allowedLocationsCount}</div>
+                  <div>Localizações permitidas: {allowedLocations.length}</div>
                 </div>
               </CardContent>
             </Card>
