@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,7 +80,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       console.log(`✅ AutoDeObras: ${data?.length || 0} localizações carregadas:`);
       data?.forEach((loc, i) => {
-        console.log(`   ${i + 1}. ${loc.name}`);
+        console.log(`   ${i + 1}. "${loc.name}"`);
       });
       setAllowedLocations(data || []);
     } catch (error) {
@@ -92,38 +91,59 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   // Verificar se uma localização existe na lista de permitidas
   const isValidLocationName = (locationName: string): boolean => {
-    return allowedLocations.some(loc => loc.name === locationName);
+    const isValid = allowedLocations.some(loc => {
+      const match = loc.name.trim() === locationName.trim();
+      console.log(`🔍 Comparando: "${loc.name.trim()}" === "${locationName.trim()}" = ${match}`);
+      return match;
+    });
+    console.log(`📍 LocationName "${locationName}" é válido: ${isValid}`);
+    return isValid;
   };
 
   const extractLocationName = (locations: any): string | null => {
-    console.log('📍 AutoDeObras: Extraindo locationName dos dados:', locations);
+    console.log('📍 AutoDeObras: Extraindo locationName dos dados completos:', JSON.stringify(locations, null, 2));
     
     if (!locations || typeof locations !== 'object') {
-      console.log('❌ Dados de localização inválidos');
+      console.log('❌ Dados de localização inválidos ou nulos');
       return null;
     }
 
     let locationName = null;
     
-    // Tentar diferentes estruturas possíveis
-    if (locations.clockIn && locations.clockIn.locationName) {
-      locationName = locations.clockIn.locationName;
-      console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
-    } else if (locations.clock_in && locations.clock_in.locationName) {
-      locationName = locations.clock_in.locationName;
-      console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
-    } else if (locations.locationName) {
+    // Verificar todas as estruturas possíveis com logs detalhados
+    if (locations.clockIn) {
+      console.log('🔍 Encontrada estrutura clockIn:', JSON.stringify(locations.clockIn, null, 2));
+      if (locations.clockIn.locationName) {
+        locationName = locations.clockIn.locationName;
+        console.log(`✅ LocationName encontrado em clockIn: "${locationName}"`);
+      }
+    }
+    
+    if (!locationName && locations.clock_in) {
+      console.log('🔍 Encontrada estrutura clock_in:', JSON.stringify(locations.clock_in, null, 2));
+      if (locations.clock_in.locationName) {
+        locationName = locations.clock_in.locationName;
+        console.log(`✅ LocationName encontrado em clock_in: "${locationName}"`);
+      }
+    }
+    
+    if (!locationName && locations.locationName) {
+      console.log('🔍 Encontrada locationName na raiz');
       locationName = locations.locationName;
       console.log(`✅ LocationName encontrado na raiz: "${locationName}"`);
     }
 
+    // Verificar todas as chaves do objeto locations para debug
+    console.log('🔍 Todas as chaves no objeto locations:', Object.keys(locations));
+    
     if (!locationName) {
-      console.log('❌ Nenhum locationName encontrado nos dados');
+      console.log('❌ Nenhum locationName encontrado em nenhuma estrutura');
+      console.log('📋 Estrutura completa para análise:', JSON.stringify(locations, null, 2));
       return null;
     }
 
-    console.log(`📍 LocationName extraído: "${locationName}"`);
-    return locationName;
+    console.log(`📍 LocationName extraído final: "${locationName}"`);
+    return locationName.trim();
   };
 
   const loadAutoObrasData = async () => {
@@ -134,7 +154,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     setLoading(true);
     console.log('\n🚀 AutoDeObras: Iniciando carregamento de dados...');
-    console.log(`📅 Período: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`);
+    
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+    console.log(`📅 Período selecionado: ${startDateStr} até ${endDateStr}`);
+    console.log(`📅 Período formatado: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`);
 
     try {
       // Consulta time_records
@@ -154,8 +178,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           )
         `)
         .eq('status', 'active')
-        .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
         .not('total_hours', 'is', null)
         .gt('total_hours', 0)
         .not('profiles.department_id', 'is', null)
@@ -163,6 +187,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       if (selectedEmployee !== 'all') {
         query = query.eq('user_id', selectedEmployee);
+        console.log(`👤 Filtro por funcionário: ${selectedEmployee}`);
       }
 
       const { data: timeRecords, error } = await query.order('date', { ascending: false });
@@ -178,7 +203,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log(`📊 Registros carregados: ${timeRecords?.length || 0}`);
+      console.log(`📊 Registros encontrados no período: ${timeRecords?.length || 0}`);
+      timeRecords?.forEach((record, i) => {
+        console.log(`   ${i + 1}. ${record.profiles.name} - ${record.date} - ${record.total_hours}h`);
+      });
 
       // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
@@ -209,7 +237,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       console.log('\n🔄 Iniciando processamento dos registros...');
 
       timeRecords?.forEach((record, index) => {
-        console.log(`\n📝 Processando registro ${index + 1}/${totalRecords}`);
+        console.log(`\n📝 === PROCESSANDO REGISTRO ${index + 1}/${totalRecords} ===`);
         console.log(`   ID: ${record.id}`);
         console.log(`   Funcionário: ${record.profiles.name}`);
         console.log(`   Data: ${record.date}`);
@@ -230,6 +258,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         }
         
         recordsWithAutoValue++;
+        console.log(`✅ Registro tem valor do auto válido`);
         
         // FILTRO 2: Extrair locationName dos dados
         const locationName = extractLocationName(record.locations);
@@ -237,6 +266,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           console.log(`❌ Registro descartado - sem locationName nos dados`);
           return;
         }
+        
+        console.log(`✅ LocationName extraído: "${locationName}"`);
         
         // FILTRO 3: Verificar se locationName é válido (existe na lista de permitidas)
         if (!isValidLocationName(locationName)) {
@@ -247,7 +278,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         recordsWithValidLocation++;
         recordsProcessed++;
         
-        console.log(`✅ Registro VÁLIDO processado - ${profile.name} em ${locationName}`);
+        console.log(`🎉 REGISTRO VÁLIDO PROCESSADO - ${profile.name} em ${locationName}`);
 
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
@@ -318,6 +349,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       // Debug info atualizado
       const debug = {
+        period: `${startDateStr} até ${endDateStr}`,
         totalRecords,
         recordsWithValidLocation,
         recordsWithAutoValue,
@@ -327,7 +359,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         allowedLocationsCount: allowedLocations.length
       };
 
-      console.log('\n📊 Resumo final do processamento:');
+      console.log('\n📊 === RESUMO FINAL DO PROCESSAMENTO ===');
+      console.log(`   Período: ${debug.period}`);
       console.log(`   Total de registros: ${debug.totalRecords}`);
       console.log(`   Com valor do auto: ${debug.recordsWithAutoValue}`);
       console.log(`   Com localização válida: ${debug.recordsWithValidLocation}`);
@@ -524,6 +557,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               </CardHeader>
               <CardContent className="text-sm text-blue-700">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div>Período: {debugInfo.period}</div>
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
                   <div>Processados: {debugInfo.recordsProcessed}</div>
                   <div>Descartados: {debugInfo.recordsDiscarded}</div>
