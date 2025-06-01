@@ -546,7 +546,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       {Object.entries(debugInfo.rejectReasons).map(([reason, count]) => (
                         <div key={reason} className="text-red-600">
-                          {reason}: {count}
+                          {reason}: {String(count)}
                         </div>
                       ))}
                     </div>
