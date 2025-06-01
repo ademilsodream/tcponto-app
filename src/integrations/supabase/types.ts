@@ -45,6 +45,60 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          changed_fields: string[] | null
+          created_at: string
+          id: string
+          ip_address: unknown | null
+          metadata: Json | null
+          new_values: Json | null
+          old_values: Json | null
+          operation: string
+          record_id: string
+          session_id: string | null
+          table_name: string
+          user_agent: string | null
+          user_email: string | null
+          user_id: string | null
+          user_role: string | null
+        }
+        Insert: {
+          changed_fields?: string[] | null
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          operation: string
+          record_id: string
+          session_id?: string | null
+          table_name: string
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          changed_fields?: string[] | null
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          operation?: string
+          record_id?: string
+          session_id?: string | null
+          table_name?: string
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
+      }
       edit_requests: {
         Row: {
           created_at: string
@@ -608,6 +662,38 @@ export type Database = {
       expire_old_hour_bank_hours: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      get_audit_logs: {
+        Args: {
+          p_table_name?: string
+          p_record_id?: string
+          p_start_date?: string
+          p_end_date?: string
+          p_limit?: number
+        }
+        Returns: {
+          id: string
+          table_name: string
+          operation: string
+          record_id: string
+          old_values: Json
+          new_values: Json
+          changed_fields: string[]
+          user_email: string
+          user_role: string
+          created_at: string
+        }[]
+      }
+      get_audit_statistics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          table_name: string
+          total_operations: number
+          inserts: number
+          updates: number
+          deletes: number
+          last_activity: string
+        }[]
       }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
