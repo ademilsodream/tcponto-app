@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -98,14 +97,14 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     setLoading(true);
-    console.log('\n🚀 === PROCESSAMENTO FINAL SIMPLIFICADO ===');
+    console.log('\n🚀 === IMPLEMENTAÇÃO DO PLANO FINAL ===');
     
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
     console.log(`📅 PERÍODO: ${startDateStr} até ${endDateStr}`);
 
     try {
-      // Consulta time_records
+      // QUERY SIMPLIFICADA - Removendo filtros restritivos
       let query = supabase
         .from('time_records')
         .select(`
@@ -125,9 +124,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         .gte('date', startDateStr)
         .lte('date', endDateStr)
         .not('total_hours', 'is', null)
-        .gt('total_hours', 0)
-        .not('profiles.department_id', 'is', null)
-        .not('profiles.job_function_id', 'is', null);
+        .gt('total_hours', 0);
+        // REMOVIDO: filtros de department_id e job_function_id
 
       if (selectedEmployee !== 'all') {
         query = query.eq('user_id', selectedEmployee);
@@ -147,7 +145,24 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log(`📊 Registros encontrados: ${timeRecords?.length || 0}`);
+      console.log(`📊 REGISTROS ENCONTRADOS: ${timeRecords?.length || 0}`);
+
+      // Log detalhado de cada registro encontrado
+      timeRecords?.forEach((record, index) => {
+        console.log(`\n📝 REGISTRO ${index + 1}: ${record.profiles.name} - ${record.date}`);
+        console.log(`   Horas: ${record.total_hours}h`);
+        console.log(`   Locations:`, record.locations);
+        
+        // LOG ESPECÍFICO PARA USUARIO DE TESTE
+        if (record.profiles.name === 'Usuario de teste') {
+          console.log(`🎯 USUARIO DE TESTE ENCONTRADO!`);
+          console.log(`   Data: ${record.date}`);
+          console.log(`   Horas: ${record.total_hours}`);
+          console.log(`   Department ID: ${record.profiles.department_id}`);
+          console.log(`   Job Function ID: ${record.profiles.job_function_id}`);
+          console.log(`   Locations completo:`, JSON.stringify(record.locations, null, 2));
+        }
+      });
 
       // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
@@ -166,36 +181,65 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         console.log(`💰 Auto-valor: ${key} = R$ ${av.auto_value}`);
       });
 
-      // PROCESSAMENTO ULTRA SIMPLIFICADO
+      // PROCESSAMENTO SIMPLIFICADO E DIRETO
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
       let totalProcessed = 0;
       let totalValid = 0;
 
-      console.log('\n=== PROCESSANDO REGISTROS (SEM VALIDAÇÃO) ===');
+      console.log('\n=== PROCESSAMENTO DIRETO E SIMPLIFICADO ===');
 
       timeRecords?.forEach((record, index) => {
-        console.log(`\n📝 REGISTRO ${index + 1}: ${record.profiles.name} - ${record.date}`);
+        console.log(`\n📝 PROCESSANDO REGISTRO ${index + 1}: ${record.profiles.name} - ${record.date}`);
         
         const profile = record.profiles;
-        const autoKey = `${profile.department_id}-${profile.job_function_id}`;
-        const autoValue = autoValuesMap.get(autoKey) || 0;
         
-        if (autoValue <= 0) {
-          console.log(`❌ Sem valor do auto para: ${autoKey}`);
+        // LOG ESPECÍFICO PARA USUARIO DE TESTE
+        if (profile.name === 'Usuario de teste') {
+          console.log(`🎯 PROCESSANDO USUARIO DE TESTE!`);
+        }
+        
+        // Verificar se tem department_id e job_function_id
+        if (!profile.department_id || !profile.job_function_id) {
+          console.log(`❌ Sem department_id ou job_function_id`);
+          if (profile.name === 'Usuario de teste') {
+            console.log(`🚨 USUARIO DE TESTE REJEITADO POR FALTA DE DEPARTMENT/JOB!`);
+          }
           return;
         }
         
-        console.log(`💰 Auto-valor: R$ ${autoValue}`);
+        const autoKey = `${profile.department_id}-${profile.job_function_id}`;
+        const autoValue = autoValuesMap.get(autoKey) || 0;
+        
+        console.log(`💰 Auto-chave: ${autoKey}, Auto-valor: R$ ${autoValue}`);
+        
+        if (autoValue <= 0) {
+          console.log(`❌ Sem valor do auto para: ${autoKey}`);
+          if (profile.name === 'Usuario de teste') {
+            console.log(`🚨 USUARIO DE TESTE REJEITADO POR FALTA DE AUTO-VALOR!`);
+          }
+          return;
+        }
         
         // Extrair locationName
         const locationName = extractLocationName(record.locations);
         if (!locationName) {
           console.log(`❌ Sem locationName`);
+          if (profile.name === 'Usuario de teste') {
+            console.log(`🚨 USUARIO DE TESTE REJEITADO POR FALTA DE LOCATION NAME!`);
+          }
           return;
         }
         
-        // *** REMOVIDA A VALIDAÇÃO COMPLEXA ***
-        console.log(`🎉 REGISTRO PROCESSADO SEM VALIDAÇÃO! LocationName: "${locationName}"`);
+        // PROCESSAMENTO DIRETO - SEM VALIDAÇÕES ADICIONAIS
+        console.log(`✅ REGISTRO VÁLIDO! LocationName: "${locationName}"`);
+        
+        if (profile.name === 'Usuario de teste') {
+          console.log(`🎉 USUARIO DE TESTE APROVADO PARA PROCESSAMENTO!`);
+          console.log(`   LocationName: "${locationName}"`);
+          console.log(`   Horas: ${record.total_hours}`);
+          console.log(`   Auto-valor: R$ ${autoValue}`);
+          console.log(`   Valor total: R$ ${Number(record.total_hours) * autoValue}`);
+        }
         
         totalProcessed++;
         totalValid++;
@@ -227,6 +271,14 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
         locationEntry.totalHours += Number(record.total_hours);
         locationEntry.totalValue = locationEntry.totalHours * autoValue;
+        
+        if (profile.name === 'Usuario de teste') {
+          console.log(`🎯 USUARIO DE TESTE ADICIONADO:`, {
+            locationName: locationEntry.locationName,
+            totalHours: locationEntry.totalHours,
+            totalValue: locationEntry.totalValue
+          });
+        }
       });
 
       // Contar dias únicos
@@ -234,6 +286,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       
       timeRecords?.forEach((record) => {
         const profile = record.profiles;
+        
+        if (!profile.department_id || !profile.job_function_id) return;
+        
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
         
@@ -268,7 +323,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const result = Array.from(employeeMap.values())
         .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
-      console.log('\n=== RESULTADO FINAL (SEM VALIDAÇÃO) ===');
+      console.log('\n=== RESULTADO FINAL ===');
       console.log(`📊 Registros processados: ${totalProcessed}`);
       console.log(`✅ Registros válidos: ${totalValid}`);
       console.log(`👥 Funcionários no resultado: ${result.length}`);
@@ -278,6 +333,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         emp.locations.forEach(loc => {
           console.log(`   📍 ${loc.locationName}: ${loc.totalHours}h = R$ ${loc.totalValue}`);
         });
+        
+        if (emp.employeeName === 'Usuario de teste') {
+          console.log(`🎯 USUARIO DE TESTE NO RESULTADO FINAL:`, emp);
+        }
       });
 
       setDebugInfo({
@@ -469,18 +528,18 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
           {/* Debug Info */}
           {debugInfo.totalRecords > 0 && (
-            <Card className="border-blue-200 bg-blue-50">
+            <Card className="border-green-200 bg-green-50">
               <CardHeader>
-                <CardTitle className="text-blue-800 text-sm">Informações de Processamento</CardTitle>
+                <CardTitle className="text-green-800 text-sm">✅ Plano Implementado - Processamento Simplificado</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-blue-700">
+              <CardContent className="text-sm text-green-700">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div>Período: {debugInfo.period}</div>
                   <div>Registros encontrados: {debugInfo.totalRecords}</div>
                   <div>Processados: {debugInfo.recordsProcessed}</div>
                   <div>Válidos: {debugInfo.recordsValid}</div>
                   <div>Funcionários exibidos: {debugInfo.employeesWithData}</div>
-                  <div><strong>SEM VALIDAÇÃO DE LOCALIZAÇÃO</strong></div>
+                  <div><strong>Query simplificada ✅</strong></div>
                 </div>
               </CardContent>
             </Card>
