@@ -290,6 +290,83 @@ export type Database = {
           },
         ]
       }
+      notification_logs: {
+        Row: {
+          created_at: string | null
+          email_body: string | null
+          email_subject: string | null
+          employee_id: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          notification_type: string
+          sent_at: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_body?: string | null
+          email_subject?: string | null
+          employee_id: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          notification_type: string
+          sent_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_body?: string | null
+          email_subject?: string | null
+          employee_id?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          notification_type?: string
+          sent_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          created_at: string | null
+          employee_id: string
+          frequency: string | null
+          id: string
+          is_enabled: boolean | null
+          notification_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          employee_id: string
+          frequency?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          notification_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          employee_id?: string
+          frequency?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          notification_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -513,6 +590,14 @@ export type Database = {
     }
     Functions: {
       calculate_monthly_analytics: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      check_excessive_overtime: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      check_incomplete_records: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
