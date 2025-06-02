@@ -221,8 +221,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Filtrar apenas funcionários ativos
-  const activeEmployees = getActiveEmployees(employees);
+  // Filtrar apenas funcionários ativos usando useMemo para evitar recálculos desnecessários
+  const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
 
   useEffect(() => {
     loadAllowedLocations();
@@ -232,7 +232,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     if (allowedLocations.length > 0) {
       loadTimeRecordsData();
     }
-  }, [activeEmployees, allowedLocations, startDate, endDate]);
+  }, [employees, allowedLocations, startDate, endDate]);
 
   const loadAllowedLocations = async () => {
     try {
@@ -255,7 +255,10 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   };
 
   const loadTimeRecordsData = async () => {
-    if (!activeEmployees || activeEmployees.length === 0) {
+    // Recalcular activeEmployees aqui para garantir dados atualizados
+    const currentActiveEmployees = getActiveEmployees(employees);
+    
+    if (!currentActiveEmployees || currentActiveEmployees.length === 0) {
       setTimeRecordsReportData([]);
       setLoading(false);
       return;
@@ -265,7 +268,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     console.log('=== INÍCIO CARREGAMENTO DADOS DE LOCALIZAÇÃO ===');
 
     try {
-      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+      const activeEmployeeIds = currentActiveEmployees.map(emp => emp.id);
 
       let query = supabase
         .from('time_records')
@@ -302,7 +305,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       console.log('Registros carregados do banco:', data?.length || 0);
       
-      const employeeMap = activeEmployees.reduce((map, employee) => {
+      const employeeMap = currentActiveEmployees.reduce((map, employee) => {
         if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
            map[employee.id] = employee.name;
         }
