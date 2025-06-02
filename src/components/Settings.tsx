@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase } from 'lucide-react';
+import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +27,7 @@ interface Location {
 const Settings = () => {
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(false);
+  const [addingLocation, setAddingLocation] = useState(false);
   const [newLocation, setNewLocation] = useState({
     name: '',
     address: '',
@@ -46,15 +48,22 @@ const Settings = () => {
   const loadLocations = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Carregando localizações permitidas...');
+      
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao carregar localizações:', error);
+        throw error;
+      }
+      
+      console.log('✅ Localizações carregadas:', data?.length || 0);
       setLocations(data || []);
     } catch (error) {
-      console.error('Erro ao carregar localizações:', error);
+      console.error('💥 Erro crítico ao carregar localizações:', error);
       toast({
         title: "Erro",
         description: "Erro ao carregar localizações permitidas",
@@ -84,28 +93,101 @@ const Settings = () => {
     }
   };
 
+  const validateLocationData = (location: typeof newLocation): string | null => {
+    console.log('🔍 Validando dados da localização:', location);
+
+    // Validar nome e endereço
+    if (!location.name?.trim()) {
+      return "Nome da localização é obrigatório";
+    }
+    
+    if (!location.address?.trim()) {
+      return "Endereço é obrigatório";
+    }
+
+    // Validar latitude
+    if (isNaN(location.latitude) || location.latitude < -90 || location.latitude > 90) {
+      return "Latitude deve estar entre -90 e 90";
+    }
+
+    // Validar longitude
+    if (isNaN(location.longitude) || location.longitude < -180 || location.longitude > 180) {
+      return "Longitude deve estar entre -180 e 180";
+    }
+
+    // Validar se não são coordenadas padrão (0,0) a menos que seja intencional
+    if (location.latitude === 0 && location.longitude === 0) {
+      return "Coordenadas 0,0 não são válidas. Verifique as coordenadas corretas";
+    }
+
+    // Validar range
+    if (isNaN(location.range_meters) || location.range_meters <= 0) {
+      return "Raio deve ser maior que 0 metros";
+    }
+
+    if (location.range_meters > 1000) {
+      return "Raio muito grande. Máximo permitido: 1000 metros";
+    }
+
+    console.log('✅ Dados da localização válidos');
+    return null;
+  };
+
   const handleAddLocation = async () => {
-    if (!newLocation.name || !newLocation.address) {
+    console.log('🚀 Iniciando cadastro de nova localização...');
+    console.log('📋 Dados do formulário:', newLocation);
+
+    // Validar dados
+    const validationError = validateLocationData(newLocation);
+    if (validationError) {
+      console.warn('⚠️ Erro de validação:', validationError);
       toast({
-        title: "Erro",
-        description: "Nome e endereço são obrigatórios",
+        title: "Erro de Validação",
+        description: validationError,
         variant: "destructive"
       });
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('allowed_locations')
-        .insert([newLocation]);
+      setAddingLocation(true);
+      console.log('💾 Inserindo localização no banco de dados...');
 
-      if (error) throw error;
+      const locationToInsert = {
+        name: newLocation.name.trim(),
+        address: newLocation.address.trim(),
+        latitude: Number(newLocation.latitude),
+        longitude: Number(newLocation.longitude),
+        range_meters: Number(newLocation.range_meters),
+        is_active: true
+      };
+
+      console.log('📦 Dados a serem inseridos:', locationToInsert);
+
+      const { data, error } = await supabase
+        .from('allowed_locations')
+        .insert([locationToInsert])
+        .select();
+
+      if (error) {
+        console.error('❌ Erro do Supabase:', error);
+        console.error('📄 Detalhes do erro:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
+      console.log('✅ Localização inserida com sucesso:', data);
 
       toast({
         title: "Sucesso",
         description: "Localização adicionada com sucesso"
       });
 
+      // Limpar formulário
       setNewLocation({
         name: '',
         address: '',
@@ -114,25 +196,47 @@ const Settings = () => {
         range_meters: 100
       });
 
-      loadLocations();
-    } catch (error) {
-      console.error('Erro ao adicionar localização:', error);
+      // Recarregar lista
+      await loadLocations();
+
+    } catch (error: any) {
+      console.error('💥 Erro crítico ao adicionar localização:', error);
+      
+      let errorMessage = "Erro ao adicionar localização";
+      
+      if (error.message?.includes('permission denied')) {
+        errorMessage = "Permissão negada. Verifique se você tem acesso administrativo";
+      } else if (error.message?.includes('duplicate')) {
+        errorMessage = "Já existe uma localização com estes dados";
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+
       toast({
         title: "Erro",
-        description: "Erro ao adicionar localização",
+        description: errorMessage,
         variant: "destructive"
       });
+    } finally {
+      setAddingLocation(false);
     }
   };
 
   const toggleLocationStatus = async (id: string, currentStatus: boolean) => {
     try {
+      console.log(`🔄 Alterando status da localização ${id} de ${currentStatus} para ${!currentStatus}`);
+
       const { error } = await supabase
         .from('allowed_locations')
         .update({ is_active: !currentStatus })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao atualizar status:', error);
+        throw error;
+      }
+
+      console.log('✅ Status atualizado com sucesso');
 
       toast({
         title: "Sucesso",
@@ -141,7 +245,7 @@ const Settings = () => {
 
       loadLocations();
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
+      console.error('💥 Erro crítico ao atualizar status:', error);
       toast({
         title: "Erro",
         description: "Erro ao atualizar status da localização",
@@ -245,27 +349,29 @@ const Settings = () => {
                 <h3 className="font-medium">Adicionar Nova Localização</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nome da Localização</Label>
+                    <Label htmlFor="name">Nome da Localização *</Label>
                     <Input
                       id="name"
                       value={newLocation.name}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, name: e.target.value }))}
                       placeholder="Ex: Escritório Principal"
+                      disabled={addingLocation}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="address">Endereço</Label>
+                    <Label htmlFor="address">Endereço *</Label>
                     <Input
                       id="address"
                       value={newLocation.address}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, address: e.target.value }))}
                       placeholder="Endereço completo"
+                      disabled={addingLocation}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="latitude">Latitude</Label>
+                    <Label htmlFor="latitude">Latitude *</Label>
                     <Input
                       id="latitude"
                       type="number"
@@ -273,11 +379,15 @@ const Settings = () => {
                       value={newLocation.latitude}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))}
                       placeholder="-23.550520"
+                      disabled={addingLocation}
                     />
+                    <div className="text-xs text-muted-foreground">
+                      Entre -90 e 90
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="longitude">Longitude</Label>
+                    <Label htmlFor="longitude">Longitude *</Label>
                     <Input
                       id="longitude"
                       type="number"
@@ -285,23 +395,44 @@ const Settings = () => {
                       value={newLocation.longitude}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))}
                       placeholder="-46.633309"
+                      disabled={addingLocation}
                     />
+                    <div className="text-xs text-muted-foreground">
+                      Entre -180 e 180
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="range">Raio Permitido (metros)</Label>
+                    <Label htmlFor="range">Raio Permitido (metros) *</Label>
                     <Input
                       id="range"
                       type="number"
+                      min="1"
+                      max="1000"
                       value={newLocation.range_meters}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, range_meters: parseInt(e.target.value) || 100 }))}
                       placeholder="100"
+                      disabled={addingLocation}
                     />
+                    <div className="text-xs text-muted-foreground">
+                      Entre 1 e 1000 metros
+                    </div>
                   </div>
                 </div>
 
-                <Button onClick={handleAddLocation} className="w-full">
-                  Adicionar Localização
+                <Button 
+                  onClick={handleAddLocation} 
+                  disabled={addingLocation}
+                  className="w-full"
+                >
+                  {addingLocation ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Adicionando...
+                    </>
+                  ) : (
+                    'Adicionar Localização'
+                  )}
                 </Button>
               </div>
 
@@ -310,8 +441,8 @@ const Settings = () => {
                 <h3 className="font-medium">Localizações Cadastradas</h3>
                 {loading ? (
                   <div className="flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                    <span className="ml-2">Carregando...</span>
+                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                    <span>Carregando...</span>
                   </div>
                 ) : locations.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">
@@ -329,6 +460,12 @@ const Settings = () => {
                               Coordenadas: {location.latitude}, {location.longitude} • 
                               Raio: {location.range_meters}m
                             </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className={`w-2 h-2 rounded-full ${location.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                              <span className="text-xs text-muted-foreground">
+                                {location.is_active ? 'Ativa' : 'Inativa'}
+                              </span>
+                            </div>
                           </div>
                           <Button
                             variant={location.is_active ? "destructive" : "default"}
