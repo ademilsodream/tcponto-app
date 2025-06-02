@@ -281,10 +281,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              <span className="font-semibold truncate">{user?.name}</span>
-            </div>
           </div>
         </CardHeader>
       </Card>
