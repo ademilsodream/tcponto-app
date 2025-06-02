@@ -1,0 +1,26 @@
+
+{
+  "name": "TCPonto - Controle de Ponto",
+  "short_name": "TCPonto",
+  "description": "Sistema de controle de ponto para empresas",
+  "theme_color": "#1f2937",
+  "background_color": "#1f2937",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
