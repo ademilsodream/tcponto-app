@@ -1,13 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, Clock, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,8 +42,20 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [startDate, setStartDate] = useState('2025-05-01');
   const [endDate, setEndDate] = useState('2025-05-31');
+  const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());
   const { formatCurrency } = useCurrency();
   const { user } = useAuth();
+
+  // Toggle expansão de um registro
+  const toggleRecord = (recordId: string) => {
+    const newExpanded = new Set(expandedRecords);
+    if (newExpanded.has(recordId)) {
+      newExpanded.delete(recordId);
+    } else {
+      newExpanded.add(recordId);
+    }
+    setExpandedRecords(newExpanded);
+  };
 
   // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
@@ -262,28 +272,35 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 p-4">
+      {/* Header Mobile */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={onBack} className="mb-2">
+            <Button variant="outline" onClick={onBack} size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
-            <CardTitle className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              {user?.name}
-            </CardTitle>
+              <span className="font-semibold truncate">{user?.name}</span>
+            </div>
           </div>
         </CardHeader>
       </Card>
 
+      {/* Seletor de Período Mobile */}
       <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold mb-4">Seletor de Período</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Período
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-sm font-medium text-gray-700">Data Inicial</Label>
+              <Label className="text-sm">Data Inicial</Label>
               <Input
                 type="date"
                 value={startDate}
@@ -291,9 +308,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
                 className="h-10"
               />
             </div>
-            
             <div>
-              <Label className="text-sm font-medium text-gray-700">Data Final</Label>
+              <Label className="text-sm">Data Final</Label>
               <Input
                 type="date"
                 value={endDate}
@@ -302,56 +318,146 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
               />
             </div>
           </div>
-          
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>Total de Horas: {totals.totalHours.toFixed(1)}h</span>
-            <span>Valor Total: {formatCurrency(totals.totalPay)}</span>
-            <span>Valor/Hora: {formatCurrency(hourlyRate)}</span>
-          </div>
-        </CardHeader>
-      </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Dia da Semana</TableHead>
-                <TableHead>Entrada</TableHead>
-                <TableHead>Saída Almoço</TableHead>
-                <TableHead>Volta Almoço</TableHead>
-                <TableHead>Saída</TableHead>
-                <TableHead>Total Horas</TableHead>
-                <TableHead>Horas Extras</TableHead>
-                <TableHead>Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {records.map((record) => {
-                const dayOfWeek = getDayOfWeek(record.date);
-                
-                return (
-                  <TableRow key={record.id} className={record.isWeekend ? 'bg-blue-50' : ''}>
-                    <TableCell>
-                      {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
-                      {record.isWeekend && <span className="ml-2 text-xs text-blue-600">(Fim de semana)</span>}
-                    </TableCell>
-                    <TableCell>{dayOfWeek}</TableCell>
-                    <TableCell>{record.clock_in || '-'}</TableCell>
-                    <TableCell>{record.lunch_start || '-'}</TableCell>
-                    <TableCell>{record.lunch_end || '-'}</TableCell>
-                    <TableCell>{record.clock_out || '-'}</TableCell>
-                    <TableCell>{record.total_hours > 0 ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                    <TableCell>{record.overtime_hours > 0 ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                    <TableCell>{record.total_pay > 0 ? formatCurrency(Number(record.total_pay)) : '-'}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          {/* Resumo Mobile */}
+          <div className="grid grid-cols-2 gap-4 pt-3 border-t">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm font-medium">Total Horas</span>
+              </div>
+              <div className="text-lg font-bold">{totals.totalHours.toFixed(1)}h</div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
+                <DollarSign className="w-4 h-4" />
+                <span className="text-sm font-medium">Valor Total</span>
+              </div>
+              <div className="text-lg font-bold">{formatCurrency(totals.totalPay)}</div>
+            </div>
+          </div>
+          
+          <div className="text-center text-sm text-gray-600 pt-2 border-t">
+            Valor/Hora: {formatCurrency(hourlyRate)}
+          </div>
         </CardContent>
       </Card>
+
+      {/* Lista de Registros Mobile */}
+      <div className="space-y-2">
+        {records.map((record) => {
+          const dayOfWeek = getDayOfWeek(record.date);
+          const isExpanded = expandedRecords.has(record.id);
+          const hasData = record.clock_in || record.lunch_start || record.lunch_end || record.clock_out;
+          
+          return (
+            <Card key={record.id} className={record.isWeekend ? 'bg-blue-50 border-blue-200' : ''}>
+              <CardContent className="p-4">
+                {/* Header do dia */}
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleRecord(record.id)}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {format(new Date(record.date + 'T00:00:00'), 'dd/MM')}
+                      </span>
+                      <span className="text-sm text-gray-600 capitalize">
+                        {dayOfWeek}
+                      </span>
+                      {record.isWeekend && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                          Fim de semana
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Resumo rápido */}
+                    <div className="text-right">
+                      {record.total_hours > 0 ? (
+                        <>
+                          <div className="text-sm font-medium">
+                            {Number(record.total_hours).toFixed(1)}h
+                          </div>
+                          <div className="text-xs text-green-600">
+                            {formatCurrency(Number(record.total_pay))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-gray-500">
+                          Sem registro
+                        </div>
+                      )}
+                    </div>
+                    
+                    {hasData && (
+                      <Button variant="ghost" size="sm" className="p-1">
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Detalhes expandidos */}
+                {isExpanded && hasData && (
+                  <div className="mt-4 pt-4 border-t space-y-3">
+                    {/* Horários */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-600">Entrada:</span>
+                        <span className="ml-2 font-medium">{record.clock_in || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Saída:</span>
+                        <span className="ml-2 font-medium">{record.clock_out || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Almoço:</span>
+                        <span className="ml-2 font-medium">{record.lunch_start || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Volta:</span>
+                        <span className="ml-2 font-medium">{record.lunch_end || '-'}</span>
+                      </div>
+                    </div>
+
+                    {/* Cálculos */}
+                    {record.total_hours > 0 && (
+                      <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Horas Normais:</span>
+                          <span>{Number(record.normal_hours).toFixed(1)}h</span>
+                        </div>
+                        {record.overtime_hours > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span>Horas Extras:</span>
+                            <span className="text-orange-600">
+                              {Number(record.overtime_hours).toFixed(1)}h
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm font-medium pt-2 border-t">
+                          <span>Total:</span>
+                          <span className="text-green-600">
+                            {formatCurrency(Number(record.total_pay))}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 };
