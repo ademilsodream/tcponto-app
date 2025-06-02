@@ -199,16 +199,29 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
       };
     }
 
-    // Buscar nome da localização cadastrada se existir
+    // CORREÇÃO: Priorizar locationName já salvo nos dados
     if (fieldData.locationName) {
+      console.log(`✅ LocationName já existe nos dados: ${fieldData.locationName}`);
       locationDetails.locationName = fieldData.locationName;
     } else if (locationDetails.lat !== 0 && locationDetails.lng !== 0) {
+      // Só buscar nome da localização se NÃO existir locationName nos dados
+      console.log(`🔍 LocationName não existe, buscando por coordenadas...`);
       const foundLocationName = findAllowedLocationName(locationDetails.lat, locationDetails.lng, allowedLocations);
       if (foundLocationName) {
+        console.log(`✅ Nome encontrado por coordenadas: ${foundLocationName}`);
         locationDetails.locationName = foundLocationName;
+      } else {
+        console.log(`❌ Nenhum nome encontrado por coordenadas`);
       }
     }
   }
+
+  console.log(`📋 Resultado final do processamento para ${fieldName}:`, {
+    hasLocationName: !!locationDetails.locationName,
+    locationName: locationDetails.locationName,
+    hasCoordinates: locationDetails.lat !== 0 || locationDetails.lng !== 0,
+    coordinates: `${locationDetails.lat}, ${locationDetails.lng}`
+  });
 
   return locationDetails;
 };
