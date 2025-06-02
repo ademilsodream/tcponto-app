@@ -28,9 +28,9 @@ export const getActiveEmployees = (employees: Employee[]): Employee[] => {
 };
 
 /**
- * Cria condições SQL para filtrar apenas funcionários ativos
- * CORREÇÃO: Agora inclui criteria para rejeitar funcionários inativos
+ * NOTA: Esta função não deve ser usada diretamente com o método .filter() do Supabase.
+ * Use construções SQL explícitas como .eq('role', 'user') e .or('status.is.null,status.eq.active')
  */
-export const getActiveEmployeesQuery = () => {
+export const getActiveEmployeesQuery = (): string => {
   return "role = 'user' AND (status IS NULL OR status = 'active')";
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button }from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Calendar, DollarSign, Clock, Users } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { getActiveEmployees, getActiveEmployeesQuery, type Employee } from '@/utils/employeeFilters';
+import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 
 interface PayrollReportProps {
   employees: Employee[];
@@ -75,14 +74,14 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
       const payrollResults: PayrollData[] = [];
 
-      // CORREÇÃO: Usar a função padronizada para filtrar funcionários ativos
-      // Buscar apenas funcionários ativos do banco
+      // Buscar apenas funcionários ativos do banco usando filtro correto
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
       const { data: dbEmployees, error: employeesError } = await supabase
         .from('profiles')
         .select('*')
         .in('id', activeEmployeeIds)
-        .filter(getActiveEmployeesQuery());
+        .eq('role', 'user')
+        .or('status.is.null,status.eq.active');
 
       if (employeesError) {
         console.error('Erro ao buscar funcionários:', employeesError);

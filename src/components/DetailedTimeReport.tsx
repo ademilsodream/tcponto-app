@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { getActiveEmployees, getActiveEmployeesQuery, type Employee } from '@/utils/employeeFilters';
+import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 
 interface DetailedTimeReportProps {
   employees: Employee[];
@@ -134,12 +135,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados na consulta:', data);
 
-      // CORREÇÃO: Buscar informações do funcionário usando filtro correto
+      // Buscar informações do funcionário usando filtro correto
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
         .eq('id', selectedEmployeeId)
-        .filter(getActiveEmployeesQuery())
+        .eq('role', 'user')
+        .or('status.is.null,status.eq.active')
         .single();
 
       if (profileError) {
@@ -246,15 +248,16 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados na consulta:', data);
 
-      // CORREÇÃO: Usar IDs dos funcionários ativos filtrados
+      // Usar IDs dos funcionários ativos filtrados
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
       
-      // CORREÇÃO: Buscar apenas perfis de funcionários ativos usando a consulta SQL padronizada
+      // Buscar apenas perfis de funcionários ativos usando a consulta SQL padronizada
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
         .in('id', activeEmployeeIds)
-        .filter(getActiveEmployeesQuery());
+        .eq('role', 'user')
+        .or('status.is.null,status.eq.active');
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);

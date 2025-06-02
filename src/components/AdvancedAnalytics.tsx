@@ -76,7 +76,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
 
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
 
-      // CORREÇÃO: Usar a função padronizada getActiveEmployeesQuery para filtrar funcionários
+      // Buscar analytics apenas para funcionários ativos
       const { data, error } = await supabase
         .from('employee_analytics')
         .select('*')
@@ -93,7 +93,8 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
         .from('profiles')
         .select('id, name')
         .in('id', activeEmployeeIds)
-        .filter(getActiveEmployeesQuery());
+        .eq('role', 'user')
+        .or('status.is.null,status.eq.active');
         
       if (profilesError) throw profilesError;
       
@@ -123,7 +124,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
 
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
 
-      // CORREÇÃO: Usar apenas IDs de funcionários ativos previamente filtrados
+      // Buscar alertas apenas para funcionários ativos
       const { data, error } = await supabase
         .from('system_alerts')
         .select('*')
