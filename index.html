@@ -1,12 +1,13 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>jornada-em-dia</title>
-    <meta name="description" content="Lovable Generated Project" />
-    <meta name="author" content="Lovable" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title id="dynamic-title">TCPonto - Controle de Ponto</title>
+    <meta name="description" content="Sistema de controle de ponto para empresas - Interface otimizada para funcionários e administradores" />
+    <meta name="author" content="TCPonto" />
+    <meta name="keywords" content="controle de ponto, registro de horas, gestão de funcionários, timesheet" />
 
     <!-- Favicon and App Icons -->
     <link rel="icon" href="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" type="image/png">
@@ -19,15 +20,42 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="TCPonto">
+    <meta name="mobile-web-app-capable" content="yes">
 
-    <meta property="og:title" content="jornada-em-dia" />
-    <meta property="og:description" content="Lovable Generated Project" />
+    <!-- PWA Configuration -->
+    <meta name="application-name" content="TCPonto">
+    <meta name="msapplication-TileColor" content="#1f2937">
+    <meta name="msapplication-config" content="/browserconfig.xml">
+
+    <!-- Prevent zoom on mobile for better UX -->
+    <meta name="format-detection" content="telephone=no">
+
+    <meta property="og:title" content="TCPonto - Controle de Ponto" />
+    <meta property="og:description" content="Sistema de controle de ponto para empresas" />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:title" content="TCPonto - Controle de Ponto" />
+    <meta name="twitter:description" content="Sistema de controle de ponto para empresas" />
+    <meta name="twitter:image" content="/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png" />
+
+    <!-- Dynamic title update script -->
+    <script>
+      // Update title based on subdomain
+      document.addEventListener('DOMContentLoaded', function() {
+        const hostname = window.location.hostname;
+        const titleElement = document.getElementById('dynamic-title');
+        
+        if (hostname.startsWith('admin.')) {
+          titleElement.textContent = 'TCPonto Admin - Painel Administrativo';
+          document.querySelector('meta[name="description"]').content = 'Painel administrativo do TCPonto para gestão de funcionários e relatórios';
+        } else if (hostname.startsWith('app.') || hostname.startsWith('employee.')) {
+          titleElement.textContent = 'TCPonto - Registro de Ponto';
+          document.querySelector('meta[name="description"]').content = 'Aplicativo de registro de ponto para funcionários - TCPonto';
+        }
+      });
+    </script>
   </head>
 
   <body>

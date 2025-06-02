@@ -9,6 +9,15 @@
   "orientation": "portrait",
   "scope": "/",
   "start_url": "/",
+  "categories": ["business", "productivity"],
+  "screenshots": [
+    {
+      "src": "/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
   "icons": [
     {
       "src": "/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png",
@@ -21,6 +30,20 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Registrar Ponto",
+      "short_name": "Ponto",
+      "description": "Registrar entrada/saída rápida",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/lovable-uploads/e1cebe67-0124-4b20-8434-701ca5a10612.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ]
 }
