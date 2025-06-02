@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
+import { getActiveEmployees, getActiveEmployeesQuery, type Employee } from '@/utils/employeeFilters';
 
 interface DetailedTimeReportProps {
   employees: Employee[];
@@ -49,11 +49,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   
-  // CORREÇÃO: Usar o contexto de moeda
+  // Usar o contexto de moeda
   const { formatCurrency } = useCurrency();
 
-  // CORREÇÃO: Filtrar funcionários usando a função padronizada
-  const activeEmployees = getActiveEmployees(employees);
+  // Usar useMemo para evitar recálculos desnecessários
+  const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
 
   // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
@@ -134,11 +134,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados na consulta:', data);
 
-      // Buscar informações do funcionário separadamente
+      // CORREÇÃO: Buscar informações do funcionário usando filtro correto
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
         .eq('id', selectedEmployeeId)
+        .filter(getActiveEmployeesQuery())
         .single();
 
       if (profileError) {
@@ -248,10 +249,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // CORREÇÃO: Usar IDs dos funcionários ativos filtrados
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
       
+      // CORREÇÃO: Buscar apenas perfis de funcionários ativos usando a consulta SQL padronizada
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
-        .in('id', activeEmployeeIds);
+        .in('id', activeEmployeeIds)
+        .filter(getActiveEmployeesQuery());
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);

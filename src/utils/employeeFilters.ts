@@ -12,17 +12,25 @@ export interface Employee {
 
 /**
  * Filtra apenas funcionários ativos (não administradores)
+ * CORREÇÃO: Agora rejeita explicitamente status 'inactive' e 'terminated'
  */
 export const getActiveEmployees = (employees: Employee[]): Employee[] => {
   return employees.filter(employee => 
     employee.role === 'user' && 
-    (!employee.status || employee.status === 'active')
+    (
+      employee.status === 'active' || 
+      employee.status === undefined || 
+      employee.status === null
+    ) &&
+    employee.status !== 'inactive' &&
+    employee.status !== 'terminated'
   );
 };
 
 /**
  * Cria condições SQL para filtrar apenas funcionários ativos
+ * CORREÇÃO: Agora inclui criteria para rejeitar funcionários inativos
  */
 export const getActiveEmployeesQuery = () => {
-  return `role = 'user' AND (status IS NULL OR status = 'active')`;
+  return "role = 'user' AND (status IS NULL OR status = 'active')";
 };

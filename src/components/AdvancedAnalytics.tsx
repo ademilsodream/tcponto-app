@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, AlertTriangle, Users, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
+import { getActiveEmployees, getActiveEmployeesQuery, type Employee } from '@/utils/employeeFilters';
 
 interface EmployeeAnalytics {
   id: string;
@@ -35,8 +35,8 @@ interface AnomalyFlags {
 const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<'current' | 'last3' | 'last6'>('current');
 
-  // Filtrar apenas funcionários ativos
-  const activeEmployees = getActiveEmployees(employees);
+  // Filtrar apenas funcionários ativos usando useMemo para evitar recálculos desnecessários
+  const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
 
   // Buscar dados de analytics apenas para funcionários ativos
   const { data: analyticsData = [], isLoading } = useQuery({
@@ -76,6 +76,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
 
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
 
+      // CORREÇÃO: Usar a função padronizada getActiveEmployeesQuery para filtrar funcionários
       const { data, error } = await supabase
         .from('employee_analytics')
         .select('*')
@@ -87,12 +88,25 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
 
       if (error) throw error;
 
+      // Buscar informações de funcionários ativos para enriquecer os dados
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', activeEmployeeIds)
+        .filter(getActiveEmployeesQuery());
+        
+      if (profilesError) throw profilesError;
+      
+      const profileMap = (profilesData || []).reduce((acc, profile) => {
+        acc[profile.id] = profile.name;
+        return acc;
+      }, {} as Record<string, string>);
+
       // Adicionar nome dos funcionários
       const enrichedData = data?.map(item => {
-        const employee = activeEmployees.find(emp => emp.id === item.employee_id);
         return {
           ...item,
-          employee_name: employee?.name || 'Funcionário não encontrado'
+          employee_name: profileMap[item.employee_id] || 'Funcionário não encontrado'
         };
       }) || [];
 
@@ -109,6 +123,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
 
       const activeEmployeeIds = activeEmployees.map(emp => emp.id);
 
+      // CORREÇÃO: Usar apenas IDs de funcionários ativos previamente filtrados
       const { data, error } = await supabase
         .from('system_alerts')
         .select('*')
