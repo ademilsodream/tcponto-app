@@ -52,12 +52,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Configurar listener de mudanças de autenticação
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
+        (event, session) => {
           console.log('AuthProvider: Evento de autenticação:', event, session ? 'com sessão' : 'sem sessão');
           
           if (event === 'SIGNED_IN' && session?.user) {
             console.log('AuthProvider: Usuário logou, carregando perfil...');
-            await loadUserProfile(session.user);
+            // Usar setTimeout para evitar deadlock
+            setTimeout(() => {
+              loadUserProfile(session.user);
+            }, 0);
           } else if (event === 'SIGNED_OUT') {
             console.log('AuthProvider: Usuário deslogou');
             setUser(null);
@@ -67,7 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else if (event === 'TOKEN_REFRESHED' && session?.user) {
             console.log('AuthProvider: Token renovado, verificando status do usuário...');
             // Quando token é renovado, verificar se usuário ainda está ativo
-            await loadUserProfile(session.user);
+            setTimeout(() => {
+              loadUserProfile(session.user);
+            }, 0);
           }
         }
       );
@@ -132,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        console.log('AuthProvider: Perfil carregado com sucesso');
+        console.log('AuthProvider: Perfil carregado com sucesso:', profile);
         setUser({
           id: profile.id,
           name: profile.name,

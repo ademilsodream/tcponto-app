@@ -14,6 +14,29 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js-web'
+    }
+  }
+});
+
+// Log para debug das requisições
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('🔐 Auth state changed:', event);
+  if (session) {
+    console.log('✅ Sessão ativa:', {
+      user_id: session.user.id,
+      access_token_length: session.access_token.length,
+      expires_at: new Date(session.expires_at! * 1000)
+    });
+  } else {
+    console.log('❌ Nenhuma sessão ativa');
   }
 });

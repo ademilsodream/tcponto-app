@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import HourBankSettings from './HourBankSettings';
 import CurrencySelector from './CurrencySelector';
 import DepartmentJobManagement from './DepartmentJobManagement';
@@ -38,6 +39,7 @@ const Settings = () => {
   const [savingTolerance, setSavingTolerance] = useState(false);
   const { toast } = useToast();
   const { currency, setCurrency, loadSystemCurrency } = useCurrency();
+  const { user } = useAuth();
 
   React.useEffect(() => {
     loadLocations();
@@ -165,6 +167,23 @@ const Settings = () => {
       longitude_value: newLocation.longitude
     });
 
+    // Log do estado de autenticação atual
+    console.log('🔐 Estado de autenticação:', {
+      user_logged_in: !!user,
+      user_role: user?.role,
+      user_id: user?.id,
+      user_email: user?.email
+    });
+
+    // Verificar sessão atual
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('🔐 Verificação de sessão:', {
+      session_exists: !!session,
+      session_error: sessionError,
+      user_in_session: session?.user?.id,
+      access_token_length: session?.access_token?.length
+    });
+
     // Validar dados
     const validationError = validateLocationData(newLocation);
     if (validationError) {
@@ -208,6 +227,9 @@ const Settings = () => {
         latitude_isNaN: isNaN(locationToInsert.latitude),
         longitude_isNaN: isNaN(locationToInsert.longitude)
       });
+
+      // Log antes de fazer a inserção
+      console.log('🔐 Fazendo inserção com token atual...');
 
       const { data, error } = await supabase
         .from('allowed_locations')
@@ -362,6 +384,9 @@ const Settings = () => {
       <div className="flex items-center gap-2 mb-6">
         <Settings2 className="w-6 h-6" />
         <h1 className="text-2xl font-bold">Configurações do Sistema</h1>
+        <div className="ml-auto text-sm text-muted-foreground">
+          Usuário: {user?.email} ({user?.role})
+        </div>
       </div>
 
       <Tabs defaultValue="locations" className="space-y-6">
