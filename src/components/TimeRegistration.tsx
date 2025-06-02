@@ -328,10 +328,10 @@ const TimeRegistration = () => {
   }
 
   const steps = [
-    { key: 'clock_in', label: 'Entrada', icon: LogIn },
-    { key: 'lunch_start', label: 'Almoço', icon: Coffee },
-    { key: 'lunch_end', label: 'Volta', icon: Coffee },
-    { key: 'clock_out', label: 'Saída', icon: LogOut },
+    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
+    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'lunch_end', label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ];
 
   const getValue = (key: string) => {
