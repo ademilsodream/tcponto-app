@@ -25,43 +25,41 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
       <header className="bg-white shadow-sm border-b w-full">
-  <div className="w-full px-4 py-3">
-    <div className="grid grid-cols-3 items-center w-full">
-      {/* Espaço vazio à esquerda para manter o equilíbrio */}
-      <div></div>
+        <div className="w-full px-4 py-3">
+          <div className="grid grid-cols-3 items-center w-full">
+            {/* Espaço vazio à esquerda para manter o equilíbrio */}
+            <div></div>
+            
+            {/* Logo e nome centralizados */}
+            <div className="flex items-center justify-center space-x-3">
+              <img 
+                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                alt="TCPonto Logo" 
+                className="w-10 h-10 rounded-full" 
+              />
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">TCPonto</h1>
+              </div>
+            </div>
       
-      {/* Logo e nome centralizados */}
-      <div className="flex items-center justify-center space-x-3">
-        <img 
-          src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-          alt="TCPonto Logo" 
-          className="w-10 h-10 rounded-full" 
-        />
-        <div>
-          <h1 className="text-lg font-bold text-gray-900">TCPonto</h1>
+            {/* Informações do usuário e botão de logout à direita */}
+            <div className="flex items-center justify-end space-x-2">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                <p className="text-xs text-gray-600">Funcionário</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="p-2"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Informações do usuário e botão de logout à direita */}
-      <div className="flex items-center justify-end space-x-2">
-        <div className="text-right hidden sm:block">
-          <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-          <p className="text-xs text-gray-600">Funcionário</p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="p-2"
-        >
-          <LogOut className="w-4 h-4" />
-        </Button>
-      </div>
-    </div>
-  </div>
-</header>
-
-
+      </header>
 
       <main className="w-full p-4">
         {children}
