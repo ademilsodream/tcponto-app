@@ -5,11 +5,9 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { Toaster } from '@/components/ui/toaster';
-import { useInterfaceType } from '@/hooks/useInterfaceType';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminLayout from '@/components/AdminLayout';
 import EmployeeLayout from '@/components/EmployeeLayout';
-import SmartRedirect from '@/components/SmartRedirect';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
 import EmployeeDashboard from '@/components/EmployeeDashboard';
@@ -20,7 +18,6 @@ import './App.css';
 
 const AppContent = () => {
   const { user, loading } = useAuth();
-  const interfaceType = useInterfaceType();
 
   if (loading) {
     return (
@@ -30,41 +27,33 @@ const AppContent = () => {
     );
   }
 
-  // Determinar qual layout e dashboard usar
-  const shouldUseAdminInterface = 
-    interfaceType === 'admin' || 
-    (interfaceType === 'auto' && user?.role === 'admin');
-
-  const shouldUseEmployeeInterface = 
-    interfaceType === 'employee' || 
-    (interfaceType === 'auto' && user?.role === 'user');
+  // Determinar qual interface usar baseado no role do usuário
+  const isAdmin = user?.role === 'admin';
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
       <Routes>
         <Route 
           path="/login" 
-          element={user ? <SmartRedirect /> : <Login />} 
+          element={user ? <Navigate to="/" replace /> : <Login />} 
         />
         
         <Route 
           path="/" 
           element={
             user ? (
-              shouldUseAdminInterface ? (
+              isAdmin ? (
                 <AdminLayout>
                   <ProtectedRoute>
                     <Dashboard />
                   </ProtectedRoute>
                 </AdminLayout>
-              ) : shouldUseEmployeeInterface ? (
+              ) : (
                 <EmployeeLayout>
                   <ProtectedRoute>
                     <EmployeeDashboard />
                   </ProtectedRoute>
                 </EmployeeLayout>
-              ) : (
-                <SmartRedirect />
               )
             ) : (
               <Navigate to="/login" replace />
@@ -75,7 +64,7 @@ const AppContent = () => {
         <Route 
           path="/settings" 
           element={
-            user && shouldUseAdminInterface ? (
+            user && isAdmin ? (
               <AdminLayout>
                 <ProtectedRoute>
                   <SettingsPage />
