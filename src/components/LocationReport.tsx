@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -69,14 +70,32 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função extremamente simplificada - APENAS extrai dados salvos
+// Função para buscar dados de localização em diferentes formatos
 const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
   if (!locations || typeof locations !== 'object' || Array.isArray(locations)) {
     return null;
   }
 
   const locObject = locations as Record<string, any>;
-  const fieldData = locObject[fieldName];
+  
+  // Mapear nomes dos campos para diferentes formatos
+  const fieldMappings: Record<string, string[]> = {
+    'clockIn': ['clockIn', 'clock_in'],
+    'clockOut': ['clockOut', 'clock_out'],
+    'lunchStart': ['lunchStart', 'lunch_start'],
+    'lunchEnd': ['lunchEnd', 'lunch_end']
+  };
+
+  // Buscar o campo nos diferentes formatos
+  const possibleFields = fieldMappings[fieldName] || [fieldName];
+  let fieldData = null;
+
+  for (const possibleField of possibleFields) {
+    if (locObject[possibleField]) {
+      fieldData = locObject[possibleField];
+      break;
+    }
+  }
 
   if (!fieldData) {
     return null;
@@ -98,7 +117,7 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
     };
   }
 
-  // Se for objeto - apenas extrair os dados salvos
+  // Se for objeto - extrair apenas locationName e address
   if (typeof fieldData === 'object') {
     return {
       lat: Number(fieldData.lat) || 0,
@@ -110,8 +129,8 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
       state: fieldData.state || 'Não informado',
       postalCode: fieldData.postalCode || 'Não informado',
       country: fieldData.country || 'Não informado',
-      fullAddress: fieldData.fullAddress || fieldData.address || 'Endereço não disponível',
-      locationName: fieldData.locationName // APENAS pegar o que está salvo
+      fullAddress: fieldData.address || fieldData.fullAddress || 'Endereço não disponível',
+      locationName: fieldData.locationName // Nome do local cadastrado
     };
   }
 
