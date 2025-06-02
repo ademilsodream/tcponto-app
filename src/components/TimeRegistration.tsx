@@ -1,18 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, MapPin, AlertTriangle, LogIn, Coffee, LogOut } from 'lucide-react';
+import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import TimeRegistrationProgress from '@/components/TimeRegistrationProgress';
 
 interface TimeRecord {
   id: string;
@@ -66,13 +66,8 @@ const TimeRegistration = () => {
   const initializeData = async () => {
     try {
       setLoading(true);
-      
-      // Carregar localizações permitidas primeiro
       await loadAllowedLocations();
-      
-      // Depois carregar registro do dia
       await loadTodayRecord();
-      
     } catch (error) {
       console.error('Erro ao inicializar dados:', error);
       toast({
@@ -96,9 +91,6 @@ const TimeRegistration = () => {
 
       if (error) throw error;
       
-      console.log('✅ Dados brutos do banco:', data);
-      
-      // Garantir conversão correta dos dados do banco
       const processedLocations = (data || []).map(location => ({
         ...location,
         latitude: Number(location.latitude),
@@ -106,7 +98,6 @@ const TimeRegistration = () => {
         range_meters: Number(location.range_meters)
       }));
       
-      console.log('🔄 Dados processados:', processedLocations);
       setAllowedLocations(processedLocations);
       
       if (!processedLocations || processedLocations.length === 0) {
@@ -115,11 +106,6 @@ const TimeRegistration = () => {
           title: "Aviso",
           description: "Nenhuma localização permitida configurada no sistema",
           variant: "destructive"
-        });
-      } else {
-        console.log(`✅ ${processedLocations.length} localizações carregadas e prontas para validação`);
-        processedLocations.forEach((loc, index) => {
-          console.log(`   ${index + 1}. ${loc.name} - Range: ${loc.range_meters}m`);
         });
       }
     } catch (error) {
@@ -167,9 +153,7 @@ const TimeRegistration = () => {
       setSubmitting(true);
       
       console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
-      console.log('📅 Data/Hora:', new Date().toLocaleString());
       
-      // Verificar se há localizações carregadas
       if (!allowedLocations || allowedLocations.length === 0) {
         console.error('❌ Nenhuma localização permitida carregada');
         toast({
@@ -182,7 +166,6 @@ const TimeRegistration = () => {
 
       console.log(`🏢 Validando contra ${allowedLocations.length} localizações permitidas`);
       
-      // Validar localização em tempo real
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
       
       if (!locationValidation.valid) {
@@ -206,7 +189,6 @@ const TimeRegistration = () => {
         updated_at: new Date().toISOString()
       };
 
-      // Adicionar dados de localização
       if (locationValidation.location) {
         const locationData = {
           [action]: {
@@ -254,12 +236,9 @@ const TimeRegistration = () => {
         clock_out: 'Saída'
       };
 
-      console.log(`✅ ${actionNames[action]} registrada com sucesso às ${currentTime}`);
-      console.log(`📍 Local: ${locationValidation.closestLocation?.name} (${Math.round(locationValidation.distance || 0)}m)`);
-
       toast({
         title: "Sucesso",
-        description: `${actionNames[action]} registrada às ${currentTime} em ${locationValidation.closestLocation?.name}`,
+        description: `${actionNames[action]} registrada às ${currentTime}`,
       });
 
     } catch (error) {
@@ -272,13 +251,6 @@ const TimeRegistration = () => {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const openEditDialog = (field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
-    setEditField(field);
-    setEditValue(timeRecord?.[field] || '');
-    setEditReason('');
-    setIsEditDialogOpen(true);
   };
 
   const handleEditSubmit = async () => {
@@ -294,7 +266,6 @@ const TimeRegistration = () => {
     try {
       setSubmitting(true);
 
-      // Validar localização para solicitação de edição
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
 
       let locationData = null;
@@ -349,18 +320,18 @@ const TimeRegistration = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center p-8 min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         <span className="ml-2">Carregando...</span>
       </div>
     );
   }
 
   const steps = [
-    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
-    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'lunch_end', label: 'Fim Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
+    { key: 'clock_in', label: 'Entrada', icon: LogIn },
+    { key: 'lunch_start', label: 'Almoço', icon: Coffee },
+    { key: 'lunch_end', label: 'Volta', icon: Coffee },
+    { key: 'clock_out', label: 'Saída', icon: LogOut },
   ];
 
   const getValue = (key: string) => {
@@ -379,13 +350,6 @@ const TimeRegistration = () => {
   };
 
   const nextAction = getNextAction();
-  
-  const actionLabels = {
-    clock_in: 'Registrar',
-    lunch_start: 'Registrar',
-    lunch_end: 'Registrar',
-    clock_out: 'Registrar'
-  };
 
   const fieldNames = {
     clock_in: 'Entrada',
@@ -395,92 +359,89 @@ const TimeRegistration = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto">
-      {/* Data e Hora Atual */}
-      <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
-        <CardContent className="text-center py-8">
-          <div className="text-blue-700 text-lg font-medium mb-2">
-            {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-          </div>
-          <div className="text-blue-900 text-5xl font-bold tracking-wider">
-            {format(currentTime, 'HH:mm:ss')}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      {/* Relógio Principal - igual às imagens */}
+      <div className="text-center mb-8">
+        <div className="text-gray-600 text-lg mb-2">
+          {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+        </div>
+        <div className="text-gray-900 text-6xl font-bold tracking-wider mb-4">
+          {format(currentTime, 'HH:mm:ss')}
+        </div>
+      </div>
 
-      {/* Progresso do Dia */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-700">Progresso do Dia</h3>
-            <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-medium text-orange-600">
-                {completedCount}/4 registros
-              </span>
+      {/* Card Principal */}
+      <Card className="w-full max-w-md bg-white shadow-lg">
+        <CardContent className="p-6">
+          {/* Progresso Horizontal Simples - igual às imagens */}
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-3">
+              {steps.map((step, index) => {
+                const Icon = step.icon;
+                const isCompleted = !!getValue(step.key);
+                const isNext = !isCompleted && completedCount === index;
+
+                return (
+                  <div key={step.key} className="flex flex-col items-center flex-1">
+                    <div 
+                      className={`w-10 h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
+                        isCompleted 
+                          ? 'bg-blue-600 text-white' 
+                          : isNext
+                            ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
+                            : 'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <span className={`text-xs text-center ${
+                      isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
+                    }`}>
+                      {step.label}
+                    </span>
+                    {isCompleted && (
+                      <span className="text-xs text-blue-600 mt-1 font-medium">
+                        {getValue(step.key)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Barra de progresso horizontal */}
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${(completedCount / 4) * 100}%` }}
+              />
             </div>
           </div>
 
-          <div className="flex justify-between items-center mb-4">
-            {steps.map((step, index) => {
-              const Icon = step.icon;
-              const isCompleted = !!getValue(step.key);
-              const isNext = !isCompleted && completedCount === index;
-
-              return (
-                <div key={step.key} className="flex flex-col items-center flex-1">
-                  <div 
-                    className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-all duration-200 ${
-                      isCompleted 
-                        ? `${step.color} text-white shadow-md` 
-                        : isNext
-                          ? 'bg-gray-200 border-2 border-blue-400 text-gray-600'
-                          : 'bg-gray-100 text-gray-400'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <span className={`text-sm text-center leading-tight ${
-                    isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
-                  }`}>
-                    {step.label}
-                  </span>
-                  {isCompleted && (
-                    <span className="text-sm text-gray-600 mt-1">
-                      {getValue(step.key)}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Barra de progresso */}
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div 
-              className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-              style={{ width: `${(completedCount / 4) * 100}%` }}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Botão de Registro */}
-      {nextAction && (
-        <Card>
-          <CardContent className="p-6">
+          {/* Botão Registrar - igual às imagens */}
+          {nextAction && (
             <Button
               onClick={() => handleTimeAction(nextAction)}
               disabled={submitting}
-              className="w-full h-16 text-xl font-semibold bg-blue-600 hover:bg-blue-700"
-              size="lg"
+              className="w-full h-14 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white"
             >
-              <Clock className="w-6 h-6 mr-3" />
-              {submitting ? 'Registrando...' : actionLabels[nextAction]}
+              <Clock className="w-5 h-5 mr-2" />
+              {submitting ? 'Registrando...' : 'Registrar'}
             </Button>
-          </CardContent>
-        </Card>
-      )}
+          )}
+
+          {!nextAction && (
+            <div className="text-center py-4">
+              <div className="text-green-600 font-semibold mb-2">
+                ✅ Todos os registros concluídos!
+              </div>
+              <div className="text-sm text-gray-500">
+                Tenha um ótimo resto do dia!
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
