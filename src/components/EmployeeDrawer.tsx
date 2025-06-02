@@ -31,7 +31,7 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
         <Button 
           variant="outline" 
           size="icon" 
-          className="fixed top-4 left-4 z-50 bg-white shadow-lg"
+          className="fixed top-4 left-6 z-50 bg-white shadow-lg"
         >
           <Menu className="h-5 w-5" />
         </Button>
@@ -46,7 +46,6 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
             />
             <div>
               <h2 className="text-lg font-bold text-gray-900">TCPonto</h2>
-              <p className="text-sm text-gray-600">Menu do Funcionário</p>
             </div>
           </div>
 
