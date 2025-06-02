@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -165,6 +164,7 @@ const TimeRegistration = () => {
       }
 
       console.log(`🏢 Validando contra ${allowedLocations.length} localizações permitidas`);
+      console.log('📋 Validação de localização: GPS deve estar DENTRO DO RANGE de uma localização permitida');
       
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
       
@@ -178,7 +178,7 @@ const TimeRegistration = () => {
         return;
       }
 
-      console.log('✅ Localização validada, registrando ponto...');
+      console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -360,20 +360,35 @@ const TimeRegistration = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      {/* Relógio Principal - igual às imagens */}
+      {/* Header com logo movida para direita - otimizado para mobile */}
+      <div className="w-full max-w-md mb-6 pl-16"> {/* padding-left para não ficar sob o menu */}
+        <div className="flex items-center justify-center space-x-3">
+          <img 
+            src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+            alt="TCPonto Logo" 
+            className="w-8 h-8 rounded-full" 
+          />
+          <div className="text-center">
+            <h1 className="text-lg font-bold text-gray-900">TCPonto</h1>
+            <p className="text-xs text-gray-600">Controle de Ponto</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Relógio Principal - otimizado para mobile */}
       <div className="text-center mb-8">
-        <div className="text-gray-600 text-lg mb-2">
+        <div className="text-gray-600 text-base sm:text-lg mb-2">
           {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
         </div>
-        <div className="text-gray-900 text-6xl font-bold tracking-wider mb-4">
+        <div className="text-gray-900 text-4xl sm:text-6xl font-bold tracking-wider mb-4">
           {format(currentTime, 'HH:mm:ss')}
         </div>
       </div>
 
-      {/* Card Principal */}
+      {/* Card Principal - otimizado para mobile */}
       <Card className="w-full max-w-md bg-white shadow-lg">
-        <CardContent className="p-6">
-          {/* Progresso Horizontal Simples - igual às imagens */}
+        <CardContent className="p-4 sm:p-6">
+          {/* Progresso Horizontal - otimizado para mobile */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-3">
               {steps.map((step, index) => {
@@ -384,7 +399,7 @@ const TimeRegistration = () => {
                 return (
                   <div key={step.key} className="flex flex-col items-center flex-1">
                     <div 
-                      className={`w-10 h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
+                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
                         isCompleted 
                           ? 'bg-blue-600 text-white' 
                           : isNext
@@ -392,7 +407,7 @@ const TimeRegistration = () => {
                             : 'bg-gray-100 text-gray-400'
                       }`}
                     >
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <span className={`text-xs text-center ${
                       isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
@@ -418,12 +433,12 @@ const TimeRegistration = () => {
             </div>
           </div>
 
-          {/* Botão Registrar - igual às imagens */}
+          {/* Botão Registrar - otimizado para mobile */}
           {nextAction && (
             <Button
               onClick={() => handleTimeAction(nextAction)}
               disabled={submitting}
-              className="w-full h-14 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+              className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
             >
               <Clock className="w-5 h-5 mr-2" />
               {submitting ? 'Registrando...' : 'Registrar'}
@@ -443,7 +458,7 @@ const TimeRegistration = () => {
         </CardContent>
       </Card>
 
-      {/* Dialog de Edição */}
+      {/* Dialog de Edição - mantido igual */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
