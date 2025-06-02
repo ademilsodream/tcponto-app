@@ -235,7 +235,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Registros Incompletos - Até Ontem
+            Registros Incompletos
           </CardTitle>
           {onBack && (
             <Button variant="outline" size="sm" onClick={onBack}>
