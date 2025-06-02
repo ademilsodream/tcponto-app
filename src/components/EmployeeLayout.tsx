@@ -1,15 +1,17 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
+
 interface EmployeeLayoutProps {
   children: React.ReactNode;
 }
 
+
 const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
+
 
   const handleLogout = async () => {
     try {
@@ -19,10 +21,12 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
     }
   };
 
+
   return (
-    <header className="bg-white shadow-sm border-b w-full">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
+      <header className="bg-white shadow-sm border-b w-full">
         <div className="w-full px-4 py-3">
-          <div className="flex justify-between items-center w-full">
+          <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
               <img 
                 src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
@@ -54,11 +58,13 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
         </div>
       </header>
 
+
       <main className="w-full p-4">
         {children}
       </main>
     </div>
   );
 };
+
 
 export default EmployeeLayout;
