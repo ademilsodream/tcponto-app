@@ -224,7 +224,10 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   };
 
   const handleSubmitEdit = async () => {
-    if (!selectedDate || !timeRecord || !user) return;
+    if (!selectedDate || !timeRecord || !user) {
+      console.log('Erro: Dados básicos faltando', { selectedDate, timeRecord: !!timeRecord, user: !!user });
+      return;
+    }
 
     // Validar se pelo menos um campo foi preenchido
     const hasAnyTime = editForm.clock_in || editForm.lunch_start || editForm.lunch_end || editForm.clock_out;
@@ -249,13 +252,29 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
     try {
       setSubmitting(true);
+      
+      console.log('🔄 Iniciando envio da solicitação...');
+      
+      // VERIFICAR AUTH.UID() vs USER.ID
+      const { data: authData } = await supabase.auth.getUser();
+      console.log('🔐 Auth user:', authData.user?.id);
+      console.log('👤 Context user:', user.id);
+      console.log('🆔 São iguais?', authData.user?.id === user.id);
+      
+      // Testar se auth.uid() funciona
+      const { data: testAuth } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', authData.user?.id)
+        .single();
+      
+      console.log('🧪 Teste auth profile:', testAuth);
 
-      // Criar objeto com os valores alterados
       const editRequest = {
-        employee_id: user.id,
-        employee_name: user.email || 'Usuário',
+        employee_id: authData.user?.id || user.id, // Usar o auth.uid() diretamente
+        employee_name: user.email || user.name || 'Usuário',
         date: format(selectedDate, 'yyyy-MM-dd'),
-        field: 'multiple', // Indica que é edição de múltiplos campos
+        field: 'multiple',
         old_value: JSON.stringify({
           clock_in: timeRecord.clock_in,
           lunch_start: timeRecord.lunch_start,
@@ -268,15 +287,41 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           lunch_end: editForm.lunch_end || null,
           clock_out: editForm.clock_out || null
         }),
-        reason: editForm.reason,
+        reason: editForm.reason.trim(),
         status: 'pending'
+        // Remover created_at - deixar o Supabase gerar automaticamente
       };
 
-      const { error } = await supabase
-        .from('edit_requests')
-        .insert(editRequest);
+      console.log('📤 Dados finais a serem enviados:', editRequest);
+      console.log('🔍 Tipos dos dados:', {
+        employee_id: typeof editRequest.employee_id,
+        employee_name: typeof editRequest.employee_name,
+        date: typeof editRequest.date,
+        field: typeof editRequest.field,
+        old_value: typeof editRequest.old_value,
+        new_value: typeof editRequest.new_value,
+        reason: typeof editRequest.reason,
+        status: typeof editRequest.status
+      });
 
-      if (error) throw error;
+      const { data, error } = await supabase
+        .from('edit_requests')
+        .insert(editRequest)
+        .select();
+
+      console.log('📥 Resposta do Supabase:', { data, error });
+
+      if (error) {
+        console.error('❌ Erro detalhado do Supabase:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
+      console.log('✅ Solicitação inserida com sucesso:', data);
 
       toast({
         title: "Sucesso",
@@ -298,11 +343,27 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         reason: ''
       });
 
-    } catch (error) {
-      console.error('Erro ao enviar solicitação:', error);
+    } catch (error: any) {
+      console.error('💥 ERRO CRÍTICO ao enviar solicitação:', error);
+      console.error('📊 Stack trace:', error.stack);
+      
+      let errorMessage = 'Não foi possível enviar a solicitação de edição.';
+      
+      if (error.code === '23505') {
+        errorMessage = 'Já existe uma solicitação para este dia. Aguarde a aprovação.';
+      } else if (error.code === '42501') {
+        errorMessage = 'Sem permissão para criar solicitação. Contate o administrador.';
+      } else if (error.code === '23502') {
+        errorMessage = 'Dados obrigatórios faltando. Verifique se todos os campos estão preenchidos.';
+      } else if (error.message?.includes('row-level security')) {
+        errorMessage = 'Sem permissão para criar solicitação. Verifique se você está logado corretamente.';
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+      
       toast({
         title: "Erro",
-        description: "Não foi possível enviar a solicitação de edição.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
