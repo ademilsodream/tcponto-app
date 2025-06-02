@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +26,7 @@ import EmployeeMonthlySummary from '@/components/EmployeeMonthlySummary';
 import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
 import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import AdjustPreviousDays from '@/components/AdjustPreviousDays';
+import EmployeeDrawer from '@/components/EmployeeDrawer';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -145,76 +145,18 @@ const Dashboard = () => {
     }
   };
 
-  // Layout para funcionário comum - Retornar apenas o conteúdo, sem layout próprio
+  // Layout para funcionário comum - Com o drawer lateral
   if (!isAdmin) {
     return (
-      <div className="relative">
-        {/* Ícone do menu fixo no canto superior esquerdo */}
-        <div className="fixed top-20 left-4 z-50">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="bg-white shadow-lg">
-                <Menu className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56 bg-white">
-              <DropdownMenuItem 
-                onClick={() => setEmployeeActiveScreen('timeRegistration')}
-                className="flex items-center gap-2"
-              >
-                <Clock className="h-4 w-4" />
-                Registro de Ponto
-              </DropdownMenuItem>
-              
-              <DropdownMenuSeparator />
-              
-              <DropdownMenuItem 
-                onClick={() => setEmployeeActiveScreen('monthlySummary')}
-                className="flex items-center gap-2"
-              >
-                <BarChart3 className="h-4 w-4" />
-                Resumo Mensal
-              </DropdownMenuItem>
-              
-              <DropdownMenuItem 
-                onClick={() => setEmployeeActiveScreen('detailedReport')}
-                className="flex items-center gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                Relatório Detalhado
-              </DropdownMenuItem>
-              
-              <DropdownMenuItem 
-                onClick={() => setEmployeeActiveScreen('incompleteRecords')}
-                className="flex items-center gap-2"
-              >
-                <Clock className="h-4 w-4" />
-                Registros Incompletos
-              </DropdownMenuItem>
-              
-              <DropdownMenuItem 
-                onClick={() => setEmployeeActiveScreen('adjustPreviousDays')}
-                className="flex items-center gap-2"
-              >
-                <Edit className="h-4 w-4" />
-                Ajustar dias anteriores
-              </DropdownMenuItem>
-              
-              <DropdownMenuSeparator />
-              
-              <DropdownMenuItem 
-                onClick={handleSignOut}
-                className="flex items-center gap-2 text-red-600"
-              >
-                <LogOut className="h-4 w-4" />
-                Sair
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <div className="relative w-full min-h-screen bg-gray-50">
+        {/* Drawer/Menu lateral */}
+        <EmployeeDrawer 
+          activeScreen={employeeActiveScreen}
+          onScreenChange={setEmployeeActiveScreen}
+        />
 
         {/* Conteúdo principal */}
-        <div className="w-full min-h-screen bg-gray-50">
+        <div className="w-full min-h-screen">
           {renderEmployeeContent()}
         </div>
       </div>
