@@ -418,7 +418,10 @@ const TimeRegistration = () => {
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${(completedCount / 4) * 100}%` }}
+                style={{ 
+                width: `${(completedCount / 4) * 100}%`,
+                background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6'
+                }}
               />
             </div>
           </div>
