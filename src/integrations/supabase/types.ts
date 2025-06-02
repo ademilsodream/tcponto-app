@@ -823,6 +823,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      is_admin_user: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       process_hour_bank: {
         Args: {
           p_employee_id: string

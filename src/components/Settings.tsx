@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2 } from 'lucide-react';
+import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -133,6 +133,19 @@ const Settings = () => {
     return null;
   };
 
+  const resetAddingState = () => {
+    setAddingLocation(false);
+  };
+
+  const cancelAddLocation = () => {
+    console.log('🛑 Operação cancelada pelo usuário');
+    resetAddingState();
+    toast({
+      title: "Operação Cancelada",
+      description: "Adição de localização foi cancelada",
+    });
+  };
+
   const handleAddLocation = async () => {
     console.log('🚀 Iniciando cadastro de nova localização...');
     console.log('📋 Dados do formulário:', newLocation);
@@ -148,6 +161,17 @@ const Settings = () => {
       });
       return;
     }
+
+    // Timeout de segurança para resetar o estado após 30 segundos
+    const timeoutId = setTimeout(() => {
+      console.warn('⏰ Timeout atingido, resetando estado...');
+      resetAddingState();
+      toast({
+        title: "Timeout",
+        description: "Operação demorou muito e foi cancelada. Tente novamente.",
+        variant: "destructive"
+      });
+    }, 30000);
 
     try {
       setAddingLocation(true);
@@ -168,6 +192,9 @@ const Settings = () => {
         .from('allowed_locations')
         .insert([locationToInsert])
         .select();
+
+      // Limpar timeout se a operação foi bem-sucedida
+      clearTimeout(timeoutId);
 
       if (error) {
         console.error('❌ Erro do Supabase:', error);
@@ -200,6 +227,9 @@ const Settings = () => {
       await loadLocations();
 
     } catch (error: any) {
+      // Limpar timeout em caso de erro
+      clearTimeout(timeoutId);
+      
       console.error('💥 Erro crítico ao adicionar localização:', error);
       
       let errorMessage = "Erro ao adicionar localização";
@@ -218,7 +248,8 @@ const Settings = () => {
         variant: "destructive"
       });
     } finally {
-      setAddingLocation(false);
+      // Garantir que o estado sempre seja resetado
+      resetAddingState();
     }
   };
 
@@ -420,20 +451,32 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleAddLocation} 
-                  disabled={addingLocation}
-                  className="w-full"
-                >
-                  {addingLocation ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Adicionando...
-                    </>
-                  ) : (
-                    'Adicionar Localização'
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleAddLocation} 
+                    disabled={addingLocation}
+                    className="flex-1"
+                  >
+                    {addingLocation ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Adicionando...
+                      </>
+                    ) : (
+                      'Adicionar Localização'
+                    )}
+                  </Button>
+                  
+                  {addingLocation && (
+                    <Button 
+                      variant="outline"
+                      onClick={cancelAddLocation}
+                      className="px-3"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   )}
-                </Button>
+                </div>
               </div>
 
               {/* Lista de localizações existentes */}
