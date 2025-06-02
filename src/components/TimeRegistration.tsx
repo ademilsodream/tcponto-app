@@ -362,17 +362,7 @@ const TimeRegistration = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       {/* Header com logo movida para direita - otimizado para mobile */}
       <div className="w-full max-w-md mb-6 pl-16"> {/* padding-left para não ficar sob o menu */}
-        <div className="flex items-center justify-center space-x-3">
-          <img 
-            src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-            alt="TCPonto Logo" 
-            className="w-8 h-8 rounded-full" 
-          />
-          <div className="text-center">
-            <h1 className="text-lg font-bold text-gray-900">TCPonto</h1>
-            <p className="text-xs text-gray-600">Controle de Ponto</p>
-          </div>
-        </div>
+      
       </div>
 
       {/* Relógio Principal - otimizado para mobile */}
