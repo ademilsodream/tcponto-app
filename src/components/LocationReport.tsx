@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 
 // Importar o tipo Database do arquivo de tipos Supabase
 import { Database } from '@/integrations/supabase/types';
@@ -65,7 +65,7 @@ interface TimeRecordReportRow {
 }
 
 interface LocationReportProps {
-  employees: User[];
+  employees: Employee[];
   onBack?: () => void;
 }
 
@@ -221,6 +221,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filtrar apenas funcionários ativos
+  const activeEmployees = getActiveEmployees(employees);
+
   useEffect(() => {
     loadAllowedLocations();
   }, []);
@@ -229,7 +232,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     if (allowedLocations.length > 0) {
       loadTimeRecordsData();
     }
-  }, [employees, allowedLocations, startDate, endDate]);
+  }, [activeEmployees, allowedLocations, startDate, endDate]);
 
   const loadAllowedLocations = async () => {
     try {
@@ -252,7 +255,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   };
 
   const loadTimeRecordsData = async () => {
-    if (!employees || employees.length === 0) {
+    if (!activeEmployees || activeEmployees.length === 0) {
       setTimeRecordsReportData([]);
       setLoading(false);
       return;
@@ -262,6 +265,8 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     console.log('=== INÍCIO CARREGAMENTO DADOS DE LOCALIZAÇÃO ===');
 
     try {
+      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+
       let query = supabase
         .from('time_records')
         .select(`
@@ -274,6 +279,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           locations,
           user_id
         `)
+        .in('user_id', activeEmployeeIds)
         .eq('status', 'active')
         .order('date', { ascending: false })
         .order('clock_in', { ascending: true });
@@ -296,7 +302,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
 
       console.log('Registros carregados do banco:', data?.length || 0);
       
-      const employeeMap = employees.reduce((map, employee) => {
+      const employeeMap = activeEmployees.reduce((map, employee) => {
         if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
            map[employee.id] = employee.name;
         }
@@ -471,6 +477,51 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     );
   }
 
+  if (activeEmployees.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                {onBack && (
+                  <Button
+                    onClick={onBack}
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-600 hover:text-gray-800"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Voltar
+                  </Button>
+                )}
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                    <MapPin className="w-5 h-5" />
+                    Relatório de Localizações Detalhado
+                  </h1>
+                  <p className="text-sm text-gray-600">Informações completas de localização dos registros de ponto</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardContent className="text-center py-8">
+              <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Nenhum funcionário ativo encontrado</h3>
+              <p className="text-sm text-gray-500">
+                Cadastre funcionários ativos (não administradores) para visualizar relatórios de localização.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -573,7 +624,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os funcionários</SelectItem>
-                      {employees
+                      {activeEmployees
                         .filter(employee => employee.id && typeof employee.id === 'string' && employee.id !== '')
                         .map(employee => (
                           <SelectItem key={employee.id} value={employee.id}>
@@ -664,16 +715,16 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <div className="text-center text-gray-500 py-12">
                   <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                     {employees.length === 0
-                      ? 'Nenhum funcionário cadastrado'
+                     {activeEmployees.length === 0
+                      ? 'Nenhum funcionário ativo cadastrado'
                       : 'Nenhum registro de ponto encontrado'
                     }
                   </h3>
                   <p className="text-sm">
-                     {employees.length === 0
-                      ? 'Cadastre funcionários para ver os registros de ponto e localização'
+                     {activeEmployees.length === 0
+                      ? 'Cadastre funcionários ativos para ver os registros de ponto e localização'
                       : selectedEmployee === 'all'
-                        ? 'Nenhum registro de ponto encontrado para todos os funcionários.'
+                        ? 'Nenhum registro de ponto encontrado para todos os funcionários ativos.'
                         : `Nenhum registro de ponto encontrado para o funcionário selecionado.`
                     }
                   </p>

@@ -1,21 +1,17 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, DollarSign, Clock } from 'lucide-react';
+import { Calendar, DollarSign, Clock, Users } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
+import { getActiveEmployees, getActiveEmployeesQuery, type Employee } from '@/utils/employeeFilters';
 
 interface PayrollReportProps {
-  employees: Array<{
-    id: string;
-    name: string;
-    email: string;
-    hourlyRate: number;
-    overtimeRate: number;
-  }>;
+  employees: Employee[];
   onBack: () => void;
 }
 
@@ -43,6 +39,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [loading, setLoading] = useState(false);
   const { formatCurrency } = useCurrency();
 
+  // Filtrar apenas funcionários ativos
+  const activeEmployees = getActiveEmployees(employees);
+
   // Função para validar se uma data está dentro do período
   const isDateInPeriod = (dateStr: string, start: string, end: string) => {
     const date = new Date(dateStr + 'T00:00:00');
@@ -60,6 +59,11 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       return;
     }
 
+    if (activeEmployees.length === 0) {
+      alert('Nenhum funcionário ativo encontrado para gerar folha de pagamento');
+      return;
+    }
+
     setLoading(true);
     // Limpar dados anteriores
     setPayrollData([]);
@@ -71,11 +75,14 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
       const payrollResults: PayrollData[] = [];
 
-      // Buscar todos os funcionários do banco, excluindo administradores
+      // Buscar apenas funcionários ativos do banco
+      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
       const { data: dbEmployees, error: employeesError } = await supabase
         .from('profiles')
         .select('*')
-        .neq('email', 'admin@tcponto.com');
+        .in('id', activeEmployeeIds)
+        .eq('role', 'user')
+        .in('status', ['active', null]);
 
       if (employeesError) {
         console.error('Erro ao buscar funcionários:', employeesError);
@@ -83,7 +90,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         return;
       }
 
-      console.log('Funcionários encontrados:', dbEmployees);
+      console.log('Funcionários ativos encontrados:', dbEmployees);
 
       for (const employee of dbEmployees) {
         console.log(`\n=== Processando funcionário: ${employee.name} ===`);
@@ -182,6 +189,24 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const getTotalPayroll = () => {
     return payrollData.reduce((sum, data) => sum + data.totalPay, 0);
   };
+
+  if (activeEmployees.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardContent className="text-center py-8">
+              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Nenhum funcionário ativo encontrado</h3>
+              <p className="text-sm text-gray-500">
+                Cadastre funcionários ativos (não administradores) para gerar folhas de pagamento.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

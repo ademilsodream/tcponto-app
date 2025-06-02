@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,14 +9,10 @@ import { hourBankService, HourBankBalance, HourBankTransaction } from '@/utils/h
 import { Clock, TrendingUp, TrendingDown, Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 
 interface HourBankReportProps {
-  employees: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: 'admin' | 'user';
-  }>;
+  employees: Employee[];
 }
 
 const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
@@ -31,6 +26,9 @@ const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
   const [loading, setLoading] = useState(false);
   const [isHourBankActive, setIsHourBankActive] = useState(false);
   const { toast } = useToast();
+
+  // Filtrar apenas funcionários ativos
+  const activeEmployees = getActiveEmployees(employees);
 
   useEffect(() => {
     checkHourBankStatus();
@@ -52,7 +50,12 @@ const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
     try {
       setLoading(true);
       const data = await hourBankService.getAllEmployeesHourBankBalances();
-      setBalances(data);
+      // Filtrar apenas saldos de funcionários ativos
+      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+      const filteredBalances = data.filter(balance => 
+        activeEmployeeIds.includes(balance.employee_id)
+      );
+      setBalances(filteredBalances);
     } catch (error) {
       console.error('Erro ao carregar saldos:', error);
       toast({
@@ -84,7 +87,7 @@ const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
   };
 
   const getEmployeeName = (employeeId: string) => {
-    const employee = employees.find(emp => emp.id === employeeId);
+    const employee = activeEmployees.find(emp => emp.id === employeeId);
     return employee ? employee.name : 'Funcionário não encontrado';
   };
 
@@ -130,6 +133,20 @@ const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
     );
   }
 
+  if (activeEmployees.length === 0) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <User className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">
+            Nenhum funcionário ativo encontrado. 
+            Cadastre funcionários para visualizar os relatórios de banco de horas.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Resumo Geral dos Saldos */}
@@ -148,7 +165,7 @@ const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
             </div>
           ) : balances.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              Nenhum saldo de banco de horas encontrado
+              Nenhum saldo de banco de horas encontrado para funcionários ativos
             </p>
           ) : (
             <div className="grid gap-4">
@@ -194,7 +211,7 @@ const HourBankReport: React.FC<HourBankReportProps> = ({ employees }) => {
                 className="w-full h-10 px-3 py-2 border border-input bg-background rounded-md text-sm"
               >
                 <option value="">Selecione um funcionário</option>
-                {employees.map((employee) => (
+                {activeEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.name}
                   </option>

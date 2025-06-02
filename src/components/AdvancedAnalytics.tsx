@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -7,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, AlertTriangle, Users, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 
 interface EmployeeAnalytics {
   id: string;
@@ -22,15 +22,8 @@ interface EmployeeAnalytics {
   employee_name?: string;
 }
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'user';
-}
-
 interface AdvancedAnalyticsProps {
-  employees: User[];
+  employees: Employee[];
 }
 
 interface AnomalyFlags {
@@ -42,10 +35,15 @@ interface AnomalyFlags {
 const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
   const [selectedPeriod, setSelectedPeriod] = useState<'current' | 'last3' | 'last6'>('current');
 
-  // Buscar dados de analytics
+  // Filtrar apenas funcionários ativos
+  const activeEmployees = getActiveEmployees(employees);
+
+  // Buscar dados de analytics apenas para funcionários ativos
   const { data: analyticsData = [], isLoading } = useQuery({
-    queryKey: ['employee-analytics', selectedPeriod],
+    queryKey: ['employee-analytics', selectedPeriod, activeEmployees.map(e => e.id)],
     queryFn: async () => {
+      if (activeEmployees.length === 0) return [];
+
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth() + 1;
       const currentYear = currentDate.getFullYear();
@@ -76,9 +74,12 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
           break;
       }
 
+      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+
       const { data, error } = await supabase
         .from('employee_analytics')
         .select('*')
+        .in('employee_id', activeEmployeeIds)
         .in('month', monthsToFetch.map(m => m.month))
         .in('year', monthsToFetch.map(m => m.year))
         .order('year', { ascending: false })
@@ -88,7 +89,7 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
 
       // Adicionar nome dos funcionários
       const enrichedData = data?.map(item => {
-        const employee = employees.find(emp => emp.id === item.employee_id);
+        const employee = activeEmployees.find(emp => emp.id === item.employee_id);
         return {
           ...item,
           employee_name: employee?.name || 'Funcionário não encontrado'
@@ -100,13 +101,18 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Buscar alertas de anomalias
+  // Buscar alertas de anomalias apenas para funcionários ativos
   const { data: alertsData = [] } = useQuery({
-    queryKey: ['system-alerts'],
+    queryKey: ['system-alerts', activeEmployees.map(e => e.id)],
     queryFn: async () => {
+      if (activeEmployees.length === 0) return [];
+
+      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+
       const { data, error } = await supabase
         .from('system_alerts')
         .select('*')
+        .in('employee_id', activeEmployeeIds)
         .eq('is_read', false)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -151,6 +157,20 @@ const AdvancedAnalytics: React.FC<AdvancedAnalyticsProps> = ({ employees }) => {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         <span className="ml-2">Carregando analytics...</span>
       </div>
+    );
+  }
+
+  if (activeEmployees.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-gray-500 py-8">
+            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Nenhum funcionário ativo encontrado</h3>
+            <p className="text-sm">Cadastre funcionários ativos (não administradores) para visualizar as análises.</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
