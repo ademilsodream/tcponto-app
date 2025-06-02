@@ -31,7 +31,7 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
         <Button 
           variant="outline" 
           size="icon" 
-          className="fixed top-4 right-6 z-50 bg-white shadow-lg"
+          className="fixed top-4 left-16 z-50 bg-white shadow-lg"
         >
           <Menu className="h-5 w-5" />
         </Button>
