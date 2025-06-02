@@ -20,7 +20,8 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="grid grid-cols-3 items-center w-full">
+    <header className="bg-white shadow-sm border-b w-full">
+        <div className="grid grid-cols-3 items-center w-full">
   {/* Espaço vazio à esquerda */}
   <div></div>
   
@@ -53,6 +54,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
     </Button>
   </div>
 </div>
+
 
       </header>
 
