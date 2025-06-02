@@ -45,19 +45,37 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       setLoading(true);
       setError(null);
       
-      // Buscar registros do mês atual
-      const currentDate = new Date();
-      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      // Obter data atual e data limite (ontem)
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      // Primeiro dia do mês atual
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      
+      // Data limite: ontem (não incluir hoje)
+      const endDate = yesterday;
 
-      console.log('IncompleteRecordsProfile: Fetching records from', firstDayOfMonth.toISOString().split('T')[0], 'to', lastDayOfMonth.toISOString().split('T')[0]);
+      console.log('IncompleteRecordsProfile: Fetching records from', 
+        firstDayOfMonth.toISOString().split('T')[0], 
+        'to', 
+        endDate.toISOString().split('T')[0]
+      );
+
+      // Se o primeiro dia do mês for depois de ontem, não há dias para verificar
+      if (firstDayOfMonth > endDate) {
+        console.log('IncompleteRecordsProfile: No days to check in current month yet');
+        setIncompleteRecords([]);
+        setLoading(false);
+        return;
+      }
 
       const { data: records, error: fetchError } = await supabase
         .from('time_records')
         .select('date, clock_in, lunch_start, lunch_end, clock_out')
         .eq('user_id', user.id)
         .gte('date', firstDayOfMonth.toISOString().split('T')[0])
-        .lte('date', lastDayOfMonth.toISOString().split('T')[0])
+        .lte('date', endDate.toISOString().split('T')[0]) // Até ontem apenas
         .eq('status', 'active')
         .order('date', { ascending: false });
 
@@ -68,18 +86,23 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
 
       console.log('IncompleteRecordsProfile: Fetched records:', records?.length || 0);
 
-      // Obter apenas dias úteis do mês
-      const workingDays = getWorkingDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
-      console.log('IncompleteRecordsProfile: Working days in month:', workingDays.length);
+      // Obter apenas dias úteis do mês até ontem
+      const allWorkingDaysInMonth = getWorkingDaysInMonth(today.getFullYear(), today.getMonth());
+      const workingDaysUntilYesterday = allWorkingDaysInMonth.filter(date => {
+        const dayDate = new Date(date + 'T00:00:00');
+        return dayDate <= endDate; // Apenas até ontem
+      });
+
+      console.log('IncompleteRecordsProfile: Working days until yesterday:', workingDaysUntilYesterday.length);
 
       // Processar registros incompletos
       const incomplete: IncompleteRecord[] = [];
       
-      // Verificar cada dia útil + fins de semana com registros
-      const allDaysToCheck = [...workingDays];
+      // Verificar cada dia útil até ontem
+      const allDaysToCheck = [...workingDaysUntilYesterday];
       
-      // Adicionar fins de semana que têm registros
-      for (let d = new Date(firstDayOfMonth); d <= lastDayOfMonth; d.setDate(d.getDate() + 1)) {
+      // Adicionar fins de semana que têm registros (também até ontem)
+      for (let d = new Date(firstDayOfMonth); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dateString = d.toISOString().split('T')[0];
         const isWeekendDay = !isWorkingDay(d);
         
@@ -88,7 +111,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         }
       }
 
-      console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records)');
+      console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records) until yesterday');
 
       // Verificar cada dia
       allDaysToCheck.forEach(date => {
@@ -134,7 +157,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         }
       });
 
-      console.log('IncompleteRecordsProfile: Found', incomplete.length, 'incomplete records');
+      console.log('IncompleteRecordsProfile: Found', incomplete.length, 'incomplete records until yesterday');
       setIncompleteRecords(incomplete);
     } catch (error) {
       console.error('IncompleteRecordsProfile: Error loading incomplete records:', error);
@@ -169,7 +192,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
           <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
           <div className="text-lg">Carregando registros...</div>
-          <div className="text-sm text-gray-600">Verificando registros do mês atual</div>
+          <div className="text-sm text-gray-600">Verificando registros até ontem</div>
         </CardContent>
       </Card>
     );
@@ -212,7 +235,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
-            Registros Incompletos - Mês Atual
+            Registros Incompletos - Até Ontem
           </CardTitle>
           {onBack && (
             <Button variant="outline" size="sm" onClick={onBack}>
@@ -227,10 +250,10 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
           <div className="text-center py-8">
             <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
             <p className="text-lg text-green-600 font-medium">
-              Parabéns! Todos os registros do mês estão completos.
+              Parabéns! Todos os registros estão completos até ontem.
             </p>
             <p className="text-sm text-gray-600 mt-2">
-              Você tem todos os 4 registros diários preenchidos nos dias úteis.
+              Você tem todos os 4 registros diários preenchidos nos dias úteis até o dia anterior.
             </p>
           </div>
         ) : (
@@ -238,7 +261,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             <Alert className="border-amber-200 bg-amber-50">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-amber-800">
-                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos
+                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos até ontem
                 {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
               </AlertDescription>
             </Alert>
@@ -278,11 +301,9 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                       </div>
                     </div>
                     
-                    {new Date(record.date + 'T00:00:00') < new Date(new Date().toISOString().split('T')[0] + 'T00:00:00') && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500 mt-2">
+                      💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
+                    </p>
                   </div>
                 ))}
               </div>
