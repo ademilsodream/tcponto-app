@@ -23,8 +23,8 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
       <header className="bg-white shadow-sm border-b w-full">
         <div className="w-full px-4 py-3">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3 ml-12 sm:ml-16 md:ml-20">
+          <div className="flex justify-between items-center w-full">
+            <div className="flex items-center space-x-3">
               <img 
                 src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
                 alt="TCPonto Logo" 
