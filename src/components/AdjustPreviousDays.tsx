@@ -106,12 +106,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       // Gerar lista de datas disponíveis (dias do mês atual até ontem)
       const available: Date[] = [];
-      const existingRecordDates = new Set(records?.map(r => r.date) || []);
       
       for (let d = new Date(currentMonth); d <= oneDayAgo; d.setDate(d.getDate() + 1)) {
-        const dateString = format(d, 'yyyy-MM-dd');
-        
-        // Incluir todos os dias do período (mesmo sem registro)
         available.push(new Date(d));
       }
 
@@ -203,10 +199,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     const oneDayAgo = subDays(today, 1);
     const currentMonth = startOfMonth(today);
     
-    // Desabilitar se:
-    // 1. É depois de ontem
-    // 2. É antes do início do mês atual
-    // 3. Já foi editado
     const dateString = format(date, 'yyyy-MM-dd');
     
     return (
@@ -255,58 +247,90 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       
       console.log('🔄 Iniciando envio da solicitação...');
       
-      // VERIFICAR AUTH.UID() vs USER.ID
+      // Verificar autenticação
       const { data: authData } = await supabase.auth.getUser();
       console.log('🔐 Auth user:', authData.user?.id);
       console.log('👤 Context user:', user.id);
-      console.log('🆔 São iguais?', authData.user?.id === user.id);
-      
-      // Testar se auth.uid() funciona
-      const { data: testAuth } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', authData.user?.id)
-        .single();
-      
-      console.log('🧪 Teste auth profile:', testAuth);
 
-      const editRequest = {
-        employee_id: authData.user?.id || user.id, // Usar o auth.uid() diretamente
-        employee_name: user.email || user.name || 'Usuário',
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        field: 'multiple',
-        old_value: JSON.stringify({
-          clock_in: timeRecord.clock_in,
-          lunch_start: timeRecord.lunch_start,
-          lunch_end: timeRecord.lunch_end,
-          clock_out: timeRecord.clock_out
-        }),
-        new_value: JSON.stringify({
-          clock_in: editForm.clock_in || null,
-          lunch_start: editForm.lunch_start || null,
-          lunch_end: editForm.lunch_end || null,
-          clock_out: editForm.clock_out || null
-        }),
-        reason: editForm.reason.trim(),
-        status: 'pending'
-        // Remover created_at - deixar o Supabase gerar automaticamente
+      // Criar múltiplas solicitações - uma para cada campo alterado
+      const requests = [];
+
+      // Mapeamento dos campos para os valores corretos do banco
+      const fieldMapping = {
+        clock_in: 'clockIn',
+        lunch_start: 'lunchStart', 
+        lunch_end: 'lunchEnd',
+        clock_out: 'clockOut'
       };
 
-      console.log('📤 Dados finais a serem enviados:', editRequest);
-      console.log('🔍 Tipos dos dados:', {
-        employee_id: typeof editRequest.employee_id,
-        employee_name: typeof editRequest.employee_name,
-        date: typeof editRequest.date,
-        field: typeof editRequest.field,
-        old_value: typeof editRequest.old_value,
-        new_value: typeof editRequest.new_value,
-        reason: typeof editRequest.reason,
-        status: typeof editRequest.status
-      });
+      // Verificar cada campo que foi alterado
+      if (editForm.clock_in && editForm.clock_in !== (timeRecord.clock_in || '')) {
+        requests.push({
+          employee_id: authData.user?.id || user.id,
+          employee_name: user.email || user.name || 'Usuário',
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          field: fieldMapping.clock_in, // 'clockIn'
+          old_value: timeRecord.clock_in || null,
+          new_value: editForm.clock_in,
+          reason: editForm.reason.trim(),
+          status: 'pending'
+        });
+      }
 
+      if (editForm.lunch_start && editForm.lunch_start !== (timeRecord.lunch_start || '')) {
+        requests.push({
+          employee_id: authData.user?.id || user.id,
+          employee_name: user.email || user.name || 'Usuário',
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          field: fieldMapping.lunch_start, // 'lunchStart'
+          old_value: timeRecord.lunch_start || null,
+          new_value: editForm.lunch_start,
+          reason: editForm.reason.trim(),
+          status: 'pending'
+        });
+      }
+
+      if (editForm.lunch_end && editForm.lunch_end !== (timeRecord.lunch_end || '')) {
+        requests.push({
+          employee_id: authData.user?.id || user.id,
+          employee_name: user.email || user.name || 'Usuário',
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          field: fieldMapping.lunch_end, // 'lunchEnd'
+          old_value: timeRecord.lunch_end || null,
+          new_value: editForm.lunch_end,
+          reason: editForm.reason.trim(),
+          status: 'pending'
+        });
+      }
+
+      if (editForm.clock_out && editForm.clock_out !== (timeRecord.clock_out || '')) {
+        requests.push({
+          employee_id: authData.user?.id || user.id,
+          employee_name: user.email || user.name || 'Usuário',
+          date: format(selectedDate, 'yyyy-MM-dd'),
+          field: fieldMapping.clock_out, // 'clockOut'
+          old_value: timeRecord.clock_out || null,
+          new_value: editForm.clock_out,
+          reason: editForm.reason.trim(),
+          status: 'pending'
+        });
+      }
+
+      if (requests.length === 0) {
+        toast({
+          title: "Aviso",
+          description: "Nenhuma alteração foi detectada nos horários.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('📤 Solicitações a serem enviadas:', requests);
+
+      // Inserir todas as solicitações
       const { data, error } = await supabase
         .from('edit_requests')
-        .insert(editRequest)
+        .insert(requests)
         .select();
 
       console.log('📥 Resposta do Supabase:', { data, error });
@@ -321,11 +345,11 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         throw error;
       }
 
-      console.log('✅ Solicitação inserida com sucesso:', data);
+      console.log('✅ Solicitações inseridas com sucesso:', data);
 
       toast({
         title: "Sucesso",
-        description: "Solicitação de edição enviada para aprovação.",
+        description: `${requests.length} solicitação(ões) de edição enviada(s) para aprovação.`,
       });
 
       // Atualizar lista de datas editadas
@@ -345,7 +369,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
     } catch (error: any) {
       console.error('💥 ERRO CRÍTICO ao enviar solicitação:', error);
-      console.error('📊 Stack trace:', error.stack);
       
       let errorMessage = 'Não foi possível enviar a solicitação de edição.';
       
@@ -355,8 +378,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         errorMessage = 'Sem permissão para criar solicitação. Contate o administrador.';
       } else if (error.code === '23502') {
         errorMessage = 'Dados obrigatórios faltando. Verifique se todos os campos estão preenchidos.';
-      } else if (error.message?.includes('row-level security')) {
-        errorMessage = 'Sem permissão para criar solicitação. Verifique se você está logado corretamente.';
+      } else if (error.message?.includes('check constraint')) {
+        errorMessage = 'Valor inválido para o campo. Contate o administrador.';
       } else if (error.message) {
         errorMessage = `Erro: ${error.message}`;
       }
