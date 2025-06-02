@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -95,41 +94,51 @@ const Settings = () => {
 
   const validateLocationData = (location: typeof newLocation): string | null => {
     console.log('🔍 Validando dados da localização:', location);
+    console.log('📊 Detalhes completos:', {
+      name: `"${location.name}" (length: ${location.name?.length})`,
+      address: `"${location.address}" (length: ${location.address?.length})`,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      range_meters: location.range_meters,
+      latitude_type: typeof location.latitude,
+      longitude_type: typeof location.longitude
+    });
 
     // Validar nome e endereço
     if (!location.name?.trim()) {
+      console.error('❌ Validação falhou: Nome vazio');
       return "Nome da localização é obrigatório";
     }
     
     if (!location.address?.trim()) {
+      console.error('❌ Validação falhou: Endereço vazio');
       return "Endereço é obrigatório";
     }
 
-    // Validar latitude
-    if (isNaN(location.latitude) || location.latitude < -90 || location.latitude > 90) {
-      return "Latitude deve estar entre -90 e 90";
+    // Validar se latitude é um número válido
+    if (typeof location.latitude !== 'number' || isNaN(location.latitude)) {
+      console.error('❌ Validação falhou: Latitude inválida', location.latitude);
+      return "Latitude deve ser um número válido";
     }
 
-    // Validar longitude
-    if (isNaN(location.longitude) || location.longitude < -180 || location.longitude > 180) {
-      return "Longitude deve estar entre -180 e 180";
-    }
-
-    // Validar se não são coordenadas padrão (0,0) a menos que seja intencional
-    if (location.latitude === 0 && location.longitude === 0) {
-      return "Coordenadas 0,0 não são válidas. Verifique as coordenadas corretas";
+    // Validar se longitude é um número válido
+    if (typeof location.longitude !== 'number' || isNaN(location.longitude)) {
+      console.error('❌ Validação falhou: Longitude inválida', location.longitude);
+      return "Longitude deve ser um número válido";
     }
 
     // Validar range
     if (isNaN(location.range_meters) || location.range_meters <= 0) {
+      console.error('❌ Validação falhou: Range inválido', location.range_meters);
       return "Raio deve ser maior que 0 metros";
     }
 
-    if (location.range_meters > 1000) {
-      return "Raio muito grande. Máximo permitido: 1000 metros";
+    if (location.range_meters > 10000) {
+      console.error('❌ Validação falhou: Range muito grande', location.range_meters);
+      return "Raio muito grande. Máximo permitido: 10000 metros";
     }
 
-    console.log('✅ Dados da localização válidos');
+    console.log('✅ Dados da localização válidos - todas as validações passaram');
     return null;
   };
 
@@ -148,7 +157,13 @@ const Settings = () => {
 
   const handleAddLocation = async () => {
     console.log('🚀 Iniciando cadastro de nova localização...');
-    console.log('📋 Dados do formulário:', newLocation);
+    console.log('📋 Dados do formulário RAW:', newLocation);
+    console.log('🔢 Tipos dos dados:', {
+      latitude_type: typeof newLocation.latitude,
+      longitude_type: typeof newLocation.longitude,
+      latitude_value: newLocation.latitude,
+      longitude_value: newLocation.longitude
+    });
 
     // Validar dados
     const validationError = validateLocationData(newLocation);
@@ -186,7 +201,13 @@ const Settings = () => {
         is_active: true
       };
 
-      console.log('📦 Dados a serem inseridos:', locationToInsert);
+      console.log('📦 Dados finais a serem inseridos:', locationToInsert);
+      console.log('🔢 Verificação final dos tipos:', {
+        latitude: typeof locationToInsert.latitude,
+        longitude: typeof locationToInsert.longitude,
+        latitude_isNaN: isNaN(locationToInsert.latitude),
+        longitude_isNaN: isNaN(locationToInsert.longitude)
+      });
 
       const { data, error } = await supabase
         .from('allowed_locations')
@@ -198,7 +219,7 @@ const Settings = () => {
 
       if (error) {
         console.error('❌ Erro do Supabase:', error);
-        console.error('📄 Detalhes do erro:', {
+        console.error('📄 Detalhes completos do erro:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -238,6 +259,8 @@ const Settings = () => {
         errorMessage = "Permissão negada. Verifique se você tem acesso administrativo";
       } else if (error.message?.includes('duplicate')) {
         errorMessage = "Já existe uma localização com estes dados";
+      } else if (error.message?.includes('check constraint')) {
+        errorMessage = "Dados inválidos. Verifique os valores inseridos";
       } else if (error.message) {
         errorMessage = `Erro: ${error.message}`;
       }
@@ -409,11 +432,11 @@ const Settings = () => {
                       step="any"
                       value={newLocation.latitude}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))}
-                      placeholder="-23.550520"
+                      placeholder="-22.6667"
                       disabled={addingLocation}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Entre -90 e 90
+                      Coordenada de latitude (qualquer número válido)
                     </div>
                   </div>
 
@@ -425,11 +448,11 @@ const Settings = () => {
                       step="any"
                       value={newLocation.longitude}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))}
-                      placeholder="-46.633309"
+                      placeholder="-45.0094"
                       disabled={addingLocation}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Entre -180 e 180
+                      Coordenada de longitude (qualquer número válido)
                     </div>
                   </div>
 
@@ -439,14 +462,14 @@ const Settings = () => {
                       id="range"
                       type="number"
                       min="1"
-                      max="1000"
+                      max="10000"
                       value={newLocation.range_meters}
                       onChange={(e) => setNewLocation(prev => ({ ...prev, range_meters: parseInt(e.target.value) || 100 }))}
                       placeholder="100"
                       disabled={addingLocation}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Entre 1 e 1000 metros
+                      Entre 1 e 10000 metros
                     </div>
                   </div>
                 </div>
