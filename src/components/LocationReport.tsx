@@ -69,35 +69,9 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função para encontrar localização cadastrada baseada nas coordenadas
-const findAllowedLocationName = (lat: number, lng: number, allowedLocations: AllowedLocation[]): string | null => {
-  for (const location of allowedLocations) {
-    const distance = calculateDistance(lat, lng, location.latitude, location.longitude);
-    if (distance <= location.range_meters) {
-      return location.name;
-    }
-  }
-  return null;
-};
-
-// Função para calcular distância entre coordenadas (em metros)
-const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-  const R = 6371000; // Raio da Terra em metros
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
-
-// Função melhorada para processar os dados de localização com múltiplos formatos
-const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string, allowedLocations: AllowedLocation[]): LocationDetails | null => {
-  console.log(`Processando localização para campo ${fieldName}:`, locations);
-  
+// Função simplificada para processar dados de localização - APENAS extrai dados gravados
+const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
   if (!locations || typeof locations !== 'object' || Array.isArray(locations)) {
-    console.log(`Dados de localização inválidos para ${fieldName}`);
     return null;
   }
 
@@ -112,20 +86,16 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
   ];
 
   let fieldData = null;
-  let foundFieldName = '';
 
   // Buscar o campo nos possíveis formatos
   for (const possibleField of possibleFields) {
     if (locObject[possibleField]) {
       fieldData = locObject[possibleField];
-      foundFieldName = possibleField;
-      console.log(`Campo encontrado como: ${possibleField}`, fieldData);
       break;
     }
   }
 
   if (!fieldData) {
-    console.log(`Nenhum dado encontrado para campo ${fieldName} nas variações:`, possibleFields);
     return null;
   }
 
@@ -144,84 +114,28 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
 
   // Se for string simples (formato muito antigo)
   if (typeof fieldData === 'string') {
-    console.log(`Formato string simples detectado para ${foundFieldName}:`, fieldData);
     locationDetails.fullAddress = fieldData;
   }
-  // Se for objeto
+  // Se for objeto - APENAS extrair dados gravados, sem verificações
   else if (typeof fieldData === 'object') {
-    console.log(`Formato objeto detectado para ${foundFieldName}:`, fieldData);
-    
-    // Verificar se é o novo formato com detalhes completos
-    if (fieldData.street !== undefined || fieldData.fullAddress !== undefined) {
-      locationDetails = {
-        lat: Number(fieldData.lat) || 0,
-        lng: Number(fieldData.lng) || 0,
-        street: fieldData.street || 'Não informado',
-        houseNumber: fieldData.houseNumber || 'S/N',
-        neighborhood: fieldData.neighborhood || 'Não informado',
-        city: fieldData.city || 'Não informado',
-        state: fieldData.state || 'Não informado',
-        postalCode: fieldData.postalCode || 'Não informado',
-        country: fieldData.country || 'Não informado',
-        fullAddress: fieldData.fullAddress || 'Endereço não disponível'
-      };
-    } 
-    // Formato antigo (apenas coordenadas)
-    else if (fieldData.lat !== undefined && fieldData.lng !== undefined) {
-      console.log(`Formato antigo (coordenadas) detectado para ${foundFieldName}`);
-      locationDetails = {
-        lat: Number(fieldData.lat) || 0,
-        lng: Number(fieldData.lng) || 0,
-        street: 'Não informado',
-        houseNumber: 'S/N',
-        neighborhood: 'Não informado',
-        city: 'Não informado',
-        state: 'Não informado',
-        postalCode: 'Não informado',
-        country: 'Não informado',
-        fullAddress: fieldData.address || `Coordenadas: ${fieldData.lat}, ${fieldData.lng}`
-      };
-    }
-    // Formato com apenas endereço
-    else if (fieldData.address) {
-      console.log(`Formato com address simples detectado para ${foundFieldName}`);
-      locationDetails = {
-        lat: Number(fieldData.latitude || fieldData.lat) || 0,
-        lng: Number(fieldData.longitude || fieldData.lng) || 0,
-        street: 'Não informado',
-        houseNumber: 'S/N',
-        neighborhood: 'Não informado',
-        city: 'Não informado',
-        state: 'Não informado',
-        postalCode: 'Não informado',
-        country: 'Não informado',
-        fullAddress: fieldData.address
-      };
-    }
+    locationDetails = {
+      lat: Number(fieldData.lat) || 0,
+      lng: Number(fieldData.lng) || 0,
+      street: fieldData.street || 'Não informado',
+      houseNumber: fieldData.houseNumber || 'S/N',
+      neighborhood: fieldData.neighborhood || 'Não informado',
+      city: fieldData.city || 'Não informado',
+      state: fieldData.state || 'Não informado',
+      postalCode: fieldData.postalCode || 'Não informado',
+      country: fieldData.country || 'Não informado',
+      fullAddress: fieldData.fullAddress || fieldData.address || 'Endereço não disponível'
+    };
 
-    // CORREÇÃO: Priorizar locationName já salvo nos dados
+    // APENAS extrair o locationName se existir nos dados gravados
     if (fieldData.locationName) {
-      console.log(`✅ LocationName já existe nos dados: ${fieldData.locationName}`);
       locationDetails.locationName = fieldData.locationName;
-    } else if (locationDetails.lat !== 0 && locationDetails.lng !== 0) {
-      // Só buscar nome da localização se NÃO existir locationName nos dados
-      console.log(`🔍 LocationName não existe, buscando por coordenadas...`);
-      const foundLocationName = findAllowedLocationName(locationDetails.lat, locationDetails.lng, allowedLocations);
-      if (foundLocationName) {
-        console.log(`✅ Nome encontrado por coordenadas: ${foundLocationName}`);
-        locationDetails.locationName = foundLocationName;
-      } else {
-        console.log(`❌ Nenhum nome encontrado por coordenadas`);
-      }
     }
   }
-
-  console.log(`📋 Resultado final do processamento para ${fieldName}:`, {
-    hasLocationName: !!locationDetails.locationName,
-    locationName: locationDetails.locationName,
-    hasCoordinates: locationDetails.lat !== 0 || locationDetails.lng !== 0,
-    coordinates: `${locationDetails.lat}, ${locationDetails.lng}`
-  });
 
   return locationDetails;
 };
@@ -231,41 +145,14 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [timeRecordsReportData, setTimeRecordsReportData] = useState<TimeRecordReportRow[]>([]);
-  const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filtrar apenas funcionários ativos usando useMemo para evitar recálculos desnecessários
   const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
 
   useEffect(() => {
-    loadAllowedLocations();
-  }, []);
-
-  useEffect(() => {
-    if (allowedLocations.length > 0) {
-      loadTimeRecordsData();
-    }
-  }, [employees, allowedLocations, startDate, endDate]);
-
-  const loadAllowedLocations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('allowed_locations')
-        .select('id, name, latitude, longitude, range_meters, address')
-        .eq('is_active', true);
-
-      if (error) {
-        console.error('Erro ao carregar localizações permitidas:', error);
-        setAllowedLocations([]);
-        return;
-      }
-
-      setAllowedLocations(data || []);
-    } catch (error) {
-      console.error('Erro inesperado ao carregar localizações:', error);
-      setAllowedLocations([]);
-    }
-  };
+    loadTimeRecordsData();
+  }, [employees, startDate, endDate]);
 
   const loadTimeRecordsData = async () => {
     // Recalcular activeEmployees aqui para garantir dados atualizados
@@ -278,7 +165,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
 
     setLoading(true);
-    console.log('=== INÍCIO CARREGAMENTO DADOS DE LOCALIZAÇÃO ===');
 
     try {
       const activeEmployeeIds = currentActiveEmployees.map(emp => emp.id);
@@ -316,8 +202,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         throw error;
       }
 
-      console.log('Registros carregados do banco:', data?.length || 0);
-      
       const employeeMap = currentActiveEmployees.reduce((map, employee) => {
         if (employee.id && typeof employee.id === 'string' && employee.id !== '') {
            map[employee.id] = employee.name;
@@ -325,36 +209,15 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         return map;
       }, {} as Record<string, string>);
 
-      console.log('Mapeamento de funcionários:', employeeMap);
-
-      const formattedData: TimeRecordReportRow[] = data?.map((record, index) => {
-        console.log(`\n--- Processando registro ${index + 1}/${data.length} ---`);
-        console.log('Record ID:', record.id);
-        console.log('User ID:', record.user_id);
-        console.log('Data:', record.date);
-        console.log('Locations raw:', record.locations);
-
+      const formattedData: TimeRecordReportRow[] = data?.map((record) => {
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations;
 
-        // Processar cada tipo de localização com logs detalhados
-        console.log('Processando clockIn...');
-        const clockInLocation = processLocationData(locations, 'clockIn', allowedLocations);
-        
-        console.log('Processando lunchStart...');
-        const lunchStartLocation = processLocationData(locations, 'lunchStart', allowedLocations);
-        
-        console.log('Processando lunchEnd...');
-        const lunchEndLocation = processLocationData(locations, 'lunchEnd', allowedLocations);
-        
-        console.log('Processando clockOut...');
-        const clockOutLocation = processLocationData(locations, 'clockOut', allowedLocations);
-
-        console.log('Resultado final do processamento:');
-        console.log('- clockInLocation:', clockInLocation ? 'OK' : 'NULL');
-        console.log('- lunchStartLocation:', lunchStartLocation ? 'OK' : 'NULL');
-        console.log('- lunchEndLocation:', lunchEndLocation ? 'OK' : 'NULL');
-        console.log('- clockOutLocation:', clockOutLocation ? 'OK' : 'NULL');
+        // Processar cada tipo de localização de forma simplificada
+        const clockInLocation = processLocationData(locations, 'clockIn');
+        const lunchStartLocation = processLocationData(locations, 'lunchStart');
+        const lunchEndLocation = processLocationData(locations, 'lunchEnd');
+        const clockOutLocation = processLocationData(locations, 'clockOut');
 
         return {
           recordId: record.id,
@@ -371,12 +234,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
           clockOutLocation,
         };
       }) || [];
-
-      console.log('=== DADOS FINAIS FORMATADOS ===');
-      console.log('Total de registros processados:', formattedData.length);
-      console.log('Registros com pelo menos uma localização:', 
-        formattedData.filter(r => r.clockInLocation || r.lunchStartLocation || r.lunchEndLocation || r.clockOutLocation).length
-      );
 
       setTimeRecordsReportData(formattedData);
 
@@ -416,7 +273,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     return grouped;
   }, [filteredTimeRecords]);
 
-  // Função para renderizar informações de localização melhoradas
+  // Função para renderizar informações de localização - APENAS exibe dados gravados
   const renderLocationInfo = (location: LocationDetails | null) => {
     if (!location) return 'N/A';
     
