@@ -39,7 +39,6 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
         />
         <div>
           <h1 className="text-lg font-bold text-gray-900">TCPonto</h1>
-          <p className="text-xs text-gray-600">Controle de Ponto</p>
         </div>
       </div>
 
