@@ -1,6 +1,7 @@
 
 import React, { useEffect } from 'react';
 import TimeRegistration from '@/components/TimeRegistration';
+import EmployeeDrawer from '@/components/EmployeeDrawer';
 import { useAuth } from '@/contexts/AuthContext';
 
 const EmployeeDashboard: React.FC = () => {
@@ -37,8 +38,20 @@ const EmployeeDashboard: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <TimeRegistration />
+    <div className="relative w-full min-h-screen bg-gray-50">
+      {/* Menu lateral */}
+      <EmployeeDrawer 
+        activeScreen="timeRegistration"
+        onScreenChange={(screen) => {
+          console.log('Mudando para tela:', screen);
+          // Por enquanto só log, depois implementar navegação se necessário
+        }}
+      />
+
+      {/* Conteúdo principal */}
+      <div className="w-full min-h-screen">
+        <TimeRegistration />
+      </div>
     </div>
   );
 };
