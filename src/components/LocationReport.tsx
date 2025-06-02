@@ -69,56 +69,38 @@ interface LocationReportProps {
   onBack?: () => void;
 }
 
-// Função simplificada para processar dados de localização - APENAS extrai dados gravados
+// Função extremamente simplificada - APENAS extrai dados salvos
 const processLocationData = (locations: TimeRecordRow['locations'], fieldName: string): LocationDetails | null => {
   if (!locations || typeof locations !== 'object' || Array.isArray(locations)) {
     return null;
   }
 
   const locObject = locations as Record<string, any>;
-  
-  // Tentar múltiplas variações do nome do campo
-  const possibleFields = [
-    fieldName,
-    fieldName.toLowerCase(),
-    fieldName.replace(/([A-Z])/g, '_$1').toLowerCase().substring(1), // camelCase para snake_case
-    fieldName.charAt(0).toLowerCase() + fieldName.slice(1) // primeira letra minúscula
-  ];
-
-  let fieldData = null;
-
-  // Buscar o campo nos possíveis formatos
-  for (const possibleField of possibleFields) {
-    if (locObject[possibleField]) {
-      fieldData = locObject[possibleField];
-      break;
-    }
-  }
+  const fieldData = locObject[fieldName];
 
   if (!fieldData) {
     return null;
   }
 
-  let locationDetails: LocationDetails = {
-    lat: 0,
-    lng: 0,
-    street: 'Não informado',
-    houseNumber: 'S/N',
-    neighborhood: 'Não informado',
-    city: 'Não informado',
-    state: 'Não informado',
-    postalCode: 'Não informado',
-    country: 'Não informado',
-    fullAddress: 'Endereço não disponível'
-  };
-
-  // Se for string simples (formato muito antigo)
+  // Se for string simples
   if (typeof fieldData === 'string') {
-    locationDetails.fullAddress = fieldData;
+    return {
+      lat: 0,
+      lng: 0,
+      street: 'Não informado',
+      houseNumber: 'S/N',
+      neighborhood: 'Não informado',
+      city: 'Não informado',
+      state: 'Não informado',
+      postalCode: 'Não informado',
+      country: 'Não informado',
+      fullAddress: fieldData
+    };
   }
-  // Se for objeto - APENAS extrair dados gravados, sem verificações
-  else if (typeof fieldData === 'object') {
-    locationDetails = {
+
+  // Se for objeto - apenas extrair os dados salvos
+  if (typeof fieldData === 'object') {
+    return {
       lat: Number(fieldData.lat) || 0,
       lng: Number(fieldData.lng) || 0,
       street: fieldData.street || 'Não informado',
@@ -128,16 +110,12 @@ const processLocationData = (locations: TimeRecordRow['locations'], fieldName: s
       state: fieldData.state || 'Não informado',
       postalCode: fieldData.postalCode || 'Não informado',
       country: fieldData.country || 'Não informado',
-      fullAddress: fieldData.fullAddress || fieldData.address || 'Endereço não disponível'
+      fullAddress: fieldData.fullAddress || fieldData.address || 'Endereço não disponível',
+      locationName: fieldData.locationName // APENAS pegar o que está salvo
     };
-
-    // APENAS extrair o locationName se existir nos dados gravados
-    if (fieldData.locationName) {
-      locationDetails.locationName = fieldData.locationName;
-    }
   }
 
-  return locationDetails;
+  return null;
 };
 
 const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) => {
@@ -213,7 +191,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         const employeeName = employeeMap[record.user_id] || 'Funcionário Desconhecido';
         const locations = record.locations;
 
-        // Processar cada tipo de localização de forma simplificada
+        // Processar cada tipo de localização de forma extremamente simples
         const clockInLocation = processLocationData(locations, 'clockIn');
         const lunchStartLocation = processLocationData(locations, 'lunchStart');
         const lunchEndLocation = processLocationData(locations, 'lunchEnd');
@@ -273,7 +251,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     return grouped;
   }, [filteredTimeRecords]);
 
-  // Função para renderizar informações de localização - APENAS exibe dados gravados
+  // Função para renderizar informações de localização - APENAS exibe dados salvos
   const renderLocationInfo = (location: LocationDetails | null) => {
     if (!location) return 'N/A';
     
