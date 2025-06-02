@@ -56,7 +56,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<any>({});
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
 
@@ -371,16 +370,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         });
       });
 
-      setDebugInfo({
-        period: `${startDateStr} até ${endDateStr}`,
-        selectedEmployee,
-        totalRecords: timeRecords?.length || 0,
-        employeesWithData: result.length,
-        stats,
-        autoValuesCount: autoValues?.length || 0,
-        profilesFound: profiles?.length || 0
-      });
-
       setEmployeeAutoObrasData(result);
 
     } catch (error) {
@@ -402,7 +391,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     if (startDate && endDate && employees.length > 0) {
       console.log('🚀 INICIANDO CARREGAMENTO...');
       setEmployeeAutoObrasData([]);
-      setDebugInfo({});
       loadAutoObrasData();
     }
   }, [startDate, endDate, selectedEmployee, employees]);
@@ -572,42 +560,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             </CardContent>
           </Card>
 
-          {/* Debug Info - Melhorado */}
-          {debugInfo.totalRecords > 0 && (
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader>
-                <CardTitle className="text-green-800 text-sm">✅ DIAGNÓSTICO (JOIN CORRIGIDO)</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-green-700">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
-                  <div>Período: {debugInfo.period}</div>
-                  <div>Funcionário: {debugInfo.selectedEmployee}</div>
-                  <div>Registros encontrados: {debugInfo.totalRecords}</div>
-                  <div>Profiles encontrados: {debugInfo.profilesFound}</div>
-                  <div>Auto-valores: {debugInfo.autoValuesCount}</div>
-                </div>
-                
-                {debugInfo.stats && (
-                  <div className="mt-4">
-                    <div className="font-semibold mb-2">📊 Estatísticas (JOIN CORRIGIDO):</div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      <div className="text-blue-600">Total: {debugInfo.stats.total}</div>
-                      <div className="text-red-600">Sem profile: {debugInfo.stats.noProfile}</div>
-                      <div className="text-red-600">Sem dept/job: {debugInfo.stats.noDeptJob}</div>
-                      <div className="text-red-600">Sem auto-valor: {debugInfo.stats.noAutoValue}</div>
-                      <div className="text-red-600">Sem location: {debugInfo.stats.noLocation}</div>
-                      <div className="text-green-600 font-bold">✅ VÁLIDOS: {debugInfo.stats.valid}</div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           {loading ? (
             <Card>
               <CardContent className="p-6">
-                <div className="text-center">Carregando dados com JOIN corrigido...</div>
+                <div className="text-center">Carregando dados...</div>
               </CardContent>
             </Card>
           ) : expandedData.length > 0 ? (
@@ -663,7 +619,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   <p className="text-sm">
                     {!startDate || !endDate
                       ? 'Escolha as datas inicial e final para gerar o relatório'
-                      : 'Com o JOIN corrigido, se ainda não aparecem dados, verifique o diagnóstico acima.'
+                      : 'Verifique se existem registros de ponto no período selecionado.'
                     }
                   </p>
                 </div>
