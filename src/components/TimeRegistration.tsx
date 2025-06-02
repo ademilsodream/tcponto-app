@@ -366,7 +366,7 @@ const TimeRegistration = () => {
       </div>
 
       {/* Relógio Principal - otimizado para mobile */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
           {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
         </div>
@@ -391,7 +391,7 @@ const TimeRegistration = () => {
                     <div 
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
                         isCompleted 
-                          ? 'bg-blue-600 text-white' 
+                          ? `${step.color} text-white` // Usando a cor específica do step
                           : isNext
                             ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
                             : 'bg-gray-100 text-gray-400'
