@@ -277,6 +277,10 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Relatório Detalhado
+          </CardTitle>
             <Button variant="outline" onClick={onBack} size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
