@@ -12,15 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
-
-interface Employee {
-  id: string;
-  name: string;
-  email: string;
-  hourlyRate: number;
-  overtimeRate: number;
-  role: string;
-}
+import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 
 interface DetailedTimeReportProps {
   employees: Employee[];
@@ -57,11 +49,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [loading, setLoading] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   
-  // CORREÇÃO 2: Usar o contexto de moeda
+  // CORREÇÃO: Usar o contexto de moeda
   const { formatCurrency } = useCurrency();
 
-  // Filtrar funcionários para não exibir administradores
-  const nonAdminEmployees = employees.filter(employee => employee.role !== 'admin');
+  // CORREÇÃO: Filtrar funcionários usando a função padronizada
+  const activeEmployees = getActiveEmployees(employees);
 
   // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
@@ -253,13 +245,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       console.log('Registros encontrados na consulta:', data);
 
-      // Buscar informações de todos os funcionários (somente não-administradores)
-      const nonAdminIds = nonAdminEmployees.map(emp => emp.id);
+      // CORREÇÃO: Usar IDs dos funcionários ativos filtrados
+      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
       
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
-        .in('id', nonAdminIds);
+        .in('id', activeEmployeeIds);
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
@@ -406,7 +398,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       <SelectValue placeholder="Selecione o funcionário" />
                     </SelectTrigger>
                     <SelectContent>
-                      {nonAdminEmployees.map((employee) => (
+                      {activeEmployees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.name}
                         </SelectItem>
