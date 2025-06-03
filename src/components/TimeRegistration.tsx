@@ -44,8 +44,37 @@ const TimeRegistration = () => {
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [userProfile, setUserProfile] = useState<{ full_name?: string } | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // Função para obter saudação baseada no horário
+  const getGreeting = () => {
+    const hour = currentTime.getHours();
+    
+    if (hour >= 5 && hour < 12) {
+      return 'Bom dia';
+    } else if (hour >= 12 && hour < 18) {
+      return 'Boa tarde';
+    } else {
+      return 'Boa noite';
+    }
+  };
+
+  // Função para obter nome do usuário (primeiro nome)
+  const getUserDisplayName = () => {
+    if (userProfile?.full_name) {
+      // Pegar apenas o primeiro nome
+      return userProfile.full_name.split(' ')[0];
+    }
+    
+    if (user?.email) {
+      // Se não tem nome, usar parte do email antes do @
+      return user.email.split('@')[0];
+    }
+    
+    return 'Usuário';
+  };
 
   // Função para obter data local (corrige problema de timezone)
   const getLocalDate = () => {
@@ -87,11 +116,36 @@ const TimeRegistration = () => {
     }
   }, [user]);
 
+  // Carregar perfil do usuário
+  const loadUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.warn('Perfil não encontrado, usando dados do usuário');
+        return;
+      }
+
+      setUserProfile(data);
+    } catch (error) {
+      console.error('Erro ao carregar perfil:', error);
+    }
+  };
+
   const initializeData = async () => {
     try {
       setLoading(true);
-      await loadAllowedLocations();
-      await loadTodayRecord();
+      await Promise.all([
+        loadUserProfile(),
+        loadAllowedLocations(),
+        loadTodayRecord()
+      ]);
     } catch (error) {
       console.error('Erro ao inicializar dados:', error);
       toast({
@@ -417,6 +471,16 @@ const TimeRegistration = () => {
       
       </div>
 
+      {/* ✨ NOVA: Saudação com nome do usuário */}
+      <div className="text-center mb-4">
+        <div className="text-blue-600 text-xl sm:text-2xl font-semibold mb-1">
+          {getGreeting()}, {getUserDisplayName()}! 👋
+        </div>
+        <div className="text-gray-500 text-sm sm:text-base">
+          Pronto para registrar seu ponto?
+        </div>
+      </div>
+
       {/* Relógio Principal - otimizado para mobile */}
       <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
@@ -424,10 +488,6 @@ const TimeRegistration = () => {
         </div>
         <div className="text-gray-900 text-4xl sm:text-6xl font-bold tracking-wider mb-4">
           {format(currentTime, 'HH:mm:ss')}
-        </div>
-        {/* Debug info - remover em produção */}
-        <div className="text-xs text-gray-400 mt-2">
-          Data Local: {getLocalDate()} | Hora Local: {getLocalTime()}
         </div>
       </div>
 
@@ -500,7 +560,7 @@ const TimeRegistration = () => {
                 ✅ Todos os registros concluídos!
               </div>
               <div className="text-sm text-gray-500">
-                Tenha um ótimo resto do dia!
+                Tenha um ótimo resto do dia, {getUserDisplayName()}!
               </div>
             </div>
           )}
