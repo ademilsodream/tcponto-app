@@ -13,7 +13,6 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
-import { useCurrency } from '@/contexts/CurrencyContext';
 import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -33,9 +32,6 @@ interface TimeRecord {
   total_hours?: number;
   normal_hours?: number;
   overtime_hours?: number;
-  normal_pay?: number;
-  overtime_pay?: number;
-  total_pay?: number;
   profiles?: {
     id: string;
     name: string;
@@ -53,12 +49,21 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [hasSearched, setHasSearched] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   
-  // Usar o contexto de moeda
-  const { formatCurrency } = useCurrency();
   const { toast } = useToast();
 
   // Usar useMemo para evitar recálculos desnecessários
   const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
+
+  // ✨ NOVA: Função para formatar horas no padrão HH:MM
+  const formatHoursAsTime = (hours: number) => {
+    if (!hours || hours === 0) return '-';
+    
+    const totalMinutes = Math.round(hours * 60);
+    const hoursDisplay = Math.floor(totalMinutes / 60);
+    const minutesDisplay = totalMinutes % 60;
+    
+    return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
+  };
 
   // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
@@ -93,15 +98,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const getDayOfWeek = (dateString: string) => {
     const date = new Date(dateString + 'T00:00:00');
     return format(date, 'EEEE', { locale: ptBR });
-  };
-
-  // Função para calcular valores
-  const calculatePay = (normalHours: number, overtimeHours: number, hourlyRate: number) => {
-    const normalPay = normalHours * hourlyRate;
-    const overtimePay = overtimeHours * hourlyRate; // Hora extra com mesmo valor da hora normal
-    const totalPay = normalPay + overtimePay;
-    
-    return { normalPay, overtimePay, totalPay };
   };
 
   const generateReport = async () => {
@@ -186,10 +182,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         employeeIds = [selectedEmployeeId];
       }
       
-      // Buscar perfis dos funcionários
+      // Buscar perfis dos funcionários (sem hourly_rate já que não usamos valores)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, name, email, hourly_rate, role')
+        .select('id, name, email, role')
         .in('id', employeeIds)
         .eq('role', 'user')
         .or('status.is.null,status.eq.active');
@@ -235,13 +231,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               record.lunch_end || '',
               record.clock_out || ''
             );
-            
-            // Calcular valores com hora extra igual à hora normal
-            const { normalPay, overtimePay, totalPay } = calculatePay(
-              normalHours,
-              overtimeHours,
-              Number(profile.hourly_rate)
-            );
 
             completeRecords.push({
               date,
@@ -250,10 +239,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               ...record,
               total_hours: totalHours,
               normal_hours: normalHours,
-              overtime_hours: overtimeHours,
-              normal_pay: normalPay,
-              overtime_pay: overtimePay,
-              total_pay: totalPay
+              overtime_hours: overtimeHours
             });
           } else {
             completeRecords.push({
@@ -316,19 +302,17 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return acc;
   }, {} as Record<string, TimeRecord[]>);
 
-  // Calcular totais por funcionário
+  // ✨ ALTERADO: Calcular totais por funcionário (sem valores financeiros)
   const calculateEmployeeTotals = (records: TimeRecord[]) => {
     return records.reduce((totals, record) => {
       const totalHours = Number(record.total_hours || 0);
       const overtimeHours = Number(record.overtime_hours || 0);
-      const totalPay = Number(record.total_pay || 0);
       
       return {
         totalHours: totals.totalHours + totalHours,
-        overtimeHours: totals.overtimeHours + overtimeHours,
-        totalPay: totals.totalPay + totalPay
+        overtimeHours: totals.overtimeHours + overtimeHours
       };
-    }, { totalHours: 0, overtimeHours: 0, totalPay: 0 });
+    }, { totalHours: 0, overtimeHours: 0 });
   };
 
   if (activeEmployees.length === 0) {
@@ -341,9 +325,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 <div>
                   <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                     <Clock className="w-5 h-5" />
-                    Relatório Detalhado de Horários
+                    Detalhamento de Ponto
                   </h1>
-                  <p className="text-sm text-gray-600">Relatório completo de registros de ponto e cálculos financeiros</p>
+                  <p className="text-sm text-gray-600">Relatório detalhado de registros de ponto por funcionário</p>
                 </div>
               </div>
             </div>
@@ -374,9 +358,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  Relatório Detalhado de Horários
+                  Detalhamento de Ponto
                 </h1>
-                <p className="text-sm text-gray-600">Relatório completo de registros de ponto e cálculos financeiros</p>
+                <p className="text-sm text-gray-600">Relatório detalhado de registros de ponto por funcionário</p>
               </div>
             </div>
           </div>
@@ -549,10 +533,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                             )}
                           </div>
                         </CardTitle>
+                        {/* ✨ ALTERADO: Só mostrar horas, sem valores financeiros */}
                         <div className="flex gap-6 text-sm text-gray-600">
-                          <span>Total de Horas: <strong>{totals.totalHours.toFixed(1)}h</strong></span>
-                          <span>Horas Extras: <strong>{totals.overtimeHours.toFixed(1)}h</strong></span>
-                          <span>Valor Total: <strong>{formatCurrency(totals.totalPay)}</strong></span>
+                          <span>Total de Horas: <strong>{formatHoursAsTime(totals.totalHours)}</strong></span>
+                          <span>Horas Extras: <strong>{formatHoursAsTime(totals.overtimeHours)}</strong></span>
                         </div>
                       </CardHeader>
                       <CardContent className="p-0">
@@ -568,7 +552,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                 <TableHead>Saída</TableHead>
                                 <TableHead>Total Horas</TableHead>
                                 <TableHead>Horas Extras</TableHead>
-                                <TableHead>Valor</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -582,9 +565,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                     <TableCell>{formatTime(record.lunch_start || '')}</TableCell>
                                     <TableCell>{formatTime(record.lunch_end || '')}</TableCell>
                                     <TableCell>{formatTime(record.clock_out || '')}</TableCell>
-                                    <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                                    <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                                    <TableCell>{formatCurrency(Number(record.total_pay || 0))}</TableCell>
+                                    {/* ✨ ALTERADO: Usar formato HH:MM */}
+                                    <TableCell>{formatHoursAsTime(Number(record.total_hours || 0))}</TableCell>
+                                    <TableCell>{formatHoursAsTime(Number(record.overtime_hours || 0))}</TableCell>
                                   </TableRow>
                                 );
                               })}
@@ -622,13 +605,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 <div className="text-center text-gray-500 py-12">
                   <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    Relatório Detalhado de Horários
+                    Detalhamento de Ponto
                   </h3>
                   <p className="text-sm">
                     Selecione as datas de início e fim, escolha um funcionário (ou todos), depois clique em "Gerar Relatório" para visualizar os registros detalhados de ponto.
                   </p>
                   <div className="mt-4 text-xs text-gray-400">
-                    💡 Este relatório inclui cálculos de horas normais, extras e valores financeiros baseados na taxa horária de cada funcionário.
+                    ⏰ Este relatório exibe os horários de entrada, saída, almoço e cálculos de horas trabalhadas e extras.
                   </div>
                 </div>
               </CardContent>
