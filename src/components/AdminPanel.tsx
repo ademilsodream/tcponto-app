@@ -164,12 +164,6 @@ const AdminPanel = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/*
-            ⚠️ NOTA: Para ajustar a exibição da lista de funcionários e evitar o scroll horizontal,
-            você precisará modificar a estrutura ou estilização dentro do componente UserManagement.
-            Não posso modificar esse componente diretamente daqui.
-            Considere usar paginação, virtualização ou ajustar as colunas da tabela interna.
-          */}
           {/* Pass handleDataChange to trigger refetches if users are added/edited/deleted */}
           <UserManagement onUserChange={handleDataChange} />
         </CardContent>
