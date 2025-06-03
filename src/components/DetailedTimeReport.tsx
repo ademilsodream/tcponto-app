@@ -1,23 +1,22 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, User, Users, FileDown } from 'lucide-react';
+import { Calendar, User, Users, FileDown, Search, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft } from 'lucide-react';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
+import { useToast } from '@/components/ui/use-toast';
 
 interface DetailedTimeReportProps {
   employees: Employee[];
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 interface TimeRecord {
@@ -44,14 +43,16 @@ interface TimeRecord {
 }
 
 const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBack }) => {
-  const [startDate, setStartDate] = useState('2025-05-01');
-  const [endDate, setEndDate] = useState('2025-05-31');
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   
   // Usar o contexto de moeda
   const { formatCurrency } = useCurrency();
+  const { toast } = useToast();
 
   // Usar useMemo para evitar recálculos desnecessários
   const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
@@ -100,18 +101,41 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return { normalPay, overtimePay, totalPay };
   };
 
-  const generateSingleEmployeeReport = async () => {
-    if (!startDate || !endDate || !selectedEmployeeId) {
-      alert('Selecione todos os campos para gerar o relatório');
+  const generateReport = async () => {
+    // ✨ NOVO: Validar se as datas foram selecionadas
+    if (!startDate || !endDate) {
+      toast({
+        title: "Datas obrigatórias",
+        description: "Por favor, selecione as datas de início e fim antes de pesquisar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (startDate > endDate) {
+      toast({
+        title: "Período inválido",
+        description: "A data de início deve ser anterior à data de fim.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (activeEmployees.length === 0) {
+      toast({
+        title: "Sem funcionários",
+        description: "Não há funcionários ativos cadastrados para gerar o relatório.",
+        variant: "destructive"
+      });
       return;
     }
 
     setLoading(true);
-    // Limpar dados anteriores
-    setTimeRecords([]);
+    setHasSearched(true);
+    setTimeRecords([]); // Limpar dados anteriores
     
     try {
-      console.log('=== INÍCIO GERAÇÃO RELATÓRIO INDIVIDUAL ===');
+      console.log('=== INÍCIO GERAÇÃO RELATÓRIO ===');
       console.log('Funcionário selecionado:', selectedEmployeeId);
       console.log('Período selecionado:', startDate, 'até', endDate);
 
@@ -119,120 +143,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       const dateRange = generateDateRange(startDate, endDate);
       console.log('Range de datas gerado:', dateRange);
 
-      const { data, error } = await supabase
-        .from('time_records')
-        .select('*')
-        .eq('user_id', selectedEmployeeId)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: true });
-
-      if (error) {
-        console.error('Erro ao carregar registros:', error);
-        alert('Erro ao carregar registros: ' + error.message);
-        return;
-      }
-
-      console.log('Registros encontrados na consulta:', data);
-
-      // Buscar informações do funcionário usando filtro correto
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, name, email, hourly_rate, role')
-        .eq('id', selectedEmployeeId)
-        .eq('role', 'user')
-        .or('status.is.null,status.eq.active')
-        .single();
-
-      if (profileError) {
-        console.error('Erro ao carregar perfil do funcionário:', profileError);
-      }
-
-      // Criar um mapa dos registros por data
-      const recordsMap = (data || []).reduce((acc, record) => {
-        // Validar se a data do registro está REALMENTE no período
-        if (isDateInPeriod(record.date, startDate, endDate)) {
-          acc[record.date] = record;
-          console.log('Registro adicionado ao mapa:', record.date, record);
-        } else {
-          console.log('Registro REJEITADO (fora do período):', record.date);
-        }
-        return acc;
-      }, {} as Record<string, any>);
-
-      console.log('Mapa de registros válidos:', recordsMap);
-
-      // Combinar APENAS as datas do período com os registros existentes
-      const completeRecords: TimeRecord[] = dateRange.map(date => {
-        const record = recordsMap[date];
-        
-        if (record && profileData) {
-          // Usar a função padronizada com tolerância de 15 minutos
-          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-            record.clock_in || '',
-            record.lunch_start || '',
-            record.lunch_end || '',
-            record.clock_out || ''
-          );
-          
-          // Calcular valores com hora extra igual à hora normal
-          const { normalPay, overtimePay, totalPay } = calculatePay(
-            normalHours,
-            overtimeHours,
-            Number(profileData.hourly_rate)
-          );
-
-          return {
-            date,
-            user_id: selectedEmployeeId,
-            profiles: profileData,
-            ...record,
-            total_hours: totalHours,
-            normal_hours: normalHours,
-            overtime_hours: overtimeHours,
-            normal_pay: normalPay,
-            overtime_pay: overtimePay,
-            total_pay: totalPay
-          };
-        }
-
-        return {
-          date,
-          user_id: selectedEmployeeId,
-          profiles: profileData || undefined
-        };
-      });
-
-      console.log('Registros completos para exibição:', completeRecords);
-      console.log('Total de datas no resultado:', completeRecords.length);
-      setTimeRecords(completeRecords);
-    } catch (error) {
-      console.error('Erro ao gerar relatório:', error);
-      alert('Erro ao gerar relatório');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const generateAllEmployeesReport = async () => {
-    if (!startDate || !endDate) {
-      alert('Selecione o período para gerar o relatório');
-      return;
-    }
-
-    setLoading(true);
-    // Limpar dados anteriores
-    setTimeRecords([]);
-
-    try {
-      console.log('=== INÍCIO GERAÇÃO RELATÓRIO TODOS OS FUNCIONÁRIOS ===');
-      console.log('Período selecionado:', startDate, 'até', endDate);
-
-      // Gerar APENAS as datas do período selecionado
-      const dateRange = generateDateRange(startDate, endDate);
-      console.log('Range de datas gerado:', dateRange);
-
-      const { data, error } = await supabase
+      // Query baseada no funcionário selecionado
+      let query = supabase
         .from('time_records')
         .select('*')
         .gte('date', startDate)
@@ -240,28 +152,48 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         .order('user_id', { ascending: true })
         .order('date', { ascending: true });
 
+      // Se um funcionário específico foi selecionado
+      if (selectedEmployeeId !== 'all') {
+        query = query.eq('user_id', selectedEmployeeId);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
         console.error('Erro ao carregar registros:', error);
-        alert('Erro ao carregar registros: ' + error.message);
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar registros de ponto",
+          variant: "destructive"
+        });
         return;
       }
 
       console.log('Registros encontrados na consulta:', data);
 
-      // Usar IDs dos funcionários ativos filtrados
-      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+      // Determinar IDs dos funcionários para buscar
+      let employeeIds: string[];
+      if (selectedEmployeeId === 'all') {
+        employeeIds = activeEmployees.map(emp => emp.id);
+      } else {
+        employeeIds = [selectedEmployeeId];
+      }
       
-      // Buscar apenas perfis de funcionários ativos usando a consulta SQL padronizada
+      // Buscar perfis dos funcionários
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, email, hourly_rate, role')
-        .in('id', activeEmployeeIds)
+        .in('id', employeeIds)
         .eq('role', 'user')
         .or('status.is.null,status.eq.active');
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
-        alert('Erro ao carregar perfis dos funcionários');
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar perfis dos funcionários",
+          variant: "destructive"
+        });
         return;
       }
 
@@ -329,12 +261,37 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.log('Registros completos para exibição:', completeRecords);
       console.log('Total de registros no resultado:', completeRecords.length);
       setTimeRecords(completeRecords);
+
+      toast({
+        title: "Sucesso",
+        description: `Relatório gerado com ${completeRecords.length} registros`,
+      });
+
     } catch (error) {
       console.error('Erro ao gerar relatório:', error);
-      alert('Erro ao gerar relatório');
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao gerar relatório",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✨ NOVA: Função para limpar pesquisa
+  const handleClearSearch = () => {
+    setStartDate('');
+    setEndDate('');
+    setSelectedEmployeeId('all');
+    setTimeRecords([]);
+    setHasSearched(false);
+    console.log('🧹 Pesquisa limpa');
+    
+    toast({
+      title: "Pesquisa limpa",
+      description: "Filtros e resultados foram resetados.",
+    });
   };
 
   const formatTime = (timeString: string) => {
@@ -367,43 +324,97 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }, { totalHours: 0, overtimeHours: 0, totalPay: 0 });
   };
 
+  if (activeEmployees.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                    <Clock className="w-5 h-5" />
+                    Relatório Detalhado de Horários
+                  </h1>
+                  <p className="text-sm text-gray-600">Relatório completo de registros de ponto e cálculos financeiros</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardContent className="text-center py-8">
+              <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Nenhum funcionário ativo encontrado</h3>
+              <p className="text-sm text-gray-500">
+                Cadastre funcionários ativos (não administradores) para visualizar relatórios detalhados.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Card com filtros */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Selecionar Período e Funcionário
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Labels em linha */}
-              <div className="grid grid-cols-5 gap-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Funcionário</Label>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Data Inicial</Label>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Data Final</Label>
-                </div>
-                <div></div>
-                <div></div>
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Relatório Detalhado de Horários
+                </h1>
+                <p className="text-sm text-gray-600">Relatório completo de registros de ponto e cálculos financeiros</p>
               </div>
+            </div>
+          </div>
+        </div>
+      </header>
 
-              {/* Inputs e botões em linha */}
-              <div className="grid grid-cols-5 gap-4 items-center">
-                {/* Select Funcionário */}
-                <div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Filtros
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Inicial *</label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Final *</label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Funcionário</label>
                   <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
                     <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Selecione o funcionário" />
+                      <SelectValue placeholder="Todos os funcionários" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">Todos os funcionários</SelectItem>
                       {activeEmployees.map((employee) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.name}
@@ -413,109 +424,176 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   </Select>
                 </div>
 
-                {/* Data Inicial */}
-                <div>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-
-                {/* Data Final */}
-                <div>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="h-10"
-                  />
-                </div>
-
-                {/* Botão Gerar Individual */}
-                <div>
-                  <Button
-                    onClick={generateSingleEmployeeReport}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white h-10 w-full"
-                  >
-                    <User className="w-4 h-4 mr-2" />
-                    {loading ? 'Gerando...' : 'Gerar Individual'}
-                  </Button>
-                </div>
-
-                {/* Botão Gerar Todos */}
-                <div>
-                  <Button
-                    onClick={generateAllEmployeesReport}
-                    disabled={loading}
-                    variant="outline"
-                    className="border-blue-600 text-blue-600 hover:bg-blue-50 h-10 w-full"
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    {loading ? 'Gerando...' : 'Gerar Todos'}
-                  </Button>
+                {/* ✨ MUDANÇA: Só mostrar estatísticas após pesquisar */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Total de Registros</label>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {hasSearched ? timeRecords.length : '-'}
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Exibir relatórios agrupados por funcionário */}
-        {Object.keys(groupedRecords).length > 0 && (
-          <div className="space-y-8">
-            {Object.entries(groupedRecords).map(([employeeName, records]) => {
-              const totals = calculateEmployeeTotals(records);
-              
-              return (
-                <Card key={employeeName}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <User className="w-5 h-5" />
-                      {employeeName}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Dia da Semana</TableHead>
-                          <TableHead>Entrada</TableHead>
-                          <TableHead>Saída Almoço</TableHead>
-                          <TableHead>Volta Almoço</TableHead>
-                          <TableHead>Saída</TableHead>
-                          <TableHead>Total Horas</TableHead>
-                          <TableHead>Horas Extras</TableHead>
-                          <TableHead>Valor</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {records.map((record: TimeRecord, index: number) => {
-                          const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                          return (
-                            <TableRow key={key}>
-                              <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
-                              <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                              <TableCell>{formatTime(record.clock_in || '')}</TableCell>
-                              <TableCell>{formatTime(record.lunch_start || '')}</TableCell>
-                              <TableCell>{formatTime(record.lunch_end || '')}</TableCell>
-                              <TableCell>{formatTime(record.clock_out || '')}</TableCell>
-                              <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                              <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
-                              <TableCell>{formatCurrency(Number(record.total_pay || 0))}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+              {/* ✨ NOVOS: Botões de ação */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  onClick={generateReport}
+                  disabled={loading || !startDate || !endDate}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <>
+                      <Search className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando relatório...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Gerar Relatório
+                    </>
+                  )}
+                </Button>
+                
+                {hasSearched && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleClearSearch}
+                    disabled={loading}
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
+
+              {/* ✨ NOVO: Aviso sobre obrigatoriedade das datas */}
+              {(!startDate || !endDate) && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ <strong>Atenção:</strong> Selecione as datas de início e fim para gerar o relatório.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ✨ MUDANÇA: Condicional para mostrar resultados */}
+          {loading ? (
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  Carregando relatório detalhado...
+                </div>
+              </CardContent>
+            </Card>
+          ) : hasSearched ? (
+            // Mostrar resultados apenas após pesquisar
+            Object.keys(groupedRecords).length > 0 ? (
+              <div className="space-y-6">
+                {Object.entries(groupedRecords).map(([employeeName, records]) => {
+                  const totals = calculateEmployeeTotals(records);
+                  
+                  return (
+                    <Card key={employeeName}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <User className="w-5 h-5" />
+                            {employeeName}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {startDate && endDate && (
+                              <span>
+                                {format(new Date(startDate), 'dd/MM/yyyy')} - {format(new Date(endDate), 'dd/MM/yyyy')}
+                              </span>
+                            )}
+                          </div>
+                        </CardTitle>
+                        <div className="flex gap-6 text-sm text-gray-600">
+                          <span>Total de Horas: <strong>{totals.totalHours.toFixed(1)}h</strong></span>
+                          <span>Horas Extras: <strong>{totals.overtimeHours.toFixed(1)}h</strong></span>
+                          <span>Valor Total: <strong>{formatCurrency(totals.totalPay)}</strong></span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Data</TableHead>
+                                <TableHead>Dia da Semana</TableHead>
+                                <TableHead>Entrada</TableHead>
+                                <TableHead>Saída Almoço</TableHead>
+                                <TableHead>Volta Almoço</TableHead>
+                                <TableHead>Saída</TableHead>
+                                <TableHead>Total Horas</TableHead>
+                                <TableHead>Horas Extras</TableHead>
+                                <TableHead>Valor</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {records.map((record: TimeRecord, index: number) => {
+                                const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
+                                return (
+                                  <TableRow key={key}>
+                                    <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{getDayOfWeek(record.date)}</TableCell>
+                                    <TableCell>{formatTime(record.clock_in || '')}</TableCell>
+                                    <TableCell>{formatTime(record.lunch_start || '')}</TableCell>
+                                    <TableCell>{formatTime(record.lunch_end || '')}</TableCell>
+                                    <TableCell>{formatTime(record.clock_out || '')}</TableCell>
+                                    <TableCell>{record.total_hours ? Number(record.total_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                                    <TableCell>{record.overtime_hours ? Number(record.overtime_hours).toFixed(1) + 'h' : '-'}</TableCell>
+                                    <TableCell>{formatCurrency(Number(record.total_pay || 0))}</TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="text-center text-gray-500 py-12">
+                    <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      Nenhum registro encontrado
+                    </h3>
+                    <p className="text-sm">
+                      {startDate && endDate ? (
+                        `Nenhum registro de ponto encontrado para o período de ${format(new Date(startDate), 'dd/MM/yyyy')} até ${format(new Date(endDate), 'dd/MM/yyyy')}.`
+                      ) : (
+                        'Nenhum registro de ponto encontrado para os filtros selecionados.'
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          ) : (
+            // ✨ NOVO: Estado inicial - sem dados
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center text-gray-500 py-12">
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">
+                    Relatório Detalhado de Horários
+                  </h3>
+                  <p className="text-sm">
+                    Selecione as datas de início e fim, escolha um funcionário (ou todos), depois clique em "Gerar Relatório" para visualizar os registros detalhados de ponto.
+                  </p>
+                  <div className="mt-4 text-xs text-gray-400">
+                    💡 Este relatório inclui cálculos de horas normais, extras e valores financeiros baseados na taxa horária de cada funcionário.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
