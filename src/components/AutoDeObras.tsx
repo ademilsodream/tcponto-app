@@ -72,7 +72,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [endDate, setEndDate] = useState<Date>();
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // ✨ MUDANÇA: Inicia como false
+  const [hasSearched, setHasSearched] = useState(false); // ✨ NOVO: Controle se já pesquisou
   
   // ✨ NOVOS: Estados para porcentagem e somatório
   const [percentageConfig, setPercentageConfig] = useState<PercentageConfig>({});
@@ -145,12 +146,19 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   };
 
   const loadAutoObrasData = async () => {
-    if (!startDate || !endDate || employees.length === 0) {
-      console.log('⚠️ Dados insuficientes para carregar');
+    // ✨ NOVO: Validar se as datas foram selecionadas
+    if (!startDate || !endDate) {
+      console.warn('⚠️ Datas de início e fim são obrigatórias');
+      return;
+    }
+
+    if (employees.length === 0) {
+      console.log('⚠️ Nenhum funcionário disponível');
       return;
     }
 
     setLoading(true);
+    setHasSearched(true); // ✨ NOVO: Marcar que foi feita uma pesquisa
     console.log('\n🚀 === CARREGAMENTO COM JOIN CORRIGIDO ===');
     
     const startDateStr = format(startDate, 'yyyy-MM-dd');
@@ -409,15 +417,65 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
   };
 
-  // FORÇAR RELOAD quando qualquer coisa mudar
-  useEffect(() => {
-    console.log('🔄 useEffect TRIGGERED');
-    if (startDate && endDate && employees.length > 0) {
-      console.log('🚀 INICIANDO CARREGAMENTO...');
-      setEmployeeAutoObrasData([]);
-      loadAutoObrasData();
+  // ✨ MUDANÇA: Remover useEffect automático
+  // useEffect(() => {
+  //   console.log('🔄 useEffect TRIGGERED');
+  //   if (startDate && endDate && employees.length > 0) {
+  //     console.log('🚀 INICIANDO CARREGAMENTO...');
+  //     setEmployeeAutoObrasData([]);
+  //     loadAutoObrasData();
+  //   }
+  // }, [startDate, endDate, selectedEmployee, employees]);
+
+  // ✨ NOVA: Função para pesquisar
+  const handleSearch = () => {
+    if (!startDate || !endDate) {
+      toast({
+        title: "Datas obrigatórias",
+        description: "Por favor, selecione as datas de início e fim antes de pesquisar.",
+        variant: "destructive"
+      });
+      return;
     }
-  }, [startDate, endDate, selectedEmployee, employees]);
+    
+    if (startDate > endDate) {
+      toast({
+        title: "Período inválido",
+        description: "A data de início deve ser anterior à data de fim.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (employees.length === 0) {
+      toast({
+        title: "Sem funcionários",
+        description: "Não há funcionários cadastrados para gerar o relatório.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    console.log('🔍 Iniciando pesquisa manual...');
+    setEmployeeAutoObrasData([]); // Limpar dados anteriores
+    loadAutoObrasData();
+  };
+
+  // ✨ NOVA: Função para limpar pesquisa
+  const handleClearSearch = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setSelectedEmployee('all');
+    setEmployeeAutoObrasData([]);
+    setHasSearched(false);
+    setPercentageConfig({}); // Limpar configurações de porcentagem
+    console.log('🧹 Pesquisa limpa');
+    
+    toast({
+      title: "Pesquisa limpa",
+      description: "Filtros e resultados foram resetados.",
+    });
+  };
 
   const filteredData = useMemo(() => {
     console.log('🔄 Recalculando filteredData');
@@ -559,6 +617,17 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
+              {onBack && (
+                <Button
+                  onClick={onBack}
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Voltar
+                </Button>
+              )}
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <Building2 className="w-5 h-5" />
@@ -581,9 +650,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Data Inicial</label>
+                  <label className="text-sm font-medium">Data Inicial *</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -610,7 +679,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Data Final</label>
+                  <label className="text-sm font-medium">Data Final *</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -655,219 +724,292 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   </Select>
                 </div>
 
+                {/* ✨ MUDANÇA: Só mostrar estatísticas após pesquisar */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Registros Válidos</label>
                   <div className="text-2xl font-bold text-blue-600">
-                    {expandedData.length}
+                    {hasSearched ? expandedData.length : '-'}
                   </div>
                 </div>
               </div>
+
+              {/* ✨ NOVOS: Botões de ação */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  onClick={handleSearch}
+                  disabled={loading || !startDate || !endDate}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <>
+                      <Search className="w-4 h-4 mr-2 animate-spin" />
+                      Pesquisando...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Pesquisar
+                    </>
+                  )}
+                </Button>
+                
+                {hasSearched && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleClearSearch}
+                    disabled={loading}
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
+
+              {/* ✨ NOVO: Aviso sobre obrigatoriedade das datas */}
+              {(!startDate || !endDate) && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ <strong>Atenção:</strong> Selecione as datas de início e fim para pesquisar os registros.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
+          {/* ✨ MUDANÇA: Condicional para mostrar resultados */}
           {loading ? (
             <Card>
               <CardContent className="p-6">
-                <div className="text-center">Carregando dados...</div>
+                <div className="text-center">
+                  <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  Carregando dados de auto de obras...
+                </div>
               </CardContent>
             </Card>
-          ) : expandedData.length > 0 ? (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Relatório de Auto de Obras ({currency})</CardTitle>
-                  <p className="text-sm text-gray-600">Valores calculados com base no valor do auto por função</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="font-semibold">Funcionário</TableHead>
-                          <TableHead className="font-semibold">Local</TableHead>
-                          <TableHead className="text-center font-semibold">Total de Horas</TableHead>
-                          <TableHead className="text-center font-semibold">Total de Dias</TableHead>
-                          <TableHead className="text-right font-semibold">Valor Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {expandedData.map((row, index) => (
-                          <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
-                            <TableCell className="font-medium">{row.employeeName}</TableCell>
-                            <TableCell>{row.locationName}</TableCell>
-                            <TableCell className="text-center">
-                              {row.totalHours.toFixed(2)}h
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatCurrency(row.totalValue)}
-                            </TableCell>
+          ) : hasSearched ? (
+            // Mostrar resultados apenas após pesquisar
+            expandedData.length > 0 ? (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Relatório de Auto de Obras ({currency})</CardTitle>
+                    <p className="text-sm text-gray-600">
+                      Valores calculados com base no valor do auto por função
+                      {startDate && endDate && (
+                        <span className="ml-2 text-gray-400">
+                          ({format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')})
+                        </span>
+                      )}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="font-semibold">Funcionário</TableHead>
+                            <TableHead className="font-semibold">Local</TableHead>
+                            <TableHead className="text-center font-semibold">Total de Horas</TableHead>
+                            <TableHead className="text-center font-semibold">Total de Dias</TableHead>
+                            <TableHead className="text-right font-semibold">Valor Total</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {expandedData.map((row, index) => (
+                            <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
+                              <TableCell className="font-medium">{row.employeeName}</TableCell>
+                              <TableCell>{row.locationName}</TableCell>
+                              <TableCell className="text-center">
+                                {row.totalHours.toFixed(2)}h
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(row.totalValue)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* ✨ NOVO: Somatório por Localização */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Calculator className="w-5 h-5" />
-                      Somatório por Localização
-                    </CardTitle>
-                    <p className="text-sm text-gray-600">Totais agrupados por local de trabalho</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Percent className="w-4 h-4 mr-2" />
-                          Adicionar %
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Configurar Porcentagem por Localização</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="percentage">Porcentagem (%)</Label>
-                            <Input
-                              id="percentage"
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="Ex: 15.5"
-                              value={tempPercentage}
-                              onChange={(e) => setTempPercentage(e.target.value)}
-                            />
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label>Selecionar Localizações</Label>
-                            <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
-                              {uniqueLocations.map(location => (
-                                <div key={location} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`location-${location}`}
-                                    checked={selectedLocations.includes(location)}
-                                    onCheckedChange={() => toggleLocationSelection(location)}
-                                  />
-                                  <Label htmlFor={`location-${location}`} className="text-sm">
-                                    {location}
-                                    {percentageConfig[location] && (
-                                      <span className="text-blue-600 ml-1">
-                                        ({percentageConfig[location]}%)
-                                      </span>
-                                    )}
-                                  </Label>
-                                </div>
-                              ))}
+                {/* ✨ NOVO: Somatório por Localização */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calculator className="w-5 h-5" />
+                        Somatório por Localização
+                      </CardTitle>
+                      <p className="text-sm text-gray-600">Totais agrupados por local de trabalho</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Percent className="w-4 h-4 mr-2" />
+                            Adicionar %
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Configurar Porcentagem por Localização</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="percentage">Porcentagem (%)</Label>
+                              <Input
+                                id="percentage"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Ex: 15.5"
+                                value={tempPercentage}
+                                onChange={(e) => setTempPercentage(e.target.value)}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label>Selecionar Localizações</Label>
+                              <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
+                                {uniqueLocations.map(location => (
+                                  <div key={location} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`location-${location}`}
+                                      checked={selectedLocations.includes(location)}
+                                      onCheckedChange={() => toggleLocationSelection(location)}
+                                    />
+                                    <Label htmlFor={`location-${location}`} className="text-sm">
+                                      {location}
+                                      {percentageConfig[location] && (
+                                        <span className="text-blue-600 ml-1">
+                                          ({percentageConfig[location]}%)
+                                        </span>
+                                      )}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsPercentageDialogOpen(false)}
+                              >
+                                Cancelar
+                              </Button>
+                              <Button onClick={handleApplyPercentage}>
+                                Aplicar
+                              </Button>
                             </div>
                           </div>
+                        </DialogContent>
+                      </Dialog>
 
-                          <div className="flex justify-end space-x-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => setIsPercentageDialogOpen(false)}
-                            >
-                              Cancelar
-                            </Button>
-                            <Button onClick={handleApplyPercentage}>
-                              Aplicar
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-
-                    {Object.keys(percentageConfig).length > 0 && (
-                      <Button variant="outline" size="sm" onClick={handleClearPercentages}>
-                        Limpar %
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="font-semibold">Localização</TableHead>
-                          <TableHead className="text-center font-semibold">Total de Dias</TableHead>
-                          <TableHead className="text-right font-semibold">Valor Base</TableHead>
-                          <TableHead className="text-center font-semibold">Porcentagem</TableHead>
-                          <TableHead className="text-right font-semibold">Valor Final</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {locationSummary.map((summary) => (
-                          <TableRow key={summary.locationName}>
-                            <TableCell className="font-medium">{summary.locationName}</TableCell>
-                            <TableCell className="text-center">
-                              {summary.totalDays} dia{summary.totalDays !== 1 ? 's' : ''}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(summary.totalValue)}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <span className={cn(
-                                "px-2 py-1 rounded-full text-xs font-medium",
-                                summary.percentage > 0 
-                                  ? "bg-green-100 text-green-800" 
-                                  : "bg-gray-100 text-gray-600"
-                              )}>
-                                {summary.percentage > 0 ? `+${summary.percentage}%` : '0%'}
-                              </span>
+                      {Object.keys(percentageConfig).length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleClearPercentages}>
+                          Limpar %
+                        </Button>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="font-semibold">Localização</TableHead>
+                            <TableHead className="text-center font-semibold">Total de Dias</TableHead>
+                            <TableHead className="text-right font-semibold">Valor Base</TableHead>
+                            <TableHead className="text-center font-semibold">Porcentagem</TableHead>
+                            <TableHead className="text-right font-semibold">Valor Final</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {locationSummary.map((summary) => (
+                            <TableRow key={summary.locationName}>
+                              <TableCell className="font-medium">{summary.locationName}</TableCell>
+                              <TableCell className="text-center">
+                                {summary.totalDays} dia{summary.totalDays !== 1 ? 's' : ''}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {formatCurrency(summary.totalValue)}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <span className={cn(
+                                  "px-2 py-1 rounded-full text-xs font-medium",
+                                  summary.percentage > 0 
+                                    ? "bg-green-100 text-green-800" 
+                                    : "bg-gray-100 text-gray-600"
+                                )}>
+                                  {summary.percentage > 0 ? `+${summary.percentage}%` : '0%'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                {formatCurrency(summary.totalValueWithPercentage)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                        <TableBody>
+                          <TableRow className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+                            <TableCell className="font-bold">TOTAL GERAL</TableCell>
+                            <TableCell className="text-center font-bold">
+                              {locationSummary.reduce((sum, s) => sum + s.totalDays, 0)} dias
                             </TableCell>
                             <TableCell className="text-right font-bold">
-                              {formatCurrency(summary.totalValueWithPercentage)}
+                              {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValue, 0))}
+                            </TableCell>
+                            <TableCell className="text-center">-</TableCell>
+                            <TableCell className="text-right font-bold text-blue-600">
+                              {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValueWithPercentage, 0))}
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                      <TableBody>
-                        <TableRow className="border-t-2 border-gray-300 bg-gray-50 font-bold">
-                          <TableCell className="font-bold">TOTAL GERAL</TableCell>
-                          <TableCell className="text-center font-bold">
-                            {locationSummary.reduce((sum, s) => sum + s.totalDays, 0)} dias
-                          </TableCell>
-                          <TableCell className="text-right font-bold">
-                            {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValue, 0))}
-                          </TableCell>
-                          <TableCell className="text-center">-</TableCell>
-                          <TableCell className="text-right font-bold text-blue-600">
-                            {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValueWithPercentage, 0))}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="text-center text-gray-500 py-12">
+                    <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      Nenhum registro encontrado
+                    </h3>
+                    <p className="text-sm">
+                      {startDate && endDate ? (
+                        `Nenhum registro válido encontrado para o período de ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}.`
+                      ) : (
+                        'Nenhum registro válido encontrado para os filtros selecionados.'
+                      )}
+                      <br />
+                      Verifique se existem registros de ponto com valores de auto de obras configurados.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
-            </>
+            )
           ) : (
+            // ✨ NOVO: Estado inicial - sem dados
             <Card>
               <CardContent className="p-6">
                 <div className="text-center text-gray-500 py-12">
-                  <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    {!startDate || !endDate 
-                      ? 'Selecione o período para visualizar os dados'
-                      : 'Nenhum registro válido encontrado'
-                    }
+                    Relatório de Auto de Obras
                   </h3>
                   <p className="text-sm">
-                    {!startDate || !endDate
-                      ? 'Escolha as datas inicial e final para gerar o relatório'
-                      : 'Verifique se existem registros de ponto no período selecionado.'
-                    }
+                    Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar o relatório de auto de obras por localização e funcionário.
                   </p>
+                  <div className="mt-4 text-xs text-gray-400">
+                    💡 Este relatório mostra valores calculados com base nos valores de auto de obras configurados por departamento e função.
+                  </div>
                 </div>
               </CardContent>
             </Card>
