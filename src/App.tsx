@@ -3,20 +3,20 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
-import { QueryProvider } from '@/providers/QueryProvider';
+import { OptimizedQueryProvider } from '@/providers/OptimizedQueryProvider';
 import { Toaster } from '@/components/ui/toaster';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminLayout from '@/components/AdminLayout';
 import EmployeeLayout from '@/components/EmployeeLayout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import EmployeeDashboard from '@/components/EmployeeDashboard';
+import OptimizedEmployeeDashboard from '@/components/OptimizedEmployeeDashboard';
 import SettingsPage from '@/components/Settings';
 import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
-const AppContent = () => {
+const AppContent = React.memo(() => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -51,7 +51,7 @@ const AppContent = () => {
               ) : (
                 <EmployeeLayout>
                   <ProtectedRoute>
-                    <EmployeeDashboard />
+                    <OptimizedEmployeeDashboard />
                   </ProtectedRoute>
                 </EmployeeLayout>
               )
@@ -80,7 +80,9 @@ const AppContent = () => {
       </Routes>
     </div>
   );
-};
+});
+
+AppContent.displayName = 'AppContent';
 
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -100,7 +102,7 @@ function App() {
   }
 
   return (
-    <QueryProvider>
+    <OptimizedQueryProvider>
       <AuthProvider>
         <CurrencyProvider>
           <Router>
@@ -109,7 +111,7 @@ function App() {
           </Router>
         </CurrencyProvider>
       </AuthProvider>
-    </QueryProvider>
+    </OptimizedQueryProvider>
   );
 }
 
