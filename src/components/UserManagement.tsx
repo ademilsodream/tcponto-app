@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import { Users, Plus, Edit, UserX, UserCheck } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+
 
 interface User {
   id: string;
@@ -27,11 +27,13 @@ interface User {
   jobFunction?: { name: string };
 }
 
+
 interface Department {
   id: string;
   name: string;
   is_active: boolean;
 }
+
 
 interface JobFunction {
   id: string;
@@ -39,9 +41,26 @@ interface JobFunction {
   is_active: boolean;
 }
 
+
 interface UserManagementProps {
   onUserChange?: () => void;
 }
+
+// ✨ NOVA: Função para formatar horas no padrão HH:MM
+// Nota: Esta função foi adicionada conforme solicitado,
+// mas não é diretamente utilizada na tabela deste componente (UserManagement),
+// que exibe valores monetários por hora, não totais de horas.
+// Se você precisar formatar totais de horas, isso deve ser feito onde eles são exibidos.
+const formatHoursAsTime = (hours: number) => {
+  if (!hours || hours === 0) return '00:00';
+
+  const totalMinutes = Math.round(hours * 60);
+  const hoursDisplay = Math.floor(totalMinutes / 60);
+  const minutesDisplay = totalMinutes % 60;
+
+  return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
+};
+
 
 const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const [users, setUsers] = useState<User[]>([]);
@@ -71,7 +90,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   useEffect(() => {
     loadUsers();
     loadDepartmentsAndJobFunctions();
-  }, []);
+    // ❌ REMOVIDO: Não há recarregamento automático neste useEffect
+  }, []); // Dependências vazias significam que roda apenas no mount
 
   const loadUsers = async () => {
     try {
@@ -124,6 +144,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+
+  // ❌ REMOVIDO: Não há recarregamento automático nesta função
   const loadDepartmentsAndJobFunctions = async () => {
     try {
       const [deptResult, jobResult] = await Promise.all([
@@ -146,6 +168,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -160,6 +183,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     });
     setEditingUser(null);
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,7 +255,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.();
+      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
       setIsDialogOpen(false);
       resetForm();
     } catch (error: any) {
@@ -246,12 +270,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+
   const handleEdit = (user: User) => {
     setEditingUser(user);
     setFormData({
       name: user.name,
       email: user.email,
-      password: '',
+      password: '', // Senha não é preenchida ao editar
       role: user.role,
       hourlyRate: user.hourlyRate.toString(),
       overtimeRate: user.overtimeRate.toString(),
@@ -262,12 +287,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     setIsDialogOpen(true);
   };
 
+
   const handleDelete = async (userId: string) => {
     if (!confirm('Tem certeza que deseja excluir este usuário?')) {
       return;
     }
 
     try {
+      setSubmitting(true); // Pode adicionar um estado de loading/submitting específico para ações de linha
+
       const { error } = await supabase
         .from('profiles')
         .delete()
@@ -278,7 +306,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.();
+      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
 
       toast({
         title: "Sucesso",
@@ -291,17 +319,28 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         description: "Erro ao excluir usuário",
         variant: "destructive"
       });
+    } finally {
+       setSubmitting(false); // Finaliza o estado de loading/submitting
     }
   };
 
+
   const handleTerminate = (user: User) => {
     setTerminatingUser(user);
-    setTerminationDate(new Date().toISOString().split('T')[0]);
+    setTerminationDate(new Date().toISOString().split('T')[0]); // Data atual por padrão
     setIsTerminationDialogOpen(true);
   };
 
+
   const confirmTermination = async () => {
-    if (!terminatingUser || !terminationDate) return;
+    if (!terminatingUser || !terminationDate) {
+       toast({
+        title: "Erro",
+        description: "Selecione a data de demissão.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -320,7 +359,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.();
+      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
       setIsTerminationDialogOpen(false);
       setTerminatingUser(null);
       setTerminationDate('');
@@ -341,6 +380,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+
   const handleReactivate = async (user: User) => {
     if (!confirm(`Tem certeza que deseja reativar o funcionário ${user.name}?`)) {
       return;
@@ -353,7 +393,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         .from('profiles')
         .update({
           status: 'active',
-          termination_date: null,
+          termination_date: null, // Remove a data de demissão
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
@@ -363,7 +403,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.();
+      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
 
       toast({
         title: "Sucesso",
@@ -381,6 +421,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -391,6 +432,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       </div>
     );
   }
+
 
   return (
     <div className="space-y-6">
@@ -434,7 +476,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    disabled={submitting || !!editingUser}
+                    disabled={submitting || !!editingUser} // Email não editável após criação
                   />
                 </div>
 
@@ -599,8 +641,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
               >
                 Cancelar
               </Button>
-              <Button 
-                onClick={confirmTermination} 
+              <Button
+                onClick={confirmTermination}
                 disabled={submitting || !terminationDate}
                 className="bg-red-600 hover:bg-red-700"
               >
@@ -627,7 +669,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="min-w-full divide-y divide-gray-200"> {/* Added min-w-full */}
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -662,19 +704,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
                     <tr key={user.id} className={`hover:bg-gray-50 ${user.status === 'inactive' ? 'bg-red-50' : ''}`}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         {user.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         {user.email}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         {user.employeeCode || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         {user.jobFunction?.name || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           user.status === 'active'
                             ? 'bg-green-100 text-green-800'
@@ -683,7 +725,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                           {user.status === 'active' ? 'Ativo' : `Demitido em ${user.terminationDate ? new Date(user.terminationDate).toLocaleDateString('pt-BR') : ''}`}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-6 py-4"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           user.role === 'admin'
                             ? 'bg-purple-100 text-purple-800'
@@ -692,13 +734,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                           {user.role === 'admin' ? 'Administrador' : 'Funcionário'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         {formatCurrency(user.hourlyRate)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 text-sm text-gray-900"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         {formatCurrency(user.overtimeRate)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
                         <div className="flex space-x-2">
                           <Button
                             variant="outline"
@@ -739,5 +781,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     </div>
   );
 };
+
 
 export default UserManagement;
