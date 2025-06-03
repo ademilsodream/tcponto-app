@@ -644,7 +644,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 <div className="text-center text-gray-500 py-12">
                   <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    Relatório de Localização
+                    Painel de Localização
                   </h3>
                   <p className="text-sm">
                     Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar os registros de localização dos funcionários.
