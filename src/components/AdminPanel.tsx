@@ -56,8 +56,6 @@ const AdminPanel = () => {
       }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
-    // ❌ REMOVIDO: refetchInterval para evitar recarregamento automático
-    // refetchInterval: 10 * 60 * 1000 // Refetch a cada 10 minutos
   });
 
   // Query para contar solicitações pendentes
@@ -76,8 +74,6 @@ const AdminPanel = () => {
       return count || 0;
     },
     staleTime: 1 * 60 * 1000, // 1 minuto
-    // ❌ REMOVIDO: refetchInterval para evitar recarregamento automático
-    // refetchInterval: 2 * 60 * 1000 // Refetch a cada 2 minutos
   });
 
   // Function to refetch data after actions in child components if needed
