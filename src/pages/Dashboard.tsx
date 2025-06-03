@@ -227,7 +227,7 @@ const Dashboard = () => {
               }`}
             >
               <MapPin className="w-4 h-4 mr-2" />
-              Relatório de Localização
+              Trajetória de Ponto
             </button>
 
             <button
@@ -239,7 +239,7 @@ const Dashboard = () => {
               }`}
             >
               <Building2 className="w-4 h-4 mr-2" />
-              Auto de Obras
+              Painel de Alocação
             </button>
           </nav>
         </div>
