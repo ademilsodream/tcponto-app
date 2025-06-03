@@ -617,17 +617,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              {onBack && (
-                <Button
-                  onClick={onBack}
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-600 hover:text-gray-800"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Voltar
-                </Button>
-              )}
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <Building2 className="w-5 h-5" />
