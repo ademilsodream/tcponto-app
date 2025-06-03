@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Building2, ArrowLeft, CalendarIcon, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Building2, ArrowLeft, CalendarIcon, Search, Percent, Calculator } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -45,6 +48,20 @@ interface EmployeeAutoObrasData {
   }>;
 }
 
+// ✨ NOVA: Interface para somatório por localização
+interface LocationSummary {
+  locationName: string;
+  totalDays: number;
+  totalValue: number;
+  totalValueWithPercentage: number;
+  percentage: number;
+}
+
+// ✨ NOVA: Interface para configuração de porcentagem
+interface PercentageConfig {
+  [locationName: string]: number;
+}
+
 interface AutoDeObrasProps {
   employees: User[];
   onBack?: () => void;
@@ -56,6 +73,13 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // ✨ NOVOS: Estados para porcentagem e somatório
+  const [percentageConfig, setPercentageConfig] = useState<PercentageConfig>({});
+  const [isPercentageDialogOpen, setIsPercentageDialogOpen] = useState(false);
+  const [tempPercentage, setTempPercentage] = useState<string>('');
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
 
@@ -193,7 +217,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       console.log(`👤 PROFILES ENCONTRADOS: ${profiles?.length || 0}`);
       profiles?.forEach(p => {
-        console.log(`  - ${p.name} (ID: ${p.id}, Dept: ${p.department_id}, Job: ${p.job_function_id})`);
+        console.log(` - ${p.name} (ID: ${p.id}, Dept: ${p.department_id}, Job: ${p.job_function_id})`);
       });
 
       // Criar mapa de profiles
@@ -366,7 +390,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       result.forEach((emp, index) => {
         console.log(`\n👤 RESULTADO ${index + 1}: ${emp.employeeName}`);
         emp.locations.forEach((loc) => {
-          console.log(`   📍 ${loc.locationName}: ${loc.totalHours}h em ${loc.totalDays} dias = R$ ${loc.totalValue.toFixed(2)}`);
+          console.log(` 📍 ${loc.locationName}: ${loc.totalHours}h em ${loc.totalDays} dias = R$ ${loc.totalValue.toFixed(2)}`);
         });
       });
 
@@ -436,6 +460,98 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     console.log(`📋 expandedData final: ${result.length} registros`);
     return result;
   }, [filteredData]);
+
+  // ✨ NOVO: Calcular somatório por localização
+  const locationSummary = useMemo(() => {
+    const summaryMap = new Map<string, LocationSummary>();
+
+    expandedData.forEach(row => {
+      if (!summaryMap.has(row.locationName)) {
+        summaryMap.set(row.locationName, {
+          locationName: row.locationName,
+          totalDays: 0,
+          totalValue: 0,
+          totalValueWithPercentage: 0,
+          percentage: percentageConfig[row.locationName] || 0
+        });
+      }
+
+      const summary = summaryMap.get(row.locationName)!;
+      summary.totalDays += row.totalDays;
+      summary.totalValue += row.totalValue;
+      
+      // Calcular valor com porcentagem
+      const percentage = percentageConfig[row.locationName] || 0;
+      summary.percentage = percentage;
+      summary.totalValueWithPercentage = summary.totalValue * (1 + percentage / 100);
+    });
+
+    return Array.from(summaryMap.values())
+      .sort((a, b) => a.locationName.localeCompare(b.locationName));
+  }, [expandedData, percentageConfig]);
+
+  // ✨ NOVO: Obter todas as localizações únicas
+  const uniqueLocations = useMemo(() => {
+    const locations = new Set<string>();
+    expandedData.forEach(row => locations.add(row.locationName));
+    return Array.from(locations).sort();
+  }, [expandedData]);
+
+  // ✨ NOVO: Aplicar porcentagem
+  const handleApplyPercentage = () => {
+    const percentage = parseFloat(tempPercentage);
+    
+    if (isNaN(percentage) || percentage < 0) {
+      toast({
+        title: "Erro",
+        description: "Digite um valor de porcentagem válido",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (selectedLocations.length === 0) {
+      toast({
+        title: "Erro",
+        description: "Selecione pelo menos uma localização",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newConfig = { ...percentageConfig };
+    selectedLocations.forEach(location => {
+      newConfig[location] = percentage;
+    });
+
+    setPercentageConfig(newConfig);
+    setIsPercentageDialogOpen(false);
+    setTempPercentage('');
+    setSelectedLocations([]);
+
+    toast({
+      title: "Sucesso",
+      description: `Porcentagem de ${percentage}% aplicada a ${selectedLocations.length} localização(ões)`,
+    });
+  };
+
+  // ✨ NOVO: Limpar porcentagens
+  const handleClearPercentages = () => {
+    setPercentageConfig({});
+    toast({
+      title: "Sucesso",
+      description: "Todas as porcentagens foram removidas",
+    });
+  };
+
+  // ✨ NOVO: Toggle seleção de localização
+  const toggleLocationSelection = (location: string) => {
+    setSelectedLocations(prev => 
+      prev.includes(location) 
+        ? prev.filter(l => l !== location)
+        : [...prev, location]
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -567,44 +683,185 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               </CardContent>
             </Card>
           ) : expandedData.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Relatório de Auto de Obras ({currency})</CardTitle>
-                <p className="text-sm text-gray-600">Valores calculados com base no valor do auto por função</p>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="font-semibold">Funcionário</TableHead>
-                        <TableHead className="font-semibold">Local</TableHead>
-                        <TableHead className="text-center font-semibold">Total de Horas</TableHead>
-                        <TableHead className="text-center font-semibold">Total de Dias</TableHead>
-                        <TableHead className="text-right font-semibold">Valor Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {expandedData.map((row, index) => (
-                        <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
-                          <TableCell className="font-medium">{row.employeeName}</TableCell>
-                          <TableCell>{row.locationName}</TableCell>
-                          <TableCell className="text-center">
-                            {row.totalHours.toFixed(2)}h
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Relatório de Auto de Obras ({currency})</CardTitle>
+                  <p className="text-sm text-gray-600">Valores calculados com base no valor do auto por função</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-semibold">Funcionário</TableHead>
+                          <TableHead className="font-semibold">Local</TableHead>
+                          <TableHead className="text-center font-semibold">Total de Horas</TableHead>
+                          <TableHead className="text-center font-semibold">Total de Dias</TableHead>
+                          <TableHead className="text-right font-semibold">Valor Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {expandedData.map((row, index) => (
+                          <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
+                            <TableCell className="font-medium">{row.employeeName}</TableCell>
+                            <TableCell>{row.locationName}</TableCell>
+                            <TableCell className="text-center">
+                              {row.totalHours.toFixed(2)}h
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatCurrency(row.totalValue)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* ✨ NOVO: Somatório por Localização */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calculator className="w-5 h-5" />
+                      Somatório por Localização
+                    </CardTitle>
+                    <p className="text-sm text-gray-600">Totais agrupados por local de trabalho</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Percent className="w-4 h-4 mr-2" />
+                          Adicionar %
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Configurar Porcentagem por Localização</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="percentage">Porcentagem (%)</Label>
+                            <Input
+                              id="percentage"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Ex: 15.5"
+                              value={tempPercentage}
+                              onChange={(e) => setTempPercentage(e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Selecionar Localizações</Label>
+                            <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
+                              {uniqueLocations.map(location => (
+                                <div key={location} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`location-${location}`}
+                                    checked={selectedLocations.includes(location)}
+                                    onCheckedChange={() => toggleLocationSelection(location)}
+                                  />
+                                  <Label htmlFor={`location-${location}`} className="text-sm">
+                                    {location}
+                                    {percentageConfig[location] && (
+                                      <span className="text-blue-600 ml-1">
+                                        ({percentageConfig[location]}%)
+                                      </span>
+                                    )}
+                                  </Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setIsPercentageDialogOpen(false)}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button onClick={handleApplyPercentage}>
+                              Aplicar
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+
+                    {Object.keys(percentageConfig).length > 0 && (
+                      <Button variant="outline" size="sm" onClick={handleClearPercentages}>
+                        Limpar %
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-semibold">Localização</TableHead>
+                          <TableHead className="text-center font-semibold">Total de Dias</TableHead>
+                          <TableHead className="text-right font-semibold">Valor Base</TableHead>
+                          <TableHead className="text-center font-semibold">Porcentagem</TableHead>
+                          <TableHead className="text-right font-semibold">Valor Final</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {locationSummary.map((summary) => (
+                          <TableRow key={summary.locationName}>
+                            <TableCell className="font-medium">{summary.locationName}</TableCell>
+                            <TableCell className="text-center">
+                              {summary.totalDays} dia{summary.totalDays !== 1 ? 's' : ''}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(summary.totalValue)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className={cn(
+                                "px-2 py-1 rounded-full text-xs font-medium",
+                                summary.percentage > 0 
+                                  ? "bg-green-100 text-green-800" 
+                                  : "bg-gray-100 text-gray-600"
+                              )}>
+                                {summary.percentage > 0 ? `+${summary.percentage}%` : '0%'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right font-bold">
+                              {formatCurrency(summary.totalValueWithPercentage)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                      <TableBody>
+                        <TableRow className="border-t-2 border-gray-300 bg-gray-50 font-bold">
+                          <TableCell className="font-bold">TOTAL GERAL</TableCell>
+                          <TableCell className="text-center font-bold">
+                            {locationSummary.reduce((sum, s) => sum + s.totalDays, 0)} dias
                           </TableCell>
-                          <TableCell className="text-center">
-                            {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
+                          <TableCell className="text-right font-bold">
+                            {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValue, 0))}
                           </TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {formatCurrency(row.totalValue)}
+                          <TableCell className="text-center">-</TableCell>
+                          <TableCell className="text-right font-bold text-blue-600">
+                            {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValueWithPercentage, 0))}
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           ) : (
             <Card>
               <CardContent className="p-6">
