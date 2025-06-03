@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -142,16 +141,24 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [timeRecordsReportData, setTimeRecordsReportData] = useState<TimeRecordReportRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ✨ MUDANÇA: Inicia como false
+  const [hasSearched, setHasSearched] = useState(false); // ✨ NOVO: Controle se já pesquisou
 
   // Filtrar apenas funcionários ativos usando useMemo para evitar recálculos desnecessários
   const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
 
-  useEffect(() => {
-    loadTimeRecordsData();
-  }, [employees, startDate, endDate]);
+  // ✨ MUDANÇA: Remover useEffect automático
+  // useEffect(() => {
+  //   loadTimeRecordsData();
+  // }, [employees, startDate, endDate]);
 
   const loadTimeRecordsData = async () => {
+    // ✨ NOVO: Validar se as datas foram selecionadas
+    if (!startDate || !endDate) {
+      console.warn('⚠️ Datas de início e fim são obrigatórias');
+      return;
+    }
+
     // Recalcular activeEmployees aqui para garantir dados atualizados
     const currentActiveEmployees = getActiveEmployees(employees);
     
@@ -162,6 +169,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     }
 
     setLoading(true);
+    setHasSearched(true); // ✨ NOVO: Marcar que foi feita uma pesquisa
 
     try {
       const activeEmployeeIds = currentActiveEmployees.map(emp => emp.id);
@@ -183,13 +191,11 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         .order('date', { ascending: false })
         .order('clock_in', { ascending: true });
 
-      // Aplicar filtros de data se existirem
-      if (startDate) {
-        query = query.gte('date', format(startDate, 'yyyy-MM-dd'));
-      }
-      if (endDate) {
-        query = query.lte('date', format(endDate, 'yyyy-MM-dd'));
-      }
+      // ✨ MUDANÇA: Aplicar filtros de data obrigatoriamente
+      query = query.gte('date', format(startDate, 'yyyy-MM-dd'));
+      query = query.lte('date', format(endDate, 'yyyy-MM-dd'));
+
+      console.log(`📅 Pesquisando período: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`);
 
       const { data, error } = await query;
 
@@ -232,6 +238,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
         };
       }) || [];
 
+      console.log(`✅ Encontrados ${formattedData.length} registros para o período`);
       setTimeRecordsReportData(formattedData);
 
     } catch (error) {
@@ -240,6 +247,32 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
     } finally {
       setLoading(false);
     }
+  };
+
+  // ✨ NOVA: Função para pesquisar
+  const handleSearch = () => {
+    if (!startDate || !endDate) {
+      alert('Por favor, selecione as datas de início e fim antes de pesquisar.');
+      return;
+    }
+    
+    if (startDate > endDate) {
+      alert('A data de início deve ser anterior à data de fim.');
+      return;
+    }
+
+    console.log('🔍 Iniciando pesquisa manual...');
+    loadTimeRecordsData();
+  };
+
+  // ✨ NOVA: Função para limpar pesquisa
+  const handleClearSearch = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setSelectedEmployee('all');
+    setTimeRecordsReportData([]);
+    setHasSearched(false);
+    console.log('🧹 Pesquisa limpa');
   };
 
   const filteredTimeRecords = useMemo(() => {
@@ -305,36 +338,6 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
       </div>
     );
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center space-x-4">
-                <div>
-                  <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                    <MapPin className="w-5 h-5" />
-                    Painel de Localização
-                  </h1>
-                  <p className="text-sm text-gray-600">Informações completas de localização dos registros de ponto</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center">Carregando dados de localização...</div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   if (activeEmployees.length === 0) {
     return (
@@ -409,9 +412,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Data Inicial</label>
+                  <label className="text-sm font-medium">Data Inicial *</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -438,7 +441,7 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Data Final</label>
+                  <label className="text-sm font-medium">Data Final *</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -483,98 +486,168 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   </Select>
                 </div>
 
+                {/* ✨ MUDANÇA: Só mostrar estatísticas após pesquisar */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Total de Registros</label>
                   <div className="text-2xl font-bold text-blue-600">
-                    {filteredTimeRecords.length}
+                    {hasSearched ? filteredTimeRecords.length : '-'}
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Registros com Localização</label>
                   <div className="text-2xl font-bold text-green-600">
-                    {filteredTimeRecords.filter(r => 
+                    {hasSearched ? filteredTimeRecords.filter(r => 
                       r.clockInLocation || r.lunchStartLocation || r.lunchEndLocation || r.clockOutLocation
-                    ).length}
+                    ).length : '-'}
                   </div>
                 </div>
               </div>
+
+              {/* ✨ NOVOS: Botões de ação */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  onClick={handleSearch}
+                  disabled={loading || !startDate || !endDate}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <>
+                      <Search className="w-4 h-4 mr-2 animate-spin" />
+                      Pesquisando...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Pesquisar
+                    </>
+                  )}
+                </Button>
+                
+                {hasSearched && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleClearSearch}
+                    disabled={loading}
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
+
+              {/* ✨ NOVO: Aviso sobre obrigatoriedade das datas */}
+              {(!startDate || !endDate) && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ <strong>Atenção:</strong> Selecione as datas de início e fim para pesquisar os registros.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {Object.keys(recordsByEmployee).length > 0 ? (
-            <div className="space-y-6">
-              {Object.entries(recordsByEmployee).map(([userId, employeeData]) => (
-                <Card key={userId}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <User className="w-5 h-5" />
-                      {employeeData.employeeName}
-                    </CardTitle>
-                    <p className="text-sm text-gray-600">
-                      {employeeData.records.length} registro(s) de ponto
+          {/* ✨ MUDANÇA: Condicional para mostrar resultados */}
+          {loading ? (
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  Carregando dados de localização...
+                </div>
+              </CardContent>
+            </Card>
+          ) : hasSearched ? (
+            // Mostrar resultados apenas após pesquisar
+            Object.keys(recordsByEmployee).length > 0 ? (
+              <div className="space-y-6">
+                {Object.entries(recordsByEmployee).map(([userId, employeeData]) => (
+                  <Card key={userId}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="w-5 h-5" />
+                        {employeeData.employeeName}
+                      </CardTitle>
+                      <p className="text-sm text-gray-600">
+                        {employeeData.records.length} registro(s) de ponto
+                        {startDate && endDate && (
+                          <span className="ml-2 text-gray-400">
+                            ({format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')})
+                          </span>
+                        )}
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {employeeData.records.map((record) => (
+                          <div key={record.recordId} className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex justify-between items-center mb-3">
+                              <h4 className="font-medium">
+                                {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                              </h4>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div>
+                                <h5 className="font-medium text-sm text-gray-700 mb-1">Entrada</h5>
+                                <p className="text-sm mb-2">{record.clockInTime || '-'}</p>
+                                {renderLocationInfo(record.clockInLocation)}
+                              </div>
+                              
+                              <div>
+                                <h5 className="font-medium text-sm text-gray-700 mb-1">Saída Almoço</h5>
+                                <p className="text-sm mb-2">{record.lunchStartTime || '-'}</p>
+                                {renderLocationInfo(record.lunchStartLocation)}
+                              </div>
+                              
+                              <div>
+                                <h5 className="font-medium text-sm text-gray-700 mb-1">Volta Almoço</h5>
+                                <p className="text-sm mb-2">{record.lunchEndTime || '-'}</p>
+                                {renderLocationInfo(record.lunchEndLocation)}
+                              </div>
+                              
+                              <div>
+                                <h5 className="font-medium text-sm text-gray-700 mb-1">Saída</h5>
+                                <p className="text-sm mb-2">{record.clockOutTime || '-'}</p>
+                                {renderLocationInfo(record.clockOutLocation)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="text-center text-gray-500 py-12">
+                    <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      Nenhum registro encontrado
+                    </h3>
+                    <p className="text-sm">
+                      {startDate && endDate ? (
+                        `Nenhum registro de ponto encontrado para o período de ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}.`
+                      ) : (
+                        'Nenhum registro de ponto encontrado para os filtros selecionados.'
+                      )}
                     </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {employeeData.records.map((record) => (
-                        <div key={record.recordId} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex justify-between items-center mb-3">
-                            <h4 className="font-medium">
-                              {format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}
-                            </h4>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700 mb-1">Entrada</h5>
-                              <p className="text-sm mb-2">{record.clockInTime || '-'}</p>
-                              {renderLocationInfo(record.clockInLocation)}
-                            </div>
-                            
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700 mb-1">Saída Almoço</h5>
-                              <p className="text-sm mb-2">{record.lunchStartTime || '-'}</p>
-                              {renderLocationInfo(record.lunchStartLocation)}
-                            </div>
-                            
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700 mb-1">Volta Almoço</h5>
-                              <p className="text-sm mb-2">{record.lunchEndTime || '-'}</p>
-                              {renderLocationInfo(record.lunchEndLocation)}
-                            </div>
-                            
-                            <div>
-                              <h5 className="font-medium text-sm text-gray-700 mb-1">Saída</h5>
-                              <p className="text-sm mb-2">{record.clockOutTime || '-'}</p>
-                              {renderLocationInfo(record.clockOutLocation)}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
           ) : (
+            // ✨ NOVO: Estado inicial - sem dados
             <Card>
               <CardContent className="p-6">
                 <div className="text-center text-gray-500 py-12">
-                  <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                     {activeEmployees.length === 0
-                      ? 'Nenhum funcionário ativo cadastrado'
-                      : 'Nenhum registro de ponto encontrado'
-                    }
+                    Relatório de Localização
                   </h3>
                   <p className="text-sm">
-                     {activeEmployees.length === 0
-                      ? 'Cadastre funcionários ativos para ver os registros de ponto e localização'
-                      : selectedEmployee === 'all'
-                        ? 'Nenhum registro de ponto encontrado para todos os funcionários ativos.'
-                        : `Nenhum registro de ponto encontrado para o funcionário selecionado.`
-                    }
+                    Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar os registros de localização dos funcionários.
                   </p>
                 </div>
               </CardContent>
