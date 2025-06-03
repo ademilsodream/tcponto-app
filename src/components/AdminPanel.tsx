@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Users, Clock, AlertCircle, UserPlus } from 'lucide-react';
+import { Users, Clock, AlertCircle, UserPlus, LayoutDashboard } from 'lucide-react'; // Added LayoutDashboard icon
 import OptimizedAdminDashboard from '@/components/OptimizedAdminDashboard';
 import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
@@ -25,7 +23,7 @@ const AdminPanel = () => {
     data: employees = [],
     isLoading: loadingEmployees,
     refetch: refetchEmployees
-  } = useQuery({
+  } = useQuery<User[]>({
     queryKey: ['employees'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -42,7 +40,7 @@ const AdminPanel = () => {
         email: profile.email,
         role: profile.role as 'admin' | 'user',
         hourlyRate: Number(profile.hourly_rate),
-        overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5
+        overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5 // Fallback calculation
       }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
@@ -51,8 +49,9 @@ const AdminPanel = () => {
 
   // Query para contar solicitações pendentes
   const {
-    data: pendingCount = 0
-  } = useQuery({
+    data: pendingCount = 0,
+    refetch: refetchPendingCount // Added refetch for pending count
+  } = useQuery<number>({
     queryKey: ['pending-requests-count'],
     queryFn: async () => {
       const { count, error } = await supabase
@@ -67,6 +66,13 @@ const AdminPanel = () => {
     refetchInterval: 2 * 60 * 1000 // Refetch a cada 2 minutos
   });
 
+  // Function to refetch data after actions in child components if needed
+  const handleDataChange = () => {
+      refetchEmployees();
+      refetchPendingCount();
+  }
+
+
   if (loadingEmployees) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -78,6 +84,7 @@ const AdminPanel = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header Section */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Painel Administrativo</h1>
         <div className="flex items-center space-x-4">
@@ -95,39 +102,51 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="dashboard" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="dashboard" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Dashboard
-          </TabsTrigger>
-          <TabsTrigger value="approvals" className="flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            Solicitações
+      {/* Dashboard Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5" />
+            Dashboard Geral
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <OptimizedAdminDashboard employees={employees} />
+        </CardContent>
+      </Card>
+
+      {/* Pending Approvals Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Gerenciar Solicitações Pendentes
             {pendingCount > 0 && (
-              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] h-5 flex items-center justify-center">
+              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] h-5 flex items-center justify-center ml-2">
                 {pendingCount}
               </span>
             )}
-          </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <UserPlus className="w-4 h-4" />
-            Funcionários
-          </TabsTrigger>
-        </TabsList>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Pass handleDataChange to trigger refetches if approvals are processed */}
+          <OptimizedPendingApprovals employees={employees} onApprovalChange={handleDataChange} />
+        </CardContent>
+      </Card>
 
-        <TabsContent value="dashboard" className="space-y-6">
-          <OptimizedAdminDashboard employees={employees} />
-        </TabsContent>
-
-        <TabsContent value="approvals" className="space-y-6">
-          <OptimizedPendingApprovals employees={employees} />
-        </TabsContent>
-
-        <TabsContent value="users" className="space-y-6">
-          <UserManagement onUserChange={refetchEmployees} />
-        </TabsContent>
-      </Tabs>
+      {/* User Management Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="w-5 h-5" />
+            Gerenciar Funcionários
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Pass handleDataChange to trigger refetches if users are added/edited/deleted */}
+          <UserManagement onUserChange={handleDataChange} />
+        </CardContent>
+      </Card>
     </div>
   );
 };
