@@ -232,7 +232,7 @@ const AutoObrasManagement = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-primary-900">Valor para Auto de Obras</h2>
+          <h2 className="text-2xl font-bold text-primary-900">Valor para painel de alocação</h2>
           <p className="text-gray-600">Definir valores por departamento e função</p>
         </div>
 
@@ -291,7 +291,7 @@ const AutoObrasManagement = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="autoValue">Valor do Auto *</Label>
+                <Label htmlFor="autoValue">Valor *</Label>
                 <Input
                   id="autoValue"
                   type="number"
@@ -349,7 +349,7 @@ const AutoObrasManagement = () => {
                       Função
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Valor do Auto
+                      Valor
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
