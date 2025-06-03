@@ -103,7 +103,7 @@ const AdminPanel = () => {
           </TabsTrigger>
           <TabsTrigger value="approvals" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Aprovações
+            Solicitações
             {pendingCount > 0 && (
               <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] h-5 flex items-center justify-center">
                 {pendingCount}
