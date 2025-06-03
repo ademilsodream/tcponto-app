@@ -573,7 +573,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <Building2 className="w-5 h-5" />
-                  Auto de Obras
+                  Painel de Alocação
                 </h1>
                 <p className="text-sm text-gray-600">Relatório de valores por localização e funcionário</p>
               </div>
