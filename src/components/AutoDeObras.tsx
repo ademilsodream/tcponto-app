@@ -770,7 +770,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               <CardContent className="p-6">
                 <div className="text-center">
                   <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-                  Carregando dados de auto de obras...
+                  Carregando dados painel de alocação...
                 </div>
               </CardContent>
             </Card>
@@ -978,7 +978,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                         'Nenhum registro válido encontrado para os filtros selecionados.'
                       )}
                       <br />
-                      Verifique se existem registros de ponto com valores de auto de obras configurados.
+                      Verifique se existem registros de ponto com valores de auto configurados.
                     </p>
                   </div>
                 </CardContent>
@@ -991,13 +991,13 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                 <div className="text-center text-gray-500 py-12">
                   <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    Relatório de Auto de Obras
+                    Painel de Alocação
                   </h3>
                   <p className="text-sm">
-                    Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar o relatório de auto de obras por localização e funcionário.
+                    Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar o relatório por localização e funcionário.
                   </p>
                   <div className="mt-4 text-xs text-gray-400">
-                    💡 Este relatório mostra valores calculados com base nos valores de auto de obras configurados por departamento e função.
+                    💡 Este relatório mostra valores calculados com base nos valores configurados por departamento e função.
                   </div>
                 </div>
               </CardContent>
