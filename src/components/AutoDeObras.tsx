@@ -830,7 +830,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <Calculator className="w-5 h-5" />
-                        Somatório por Localização
+                        Total por Localização
                       </CardTitle>
                       <p className="text-sm text-gray-600">Totais agrupados por local de trabalho</p>
                     </div>
@@ -978,7 +978,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                         'Nenhum registro válido encontrado para os filtros selecionados.'
                       )}
                       <br />
-                      Verifique se existem registros de ponto com valores de auto configurados.
+                      Verifique se existem registros de ponto com valores configurados.
                     </p>
                   </div>
                 </CardContent>
