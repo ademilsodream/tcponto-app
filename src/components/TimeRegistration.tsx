@@ -47,6 +47,23 @@ const TimeRegistration = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // Função para obter data local (corrige problema de timezone)
+  const getLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Função para obter horário local
+  const getLocalTime = () => {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
   // Atualizar relógio a cada segundo
   useEffect(() => {
     const timer = setInterval(() => {
@@ -58,6 +75,14 @@ const TimeRegistration = () => {
 
   useEffect(() => {
     if (user) {
+      // Debug da data para investigar problemas de timezone
+      const utcDate = new Date().toISOString().split('T')[0];
+      const localDate = getLocalDate();
+      console.log('🕐 Hora atual:', new Date().toString());
+      console.log('🌍 Data UTC:', utcDate);
+      console.log('🇧🇷 Data Local:', localDate);
+      console.log('⏰ Timezone offset:', new Date().getTimezoneOffset());
+      
       initializeData();
     }
   }, [user]);
@@ -121,7 +146,8 @@ const TimeRegistration = () => {
     if (!user) return;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDate(); // ✅ Usa data local em vez de UTC
+      console.log('📅 Buscando registros para a data local:', today);
       
       const { data, error } = await supabase
         .from('time_records')
@@ -134,6 +160,7 @@ const TimeRegistration = () => {
         throw error;
       }
 
+      console.log('📊 Registro encontrado para hoje:', data);
       setTimeRecord(data);
     } catch (error) {
       console.error('Erro ao carregar registro:', error);
@@ -181,8 +208,11 @@ const TimeRegistration = () => {
       console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
 
       const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      const today = getLocalDate(); // ✅ Usa data local
+      const currentTime = getLocalTime(); // ✅ Usa horário local
+      
+      console.log('📅 Data do registro:', today);
+      console.log('🕐 Horário do registro:', currentTime);
 
       let updateData: any = {
         [action]: currentTime,
@@ -209,6 +239,7 @@ const TimeRegistration = () => {
       }
 
       if (timeRecord) {
+        console.log('🔄 Atualizando registro existente:', timeRecord.id);
         const { error } = await supabase
           .from('time_records')
           .update(updateData)
@@ -216,6 +247,7 @@ const TimeRegistration = () => {
 
         if (error) throw error;
       } else {
+        console.log('➕ Criando novo registro para:', today);
         const { error } = await supabase
           .from('time_records')
           .insert({
@@ -285,7 +317,7 @@ const TimeRegistration = () => {
         .insert({
           employee_id: user.id,
           employee_name: user.email || 'Usuário',
-          date: new Date().toISOString().split('T')[0],
+          date: getLocalDate(), // ✅ Usa data local
           field: editField,
           old_value: timeRecord?.[editField] || null,
           new_value: editValue,
@@ -317,6 +349,26 @@ const TimeRegistration = () => {
       setSubmitting(false);
     }
   };
+
+  // Verificar mudança de data automaticamente
+  useEffect(() => {
+    const checkDateChange = () => {
+      const currentDate = getLocalDate();
+      const recordDate = timeRecord?.date;
+      
+      // Se a data mudou, recarregar
+      if (recordDate && recordDate !== currentDate) {
+        console.log('🗓️ Nova data detectada, recarregando registros...');
+        console.log('📅 Data anterior:', recordDate);
+        console.log('📅 Data atual:', currentDate);
+        loadTodayRecord();
+      }
+    };
+
+    // Verificar a cada 30 segundos
+    const interval = setInterval(checkDateChange, 30000);
+    return () => clearInterval(interval);
+  }, [timeRecord]);
 
   if (loading) {
     return (
@@ -361,7 +413,7 @@ const TimeRegistration = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       {/* Header com logo movida para direita - otimizado para mobile */}
-      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16"> {/* padding-left para não ficar sob o menu */}
+      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
       
       </div>
 
@@ -372,6 +424,10 @@ const TimeRegistration = () => {
         </div>
         <div className="text-gray-900 text-4xl sm:text-6xl font-bold tracking-wider mb-4">
           {format(currentTime, 'HH:mm:ss')}
+        </div>
+        {/* Debug info - remover em produção */}
+        <div className="text-xs text-gray-400 mt-2">
+          Data Local: {getLocalDate()} | Hora Local: {getLocalTime()}
         </div>
       </div>
 
@@ -391,7 +447,7 @@ const TimeRegistration = () => {
                     <div 
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
                         isCompleted 
-                          ? `${step.color} text-white` // Usando a cor específica do step
+                          ? `${step.color} text-white`
                           : isNext
                             ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
                             : 'bg-gray-100 text-gray-400'
