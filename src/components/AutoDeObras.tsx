@@ -84,6 +84,17 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
 
+  // ✨ NOVA: Função para formatar horas no padrão HH:MM
+  const formatHoursAsTime = (hours: number) => {
+    if (!hours || hours === 0) return '00:00';
+    
+    const totalMinutes = Math.round(hours * 60);
+    const hoursDisplay = Math.floor(totalMinutes / 60);
+    const minutesDisplay = totalMinutes % 60;
+    
+    return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
+  };
+
   // Função CORRIGIDA para extrair locationName
   const extractLocationName = (locations: any): string | null => {
     console.log('🔍 EXTRAÇÃO - Input completo:', JSON.stringify(locations, null, 2));
@@ -416,16 +427,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       setLoading(false);
     }
   };
-
-  // ✨ MUDANÇA: Remover useEffect automático
-  // useEffect(() => {
-  //   console.log('🔄 useEffect TRIGGERED');
-  //   if (startDate && endDate && employees.length > 0) {
-  //     console.log('🚀 INICIANDO CARREGAMENTO...');
-  //     setEmployeeAutoObrasData([]);
-  //     loadAutoObrasData();
-  //   }
-  // }, [startDate, endDate, selectedEmployee, employees]);
 
   // ✨ NOVA: Função para pesquisar
   const handleSearch = () => {
@@ -780,7 +781,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               <>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Painel de Alocação ({currency})</CardTitle>
+                    <CardTitle>Painel de Alocação</CardTitle>
                     <p className="text-sm text-gray-600">
                       Valores calculados com base no valor por função
                       {startDate && endDate && (
@@ -808,7 +809,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                               <TableCell className="font-medium">{row.employeeName}</TableCell>
                               <TableCell>{row.locationName}</TableCell>
                               <TableCell className="text-center">
-                                {row.totalHours.toFixed(2)}h
+                                {/* ✨ ALTERADO: Usar formatHoursAsTime */}
+                                {formatHoursAsTime(row.totalHours)}
                               </TableCell>
                               <TableCell className="text-center">
                                 {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
