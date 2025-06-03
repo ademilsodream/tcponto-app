@@ -203,7 +203,7 @@ const Dashboard = () => {
               }`}
             >
               <FileText className="w-4 h-4 mr-2" />
-              Painel de Ganhos
+              Folha de Pagamento
             </button>
 
             <button
