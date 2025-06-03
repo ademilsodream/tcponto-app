@@ -191,7 +191,7 @@ const Dashboard = () => {
               }`}
             >
               <CalendarIcon className="w-4 h-4 mr-2" />
-              Controle Mensal
+              Fechamento Mensal
             </button>
 
             <button
@@ -203,7 +203,7 @@ const Dashboard = () => {
               }`}
             >
               <FileText className="w-4 h-4 mr-2" />
-              Folha de Pagamento
+              Painel de Ganhos
             </button>
 
             <button
@@ -215,7 +215,7 @@ const Dashboard = () => {
               }`}
             >
               <BarChart3 className="w-4 h-4 mr-2" />
-              Relatório Detalhado
+              Detalhamento de Ponto
             </button>
 
             <button
