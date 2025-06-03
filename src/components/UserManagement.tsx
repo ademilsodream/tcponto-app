@@ -626,7 +626,7 @@ const Settings = () => {
 
               {/* Lista de localizações existentes (mantida) */}
               <div className="space-y-4">
-                <h3 className="font-medium sr-only">Localizações Cadastradas</h3> {/* Escondido visualmente, mas bom para acessibilidade */}
+                <h3 className="font-medium sr-only">Localizações Cadastradas 123</h3> {/* Escondido visualmente, mas bom para acessibilidade */}
                 {loading ? (
                   <div className="flex items-center justify-center p-8">
                     <Loader2 className="w-6 h-6 animate-spin mr-2" />
