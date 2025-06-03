@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,15 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'user';
-  hourlyRate: number;
-  overtimeRate: number;
-}
 
 interface EditRequest {
   id: string;
@@ -45,12 +37,17 @@ interface PendingApprovalsProps {
     hourlyRate: number;
     overtimeRate: number;
   }>;
+  onApprovalChange?: () => void;
 }
 
-const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
+const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
-  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    loadEditRequests();
+  }, []);
 
   const loadEditRequests = async () => {
     try {
@@ -61,7 +58,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
       if (error) throw error;
 
-      const formattedRequests = data.map(request => ({
+      const formattedRequests = data?.map(request => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
@@ -72,7 +69,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         reason: request.reason,
         timestamp: request.created_at,
         status: request.status as 'pending' | 'approved' | 'rejected'
-      }));
+      })) || [];
 
       setEditRequests(formattedRequests);
     } catch (error) {
@@ -82,57 +79,10 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
     }
   };
 
-  useEffect(() => {
-    loadEditRequests();
-    
-    // Set up real-time listener for edit requests
-    const subscription = supabase
-      .channel('edit_requests_changes')
-      .on('postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'edit_requests'
-        },
-        () => {
-          loadEditRequests();
-        }
-      )
-      .subscribe();
-    
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Agrupar solicitações por funcionário e data
-  const groupRequestsByEmployeeAndDate = (requests: EditRequest[]): GroupedRequest[] => {
-    const groups: { [key: string]: GroupedRequest } = {};
-
-    requests.forEach(request => {
-      const key = `${request.employeeId}-${request.date}`;
-      
-      if (!groups[key]) {
-        groups[key] = {
-          employeeId: request.employeeId,
-          employeeName: request.employeeName,
-          date: request.date,
-          requests: [],
-          timestamp: request.timestamp
-        };
-      }
-      
-      groups[key].requests.push(request);
-    });
-
-    return Object.values(groups);
-  };
-
   const handleGroupApproval = async (group: GroupedRequest, approved: boolean) => {
     try {
       const requestIds = group.requests.map(r => r.id);
       
-      // Update all request statuses in the group
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
@@ -145,21 +95,17 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
       if (updateError) throw updateError;
 
       if (approved) {
-        // Apply all edits to the time record
         const { data: timeRecords, error: fetchError } = await supabase
           .from('time_records')
-          .select('*')
+          .select('id')
           .eq('user_id', group.employeeId)
           .eq('date', group.date)
-          .single();
+          .maybeSingle();
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          throw fetchError;
-        }
+        if (fetchError) throw fetchError;
 
-        // Prepare update data from all requests - mapeamento correto para time_records
         const updateData: any = {};
-        group.requests.forEach(request => {
+        for (const request of group.requests) {
           const fieldMap = {
             clockIn: 'clock_in',
             lunchStart: 'lunch_start',
@@ -167,10 +113,9 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
             clockOut: 'clock_out'
           };
           updateData[fieldMap[request.field]] = request.newValue;
-        });
+        }
 
         if (timeRecords) {
-          // Update existing record
           const { error: updateRecordError } = await supabase
             .from('time_records')
             .update(updateData)
@@ -178,7 +123,6 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
 
           if (updateRecordError) throw updateRecordError;
         } else {
-          // Create new record
           const { error: insertError } = await supabase
             .from('time_records')
             .insert({
@@ -190,37 +134,65 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
           if (insertError) throw insertError;
         }
 
-        setMessage(`Todas as edições de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} foram aprovadas.`);
+        setMessage(`Edições aprovadas para ${group.employeeName}`);
       } else {
-        setMessage(`Todas as edições de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} foram rejeitadas.`);
+        setMessage(`Edições rejeitadas para ${group.employeeName}`);
       }
 
       await loadEditRequests();
-      setTimeout(() => setMessage(''), 5000);
+      if (onApprovalChange) {
+        onApprovalChange();
+      }
+      setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error handling group approval:', error);
-      alert('Erro ao processar aprovação');
+      setMessage('Erro ao processar aprovação');
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
   const getFieldLabel = (field: string) => {
-    switch (field) {
-      case 'clockIn': return 'Entrada';
-      case 'lunchStart': return 'Início do Almoço';
-      case 'lunchEnd': return 'Fim do Almoço';
-      case 'clockOut': return 'Saída';
-      default: return field;
-    }
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field as keyof typeof labels] || field;
   };
 
-  if (loading) {
-    return <div>Carregando solicitações...</div>;
-  }
-
   const pendingRequests = editRequests.filter(r => r.status === 'pending');
-  const processedRequests = editRequests.filter(r => r.status !== 'pending').slice(0, 10);
-  
-  const groupedPendingRequests = groupRequestsByEmployeeAndDate(pendingRequests);
+  const processedRequests = editRequests.filter(r => r.status !== 'pending');
+
+  // Agrupar solicitações pendentes por funcionário e data
+  const groupedPendingRequests = pendingRequests.reduce((acc, request) => {
+    const key = `${request.employeeId}-${request.date}`;
+    if (!acc[key]) {
+      acc[key] = {
+        employeeId: request.employeeId,
+        employeeName: request.employeeName,
+        date: request.date,
+        requests: [],
+        timestamp: request.timestamp
+      };
+    }
+    acc[key].requests.push(request);
+    return acc;
+  }, {} as Record<string, GroupedRequest>);
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -233,22 +205,21 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         </Alert>
       )}
 
-      {/* Solicitações Pendentes Agrupadas */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
+            Solicitações Pendentes ({Object.keys(groupedPendingRequests).length})
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {groupedPendingRequests.length === 0 ? (
+          {Object.keys(groupedPendingRequests).length === 0 ? (
             <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente no momento
+              Nenhuma solicitação pendente
             </p>
           ) : (
             <div className="space-y-4">
-              {groupedPendingRequests.map((group, index) => (
+              {Object.values(groupedPendingRequests).map((group) => (
                 <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
                   <div className="flex justify-between items-start mb-3">
                     <div>
@@ -258,12 +229,12 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       </p>
                     </div>
                     <Badge variant="secondary">
-                      {new Date(group.timestamp).toLocaleString('pt-BR')}
+                      {new Date(group.timestamp).toLocaleDateString('pt-BR')}
                     </Badge>
                   </div>
                   
                   <div className="mb-3">
-                    <h5 className="font-medium mb-2">Ajustes Solicitados:</h5>
+                    <h5 className="font-medium mb-2">Ajustes:</h5>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {group.requests.map((request) => (
                         <div key={request.id} className="text-sm border rounded p-2 bg-white">
@@ -274,7 +245,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                           </div>
                           {request.reason && (
                             <div className="text-xs text-gray-600 mt-1">
-                              Motivo: {request.reason}
+                              {request.reason}
                             </div>
                           )}
                         </div>
@@ -289,7 +260,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
-                      Aprovar Todos
+                      Aprovar
                     </Button>
                     <Button
                       size="sm"
@@ -297,7 +268,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
                       onClick={() => handleGroupApproval(group, false)}
                     >
                       <XCircle className="w-4 h-4 mr-1" />
-                      Rejeitar Todos
+                      Rejeitar
                     </Button>
                   </div>
                 </div>
@@ -307,30 +278,29 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
         </CardContent>
       </Card>
 
-      {/* Histórico de Aprovações */}
       {processedRequests.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Histórico Recente</CardTitle>
+            <CardTitle>Histórico</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Funcionário
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Campo
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Alteração
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Data
                     </th>
                   </tr>
