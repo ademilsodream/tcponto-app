@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button }from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Calendar, DollarSign, Clock, Users } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar, DollarSign, Clock, Users, Search, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
+import { useToast } from '@/components/ui/use-toast';
 
 interface PayrollReportProps {
   employees: Employee[];
@@ -31,61 +37,106 @@ interface PayrollData {
 }
 
 const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
-  const [startDate, setStartDate] = useState('2025-05-01');
-  const [endDate, setEndDate] = useState('2025-05-31');
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [payrollData, setPayrollData] = useState<PayrollData[]>([]);
-  const [isGenerated, setIsGenerated] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  
   const { formatCurrency } = useCurrency();
+  const { toast } = useToast();
 
   // Filtrar apenas funcionários ativos
-  const activeEmployees = getActiveEmployees(employees);
+  const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
+
+  // ✨ NOVA: Função para formatar horas no padrão HH:MM
+  const formatHoursAsTime = (hours: number) => {
+    if (!hours || hours === 0) return '00:00';
+    
+    const totalMinutes = Math.round(hours * 60);
+    const hoursDisplay = Math.floor(totalMinutes / 60);
+    const minutesDisplay = totalMinutes % 60;
+    
+    return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
+  };
 
   // Função para validar se uma data está dentro do período
   const isDateInPeriod = (dateStr: string, start: string, end: string) => {
     const date = new Date(dateStr + 'T00:00:00');
-    const startDate = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T00:00:00');
+    const startDateObj = new Date(start + 'T00:00:00');
+    const endDateObj = new Date(end + 'T00:00:00');
     
-    const isValid = date >= startDate && date <= endDate;
+    const isValid = date >= startDateObj && date <= endDateObj;
     console.log(`[PayrollReport] Data ${dateStr} está no período ${start} a ${end}?`, isValid);
     return isValid;
   };
 
   const generatePayroll = async () => {
     if (!startDate || !endDate) {
-      alert('Selecione o período para gerar a folha de pagamento');
+      toast({
+        title: "Datas obrigatórias",
+        description: "Por favor, selecione as datas de início e fim antes de gerar o relatório.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (startDate > endDate) {
+      toast({
+        title: "Período inválido",
+        description: "A data de início deve ser anterior à data de fim.",
+        variant: "destructive"
+      });
       return;
     }
 
     if (activeEmployees.length === 0) {
-      alert('Nenhum funcionário ativo encontrado para gerar folha de pagamento');
+      toast({
+        title: "Sem funcionários",
+        description: "Nenhum funcionário ativo encontrado para gerar folha de pagamento.",
+        variant: "destructive"
+      });
       return;
     }
 
     setLoading(true);
-    // Limpar dados anteriores
+    setHasSearched(true);
     setPayrollData([]);
-    setIsGenerated(false);
     
     try {
       console.log('=== INÍCIO GERAÇÃO FOLHA DE PAGAMENTO ===');
-      console.log('Período selecionado:', startDate, 'até', endDate);
+      
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+      console.log('Período selecionado:', startDateStr, 'até', endDateStr);
 
       const payrollResults: PayrollData[] = [];
 
-      // Buscar apenas funcionários ativos do banco usando filtro correto
-      const activeEmployeeIds = activeEmployees.map(emp => emp.id);
+      // Determinar funcionários para processar
+      let employeesToProcess;
+      if (selectedEmployee === 'all') {
+        employeesToProcess = activeEmployees;
+      } else {
+        employeesToProcess = activeEmployees.filter(emp => emp.id === selectedEmployee);
+      }
+
+      // Buscar dados dos funcionários do banco
+      const employeeIds = employeesToProcess.map(emp => emp.id);
       const { data: dbEmployees, error: employeesError } = await supabase
         .from('profiles')
         .select('*')
-        .in('id', activeEmployeeIds)
+        .in('id', employeeIds)
         .eq('role', 'user')
         .or('status.is.null,status.eq.active');
 
       if (employeesError) {
         console.error('Erro ao buscar funcionários:', employeesError);
-        alert('Erro ao buscar funcionários');
+        toast({
+          title: "Erro",
+          description: "Erro ao buscar funcionários",
+          variant: "destructive"
+        });
         return;
       }
 
@@ -99,8 +150,8 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           .from('time_records')
           .select('*')
           .eq('user_id', employee.id)
-          .gte('date', startDate)
-          .lte('date', endDate);
+          .gte('date', startDateStr)
+          .lte('date', endDateStr);
 
         if (error) {
           console.error('Erro ao buscar registros:', error);
@@ -116,7 +167,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         // Calcular horas APENAS dos registros VÁLIDOS do período selecionado
         if (timeRecords && timeRecords.length > 0) {
           const validRecords = timeRecords.filter(record => {
-            const isValid = isDateInPeriod(record.date, startDate, endDate);
+            const isValid = isDateInPeriod(record.date, startDateStr, endDateStr);
             if (!isValid) {
               console.log(`Registro REJEITADO para ${employee.name}:`, record.date);
             }
@@ -176,22 +227,69 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       console.log('=== RESULTADO FINAL DA FOLHA DE PAGAMENTO ===');
       console.log('Dados da folha de pagamento para o período:', payrollResults);
       setPayrollData(payrollResults);
-      setIsGenerated(true);
+
+      toast({
+        title: "Sucesso",
+        description: `Folha de pagamento gerada para ${payrollResults.length} funcionário(s)`,
+      });
+
     } catch (error) {
       console.error('Erro ao gerar folha de pagamento:', error);
-      alert('Erro ao gerar folha de pagamento');
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao gerar folha de pagamento",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  // Função para limpar pesquisa
+  const handleClearSearch = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setSelectedEmployee('all');
+    setPayrollData([]);
+    setHasSearched(false);
+    
+    toast({
+      title: "Pesquisa limpa",
+      description: "Filtros e resultados foram resetados.",
+    });
   };
 
   const getTotalPayroll = () => {
     return payrollData.reduce((sum, data) => sum + data.totalPay, 0);
   };
 
+  const getTotalHours = () => {
+    return payrollData.reduce((sum, data) => sum + data.totalHours, 0);
+  };
+
+  const getTotalOvertimeHours = () => {
+    return payrollData.reduce((sum, data) => sum + data.overtimeHours, 0);
+  };
+
   if (activeEmployees.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                    <DollarSign className="w-5 h-5" />
+                    Folha de Pagamento
+                  </h1>
+                  <p className="text-sm text-gray-600">Relatório de pagamentos e horas trabalhadas</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="text-center py-8">
@@ -209,176 +307,306 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5" />
+                  Folha de Pagamento
+                </h1>
+                <p className="text-sm text-gray-600">Relatório de pagamentos e horas trabalhadas</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filtros de Período */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Selecionar Período
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Data Inicial</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Filtros
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Inicial *</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !startDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Data Final</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data Final *</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-              <Button
-                onClick={generatePayroll}
-                disabled={loading}
-                className="bg-primary-800 hover:bg-primary-700"
-              >
-                {loading ? 'Gerando...' : 'Gerar Folha de Pagamento'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Relatório de Folha de Pagamento */}
-        {isGenerated && (
-          <>
-            {/* Resumo Total */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total de Funcionários</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-primary-900">
-                    {payrollData.length}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total de Horas</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-primary-900">
-                    {payrollData.reduce((sum, data) => sum + data.totalHours, 0).toFixed(1)}h
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total da Folha</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-accent-600">
-                    {formatCurrency(getTotalPayroll())}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Tabela de Folha de Pagamento */}
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  Detalhamento da Folha de Pagamento
-                  {startDate && endDate && (
-                    <span className="text-sm font-normal text-gray-600 ml-2">
-                      ({new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR')} a {new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR')})
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Funcionário
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Valor/Hora
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Total de Horas
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Horas Normais
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Horas Extras
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Pagamento Normal
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Pagamento Extra
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Total a Receber
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {payrollData.map((data) => (
-                        <tr key={data.employee.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {data.employee.name}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {data.employee.email}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatCurrency(data.employee.hourlyRate)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {data.totalHours.toFixed(1)}h
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {data.normalHours.toFixed(1)}h
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {data.overtimeHours.toFixed(1)}h
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatCurrency(data.normalPay)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatCurrency(data.overtimePay)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-accent-600">
-                            {formatCurrency(data.totalPay)}
-                          </td>
-                        </tr>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Funcionário</label>
+                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os funcionários" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os funcionários</SelectItem>
+                      {activeEmployees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </SelectItem>
                       ))}
-                    </tbody>
-                  </table>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Funcionários</label>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {hasSearched ? payrollData.length : '-'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  onClick={generatePayroll}
+                  disabled={loading || !startDate || !endDate}
+                  className="flex-1"
+                >
+                  {loading ? (
+                    <>
+                      <Search className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Gerar Folha de Pagamento
+                    </>
+                  )}
+                </Button>
+                
+                {hasSearched && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleClearSearch}
+                    disabled={loading}
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
+
+              {(!startDate || !endDate) && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ <strong>Atenção:</strong> Selecione as datas de início e fim para gerar a folha de pagamento.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {loading ? (
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  Gerando folha de pagamento...
                 </div>
               </CardContent>
             </Card>
-          </>
-        )}
+          ) : hasSearched ? (
+            payrollData.length > 0 ? (
+              <>
+                {/* Resumo Total */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Funcionários</CardTitle>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-primary-900">
+                        {payrollData.length}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total de Horas</CardTitle>
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-primary-900">
+                        {formatHoursAsTime(getTotalHours())}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Horas Extras</CardTitle>
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-orange-600">
+                        {formatHoursAsTime(getTotalOvertimeHours())}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">Total da Folha</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-accent-600">
+                        {formatCurrency(getTotalPayroll())}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Tabela de Folha de Pagamento */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      Detalhamento da Folha de Pagamento
+                      {startDate && endDate && (
+                        <span className="text-sm font-normal text-gray-600 ml-2">
+                          ({format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')})
+                        </span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Funcionário</TableHead>
+                            <TableHead>Valor/Hora</TableHead>
+                            <TableHead>Total de Horas</TableHead>
+                            <TableHead>Horas Normais</TableHead>
+                            <TableHead>Horas Extras</TableHead>
+                            <TableHead>Pagamento Normal</TableHead>
+                            <TableHead>Pagamento Extra</TableHead>
+                            <TableHead>Total a Receber</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {payrollData.map((data) => (
+                            <TableRow key={data.employee.id}>
+                              <TableCell>
+                                <div>
+                                  <div className="font-medium">{data.employee.name}</div>
+                                  <div className="text-sm text-gray-500">{data.employee.email}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell>{formatCurrency(data.employee.hourlyRate)}</TableCell>
+                              <TableCell>{formatHoursAsTime(data.totalHours)}</TableCell>
+                              <TableCell>{formatHoursAsTime(data.normalHours)}</TableCell>
+                              <TableCell>{formatHoursAsTime(data.overtimeHours)}</TableCell>
+                              <TableCell>{formatCurrency(data.normalPay)}</TableCell>
+                              <TableCell>{formatCurrency(data.overtimePay)}</TableCell>
+                              <TableCell className="font-bold text-accent-600">
+                                {formatCurrency(data.totalPay)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="text-center text-gray-500 py-12">
+                    <DollarSign className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">
+                      Nenhum registro encontrado
+                    </h3>
+                    <p className="text-sm">
+                      {startDate && endDate ? (
+                        `Nenhum registro de ponto encontrado para o período de ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}.`
+                      ) : (
+                        'Nenhum registro de ponto encontrado para os filtros selecionados.'
+                      )}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          ) : (
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center text-gray-500 py-12">
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">
+                    Folha de Pagamento
+                  </h3>
+                  <p className="text-sm">
+                    Selecione as datas de início e fim, escolha um funcionário (ou todos), depois clique em "Gerar Folha de Pagamento" para visualizar os dados.
+                  </p>
+                  <div className="mt-4 text-xs text-gray-400">
+                    💰 Este relatório calcula pagamentos baseados nas horas trabalhadas e valores por hora configurados.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
