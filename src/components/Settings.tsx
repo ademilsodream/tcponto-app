@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2, X, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +36,20 @@ const Settings = () => {
     longitude: 0,
     range_meters: 100
   });
+  
+  // ✨ NOVOS: Estados para edição
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    address: '',
+    latitude: 0,
+    longitude: 0,
+    range_meters: 100
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingLocation, setDeletingLocation] = useState<string | null>(null);
+  
   const [tolerance, setTolerance] = useState(15);
   const [savingTolerance, setSavingTolerance] = useState(false);
   const { toast } = useToast();
@@ -298,6 +313,160 @@ const Settings = () => {
     }
   };
 
+  // ✨ NOVA: Função para abrir dialog de edição
+  const handleEditLocation = (location: Location) => {
+    console.log('📝 Abrindo edição para localização:', location);
+    setEditingLocation(location);
+    setEditForm({
+      name: location.name,
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      range_meters: location.range_meters
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  // ✨ NOVA: Função para salvar edição
+  const handleSaveEdit = async () => {
+    if (!editingLocation) return;
+
+    console.log('💾 Salvando edição da localização:', editingLocation.id);
+    console.log('📋 Novos dados:', editForm);
+
+    // Validar dados
+    const validationError = validateLocationData(editForm);
+    if (validationError) {
+      toast({
+        title: "Erro de Validação",
+        description: validationError,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+
+      const updatedLocation = {
+        name: editForm.name.trim(),
+        address: editForm.address.trim(),
+        latitude: Number(editForm.latitude),
+        longitude: Number(editForm.longitude),
+        range_meters: Number(editForm.range_meters)
+      };
+
+      console.log('📦 Dados a serem atualizados:', updatedLocation);
+
+      const { error } = await supabase
+        .from('allowed_locations')
+        .update(updatedLocation)
+        .eq('id', editingLocation.id);
+
+      if (error) {
+        console.error('❌ Erro ao atualizar localização:', error);
+        throw error;
+      }
+
+      console.log('✅ Localização atualizada com sucesso');
+
+      toast({
+        title: "Sucesso",
+        description: "Localização atualizada com sucesso"
+      });
+
+      // Fechar dialog e recarregar
+      setIsEditDialogOpen(false);
+      setEditingLocation(null);
+      await loadLocations();
+
+    } catch (error: any) {
+      console.error('💥 Erro ao salvar edição:', error);
+      
+      let errorMessage = "Erro ao atualizar localização";
+      if (error.message?.includes('permission denied')) {
+        errorMessage = "Permissão negada para editar";
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ✨ NOVA: Função para cancelar edição
+  const handleCancelEdit = () => {
+    console.log('🛑 Cancelando edição');
+    setIsEditDialogOpen(false);
+    setEditingLocation(null);
+    setEditForm({
+      name: '',
+      address: '',
+      latitude: 0,
+      longitude: 0,
+      range_meters: 100
+    });
+  };
+
+  // ✨ NOVA: Função para deletar localização
+  const handleDeleteLocation = async (location: Location) => {
+    console.log('🗑️ Iniciando exclusão da localização:', location.id);
+    
+    if (!confirm(`Tem certeza que deseja excluir a localização "${location.name}"? Esta ação não pode ser desfeita.`)) {
+      console.log('🛑 Exclusão cancelada pelo usuário');
+      return;
+    }
+
+    try {
+      setDeletingLocation(location.id);
+
+      const { error } = await supabase
+        .from('allowed_locations')
+        .delete()
+        .eq('id', location.id);
+
+      if (error) {
+        console.error('❌ Erro ao deletar localização:', error);
+        throw error;
+      }
+
+      console.log('✅ Localização deletada com sucesso');
+
+      toast({
+        title: "Sucesso",
+        description: "Localização excluída com sucesso"
+      });
+
+      await loadLocations();
+
+    } catch (error: any) {
+      console.error('💥 Erro ao deletar localização:', error);
+      
+      let errorMessage = "Erro ao excluir localização";
+      if (error.message?.includes('permission denied')) {
+        errorMessage = "Permissão negada para excluir";
+      } else if (error.message?.includes('foreign key')) {
+        errorMessage = "Não é possível excluir: localização está sendo usada em registros";
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingLocation(null);
+    }
+  };
+
   const toggleLocationStatus = async (id: string, currentStatus: boolean) => {
     try {
       console.log(`🔄 Alterando status da localização ${id} de ${currentStatus} para ${!currentStatus}`);
@@ -544,7 +713,7 @@ const Settings = () => {
                     {locations.map((location) => (
                       <div key={location.id} className="border rounded-lg p-4">
                         <div className="flex justify-between items-start">
-                          <div className="space-y-1">
+                          <div className="space-y-1 flex-1">
                             <h4 className="font-medium">{location.name}</h4>
                             <p className="text-sm text-muted-foreground">{location.address}</p>
                             <p className="text-xs text-muted-foreground">
@@ -558,13 +727,41 @@ const Settings = () => {
                               </span>
                             </div>
                           </div>
-                          <Button
-                            variant={location.is_active ? "destructive" : "default"}
-                            size="sm"
-                            onClick={() => toggleLocationStatus(location.id, location.is_active)}
-                          >
-                            {location.is_active ? 'Desativar' : 'Ativar'}
-                          </Button>
+                          
+                          {/* ✨ NOVOS: Botões de ação */}
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditLocation(location)}
+                              disabled={deletingLocation === location.id}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteLocation(location)}
+                              disabled={deletingLocation === location.id}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              {deletingLocation === location.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </Button>
+                            
+                            <Button
+                              variant={location.is_active ? "destructive" : "default"}
+                              size="sm"
+                              onClick={() => toggleLocationStatus(location.id, location.is_active)}
+                              disabled={deletingLocation === location.id}
+                            >
+                              {location.is_active ? 'Desativar' : 'Ativar'}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -636,6 +833,108 @@ const Settings = () => {
           <AutoObrasManagement />
         </TabsContent>
       </Tabs>
+
+      {/* ✨ NOVO: Dialog de Edição */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Editar Localização</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nome da Localização *</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Escritório Principal"
+                  disabled={savingEdit}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-address">Endereço *</Label>
+                <Input
+                  id="edit-address"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Endereço completo"
+                  disabled={savingEdit}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-latitude">Latitude *</Label>
+                <Input
+                  id="edit-latitude"
+                  type="number"
+                  step="any"
+                  value={editForm.latitude}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, latitude: parseFloat(e.target.value) || 0 }))}
+                  placeholder="-22.6667"
+                  disabled={savingEdit}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-longitude">Longitude *</Label>
+                <Input
+                  id="edit-longitude"
+                  type="number"
+                  step="any"
+                  value={editForm.longitude}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, longitude: parseFloat(e.target.value) || 0 }))}
+                  placeholder="-45.0094"
+                  disabled={savingEdit}
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="edit-range">Raio Permitido (metros) *</Label>
+                <Input
+                  id="edit-range"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={editForm.range_meters}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, range_meters: parseInt(e.target.value) || 100 }))}
+                  placeholder="100"
+                  disabled={savingEdit}
+                  className="max-w-xs"
+                />
+                <div className="text-xs text-muted-foreground">
+                  Entre 1 e 10000 metros
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={handleCancelEdit}
+                disabled={savingEdit}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={savingEdit}
+              >
+                {savingEdit ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Alterações'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
