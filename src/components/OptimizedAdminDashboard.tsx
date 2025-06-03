@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AnalyticsButton from './AnalyticsButton';
 
+
 interface User {
   id: string;
   name: string;
@@ -18,13 +18,15 @@ interface User {
   overtimeRate: number;
 }
 
+
 interface DashboardData {
   totalEmployees: number;
   totalAdmins: number;
-  totalHours: number;
+  totalHours: number; // Este é o valor numérico que precisamos formatar
   totalEarnings: number;
   employeeStatuses: EmployeeStatus[];
 }
+
 
 interface EmployeeStatus {
   employee: User;
@@ -34,12 +36,26 @@ interface EmployeeStatus {
   record?: any;
 }
 
+
 interface AdminDashboardProps {
   employees: User[];
 }
 
+// ✨ FUNÇÃO PARA FORMATAR HORAS NO PADRÃO HH:MM (Adicionada ou mantida aqui)
+const formatHoursAsTime = (hours: number | null | undefined): string => {
+  if (hours === null || hours === undefined || hours === 0) return '00:00';
+
+  const totalMinutes = Math.round(hours * 60);
+  const hoursDisplay = Math.floor(totalMinutes / 60);
+  const minutesDisplay = totalMinutes % 60;
+
+  return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
+};
+
+
 const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const { formatCurrency } = useCurrency();
+
 
   // Função extremamente otimizada para buscar dados
   const fetchDashboardData = useCallback(async (): Promise<DashboardData> => {
@@ -50,6 +66,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
 
+
     // Query única e otimizada para dados do mês usando apenas campos necessários
     const { data: monthlyData, error: monthlyError } = await supabase
       .from('time_records')
@@ -58,7 +75,9 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       .lte('date', endOfMonth)
       .eq('status', 'active');
 
+
     if (monthlyError) throw monthlyError;
+
 
     // Query separada e otimizada para dados de hoje
     const { data: todayData, error: todayError } = await supabase
@@ -66,7 +85,9 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       .select('user_id, clock_in, lunch_start, lunch_end, clock_out')
       .eq('date', today);
 
+
     if (todayError) throw todayError;
+
 
     // Cálculos otimizados
     const totals = monthlyData?.reduce(
@@ -77,10 +98,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       { hours: 0, earnings: 0 }
     ) || { hours: 0, earnings: 0 };
 
+
     // Mapa otimizado para status dos funcionários
     const todayRecordsMap = new Map(
       todayData?.map(record => [record.user_id, record]) || []
     );
+
 
     // Filtrar apenas funcionários (não admins) e processar status
     const employeeStatuses: EmployeeStatus[] = employees
@@ -88,7 +111,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       .map(employee => {
         const todayRecord = todayRecordsMap.get(employee.id);
         const statusInfo = getEmployeeStatus(todayRecord);
-        
+
         return {
           employee,
           status: statusInfo.status as any,
@@ -98,6 +121,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         };
       });
 
+
     return {
       totalEmployees: employees.length,
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
@@ -105,7 +129,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       totalEarnings: totals.earnings,
       employeeStatuses
     };
-  }, [employees]);
+  }, [employees, getEmployeeStatus]); // Adicionado getEmployeeStatus como dependência
+
 
   // Query otimizada com cache inteligente
   const {
@@ -122,6 +147,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     retry: 1
   });
 
+
   // Função memoizada para status
   const getEmployeeStatus = useCallback((record: any): { status: string; label: string; color: string } => {
     if (!record?.clock_in) {
@@ -132,6 +158,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       };
     }
 
+
     if (record.clock_out) {
       return {
         status: 'day_finished',
@@ -139,6 +166,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         color: 'blue'
       };
     }
+
 
     if (record.lunch_start && !record.lunch_end) {
       return {
@@ -148,12 +176,14 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       };
     }
 
+
     return {
       status: 'working',
       label: 'Trabalhando',
       color: 'green'
     };
   }, []);
+
 
   // Funções memoizadas para classes CSS
   const getStatusColorClasses = useCallback((color: string) => {
@@ -166,6 +196,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     return classMap[color as keyof typeof classMap] || 'bg-gray-50 border-gray-200 text-gray-800';
   }, []);
 
+
   const getStatusBadgeClasses = useCallback((color: string) => {
     const classMap = {
       green: 'bg-green-200 text-green-800',
@@ -175,6 +206,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     };
     return classMap[color as keyof typeof classMap] || 'bg-gray-200 text-gray-800';
   }, []);
+
 
   // Loading skeleton otimizado
   if (isLoading) {
@@ -196,6 +228,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     );
   }
 
+
   if (error) {
     console.error('Dashboard error:', error);
     return (
@@ -204,6 +237,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       </div>
     );
   }
+
 
   return (
     <div className="space-y-6">
@@ -221,6 +255,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           </CardContent>
         </Card>
 
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -233,6 +268,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           </CardContent>
         </Card>
 
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -241,10 +277,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(dashboardData?.totalHours || 0).toFixed(1)}</div>
+            {/* ✨ APLICANDO A FUNÇÃO formatHoursAsTime AQUI */}
+            <div className="text-2xl font-bold">{formatHoursAsTime(dashboardData?.totalHours)}</div>
             <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
         </Card>
+
 
         <Card>
           <CardHeader>
@@ -260,6 +298,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         </Card>
       </div>
 
+
       {/* Tabs para Dashboard e Analytics */}
       <Tabs defaultValue="status" className="space-y-6">
         <div className="flex justify-between items-center">
@@ -273,6 +312,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           <AnalyticsButton />
         </div>
 
+
         <TabsContent value="status">
           {/* Status dos Funcionários Otimizado */}
           <Card>
@@ -285,8 +325,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {dashboardData?.employeeStatuses?.map((empStatus) => (
-                  <div 
-                    key={empStatus.employee.id} 
+                  <div
+                    key={empStatus.employee.id}
                     className={`p-4 rounded-lg border ${getStatusColorClasses(empStatus.statusColor)}`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -295,9 +335,10 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
                         {empStatus.statusLabel}
                       </span>
                     </div>
-                    
+
                     {empStatus.record && (
                       <div className="text-xs space-y-1 text-gray-600">
+                        {/* ⚠️ NOTA: Os horários de clock-in/out/lunch já vêm formatados ou precisam ser formatados individualmente se forem strings de timestamp */}
                         {empStatus.record.clock_in && (
                           <div>Entrada: {empStatus.record.clock_in}</div>
                         )}
@@ -314,17 +355,19 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
                     )}
                   </div>
                 ))}
-                
+
                 {(!dashboardData?.employeeStatuses || dashboardData.employeeStatuses.length === 0) && (
                   <div className="col-span-full text-center py-8">
                     <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 text-sm">Nenhum funcionário</p>
+                    <p className="text-gray-500 text-xs mt-1">Apenas funcionários ativos aparecem aqui.</p> {/* Adicionado nota */}
                   </div>
                 )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
+
 
         <TabsContent value="analytics">
           <AdvancedAnalytics employees={employees} />
@@ -333,5 +376,6 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     </div>
   );
 };
+
 
 export default OptimizedAdminDashboard;
