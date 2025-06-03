@@ -780,9 +780,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               <>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Relatório de Auto de Obras ({currency})</CardTitle>
+                    <CardTitle>Painel de Alocação ({currency})</CardTitle>
                     <p className="text-sm text-gray-600">
-                      Valores calculados com base no valor do auto por função
+                      Valores calculados com base no valor por função
                       {startDate && endDate && (
                         <span className="ml-2 text-gray-400">
                           ({format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')})
