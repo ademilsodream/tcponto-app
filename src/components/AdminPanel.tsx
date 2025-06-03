@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Users, Clock, AlertCircle, UserPlus, LayoutDashboard } from 'lucide-react'; // Added LayoutDashboard icon
+import { Users, Clock, AlertCircle, UserPlus, LayoutDashboard } from 'lucide-react';
 import OptimizedAdminDashboard from '@/components/OptimizedAdminDashboard';
 import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
 import UserManagement from '@/components/UserManagement';
@@ -16,6 +16,18 @@ interface User {
   hourlyRate: number;
   overtimeRate: number;
 }
+
+// ✨ NOVA: Função para formatar horas no padrão HH:MM
+const formatHoursAsTime = (hours: number) => {
+  if (!hours || hours === 0) return '00:00';
+
+  const totalMinutes = Math.round(hours * 60);
+  const hoursDisplay = Math.floor(totalMinutes / 60);
+  const minutesDisplay = totalMinutes % 60;
+
+  return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
+};
+
 
 const AdminPanel = () => {
   // Query otimizada para buscar funcionários ATIVOS apenas
@@ -44,13 +56,14 @@ const AdminPanel = () => {
       }));
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 10 * 60 * 1000 // Refetch a cada 10 minutos
+    // ❌ REMOVIDO: refetchInterval para evitar recarregamento automático
+    // refetchInterval: 10 * 60 * 1000 // Refetch a cada 10 minutos
   });
 
   // Query para contar solicitações pendentes
   const {
     data: pendingCount = 0,
-    refetch: refetchPendingCount // Added refetch for pending count
+    refetch: refetchPendingCount
   } = useQuery<number>({
     queryKey: ['pending-requests-count'],
     queryFn: async () => {
@@ -63,11 +76,13 @@ const AdminPanel = () => {
       return count || 0;
     },
     staleTime: 1 * 60 * 1000, // 1 minuto
-    refetchInterval: 2 * 60 * 1000 // Refetch a cada 2 minutos
+    // ❌ REMOVIDO: refetchInterval para evitar recarregamento automático
+    // refetchInterval: 2 * 60 * 1000 // Refetch a cada 2 minutos
   });
 
   // Function to refetch data after actions in child components if needed
   const handleDataChange = () => {
+      console.log("🔄 Disparando refetch manual...");
       refetchEmployees();
       refetchPendingCount();
   }
@@ -111,6 +126,12 @@ const AdminPanel = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/*
+            ⚠️ NOTA: Para formatar "Total de Horas" para HH:MM,
+            você precisará aplicar a função `formatHoursAsTime`
+            dentro do componente OptimizedAdminDashboard, onde esse total é exibido.
+            Não posso modificar esse componente diretamente daqui.
+          */}
           <OptimizedAdminDashboard employees={employees} />
         </CardContent>
       </Card>
@@ -143,6 +164,12 @@ const AdminPanel = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/*
+            ⚠️ NOTA: Para ajustar a exibição da lista de funcionários e evitar o scroll horizontal,
+            você precisará modificar a estrutura ou estilização dentro do componente UserManagement.
+            Não posso modificar esse componente diretamente daqui.
+            Considere usar paginação, virtualização ou ajustar as colunas da tabela interna.
+          */}
           {/* Pass handleDataChange to trigger refetches if users are added/edited/deleted */}
           <UserManagement onUserChange={handleDataChange} />
         </CardContent>
