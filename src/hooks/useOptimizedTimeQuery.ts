@@ -84,40 +84,43 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
 export function useOptimizedLocationsQuery() {
   const queryClient = useQueryClient();
 
+  // Função isolada para buscar localizações
+  const fetchLocations = async () => {
+    console.log('📍 Carregando localizações (cache longo)...');
+    
+    const { data, error } = await supabase
+      .from('allowed_locations')
+      .select('*')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) throw error;
+    
+    return (data || []).map(location => ({
+      ...location,
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+      range_meters: Number(location.range_meters)
+    }));
+  };
+
   const query = useQuery({
     queryKey: ['allowed-locations-static'],
-    queryFn: async () => {
-      console.log('📍 Carregando localizações (cache longo)...');
-      
-      const { data, error } = await supabase
-        .from('allowed_locations')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
-
-      if (error) throw error;
-      
-      return (data || []).map(location => ({
-        ...location,
-        latitude: Number(location.latitude),
-        longitude: Number(location.longitude),
-        range_meters: Number(location.range_meters)
-      }));
-    },
+    queryFn: fetchLocations,
     staleTime: 30 * 60 * 1000, // 30 minutos
     refetchInterval: false,
     refetchOnWindowFocus: false,
     retry: 1
   });
 
-  // Prefetch para cache
+  // Prefetch para cache - usando a função isolada
   const prefetchLocations = useCallback(() => {
     queryClient.prefetchQuery({
       queryKey: ['allowed-locations-static'],
-      queryFn: query.queryFn,
+      queryFn: fetchLocations,
       staleTime: 30 * 60 * 1000
     });
-  }, [queryClient, query.queryFn]);
+  }, [queryClient]);
 
   return {
     ...query,
