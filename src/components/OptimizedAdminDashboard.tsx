@@ -22,7 +22,7 @@ interface User {
 interface DashboardData {
   totalEmployees: number;
   totalAdmins: number;
-  totalHours: number;
+  totalHours: number; // Este é o valor numérico que precisamos formatar
   totalEarnings: number;
   employeeStatuses: EmployeeStatus[];
 }
@@ -40,6 +40,30 @@ interface EmployeeStatus {
 interface AdminDashboardProps {
   employees: User[];
 }
+
+// ✨ FUNÇÃO PARA FORMATAR HORAS NO PADRÃO HH:MM (COM VERIFICAÇÃO ADICIONAL)
+const formatHoursAsTime = (hours: number | null | undefined): string => {
+  // Handle null, undefined, or zero early
+  if (hours === null || hours === undefined || hours === 0) {
+    return '00:00';
+  }
+
+  // ✨ NOVA VERIFICAÇÃO: Garante que 'hours' é um número finito antes de prosseguir
+  if (typeof hours !== 'number' || !isFinite(hours)) {
+     console.error("Valor inválido passado para formatHoursAsTime:", hours); // Log para ajudar a depurar se acontecer
+     return '--:--'; // Retorna um indicador de erro ou valor inválido
+  }
+
+  const totalMinutes = Math.round(hours * 60);
+  const hoursDisplay = Math.floor(totalMinutes / 60);
+  const minutesDisplay = totalMinutes % 60;
+
+  // Garante que os minutos não sejam negativos (embora improvável com Math.round e %)
+  const safeMinutesDisplay = Math.abs(minutesDisplay);
+
+
+  return `${hoursDisplay.toString().padStart(2, '0')}:${safeMinutesDisplay.toString().padStart(2, '0')}`;
+};
 
 
 const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
@@ -100,7 +124,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       .map(employee => {
         const todayRecord = todayRecordsMap.get(employee.id);
         const statusInfo = getEmployeeStatus(todayRecord);
-        
+
         return {
           employee,
           status: statusInfo.status as any,
@@ -118,7 +142,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       totalEarnings: totals.earnings,
       employeeStatuses
     };
-  }, [employees]);
+  }, [employees, getEmployeeStatus]); // Adicionado getEmployeeStatus como dependência
 
 
   // Query otimizada com cache inteligente
@@ -266,7 +290,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(dashboardData?.totalHours || 0).toFixed(1)}</div>
+            {/* ✨ APLICANDO A FUNÇÃO formatHoursAsTime AQUI */}
+            <div className="text-2xl font-bold">{formatHoursAsTime(dashboardData?.totalHours)}</div>
             <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
         </Card>
@@ -313,8 +338,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {dashboardData?.employeeStatuses?.map((empStatus) => (
-                  <div 
-                    key={empStatus.employee.id} 
+                  <div
+                    key={empStatus.employee.id}
                     className={`p-4 rounded-lg border ${getStatusColorClasses(empStatus.statusColor)}`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -323,9 +348,10 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
                         {empStatus.statusLabel}
                       </span>
                     </div>
-                    
+
                     {empStatus.record && (
                       <div className="text-xs space-y-1 text-gray-600">
+                        {/* ⚠️ NOTA: Os horários de clock-in/out/lunch já vêm formatados ou precisam ser formatados individualmente se forem strings de timestamp */}
                         {empStatus.record.clock_in && (
                           <div>Entrada: {empStatus.record.clock_in}</div>
                         )}
@@ -342,11 +368,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
                     )}
                   </div>
                 ))}
-                
+
                 {(!dashboardData?.employeeStatuses || dashboardData.employeeStatuses.length === 0) && (
                   <div className="col-span-full text-center py-8">
                     <UserX className="w-12 h-12 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 text-sm">Nenhum funcionário</p>
+                    <p className="text-gray-500 text-xs mt-1">Apenas funcionários ativos aparecem aqui.</p> {/* Adicionado nota */}
                   </div>
                 )}
               </div>
