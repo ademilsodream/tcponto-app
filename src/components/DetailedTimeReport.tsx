@@ -4,10 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, User, Users, FileDown, Search, Clock } from 'lucide-react';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar, User, Users, FileDown, Search, Clock, CalendarIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -43,8 +46,8 @@ interface TimeRecord {
 }
 
 const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBack }) => {
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -60,14 +63,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
     const dates = [];
-    const startDate = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T00:00:00');
+    const startDateObj = new Date(start + 'T00:00:00');
+    const endDateObj = new Date(end + 'T00:00:00');
     
     console.log('Gerando datas do período:', start, 'até', end);
-    console.log('Start date object:', startDate);
-    console.log('End date object:', endDate);
+    console.log('Start date object:', startDateObj);
+    console.log('End date object:', endDateObj);
     
-    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+    for (let date = new Date(startDateObj); date <= endDateObj; date.setDate(date.getDate() + 1)) {
       const dateString = format(date, 'yyyy-MM-dd');
       dates.push(dateString);
     }
@@ -79,10 +82,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   // Função para validar se uma data está dentro do período
   const isDateInPeriod = (dateStr: string, start: string, end: string) => {
     const date = new Date(dateStr + 'T00:00:00');
-    const startDate = new Date(start + 'T00:00:00');
-    const endDate = new Date(end + 'T00:00:00');
+    const startDateObj = new Date(start + 'T00:00:00');
+    const endDateObj = new Date(end + 'T00:00:00');
     
-    const isValid = date >= startDate && date <= endDate;
+    const isValid = date >= startDateObj && date <= endDateObj;
     console.log(`Data ${dateStr} está no período ${start} a ${end}?`, isValid);
     return isValid;
   };
@@ -139,16 +142,20 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       console.log('Funcionário selecionado:', selectedEmployeeId);
       console.log('Período selecionado:', startDate, 'até', endDate);
 
+      // Converter datas para string
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+
       // Gerar APENAS as datas do período selecionado
-      const dateRange = generateDateRange(startDate, endDate);
+      const dateRange = generateDateRange(startDateStr, endDateStr);
       console.log('Range de datas gerado:', dateRange);
 
       // Query baseada no funcionário selecionado
       let query = supabase
         .from('time_records')
         .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
+        .gte('date', startDateStr)
+        .lte('date', endDateStr)
         .order('user_id', { ascending: true })
         .order('date', { ascending: true });
 
@@ -200,7 +207,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // Criar um mapa dos registros por usuário e data
       const recordsMap = (data || []).reduce((acc, record) => {
         // Validar se a data do registro está REALMENTE no período
-        if (isDateInPeriod(record.date, startDate, endDate)) {
+        if (isDateInPeriod(record.date, startDateStr, endDateStr)) {
           const key = `${record.user_id}-${record.date}`;
           acc[key] = record;
           console.log('Registro adicionado ao mapa:', key, record);
@@ -281,8 +288,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   // ✨ NOVA: Função para limpar pesquisa
   const handleClearSearch = () => {
-    setStartDate('');
-    setEndDate('');
+    setStartDate(undefined);
+    setEndDate(undefined);
     setSelectedEmployeeId('all');
     setTimeRecords([]);
     setHasSearched(false);
@@ -389,28 +396,62 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Data Inicial *</label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="h-10"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !startDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Data Final *</label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="h-10"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecionar data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Funcionário</label>
                   <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-                    <SelectTrigger className="h-10">
+                    <SelectTrigger>
                       <SelectValue placeholder="Todos os funcionários" />
                     </SelectTrigger>
                     <SelectContent>
@@ -503,7 +544,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                           <div className="text-sm text-gray-600">
                             {startDate && endDate && (
                               <span>
-                                {format(new Date(startDate), 'dd/MM/yyyy')} - {format(new Date(endDate), 'dd/MM/yyyy')}
+                                {format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')}
                               </span>
                             )}
                           </div>
@@ -565,7 +606,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                     </h3>
                     <p className="text-sm">
                       {startDate && endDate ? (
-                        `Nenhum registro de ponto encontrado para o período de ${format(new Date(startDate), 'dd/MM/yyyy')} até ${format(new Date(endDate), 'dd/MM/yyyy')}.`
+                        `Nenhum registro de ponto encontrado para o período de ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}.`
                       ) : (
                         'Nenhum registro de ponto encontrado para os filtros selecionados.'
                       )}
