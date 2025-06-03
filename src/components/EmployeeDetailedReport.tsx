@@ -57,6 +57,13 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
     setExpandedRecords(newExpanded);
   };
 
+  // Função para formatar data para exibição
+  const formatDateForDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString + 'T00:00:00');
+    return format(date, 'dd/MM/yyyy');
+  };
+
   // Função para gerar todas as datas do período EXATO
   const generateDateRange = (start: string, end: string) => {
     const dates = [];
@@ -280,7 +287,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
               Relatório Detalhado
-          </CardTitle>
+            </CardTitle>
             <Button variant="outline" onClick={onBack} size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
@@ -301,21 +308,35 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-sm">Data Inicial</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-10"
-              />
+              <div className="relative">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-10"
+                />
+                <div className="absolute inset-0 flex items-center px-3 pointer-events-none bg-white border rounded-md">
+                  <span className="text-sm text-gray-900">
+                    {formatDateForDisplay(startDate)}
+                  </span>
+                </div>
+              </div>
             </div>
             <div>
               <Label className="text-sm">Data Final</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="h-10"
-              />
+              <div className="relative">
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-10"
+                />
+                <div className="absolute inset-0 flex items-center px-3 pointer-events-none bg-white border rounded-md">
+                  <span className="text-sm text-gray-900">
+                    {formatDateForDisplay(endDate)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
