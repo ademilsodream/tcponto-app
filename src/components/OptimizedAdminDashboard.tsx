@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-// ✨ Importar ícone para horas extras (pode ser Clock ou outro, usei Clock para simplicidade, mas OvertimeIcon seria ideal se existisse)
+// Importar ícones necessários, incluindo Clock4 para Horas Extras
 import { Users, Clock, DollarSign, Calendar, UserCheck, UserX, BarChart3, Clock4 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -24,9 +24,8 @@ interface DashboardData {
   totalEmployees: number;
   totalAdmins: number;
   totalHours: number;
-  // ✨ Adicionado totalOvertimeHours
-  totalOvertimeHours: number;
-  totalEarnings: number;
+  totalOvertimeHours: number; // Total de horas extras
+  totalEarnings: number; // Total de pagamento
   employeeStatuses: EmployeeStatus[];
 }
 
@@ -95,9 +94,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     });
 
     let grandTotalHours = 0; // Este somará os totais *arredondados* por funcionário
-    // ✨ Adicionado acumulador para horas extras totais
-    let grandTotalOvertimeHours = 0;
-    let grandTotalEarnings = 0; // Este somará os totais de pagamento por funcionário
+    let grandTotalOvertimeHours = 0; // Acumulador para horas extras totais (não arredondado aqui)
+    let grandTotalEarnings = 0; // Este somará os totais de pagamento *arredondados* por funcionário
 
     // Criar um mapa de funcionários para acessar hourlyRate e overtimeRate rapidamente
     const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
@@ -108,7 +106,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       if (employee) {
         let employeeTotalHoursRaw = 0; // Soma bruta das horas para cálculo de pagamento
         let employeeTotalNormalHoursRaw = 0;
-        let employeeTotalOvertimeHoursRaw = 0; // Acumulador de horas extras por funcionário
+        let employeeTotalOvertimeHoursRaw = 0; // Acumulador de horas extras por funcionário (bruto)
 
         // Calcular totais diários e somar para o total do funcionário (bruto)
         records.forEach(record => {
@@ -127,16 +125,18 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
         const employeeNormalPay = employeeTotalNormalHoursRaw * hourlyRate;
         const employeeOvertimePay = employeeTotalOvertimeHoursRaw * overtimeRate;
-        const employeeTotalPay = employeeNormalPay + employeeOvertimePay; // Total de pagamento do funcionário
+        const employeeTotalPayRaw = employeeNormalPay + employeeOvertimePay; // Total de pagamento bruto do funcionário
+
+        // ✨ MODIFICAÇÃO: Arredondar o total de pagamento do funcionário para 2 casas decimais
+        const employeeTotalPayRounded = parseFloat(employeeTotalPayRaw.toFixed(2));
 
         // Arredondar o total de horas do funcionário para 1 casa decimal (para consistência com o PayrollReport)
         const employeeTotalHoursRounded = Math.round(employeeTotalHoursRaw * 10) / 10;
 
         // Somar os totais do funcionário nos totais gerais
         grandTotalHours += employeeTotalHoursRounded; // Somar horas *arredondadas*
-        // ✨ Somar as horas extras totais do funcionário no total geral de horas extras
-        grandTotalOvertimeHours += employeeTotalOvertimeHoursRaw;
-        grandTotalEarnings += employeeTotalPay; // Somar pagamento total do funcionário
+        grandTotalOvertimeHours += employeeTotalOvertimeHoursRaw; // Somar horas extras brutas
+        grandTotalEarnings += employeeTotalPayRounded; // Somar pagamento total do funcionário *arredondado*
       }
     }
 
@@ -166,9 +166,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
       // Usar os totais gerais calculados pela agregação por funcionário
       totalHours: grandTotalHours,
-      // ✨ Retornar o total de horas extras calculado
-      totalOvertimeHours: grandTotalOvertimeHours,
-      totalEarnings: grandTotalEarnings,
+      totalOvertimeHours: grandTotalOvertimeHours, // Retornar o total de horas extras calculado (bruto)
+      totalEarnings: grandTotalEarnings, // Retornar o total de pagamento calculado (somando arredondados por funcionário)
       employeeStatuses
     };
   }, [employees]); // Dependência 'employees' é importante aqui
@@ -247,8 +246,9 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+        {/* ✨ MODIFICAÇÃO: Ajustado para 5 colunas no skeleton */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
             <Card key={i}>
               <CardHeader>
                 <div className="animate-pulse h-6 bg-gray-200 rounded w-3/4"></div>
@@ -275,9 +275,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
   return (
     <div className="space-y-6">
       {/* Cards de Métricas Otimizados */}
-      {/* ✨ MODIFICAÇÃO: Alterado para grid de 5 colunas se necessário, ou manter 4 e ajustar layout */}
-      {/* Mantenho 4 colunas e adiciono o novo card, ele vai para a próxima linha em telas menores */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {/* ✨ MODIFICAÇÃO: Alterado para grid de 5 colunas em telas grandes */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -316,11 +315,10 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           </CardContent>
         </Card>
 
-        {/* ✨ NOVO CARD: Total de Horas Extras */}
+        {/* Card de Horas Extras */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {/* Usei Clock4, mas pode ser outro ícone */}
               <Clock4 className="w-5 h-5 text-orange-500" />
               Horas Extras
             </CardTitle>
@@ -331,7 +329,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           </CardContent>
         </Card>
 
-        {/* O card de Folha de Pagamento pode ir para a próxima linha dependendo do layout */}
+         {/* Card de Folha de Pagamento */}
          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -340,6 +338,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Este total agora soma os pagamentos por funcionário *arredondados* */}
             <div className="text-2xl font-bold">{formatCurrency(dashboardData?.totalEarnings || 0)}</div>
             <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
