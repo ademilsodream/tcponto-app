@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,11 +37,12 @@ interface PendingApprovalsProps {
     hourlyRate: number;
     overtimeRate: number;
   }>;
+  onApprovalChange?: () => void; // ✨ ADICIONADO: Nova propriedade opcional
 }
 
 const ITEMS_PER_PAGE = 10;
 
-const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees }) => {
+const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
   const [message, setMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
@@ -221,6 +221,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
         exact: true 
       });
       
+      // ✨ ADICIONADO: Chamar callback se fornecido
+      if (onApprovalChange) {
+        onApprovalChange();
+      }
+      
       // Auto-clear da mensagem
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -228,7 +233,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees 
       setMessage('Erro ao processar aprovação');
       setTimeout(() => setMessage(''), 3000);
     }
-  }, [queryClient]);
+  }, [queryClient, onApprovalChange]);
 
   // Memoized field label function
   const getFieldLabel = useCallback((field: string) => {
