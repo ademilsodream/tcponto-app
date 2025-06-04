@@ -53,7 +53,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // ✨ MODIFICAÇÃO: Estados para armazenar os totais brutos GERAIS (todos os funcionários)
+  // Estados para armazenar os totais brutos GERAIS (todos os funcionários)
   const [grandTotalHoursRaw, setGrandTotalHoursRaw] = useState(0);
   const [grandTotalOvertimeHoursRaw, setGrandTotalOvertimeHoursRaw] = useState(0);
 
@@ -111,7 +111,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     setLoading(true);
     setHasSearched(true);
     setPayrollData([]);
-    // ✨ MODIFICAÇÃO: Resetar totais brutos gerais
+    // Resetar totais brutos gerais
     setGrandTotalHoursRaw(0);
     setGrandTotalOvertimeHoursRaw(0);
 
@@ -125,7 +125,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
 
       const payrollResults: PayrollData[] = [];
-      // ✨ MODIFICAÇÃO: Acumuladores brutos GERAIS dentro da função
+      // Acumuladores brutos GERAIS dentro da função
       let currentGrandTotalHoursRaw = 0;
       let currentGrandTotalOvertimeHoursRaw = 0;
 
@@ -206,7 +206,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             totalNormalHoursRawPerEmployee += dayNormalHours;
             totalOvertimeHoursRawPerEmployee += dayOvertimeHours;
 
-            // ✨ MODIFICAÇÃO: Acumular nos totais brutos GERAIS
+            // Acumular nos totais brutos GERAIS
             currentGrandTotalHoursRaw += dayTotalHours;
             currentGrandTotalOvertimeHoursRaw += dayOvertimeHours;
           });
@@ -244,7 +244,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             hourlyRate: hourlyRate,
             overtimeRate: overtimeRate
           },
-          // ✨ MODIFICAÇÃO: Armazenar totais brutos POR FUNCIONÁRIO
+          // Armazenar totais brutos POR FUNCIONÁRIO
           totalHoursRaw: totalHoursRawPerEmployee,
           normalHoursRaw: totalNormalHoursRawPerEmployee,
           overtimeHoursRaw: totalOvertimeHoursRawPerEmployee,
@@ -260,7 +260,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       }
 
 
-      // ✨ MODIFICAÇÃO: Atualizar estados com os totais brutos GERAIS
+      // Atualizar estados com os totais brutos GERAIS
       setGrandTotalHoursRaw(currentGrandTotalHoursRaw);
       setGrandTotalOvertimeHoursRaw(currentGrandTotalOvertimeHoursRaw);
 
@@ -300,7 +300,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     setSelectedEmployee('all');
     setPayrollData([]);
     setHasSearched(false);
-    // ✨ MODIFICAÇÃO: Resetar totais brutos gerais ao limpar
+    // Resetar totais brutos gerais ao limpar
     setGrandTotalHoursRaw(0);
     setGrandTotalOvertimeHoursRaw(0);
 
@@ -319,14 +319,14 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
   };
 
 
-  // ✨ MODIFICAÇÃO: Usar o total bruto GERAL para calcular o total de horas
+  // Usar o total bruto GERAL para calcular o total de horas
   const getTotalHours = () => {
     // Arredonda o total bruto GERAL para 1 casa decimal para exibição
     return Math.round(grandTotalHoursRaw * 10) / 10;
   };
 
 
-  // ✨ MODIFICAÇÃO: Usar o total bruto GERAL para calcular o total de horas extras
+  // Usar o total bruto GERAL para calcular o total de horas extras
   const getTotalOvertimeHours = () => {
     // Arredonda o total bruto GERAL para 1 casa decimal para exibição
     return Math.round(grandTotalOvertimeHoursRaw * 10) / 10;
@@ -558,7 +558,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold text-primary-900">
-                        {/* ✨ MODIFICAÇÃO: Exibe o total geral arredondado */}
+                        {/* Exibe o total geral arredondado */}
                         {formatHoursAsTime(getTotalHours())}
                       </div>
                     </CardContent>
@@ -572,7 +572,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold text-orange-600">
-                        {/* ✨ MODIFICAÇÃO: Exibe o total geral arredondado */}
+                        {/* Exibe o total geral arredondado */}
                         {formatHoursAsTime(getTotalOvertimeHours())}
                       </div>
                     </CardContent>
@@ -632,7 +632,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                               </TableCell>
                               <TableCell>{formatCurrency(data.employee.hourlyRate)}</TableCell>
                               <TableCell>{formatCurrency(data.employee.overtimeRate)}</TableCell>
-                              {/* ✨ MODIFICAÇÃO: Exibe horas arredondadas POR FUNCIONÁRIO na tabela */}
+                              {/* Exibe horas arredondadas POR FUNCIONÁRIO na tabela */}
                               <TableCell>{formatHoursAsTime(data.totalHours)}</TableCell>
                               <TableCell>{formatHoursAsTime(data.normalHours)}</TableCell>
                               <TableCell>{formatHoursAsTime(data.overtimeHours)}</TableCell>
@@ -663,6 +663,24 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                       ) : (
                         'Nenhum registro de ponto encontrado para os filtros selecionados.'
                       )}
+                  </p>
+                  <div className="mt-4 text-xs text-gray-400">
+                    💰 Este relatório calcula pagamentos baseados nas horas trabalhadas e valores por hora configurados.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        ) : (
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-center text-gray-500 py-12">
+                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">
+                    Folha de Pagamento
+                  </h3>
+                  <p className="text-sm">
+                    Selecione as datas de início e fim, escolha um funcionário (ou todos), depois clique em "Gerar Folha de Pagamento" para visualizar os dados.
                   </p>
                   <div className="mt-4 text-xs text-gray-400">
                     💰 Este relatório calcula pagamentos baseados nas horas trabalhadas e valores por hora configurados.
