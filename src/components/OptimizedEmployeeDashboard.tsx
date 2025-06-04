@@ -41,7 +41,6 @@ const OptimizedEmployeeDashboard: React.FC = React.memo(() => {
         return (
           <EmployeeMonthlySummary 
             selectedMonth={selectedDate}
-            onShowDetailedReport={() => handleScreenChange('detailedReport')}
             onBack={() => handleScreenChange('timeRegistration')} 
           />
         );
