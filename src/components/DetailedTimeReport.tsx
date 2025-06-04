@@ -248,9 +248,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       lunch_start: record.lunch_start,
                       lunch_end: record.lunch_end,
                       clock_out: record.clock_out,
-                      total_hours: totalHours,
-                      normal_hours: normalHours,
-                      overtime_hours: overtimeHours,
+                      total_hours: totalHours, // Calculado no frontend para exibição inicial
+                      normal_hours: normalHours, // Calculado no frontend para exibição inicial
+                      overtime_hours: overtimeHours, // Calculado no frontend para exibição inicial
                       created_at: record.created_at, // Incluir created_at
                       updated_at: record.updated_at // Incluir updated_at
                   });
@@ -321,10 +321,21 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   const formatTime = (timeString: string | null | undefined) => {
     if (!timeString) return '-';
+    // Verifica se a string já está no formato HH:mm ou HH:mm:ss
     if (timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-        return timeString.slice(0, 5);
+        return timeString.slice(0, 5); // Retorna apenas HH:mm
     }
-    return '-';
+     // Tenta converter de outros formatos comuns (ex: ISO string)
+    try {
+        const date = new Date(`1970-01-01T${timeString}Z`); // Usa uma data base para parsear apenas a hora
+        if (!isNaN(date.getTime())) {
+             return format(date, 'HH:mm', { timeZone: 'UTC' }); // Formata como HH:mm
+        }
+    } catch (e) {
+        // Ignore parsing errors
+    }
+
+    return '-'; // Retorna '-' se não for possível formatar
   };
 
    // Função para abrir o modal de edição
@@ -356,12 +367,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       setEditLoading(true);
 
       try {
-          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-              editingRecord.clock_in || '',
-              editingRecord.lunch_start || '',
-              editingRecord.lunch_end || '',
-              editingRecord.clock_out || ''
-          );
+          // Não precisamos calcular no frontend para o payload,
+          // o trigger do Supabase fará isso.
+          // Mas mantemos o calculateWorkingHours para validação se necessário,
+          // ou se quisermos exibir os calculos antes de salvar (não é o caso aqui).
 
           // Preparar o payload para atualização
           const updatePayload = {
@@ -369,13 +378,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               lunch_start: editingRecord.lunch_start,
               lunch_end: editingRecord.lunch_end,
               clock_out: editingRecord.clock_out,
-              // ✨ ATUALIZADO: Incluindo campos calculados no payload (se existirem no DB)
-              total_hours: totalHours,
-              normal_hours: normalHours,
-              overtime_hours: overtimeHours,
+              // Removido total_hours, normal_hours, overtime_hours do payload
+              // O trigger calculate_time_and_pay no Supabase vai calcular e atualizar
               // updated_at será definido automaticamente pelo trigger do Supabase
           };
 
+          // Filtra campos nulos para não sobrescrever com null se não foram alterados
           const cleanPayload = Object.fromEntries(
               Object.entries(updatePayload).filter(([_, v]) => v !== null)
           );
@@ -385,28 +393,26 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               .from('time_records')
               .update(cleanPayload)
               .eq('id', editingRecord.id)
-              // ✨ ATUALIZADO: Selecionar created_at e updated_at após a atualização
-              .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at, profiles(id, name, email, role)')
+              // ✨ ATUALIZADO: Incluindo total_hours, normal_hours, overtime_hours na seleção
+              .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at, total_hours, normal_hours, overtime_hours, profiles(id, name, email, role)')
               .single();
 
           if (error) throw error;
 
-          // Atualizar o estado local dos registros com os dados retornados (incluindo o novo updated_at)
-         setTimeRecords(prevRecords =>
-          prevRecords.map(record => {
-              if (record.id === editingRecord.id) {
-                  // Mescla os dados atualizados do Supabase, mas garante que o perfil
-                  // seja o do dado retornado (se existir) ou o perfil original
-                  return {
-                      ...record, // Mantém as propriedades originais (como created_at, etc.)
-                      ...data,   // Sobrescreve com os dados retornados pelo Supabase (incluindo updated_at)
-                      profiles: data.profiles || record.profiles // Usa o perfil retornado ou mantém o original
-                  };
-              }
-              return record;
-          })
-      );
-;
+          // Atualizar o estado local dos registros com os dados retornados (incluindo os novos calculados)
+          setTimeRecords(prevRecords =>
+              prevRecords.map(record => {
+                  if (record.id === editingRecord.id) {
+                       // Mescla os dados atualizados do Supabase, que agora incluem os calculados
+                      return {
+                          ...record, // Mantém propriedades originais
+                          ...data,   // Sobrescreve com os dados retornados (inclui updated_at, calculados, etc.)
+                          profiles: data.profiles || record.profiles // Garante que o perfil seja mantido/atualizado
+                      };
+                  }
+                  return record;
+              })
+          );
 
           toast({
               title: "Sucesso",
