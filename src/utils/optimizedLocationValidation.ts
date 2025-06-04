@@ -182,7 +182,7 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
           const result = {
             location: {
               latitude: position.coords.latitude,
-              longitude: position.coords.longitude
+              longitude: position.coords.longitude // Corrigido aqui
             },
             accuracy: position.coords.accuracy || 999
           };
@@ -220,7 +220,7 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
           const result = {
             location: {
               latitude: position.coords.latitude,
-              longitude: position.longitude
+              longitude: position.coords.longitude // Corrigido aqui também
             },
             accuracy: position.coords.accuracy || 999
           };
