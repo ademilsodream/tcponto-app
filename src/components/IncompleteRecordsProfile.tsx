@@ -237,12 +237,6 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             <Calendar className="w-5 h-5" />
             Registros Incompletos
           </CardTitle>
-          {onBack && (
-            <Button variant="outline" size="sm" onClick={onBack}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent>
