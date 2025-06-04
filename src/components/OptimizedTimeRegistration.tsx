@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/Auth/AuthContext'; // Verifique o caminho correto do seu AuthContext
 // Importe validateLocationForTimeRecord e a interface Location
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
 import { format } from 'date-fns';
@@ -16,6 +16,30 @@ import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { clearLocationCache } from '@/utils/optimizedLocationValidation'; // Importe clearLocationCache
+
+
+// Interface para a estrutura JSON salva na coluna 'locations'
+interface LocationEntry {
+    address: string;
+    distance: number;
+    latitude: number;
+    longitude: number;
+    timestamp: string;
+    locationName: string;
+    // Opcional: adicionar accuracy se quiser salvar, mas não estava no seu exemplo JSON
+    // accuracy?: number;
+}
+
+
+// Interface para a coluna 'locations' que é um objeto JSONB
+interface LocationsData {
+    clock_in?: LocationEntry;
+    lunch_start?: LocationEntry;
+    lunch_end?: LocationEntry;
+    clock_out?: LocationEntry;
+    // Pode ter outros campos se necessário
+    [key: string]: LocationEntry | undefined;
+}
 
 
 interface TimeRecord {
@@ -26,19 +50,20 @@ interface TimeRecord {
   lunch_end?: string;
   clock_out?: string;
   total_hours: number;
-  normal_hours?: number; // Adicionado conforme sua estrutura
-  overtime_hours?: number; // Adicionado conforme sua estrutura
-  normal_pay?: number; // Adicionado conforme sua estrutura
-  overtime_pay?: number; // Adicionado conforme sua estrutura
-  total_pay?: number; // Adicionado conforme sua estrutura
-  locations?: any; // Considerar tipar melhor se locations for usado
-  created_at?: string; // Adicionado conforme sua estrutura
-  updated_at?: string; // Adicionado conforme sua estrutura
-  status?: string; // Adicionado conforme sua estrutura
-  is_pending_approval?: boolean; // Adicionado conforme sua estrutura
-  approved_by?: string; // Adicionado conforme sua estrutura
-  approved_at?: string; // Adicionado conforme sua estrutura
-  // Removido latitude, longitude, gps_accuracy pois não estão na sua tabela
+  normal_hours?: number;
+  overtime_hours?: number;
+  normal_pay?: number;
+  overtime_pay?: number;
+  total_pay?: number;
+  // Tipagem mais específica para a coluna locations
+  locations?: LocationsData | null;
+  created_at?: string;
+  updated_at?: string;
+  status?: string;
+  is_pending_approval?: boolean;
+  approved_by?: string;
+  approved_at?: string;
+  // Removido latitude, longitude, gps_accuracy pois não são colunas separadas
   // latitude?: number | null;
   // longitude?: number | null;
   // gps_accuracy?: number | null;
@@ -298,18 +323,48 @@ const OptimizedTimeRegistration = React.memo(() => {
         // Este try block agora engloba a operação Supabase E as ações subsequentes
         try {
           const currentTimeStr = localTime; // Usar localTime memoizado
-          // Não precisamos extrair location ou gpsAccuracy aqui, pois não vamos salvar no time_records
-          // const { location, gpsAccuracy } = locationValidationResult;
+          const currentTimeISO = new Date().toISOString(); // Usar ISO string para o timestamp no JSON
 
 
-          // Payload ajustado para incluir SOMENTE as colunas que existem na sua tabela time_records
+          // Extrai dados necessários do resultado da validação
+          const { location, closestLocation, distance } = locationValidationResult;
+
+
+          if (!location || !closestLocation || distance === undefined) {
+               console.error('⚠️ Dados de localização incompletos após validação bem-sucedida.');
+               throw new Error('Erro interno: dados de localização incompletos.');
+          }
+
+
+          // Cria o objeto de localização para a ação atual no formato JSON desejado
+          const newLocationEntry: LocationEntry = {
+              address: closestLocation.address,
+              distance: distance,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              timestamp: currentTimeISO,
+              locationName: closestLocation.name,
+              // Opcional: adicionar accuracy se quiser salvar
+              // accuracy: location.accuracy,
+          };
+
+
+          // Obtém o objeto locations atual do registro existente, ou inicia um objeto vazio
+          const currentLocations: LocationsData = timeRecord?.locations || {};
+
+
+          // Mescla o novo objeto de localização com o objeto locations existente
+          const updatedLocations: LocationsData = {
+              ...currentLocations,
+              [action]: newLocationEntry,
+          };
+
+
+          // Payload ajustado para incluir o campo de horário e o objeto locations mesclado
           let payload: any = {
             [action]: currentTimeStr,
             updated_at: new Date().toISOString(),
-            // Removido latitude, longitude, gps_accuracy do payload
-            // latitude: location.latitude,
-            // longitude: location.longitude,
-            // gps_accuracy: gpsAccuracy
+            locations: updatedLocations, // Inclui o objeto JSON mesclado
           };
 
 
@@ -345,7 +400,6 @@ const OptimizedTimeRegistration = React.memo(() => {
             payload.normal_pay = 0;
             payload.overtime_pay = 0;
             payload.total_pay = 0;
-            // payload.locations = null; // Ou um objeto vazio {} se for JSONB
             // payload.status = 'completed'; // Ou o status inicial apropriado
             // payload.is_pending_approval = false; // Ou o valor inicial apropriado
 
@@ -412,7 +466,7 @@ const OptimizedTimeRegistration = React.memo(() => {
             variant: "destructive"
           });
         } finally {
-            // O setSubmitting(false) final será chamado no finally do handleTimeAction
+            // O setSubmitting(false) final será chamado no finally dos callbacks
             console.log('➡️ Fim do callback onSuccess do debouncedLocationRequest.');
             setSubmitting(false); // Mover setSubmitting(false) para o finally aqui
         }
@@ -424,15 +478,11 @@ const OptimizedTimeRegistration = React.memo(() => {
           description: message,
           variant: "destructive"
         });
-        // O setSubmitting(false) final será chamado no finally do handleTimeAction
+        // O setSubmitting(false) final será chamado no finally dos callbacks
         console.log('➡️ Fim do callback onError do debouncedLocationRequest.');
         setSubmitting(false); // Mover setSubmitting(false) para o finally aqui
       }
     );
-
-
-    // REMOVA ESTA LINHA - setSubmitting(false) deve ser chamado nos finally dos callbacks
-    // setSubmitting(false);
 
 
   }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames]);
