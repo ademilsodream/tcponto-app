@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'; // Importar componentes do Dialog
-import { Calendar, User, Users, FileDown, Search, Clock, CalendarIcon, Pencil } from 'lucide-react'; // Importar ícone Pencil
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Calendar, User, Users, FileDown, Search, Clock, CalendarIcon, Pencil } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -17,7 +17,7 @@ import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 import { useToast } from '@/components/ui/use-toast';
 
-// ✨ ATUALIZADO: Adicionado last_edited_at
+// ✨ ATUALIZADO: last_edited_at adicionado
 interface TimeRecord {
   id?: string;
   date: string;
@@ -26,10 +26,10 @@ interface TimeRecord {
   lunch_start?: string | null;
   lunch_end?: string | null;
   clock_out?: string | null;
-  total_hours?: number | null;
-  normal_hours?: number | null;
-  overtime_hours?: number | null;
-  last_edited_at?: string | null; // ✨ NOVO: Campo para indicar se foi editado
+  total_hours?: number | null; // Mantido, pois é calculado e adicionado depois
+  normal_hours?: number | null; // Mantido, pois é calculado e adicionado depois
+  overtime_hours?: number | null; // Mantido, pois é calculado e adicionado depois
+  last_edited_at?: string | null; // Campo para indicar se foi editado
   profiles?: {
     id: string;
     name: string;
@@ -44,7 +44,7 @@ interface DetailedTimeReportProps {
   onBack?: () => void;
 }
 
-// ✨ NOVO: Interface para o estado do registro em edição
+// Interface para o estado do registro em edição
 interface EditingRecordState {
   id: string;
   date: string;
@@ -63,7 +63,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
-  // ✨ NOVOS ESTADOS PARA EDIÇÃO
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<EditingRecordState | null>(null);
   const [editLoading, setEditLoading] = useState(false);
@@ -127,14 +126,19 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       return;
     }
 
-    if (activeEmployees.length === 0) {
-      toast({
-        title: "Sem funcionários",
-        description: "Não há funcionários ativos cadastrados para gerar o relatório.",
-        variant: "destructive"
-      });
-      return;
+    if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
+       // Adicionado verificação para caso não haja ativos, mas um específico seja selecionado
+       // Permitir buscar se um ID específico é selecionado, mesmo que não esteja na lista ativa
+       if (!activeEmployees.find(emp => emp.id === selectedEmployeeId)) {
+           toast({
+               title: "Sem funcionários",
+               description: "Não há funcionários ativos cadastrados para gerar o relatório.",
+               variant: "destructive"
+           });
+           return;
+       }
     }
+
 
     setLoading(true);
     setHasSearched(true);
@@ -148,8 +152,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       let query = supabase
         .from('time_records')
-        // ✨ ATUALIZADO: Incluído last_edited_at na seleção
-        .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, total_hours, overtime_hours, last_edited_at')
+        // ✨ CORRIGIDO: Removido total_hours e overtime_hours da seleção
+        .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, last_edited_at')
         .gte('date', startDateStr)
         .lte('date', endDateStr)
         .order('user_id', { ascending: true })
@@ -163,9 +167,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
+         // ✨ NOVO: Log mais detalhado do erro do Supabase
+         console.error('Supabase Error Details:', error.message, error.details, error.hint);
         toast({
           title: "Erro",
-          description: "Erro ao carregar registros de ponto",
+          description: `Erro ao carregar registros de ponto: ${error.message}`, // Exibir mensagem de erro
           variant: "destructive"
         });
         return;
@@ -179,16 +185,15 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return acc;
       }, {} as Record<string, any>);
 
+
       let employeeIds: string[];
       if (selectedEmployeeId === 'all') {
-         // Buscar IDs apenas dos funcionários que tiveram registros ou todos ativos se 'all'
-         const recordUserIds = new Set(data?.map(r => r.user_id));
-         employeeIds = activeEmployees
-             .filter(emp => selectedEmployeeId === 'all' ? true : emp.id === selectedEmployeeId)
-             .map(emp => emp.id);
-         // Incluir IDs de funcionários com registros mesmo que não estejam mais ativos (para histórico)
+         // Buscar IDs de todos os funcionários ativos
+         employeeIds = activeEmployees.map(emp => emp.id);
+         // Adicionar IDs de usuários encontrados nos registros que não estão na lista de ativos (para histórico)
+         const recordUserIds = new Set(data?.map(r => r.user_id).filter((id): id is string => id !== null && id !== undefined));
          recordUserIds.forEach(id => {
-             if (id && !employeeIds.includes(id)) {
+             if (!employeeIds.includes(id)) {
                  employeeIds.push(id);
              }
          });
@@ -200,15 +205,20 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // Buscar perfis dos funcionários relevantes
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
+        // ✨ CORRIGIDO: Revertido filtro para buscar apenas usuários ativos
         .select('id, name, email, role')
-        .in('id', employeeIds); // Buscar perfis de todos os IDs relevantes
+        .in('id', employeeIds)
+        .eq('role', 'user') // Buscar apenas usuários (não admins)
+        .or('status.is.null,status.eq.active'); // Buscar status nulo ou ativo
 
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
+         // ✨ NOVO: Log mais detalhado do erro do Supabase
+         console.error('Supabase Profiles Error Details:', profilesError.message, profilesError.details, profilesError.hint);
         toast({
           title: "Erro",
-          description: "Erro ao carregar perfis dos funcionários",
+          description: `Erro ao carregar perfis dos funcionários: ${profilesError.message}`, // Exibir mensagem de erro
           variant: "destructive"
         });
         return;
@@ -222,18 +232,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       const completeRecords: TimeRecord[] = [];
 
-      // Iterar sobre os funcionários relevantes e as datas do período
-      employeeIds.forEach(employeeId => {
-          const profile = profilesMap[employeeId];
-          if (!profile) {
-              console.warn(`Perfil não encontrado para o ID: ${employeeId}`);
-              // Se o perfil não for encontrado, pular este funcionário ou criar um placeholder?
-              // Vamos pular por enquanto para evitar erros.
-              return;
-          }
-
+      // Iterar sobre os funcionários relevantes (cujos perfis foram encontrados) e as datas do período
+      profilesData?.forEach(profile => { // Iterar sobre profilesData para garantir que temos o perfil
           dateRange.forEach(date => {
-              const key = `${employeeId}-${date}`;
+              const key = `${profile.id}-${date}`;
               const record = recordsMap[key];
 
               if (record) {
@@ -246,20 +248,25 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   );
 
                   completeRecords.push({
+                      id: record.id, // Garantir que o ID é incluído
                       date,
-                      user_id: employeeId,
+                      user_id: profile.id,
                       profiles: profile,
-                      ...record,
-                      total_hours: totalHours,
-                      normal_hours: normalHours,
-                      overtime_hours: overtimeHours,
+                      clock_in: record.clock_in,
+                      lunch_start: record.lunch_start,
+                      lunch_end: record.lunch_end,
+                      clock_out: record.clock_out,
+                      total_hours: totalHours, // Calculado aqui
+                      normal_hours: normalHours, // Calculado aqui
+                      overtime_hours: overtimeHours, // Calculado aqui
                       last_edited_at: record.last_edited_at // Incluir o campo editado
                   });
               } else {
-                  // Adicionar registros vazios para os dias sem ponto no período
+                  // Adicionar registros vazios para os dias sem ponto no período, APENAS se o perfil for de usuário ativo
+                  // A iteração sobre profilesData já garante que o perfil é relevante.
                   completeRecords.push({
                       date,
-                      user_id: employeeId,
+                      user_id: profile.id,
                       profiles: profile,
                       clock_in: null,
                       lunch_start: null,
@@ -294,16 +301,16 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       });
 
     } catch (error) {
-      console.error('Erro ao gerar relatório:', error);
+      console.error('Erro inesperado ao gerar relatório:', error);
       toast({
         title: "Erro",
-        description: "Erro inesperado ao gerar relatório",
+        description: "Erro inesperado ao gerar relatório. Verifique o console para detalhes.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, selectedEmployeeId, activeEmployees, toast]); // Adicionado dependências
+  }, [startDate, endDate, selectedEmployeeId, activeEmployees, toast]);
 
 
   const handleClearSearch = useCallback(() => {
@@ -322,10 +329,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   const formatTime = (timeString: string | null | undefined) => {
     if (!timeString) return '-';
-    return timeString.slice(0, 5);
+    // Garantir que é um formato de hora válido antes de fatiar
+    if (timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+        return timeString.slice(0, 5);
+    }
+    return '-'; // Retorna '-' se não for um formato de hora esperado
   };
 
-   // ✨ NOVO: Função para abrir o modal de edição
+   // Função para abrir o modal de edição
   const handleEditClick = useCallback((record: TimeRecord) => {
       if (!record.id || !record.user_id) {
           toast({
@@ -347,7 +358,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       setIsEditDialogOpen(true);
   }, [toast]);
 
-  // ✨ NOVO: Função para salvar as edições
+  // Função para salvar as edições
   const handleSaveEdit = useCallback(async () => {
       if (!editingRecord || editLoading) return;
 
@@ -368,17 +379,23 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               lunch_start: editingRecord.lunch_start,
               lunch_end: editingRecord.lunch_end,
               clock_out: editingRecord.clock_out,
-              total_hours: totalHours,
-              normal_hours: normalHours,
-              overtime_hours: overtimeHours,
+              total_hours: totalHours, // Salvar horas calculadas no DB (se as colunas existirem)
+              normal_hours: normalHours, // Salvar horas calculadas no DB (se as colunas existirem)
+              overtime_hours: overtimeHours, // Salvar horas calculadas no DB (se as colunas existirem)
               last_edited_at: new Date().toISOString(), // Registrar a data/hora da edição
           };
 
+          // Remover campos nulos do payload para evitar erros de tipo no Supabase
+          const cleanPayload = Object.fromEntries(
+              Object.entries(updatePayload).filter(([_, v]) => v !== null)
+          );
+
+
           const { data, error } = await supabase
               .from('time_records')
-              .update(updatePayload)
+              .update(cleanPayload) // Usar payload limpo
               .eq('id', editingRecord.id)
-              .select() // Selecionar o registro atualizado para obter o last_edited_at
+              .select() // Selecionar o registro atualizado para obter o last_edited_at e outros campos
               .single();
 
           if (error) throw error;
@@ -437,16 +454,15 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   }, []);
 
 
-   // Efeito para gerar relatório inicial se datas estiverem preenchidas (opcional)
-   // useEffect(() => {
-   //     if (startDate && endDate && !hasSearched) {
-   //         generateReport();
-   //     }
-   // }, [startDate, endDate, hasSearched, generateReport]);
+  // Efeito para gerar relatório inicial se datas estiverem preenchidas (opcional)
+  // useEffect(() => {
+  //     if (startDate && endDate && !hasSearched) {
+  //         generateReport();
+  //     }
+  // }, [startDate, endDate, hasSearched, generateReport]);
 
 
-  if (activeEmployees.length === 0) {
-    // ... (código para exibir mensagem sem funcionários ativos)
+  if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
      return (
        <div className="min-h-screen bg-gray-50">
          <header className="bg-white shadow-sm border-b">
@@ -495,7 +511,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 <p className="text-sm text-gray-600">Relatório detalhado de registros de ponto por funcionário</p>
               </div>
             </div>
-            {/* Botão Voltar (opcional) */}
              {onBack && (
                  <Button variant="outline" onClick={onBack}>
                      Voltar
@@ -684,27 +699,26 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                 <TableHead>Saída</TableHead>
                                 <TableHead>Total Horas</TableHead>
                                 <TableHead>Horas Extras</TableHead>
-                                {/* ✨ NOVO: Coluna para Ações */}
                                 <TableHead className="w-[40px]"></TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {records.map((record: TimeRecord, index: number) => {
+                                // Usar ID se existir, caso contrário, um fallback
                                 const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                                // ✨ NOVO: Classe condicional para destacar registros editados
+                                // Classe condicional para destacar registros editados
                                 const rowClassName = record.last_edited_at ? 'bg-yellow-50 hover:bg-yellow-100' : '';
 
                                 return (
-                                  <TableRow key={key} className={rowClassName}> {/* Aplicar classe */}
+                                  <TableRow key={key} className={rowClassName}>
                                     <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                                    <TableCell>{formatTime(record.clock_in)}</TableCell> {/* Usar formatTime */}
-                                    <TableCell>{formatTime(record.lunch_start)}</TableCell> {/* Usar formatTime */}
-                                    <TableCell>{formatTime(record.lunch_end)}</TableCell> {/* Usar formatTime */}
-                                    <TableCell>{formatTime(record.clock_out)}</TableCell> {/* Usar formatTime */}
-                                    <TableCell>{formatHoursAsTime(record.total_hours)}</TableCell> {/* Usar formatHoursAsTime */}
-                                    <TableCell>{formatHoursAsTime(record.overtime_hours)}</TableCell> {/* Usar formatHoursAsTime */}
-                                    {/* ✨ NOVO: Célula com ícone de edição */}
+                                    <TableCell>{formatTime(record.clock_in)}</TableCell>
+                                    <TableCell>{formatTime(record.lunch_start)}</TableCell>
+                                    <TableCell>{formatTime(record.lunch_end)}</TableCell>
+                                    <TableCell>{formatTime(record.clock_out)}</TableCell>
+                                    <TableCell>{formatHoursAsTime(record.total_hours)}</TableCell>
+                                    <TableCell>{formatHoursAsTime(record.overtime_hours)}</TableCell>
                                     <TableCell className="text-right">
                                         {/* Só mostra o ícone se o registro tiver um ID (existe no DB) */}
                                         {record.id && (
@@ -770,7 +784,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         </div>
       </div>
 
-      {/* ✨ NOVO: Dialog de Edição */}
+      {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
               <DialogHeader>
@@ -779,8 +793,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               {editingRecord && (
                   <div className="space-y-4">
                       <div>
+                          {/* Buscar o nome do funcionário do estado timeRecords */}
                           <p className="text-sm text-gray-600 mb-2">
-                              Funcionário: <strong>{groupedRecords[timeRecords.find(r => r.id === editingRecord.id)?.profiles?.name || 'N/A']?.[0]?.profiles?.name || 'N/A'}</strong>
+                              Funcionário: <strong>{timeRecords.find(r => r.id === editingRecord.id)?.profiles?.name || 'N/A'}</strong>
                           </p>
                           <p className="text-sm text-gray-600">
                               Data: <strong>{format(new Date(editingRecord.date + 'T00:00:00'), 'dd/MM/yyyy')} ({getDayOfWeek(editingRecord.date)})</strong>
