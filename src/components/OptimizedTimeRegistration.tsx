@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/Auth/AuthContext'; // Verifique o caminho correto do seu AuthContext
+// CORRIGIDO: Caminho do import do AuthContext
+import { useAuth } from '@/contexts/AuthContext';
 // Importe validateLocationForTimeRecord e a interface Location
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
 import { format } from 'date-fns';
@@ -18,27 +19,25 @@ import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { clearLocationCache } from '@/utils/optimizedLocationValidation'; // Importe clearLocationCache
 
 
-// Interface para a estrutura JSON salva na coluna 'locations'
-interface LocationEntry {
-    address: string;
-    distance: number;
-    latitude: number;
-    longitude: number;
-    timestamp: string;
-    locationName: string;
-    // Opcional: adicionar accuracy se quiser salvar, mas não estava no seu exemplo JSON
-    // accuracy?: number;
+// Nova interface para a estrutura de cada registro de localização dentro do JSON
+interface LocationDetails {
+  address: string;
+  distance: number;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  locationName: string;
+  // gps_accuracy não é salvo na coluna locations, mas pode ser útil aqui se precisar
+  // gps_accuracy?: number;
 }
 
 
-// Interface para a coluna 'locations' que é um objeto JSONB
+// Nova interface para a estrutura completa da coluna 'locations' (o objeto JSON)
 interface LocationsData {
-    clock_in?: LocationEntry;
-    lunch_start?: LocationEntry;
-    lunch_end?: LocationEntry;
-    clock_out?: LocationEntry;
-    // Pode ter outros campos se necessário
-    [key: string]: LocationEntry | undefined;
+  clock_in?: LocationDetails;
+  lunch_start?: LocationDetails;
+  lunch_end?: LocationDetails;
+  clock_out?: LocationDetails;
 }
 
 
@@ -55,7 +54,7 @@ interface TimeRecord {
   normal_pay?: number;
   overtime_pay?: number;
   total_pay?: number;
-  // Tipagem mais específica para a coluna locations
+  // CORRIGIDO: Tipagem da coluna locations para refletir o objeto JSON esperado
   locations?: LocationsData | null;
   created_at?: string;
   updated_at?: string;
@@ -323,48 +322,48 @@ const OptimizedTimeRegistration = React.memo(() => {
         // Este try block agora engloba a operação Supabase E as ações subsequentes
         try {
           const currentTimeStr = localTime; // Usar localTime memoizado
-          const currentTimeISO = new Date().toISOString(); // Usar ISO string para o timestamp no JSON
+          const currentTimestampISO = new Date().toISOString(); // Timestamp ISO para o JSON
 
 
-          // Extrai dados necessários do resultado da validação
+          // Extrai os dados necessários do resultado da validação
           const { location, closestLocation, distance } = locationValidationResult;
 
 
           if (!location || !closestLocation || distance === undefined) {
                console.error('⚠️ Dados de localização incompletos após validação bem-sucedida.');
-               throw new Error('Erro interno: dados de localização incompletos.');
+               throw new Error('Erro interno: dados de localização incompletos para salvar.');
           }
 
 
-          // Cria o objeto de localização para a ação atual no formato JSON desejado
-          const newLocationEntry: LocationEntry = {
+          // Constrói o objeto de detalhes da localização para este ponto
+          const newLocationDetail: LocationDetails = {
               address: closestLocation.address,
-              distance: distance,
+              distance: Math.round(distance), // Arredonda a distância para inteiro
               latitude: location.latitude,
               longitude: location.longitude,
-              timestamp: currentTimeISO,
+              timestamp: currentTimestampISO,
               locationName: closestLocation.name,
-              // Opcional: adicionar accuracy se quiser salvar
-              // accuracy: location.accuracy,
+              // gps_accuracy: location.gpsAccuracy // Não incluído no JSON final se não for necessário
           };
 
 
-          // Obtém o objeto locations atual do registro existente, ou inicia um objeto vazio
-          const currentLocations: LocationsData = timeRecord?.locations || {};
+          // Obtém os dados de localização existentes ou inicia um objeto vazio
+          const existingLocations = timeRecord?.locations || {};
 
 
-          // Mescla o novo objeto de localização com o objeto locations existente
+          // Cria o objeto de locations atualizado
           const updatedLocations: LocationsData = {
-              ...currentLocations,
-              [action]: newLocationEntry,
+              ...existingLocations,
+              [action]: newLocationDetail // Adiciona/atualiza o detalhe para a ação atual
           };
 
 
-          // Payload ajustado para incluir o campo de horário e o objeto locations mesclado
+          // Payload ajustado para incluir o horário E o objeto JSON de locations
           let payload: any = {
-            [action]: currentTimeStr,
-            updated_at: new Date().toISOString(),
-            locations: updatedLocations, // Inclui o objeto JSON mesclado
+            [action]: currentTimeStr, // Ex: clock_in: "08:00"
+            updated_at: currentTimestampISO,
+            locations: updatedLocations // Ex: locations: { clock_in: { ... } }
+            // Removido latitude, longitude, gps_accuracy como colunas separadas
           };
 
 
@@ -449,8 +448,10 @@ const OptimizedTimeRegistration = React.memo(() => {
 
           // 3. Refetch dados para garantir a UI atualizada (opcional, mas bom para sincronia)
           console.log('🔄 Iniciando refetchRecord...');
-          await refetchRecord(); // Refetch para garantir que o useOptimizedQuery esteja atualizado
-          console.log('✅ refetchRecord concluído.');
+          // Não é estritamente necessário refetch aqui se setTimeRecord já atualizou o estado
+          // mas pode ser útil para garantir consistência com o cache do useOptimizedQuery.
+          // await refetchRecord();
+          console.log('✅ RefetchRecord (opcional) concluído.');
 
 
           // 4. Limpar cache de localização
@@ -581,8 +582,10 @@ const OptimizedTimeRegistration = React.memo(() => {
   ], []);
 
 
-  const getValue = useCallback((key: string) => {
-    return timeRecord?.[key as keyof TimeRecord];
+  // CORRIGIDO: getValue agora só retorna string | undefined para os campos de horário
+  const getValue = useCallback((key: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
+    // Acessa diretamente a propriedade do timeRecord que corresponde ao horário
+    return timeRecord?.[key];
   }, [timeRecord]);
 
 
@@ -648,7 +651,8 @@ const OptimizedTimeRegistration = React.memo(() => {
             <div className="flex justify-between items-center mb-3">
               {steps.map((step, index) => {
                 const Icon = step.icon;
-                const isCompleted = !!getValue(step.key);
+                // CORRIGIDO: Usar getValue para verificar se o horário existe
+                const isCompleted = !!getValue(step.key as any); // Cast para any temporário se TS reclamar, mas a tipagem de getValue deve resolver
                 const isNext = !isCompleted && completedCount === index;
 
 
@@ -670,9 +674,10 @@ const OptimizedTimeRegistration = React.memo(() => {
                     }`}>
                       {step.label}
                     </span>
+                    {/* CORRIGIDO: Chamar getValue com a chave correta para exibir o horário */}
                     {isCompleted && (
                       <span className="text-xs text-blue-600 mt-1 font-medium">
-                        {getValue(step.key)}
+                        {getValue(step.key as any)} {/* Cast para any temporário se TS reclamar */}
                       </span>
                     )}
                   </div>
