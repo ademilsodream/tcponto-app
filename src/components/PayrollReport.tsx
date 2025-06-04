@@ -30,9 +30,9 @@ interface PayrollData {
     hourlyRate: number;
     overtimeRate: number;
   };
-  totalHours: number;
-  normalHours: number;
-  overtimeHours: number;
+  totalHours: number; // Este campo no objeto de dados do funcionário continua sendo a SOMA das horas totais diárias (Normal + Extra)
+  normalHours: number; // Este campo é a SOMA das horas normais diárias
+  overtimeHours: number; // Este campo é a SOMA das horas extras diárias
   normalPay: number;
   overtimePay: number;
   totalPay: number;
@@ -71,7 +71,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     const endDateObj = new Date(end + 'T00:00:00');
 
     const isValid = date >= startDateObj && date <= endDateObj;
-    // console.log(`[PayrollReport] Data ${dateStr} está no período ${start} a ${end}?`, isValid); // Manter logs para debug se necessário
     return isValid;
   };
 
@@ -163,9 +162,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
         console.log(`Registros encontrados na consulta para ${employee.name}:`, timeRecords);
 
-        let totalHours = 0;
-        let totalNormalHours = 0;
-        let totalOvertimeHours = 0;
+        let totalHoursSum = 0; // ✨ Acumulador para a soma das horas TOTAIS diárias
+        let totalNormalHoursSum = 0; // ✨ Acumulador para a soma das horas NORMAIS diárias
+        let totalOvertimeHoursSum = 0; // ✨ Acumulador para a soma das horas EXTRAS diárias
 
         // Calcular horas APENAS dos registros VÁLIDOS do período selecionado
         if (timeRecords && timeRecords.length > 0) {
@@ -195,16 +194,16 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
               roundedDayOvertimeHours
             });
 
-            totalHours += roundedDayTotalHours;
-            totalNormalHours += roundedDayNormalHours;
-            totalOvertimeHours += roundedDayOvertimeHours;
+            totalHoursSum += roundedDayTotalHours; // Soma das horas totais diárias
+            totalNormalHoursSum += roundedDayNormalHours; // Soma das horas normais diárias
+            totalOvertimeHoursSum += roundedDayOvertimeHours; // Soma das horas extras diárias
           });
         }
 
         console.log(`Totais para ${employee.name} (soma dos arredondados):`, {
-          totalHours, // Agora já é a soma dos arredondados
-          totalNormalHours, // Agora já é a soma dos arredondados
-          totalOvertimeHours // Agora já é a soma dos arredondados
+          totalHoursSum,
+          totalNormalHoursSum,
+          totalOvertimeHoursSum
         });
 
         // Usar o hourly_rate do banco de dados
@@ -212,8 +211,8 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
         // Calcular pagamentos - hora extra com mesmo valor da hora normal
         // Usar os totais que já são a soma dos arredondados
-        const normalPay = totalNormalHours * hourlyRate;
-        const overtimePay = totalOvertimeHours * hourlyRate; // Mesmo valor da hora normal
+        const normalPay = totalNormalHoursSum * hourlyRate;
+        const overtimePay = totalOvertimeHoursSum * hourlyRate; // Mesmo valor da hora normal
         const totalPay = normalPay + overtimePay;
 
         payrollResults.push({
@@ -224,9 +223,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             hourlyRate: hourlyRate,
             overtimeRate: hourlyRate // Mesmo valor da hora normal
           },
-          totalHours: totalHours, // Já é a soma dos arredondados
-          normalHours: totalNormalHours, // Já é a soma dos arredondados
-          overtimeHours: totalOvertimeHours, // Já é a soma dos arredondados
+          totalHours: totalHoursSum, // Soma dos totais diários (Normal + Extra)
+          normalHours: totalNormalHoursSum, // Soma dos normais diários
+          overtimeHours: totalOvertimeHoursSum, // Soma dos extras diários
           normalPay,
           overtimePay,
           totalPay
@@ -272,13 +271,11 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
     return payrollData.reduce((sum, data) => sum + data.totalPay, 0);
   };
 
-  const getTotalHours = () => {
-    // Agora ele soma os totalHours que já são a soma dos arredondados diários
-    return payrollData.reduce((sum, data) => sum + data.totalHours, 0);
+  const getTotalNormalHours = () => { // ✨ Nova função para somar apenas as horas NORMAIS
+    return payrollData.reduce((sum, data) => sum + data.normalHours, 0);
   };
 
   const getTotalOvertimeHours = () => {
-    // Agora ele soma os overtimeHours que já são a soma dos arredondados diários
     return payrollData.reduce((sum, data) => sum + data.overtimeHours, 0);
   };
 
@@ -331,8 +328,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
@@ -492,12 +488,12 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
 
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total de Horas</CardTitle>
+                      <CardTitle className="text-sm font-medium">Horas Normais {/* ✨ Alterado o label */}</CardTitle>
                       <Clock className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold text-primary-900">
-                        {formatHoursAsTime(getTotalHours())}
+                        {formatHoursAsTime(getTotalNormalHours())} {/* ✨ Usando a nova função */}
                       </div>
                     </CardContent>
                   </Card>
@@ -546,7 +542,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                           <TableRow>
                             <TableHead>Funcionário</TableHead>
                             <TableHead>Valor/Hora</TableHead>
-                            <TableHead>Total de Horas</TableHead>
+                            <TableHead>Total de Horas (Normal + Extra)</TableHead> {/* ✨ Label mais claro */}
                             <TableHead>Horas Normais</TableHead>
                             <TableHead>Horas Extras</TableHead>
                             <TableHead>Pagamento Normal</TableHead>
@@ -564,9 +560,9 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                                 </div>
                               </TableCell>
                               <TableCell>{formatCurrency(data.employee.hourlyRate)}</TableCell>
-                              <TableCell>{formatHoursAsTime(data.totalHours)}</TableCell>
-                              <TableCell>{formatHoursAsTime(data.normalHours)}</TableCell>
-                              <TableCell>{formatHoursAsTime(data.overtimeHours)}</TableCell>
+                              <TableCell>{formatHoursAsTime(data.totalHours)}</TableCell> {/* Continua mostrando a soma das diárias */}
+                              <TableCell>{formatHoursAsTime(data.normalHours)}</TableCell> {/* Mostra a soma das normais diárias */}
+                              <TableCell>{formatHoursAsTime(data.overtimeHours)}</TableCell> {/* Mostra a soma das extras diárias */}
                               <TableCell>{formatCurrency(data.normalPay)}</TableCell>
                               <TableCell>{formatCurrency(data.overtimePay)}</TableCell>
                               <TableCell className="font-bold text-accent-600">
@@ -620,7 +616,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         </div>
       </div>
     </div>
-  ); // <-- Parêntese extra removido aqui
+  );
 };
 
 
