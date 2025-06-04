@@ -7,7 +7,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useQuery } from '@tanstack/react-query';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AnalyticsButton from './AnalyticsButton';
-// ✨ Importar a função calculateWorkingHours
+// Importar a função calculateWorkingHours
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 
 interface User {
@@ -39,7 +39,7 @@ interface AdminDashboardProps {
   employees: User[];
 }
 
-// ✨ Função para formatar horas no padrão HH:MM
+// Função para formatar horas no padrão HH:MM
 const formatHoursAsTime = (hours: number | null | undefined) => {
   if (hours === null || hours === undefined || hours === 0) return '00:00';
 
@@ -63,7 +63,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
 
-    // ✨ MODIFICAÇÃO: Buscar todos os campos necessários para recalcular as horas do mês
+    // Buscar todos os campos necessários para recalcular as horas do mês
     const { data: monthlyRecords, error: monthlyError } = await supabase
       .from('time_records')
       .select('user_id, date, clock_in, lunch_start, lunch_end, clock_out') // Selecionar campos de tempo
@@ -80,40 +80,65 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
     if (todayError) throw todayError;
 
-    // ✨ MODIFICAÇÃO: Recalcular totais de horas e ganhos do mês
-    let totalHours = 0;
-    let totalEarnings = 0;
+    // ✨ MODIFICAÇÃO: Recalcular totais de horas e ganhos do mês AGREGANDO POR FUNCIONÁRIO PRIMEIRO
+
+    // Criar um mapa para agrupar registros por usuário
+    const recordsByUser = new Map<string, any[]>();
+    monthlyRecords?.forEach(record => {
+      if (!recordsByUser.has(record.user_id)) {
+        recordsByUser.set(record.user_id, []);
+      }
+      recordsByUser.get(record.user_id)!.push(record);
+    });
+
+    let grandTotalHours = 0; // Este somará os totais *arredondados* por funcionário
+    let grandTotalEarnings = 0; // Este somará os totais de pagamento por funcionário
 
     // Criar um mapa de funcionários para acessar hourlyRate e overtimeRate rapidamente
     const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
 
-    monthlyRecords?.forEach(record => {
-      const employee = employeeMap.get(record.user_id);
+    // Calcular totais para cada usuário e somá-los nos totais gerais
+    for (const [userId, records] of recordsByUser.entries()) {
+      const employee = employeeMap.get(userId);
       if (employee) {
-        // Usar a mesma função de cálculo do PayrollReport
-        const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } =
-          calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+        let employeeTotalHoursRaw = 0; // Soma bruta das horas para cálculo de pagamento
+        let employeeTotalNormalHoursRaw = 0;
+        let employeeTotalOvertimeHoursRaw = 0;
 
-        totalHours += dayTotalHours;
+        // Calcular totais diários e somar para o total do funcionário (bruto)
+        records.forEach(record => {
+          const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } =
+            calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
 
-        // Calcular pagamento diário usando as taxas do funcionário
+          employeeTotalHoursRaw += dayTotalHours;
+          employeeTotalNormalHoursRaw += dayNormalHours;
+          employeeTotalOvertimeHoursRaw += dayOvertimeHours;
+        });
+
+        // Calcular pagamento total do funcionário usando horas brutas
         const hourlyRate = Number(employee.hourlyRate) || 0;
-        const overtimeRate = Number(employee.overtimeRate) || hourlyRate; // Usar hourlyRate se overtimeRate não estiver definido
+        // Usar hourlyRate se overtimeRate não estiver definido, como no PayrollReport
+        const overtimeRate = Number(employee.overtimeRate) || hourlyRate;
 
-        const dayNormalPay = dayNormalHours * hourlyRate;
-        const dayOvertimePay = dayOvertimeHours * overtimeRate;
-        const dayTotalPay = dayNormalPay + dayOvertimePay;
+        const employeeNormalPay = employeeTotalNormalHoursRaw * hourlyRate;
+        const employeeOvertimePay = employeeTotalOvertimeHoursRaw * overtimeRate;
+        const employeeTotalPay = employeeNormalPay + employeeOvertimePay; // Total de pagamento do funcionário
 
-        totalEarnings += dayTotalPay;
+        // Arredondar o total de horas do funcionário para 1 casa decimal (para consistência com o PayrollReport)
+        const employeeTotalHoursRounded = Math.round(employeeTotalHoursRaw * 10) / 10;
+
+        // Somar os totais do funcionário nos totais gerais
+        grandTotalHours += employeeTotalHoursRounded; // Somar horas *arredondadas*
+        grandTotalEarnings += employeeTotalPay; // Somar pagamento total do funcionário
       }
-    });
+    }
 
-    // Mapa otimizado para status dos funcionários
+    // Mapa otimizado para status dos funcionários (sem alteração)
     const todayRecordsMap = new Map(
       todayData?.map(record => [record.user_id, record]) || []
     );
 
-    // Filtrar apenas funcionários (não admins) e processar status
+    // Filtrar apenas funcionários (não admins) e processar status (sem alteração)
     const employeeStatuses: EmployeeStatus[] = employees
       .filter(emp => emp.role === 'user')
       .map(employee => {
@@ -132,14 +157,14 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     return {
       totalEmployees: employees.length,
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
-      // ✨ Usar os totais recalculados
-      totalHours: totalHours,
-      totalEarnings: totalEarnings,
+      // Usar os totais gerais calculados pela agregação por funcionário
+      totalHours: grandTotalHours,
+      totalEarnings: grandTotalEarnings,
       employeeStatuses
     };
   }, [employees]); // Dependência 'employees' é importante aqui
 
-  // Query otimizada com cache inteligente
+  // Query otimizada com cache inteligente (sem alteração)
   const {
     data: dashboardData,
     isLoading,
@@ -154,7 +179,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     retry: 1
   });
 
-  // Função memoizada para status
+  // Função memoizada para status (sem alteração)
   const getEmployeeStatus = useCallback((record: any): { status: string; label: string; color: string } => {
     if (!record?.clock_in) {
       return {
@@ -188,7 +213,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
   }, []);
 
 
-  // Funções memoizadas para classes CSS
+  // Funções memoizadas para classes CSS (sem alteração)
   const getStatusColorClasses = useCallback((color: string) => {
     const classMap = {
       green: 'bg-green-50 border-green-200 text-green-800',
@@ -209,7 +234,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     return classMap[color as keyof typeof classMap] || 'bg-gray-200 text-gray-800';
   }, []);
 
-  // Loading skeleton otimizado
+  // Loading skeleton otimizado (sem alteração)
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -236,7 +261,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         <p className="text-red-600">Erro ao carregar dados</p>
       </div>
     );
-  }
+    }
 
   return (
     <div className="space-y-6">
