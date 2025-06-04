@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/Auth/AuthContext'; // Ajuste o caminho se necessário
+import { useAuth } from '@/contexts/AuthContext'; // Corrigido para o caminho original
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
