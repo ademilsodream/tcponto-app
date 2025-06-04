@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Clock, DollarSign, Calendar, UserCheck, UserX, BarChart3 } from 'lucide-react';
+// ✨ Importar ícone para horas extras (pode ser Clock ou outro, usei Clock para simplicidade, mas OvertimeIcon seria ideal se existisse)
+import { Users, Clock, DollarSign, Calendar, UserCheck, UserX, BarChart3, Clock4 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useQuery } from '@tanstack/react-query';
@@ -23,6 +24,8 @@ interface DashboardData {
   totalEmployees: number;
   totalAdmins: number;
   totalHours: number;
+  // ✨ Adicionado totalOvertimeHours
+  totalOvertimeHours: number;
   totalEarnings: number;
   employeeStatuses: EmployeeStatus[];
 }
@@ -80,7 +83,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
     if (todayError) throw todayError;
 
-    // ✨ MODIFICAÇÃO: Recalcular totais de horas e ganhos do mês AGREGANDO POR FUNCIONÁRIO PRIMEIRO
+    // Recalcular totais de horas e ganhos do mês AGREGANDO POR FUNCIONÁRIO PRIMEIRO
 
     // Criar um mapa para agrupar registros por usuário
     const recordsByUser = new Map<string, any[]>();
@@ -92,6 +95,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     });
 
     let grandTotalHours = 0; // Este somará os totais *arredondados* por funcionário
+    // ✨ Adicionado acumulador para horas extras totais
+    let grandTotalOvertimeHours = 0;
     let grandTotalEarnings = 0; // Este somará os totais de pagamento por funcionário
 
     // Criar um mapa de funcionários para acessar hourlyRate e overtimeRate rapidamente
@@ -103,7 +108,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       if (employee) {
         let employeeTotalHoursRaw = 0; // Soma bruta das horas para cálculo de pagamento
         let employeeTotalNormalHoursRaw = 0;
-        let employeeTotalOvertimeHoursRaw = 0;
+        let employeeTotalOvertimeHoursRaw = 0; // Acumulador de horas extras por funcionário
 
         // Calcular totais diários e somar para o total do funcionário (bruto)
         records.forEach(record => {
@@ -112,7 +117,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
           employeeTotalHoursRaw += dayTotalHours;
           employeeTotalNormalHoursRaw += dayNormalHours;
-          employeeTotalOvertimeHoursRaw += dayOvertimeHours;
+          employeeTotalOvertimeHoursRaw += dayOvertimeHours; // Somar horas extras diárias
         });
 
         // Calcular pagamento total do funcionário usando horas brutas
@@ -129,6 +134,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
         // Somar os totais do funcionário nos totais gerais
         grandTotalHours += employeeTotalHoursRounded; // Somar horas *arredondadas*
+        // ✨ Somar as horas extras totais do funcionário no total geral de horas extras
+        grandTotalOvertimeHours += employeeTotalOvertimeHoursRaw;
         grandTotalEarnings += employeeTotalPay; // Somar pagamento total do funcionário
       }
     }
@@ -159,6 +166,8 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
       // Usar os totais gerais calculados pela agregação por funcionário
       totalHours: grandTotalHours,
+      // ✨ Retornar o total de horas extras calculado
+      totalOvertimeHours: grandTotalOvertimeHours,
       totalEarnings: grandTotalEarnings,
       employeeStatuses
     };
@@ -261,11 +270,13 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         <p className="text-red-600">Erro ao carregar dados</p>
       </div>
     );
-    }
+  }
 
   return (
     <div className="space-y-6">
       {/* Cards de Métricas Otimizados */}
+      {/* ✨ MODIFICAÇÃO: Alterado para grid de 5 colunas se necessário, ou manter 4 e ajustar layout */}
+      {/* Mantenho 4 colunas e adiciono o novo card, ele vai para a próxima linha em telas menores */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
@@ -305,7 +316,23 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           </CardContent>
         </Card>
 
+        {/* ✨ NOVO CARD: Total de Horas Extras */}
         <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {/* Usei Clock4, mas pode ser outro ícone */}
+              <Clock4 className="w-5 h-5 text-orange-500" />
+              Horas Extras
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatHoursAsTime(dashboardData?.totalOvertimeHours)}</div>
+            <div className="text-sm text-gray-500">Mês atual</div>
+          </CardContent>
+        </Card>
+
+        {/* O card de Folha de Pagamento pode ir para a próxima linha dependendo do layout */}
+         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-green-500" />
@@ -319,7 +346,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         </Card>
       </div>
 
-      {/* Tabs para Dashboard e Analytics */}
+      {/* Tabs para Dashboard e Analytics (sem alteração) */}
       <Tabs defaultValue="status" className="space-y-6">
         <div className="flex justify-between items-center">
           <TabsList>
@@ -333,7 +360,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         </div>
 
         <TabsContent value="status">
-          {/* Status dos Funcionários Otimizado */}
+          {/* Status dos Funcionários Otimizado (sem alteração) */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
