@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ interface PendingApprovalsProps {
     hourlyRate: number;
     overtimeRate: number;
   }>;
-  onApprovalChange?: () => void;
+  onApprovalChange?: () => void; // ✨ ADICIONADO: Nova propriedade opcional
 }
 
 const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
