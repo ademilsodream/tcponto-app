@@ -51,7 +51,6 @@ const EmployeeDashboard: React.FC = () => {
         return (
           <EmployeeMonthlySummary 
             selectedMonth={selectedDate}
-            onShowDetailedReport={() => setActiveScreen('detailedReport')}
             onBack={() => setActiveScreen('timeRegistration')} 
           />
         );
