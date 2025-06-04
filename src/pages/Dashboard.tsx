@@ -125,7 +125,6 @@ const Dashboard = () => {
         return (
           <EmployeeMonthlySummary 
             selectedMonth={selectedDate}
-            onShowDetailedReport={() => setEmployeeActiveScreen('detailedReport')}
             onBack={() => setEmployeeActiveScreen('timeRegistration')} 
           />
         );
