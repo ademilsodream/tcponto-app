@@ -1,13 +1,16 @@
 // src/utils/optimizedLocationValidation.ts
 
+
 // Importe aqui quaisquer dependências que seu arquivo possa ter
 // import { someDependency } from 'some-module';
+
 
 // Interface Location - EXPORTADA para ser usada em outros arquivos
 export interface Location {
   latitude: number;
   longitude: number;
 }
+
 
 interface AllowedLocation {
   id: string;
@@ -19,6 +22,7 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
+
 // Cache global para localização válida
 let locationCache: {
   location: Location;
@@ -26,9 +30,11 @@ let locationCache: {
   accuracy: number;
 } | null = null;
 
+
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutos
 const GPS_TIMEOUT = 15000; // 15 segundos máximo
 let pendingLocationRequest: Promise<{ location: Location; accuracy: number }> | null = null;
+
 
 // Calcular distância otimizada
 export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -43,6 +49,7 @@ export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2
   return R * c;
 };
 
+
 // Range adaptativo otimizado
 const calculateAdaptiveRange = (baseRange: number, gpsAccuracy: number): number => {
   if (gpsAccuracy <= 50) return baseRange;
@@ -51,6 +58,7 @@ const calculateAdaptiveRange = (baseRange: number, gpsAccuracy: number): number 
   return Math.min(500, baseRange + (gpsAccuracy * 2));
 };
 
+
 // Verificar se localização está permitida (otimizada)
 export const isLocationAllowed = (
   currentLocation: Location,
@@ -58,16 +66,20 @@ export const isLocationAllowed = (
   gpsAccuracy: number = 100
 ): { allowed: boolean; closestLocation?: AllowedLocation; distance?: number; adaptiveRange?: number; message?: string } => {
 
+
   if (!allowedLocations || allowedLocations.length === 0) {
     return { allowed: false, message: 'Sistema sem localizações permitidas configuradas' };
   }
+
 
   let closestLocation: AllowedLocation | undefined;
   let minDistance = Infinity;
   let usedRange = 0;
 
+
   for (const location of allowedLocations) {
     if (!location.is_active) continue;
+
 
     const distance = calculateDistance(
       currentLocation.latitude,
@@ -76,13 +88,16 @@ export const isLocationAllowed = (
       Number(location.longitude)
     );
 
+
     if (distance < minDistance) {
       minDistance = distance;
       closestLocation = location;
     }
 
+
     const adaptiveRange = calculateAdaptiveRange(Number(location.range_meters), gpsAccuracy);
     usedRange = adaptiveRange;
+
 
     if (distance <= adaptiveRange) {
       return {
@@ -95,9 +110,11 @@ export const isLocationAllowed = (
     }
   }
 
+
    const message = closestLocation
       ? `Você está a ${Math.round(minDistance)}m de ${closestLocation.name}. Aproxime-se para registrar.`
       : 'Nenhuma localização permitida próxima';
+
 
   return {
     allowed: false,
@@ -108,6 +125,7 @@ export const isLocationAllowed = (
   };
 };
 
+
 // Detectar ambiente nativo otimizado
 const isNativeApp = (): boolean => {
   return !!(window as any)?.Capacitor?.isNativePlatform?.() ||
@@ -115,6 +133,7 @@ const isNativeApp = (): boolean => {
            /Android.*wv/.test(navigator.userAgent) ||
            (navigator.userAgent.includes('Android') && !(window as any).chrome);
 };
+
 
 // Obter localização com cache e timeout otimizado
 const getCurrentLocationOptimized = async (): Promise<{ location: Location; accuracy: number }> => {
@@ -126,13 +145,16 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
     };
   }
 
+
   if (pendingLocationRequest) {
     console.log('⏳ Aguardando requisição GPS existente...');
     return pendingLocationRequest;
   }
 
+
   pendingLocationRequest = new Promise(async (resolve, reject) => {
     let timeoutId: any; // Definir tipo para o timeoutId
+
 
     try {
       timeoutId = setTimeout(() => {
@@ -140,8 +162,10 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
         reject(new Error('Timeout ao obter localização (15s). Verifique se o GPS está ativo.'));
       }, GPS_TIMEOUT);
 
+
       if (isNativeApp() && (window as any)?.Capacitor?.Plugins?.Geolocation) {
         const { Geolocation } = (window as any).Capacitor.Plugins;
+
 
         try {
           const position = await Geolocation.getCurrentPosition({
@@ -150,8 +174,10 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
             maximumAge: 30000
           });
 
+
           clearTimeout(timeoutId);
           pendingLocationRequest = null;
+
 
           const result = {
             location: {
@@ -161,11 +187,13 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
             accuracy: position.coords.accuracy || 999
           };
 
+
           locationCache = {
             location: result.location,
             accuracy: result.accuracy,
             timestamp: Date.now()
           };
+
 
           resolve(result);
           return;
@@ -174,6 +202,7 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
         }
       }
 
+
       if (!navigator.geolocation) {
         clearTimeout(timeoutId);
         pendingLocationRequest = null;
@@ -181,18 +210,21 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
         return;
       }
 
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
           clearTimeout(timeoutId);
           pendingLocationRequest = null;
 
+
           const result = {
             location: {
               latitude: position.coords.latitude,
-              longitude: position.coords.longitude
+              longitude: position.longitude
             },
             accuracy: position.coords.accuracy || 999
           };
+
 
           locationCache = {
             location: result.location,
@@ -200,11 +232,13 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
             timestamp: Date.now()
           };
 
+
           resolve(result);
         },
         (error) => {
           clearTimeout(timeoutId);
           pendingLocationRequest = null;
+
 
           let errorMessage = 'Erro ao obter localização';
           switch (error.code) {
@@ -221,6 +255,7 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
                 errorMessage = `Erro desconhecido ao obter localização (Código: ${error.code})`;
           }
 
+
           reject(new Error(errorMessage));
         },
         {
@@ -230,6 +265,7 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
         }
       );
 
+
     } catch (error: any) {
       clearTimeout(timeoutId);
       pendingLocationRequest = null;
@@ -237,8 +273,10 @@ const getCurrentLocationOptimized = async (): Promise<{ location: Location; accu
     }
   });
 
+
   return pendingLocationRequest;
 };
+
 
 // Validação principal otimizada
 export const validateLocationForTimeRecord = async (allowedLocations: AllowedLocation[]): Promise<{
@@ -253,6 +291,7 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
   try {
     console.log('🎯 Iniciando validação otimizada de localização');
 
+
     if (!allowedLocations || allowedLocations.length === 0) {
       return {
         valid: false,
@@ -260,27 +299,34 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
       };
     }
 
+
     console.log(`🏢 Validando contra ${allowedLocations.length} localizações`);
+
 
     const gpsResult = await getCurrentLocationOptimized();
     const { location, accuracy } = gpsResult;
 
+
     console.log(`📊 GPS obtido - Precisão: ${accuracy}m`);
+
 
     const validation = isLocationAllowed(location, allowedLocations, accuracy);
 
+
     return {
         valid: validation.allowed,
-        location,
+        location, // Inclui a localização obtida
         message: validation.message || 'Localização não permitida',
         closestLocation: validation.closestLocation,
         distance: validation.distance,
-        gpsAccuracy: accuracy,
+        gpsAccuracy: accuracy, // Inclui a precisão obtida
         adaptiveRange: validation.adaptiveRange
     };
 
+
   } catch (error: any) {
     console.error('💥 Erro na validação:', error);
+
 
     return {
       valid: false,
@@ -288,6 +334,7 @@ export const validateLocationForTimeRecord = async (allowedLocations: AllowedLoc
     };
   }
 };
+
 
 // Limpar cache quando necessário
 export const clearLocationCache = () => {
