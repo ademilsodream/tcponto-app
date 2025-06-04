@@ -163,15 +163,11 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="icon" onClick={onBack}>
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                   <Clock className="w-5 h-5" />
-                  Relatório Detalhado de Ponto
+                  Relatório Detalhado
                 </h1>
-                <p className="text-sm text-gray-600">Visualize seus registros de ponto por período.</p>
               </div>
             </div>
           </div>
