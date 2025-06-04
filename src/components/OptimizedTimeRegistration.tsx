@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+// Importa Json do supabase-js
+import { supabase, Json } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-// CORRIGIDO: Caminho do import do AuthContext
+// CORRIGIDO: Caminho do import do AuthContext (mantido o padrão @/)
 import { useAuth } from '@/contexts/AuthContext';
 // Importe validateLocationForTimeRecord e a interface Location
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
@@ -19,7 +20,11 @@ import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { clearLocationCache } from '@/utils/optimizedLocationValidation'; // Importe clearLocationCache
 
 
-// Nova interface para a estrutura de cada registro de localização dentro do JSON
+// Define um tipo de união literal para as chaves de horário
+type TimeRecordKey = 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
+
+
+// Interface para a estrutura de cada registro de localização dentro do JSON
 interface LocationDetails {
   address: string;
   distance: number;
@@ -32,7 +37,7 @@ interface LocationDetails {
 }
 
 
-// Nova interface para a estrutura completa da coluna 'locations' (o objeto JSON)
+// Interface para a estrutura completa da coluna 'locations' (o objeto JSON)
 interface LocationsData {
   clock_in?: LocationDetails;
   lunch_start?: LocationDetails;
@@ -51,11 +56,9 @@ interface TimeRecord {
   total_hours: number;
   normal_hours?: number;
   overtime_hours?: number;
-  normal_pay?: number;
-  overtime_pay?: number;
   total_pay?: number;
-  // CORRIGIDO: Tipagem da coluna locations para refletir o objeto JSON esperado
-  locations?: LocationsData | null;
+  // CORRIGIDO: Tipagem da coluna locations para aceitar Json do Supabase
+  locations?: Json | null; // Supabase retorna Json, que pode ser qualquer tipo JSON válido
   created_at?: string;
   updated_at?: string;
   status?: string;
@@ -84,7 +87,8 @@ const OptimizedTimeRegistration = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editField, setEditField] = useState<'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out' | null>(null);
+  // CORRIGIDO: Usar TimeRecordKey para tipar editField
+  const [editField, setEditField] = useState<TimeRecordKey | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -132,7 +136,8 @@ const OptimizedTimeRegistration = React.memo(() => {
   }, [userProfile?.name, user?.email]);
 
 
-  const fieldNames = useMemo(() => ({
+  // CORRIGIDO: Usar TimeRecordKey para tipar as chaves de fieldNames
+  const fieldNames: Record<TimeRecordKey, string> = useMemo(() => ({
     clock_in: 'Entrada',
     lunch_start: 'Início do Almoço',
     lunch_end: 'Fim do Almoço',
@@ -234,6 +239,9 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
       console.log('✅ Registro de hoje encontrado:', data);
+      // CORRIGIDO: O Supabase retorna 'locations' como Json.
+      // A tipagem TimeRecord agora aceita Json | null.
+      // Não precisamos fazer nada especial aqui, a tipagem já está mais flexível.
       return data;
     },
     staleTime: 2 * 60 * 1000, // 2 minutos para dados atuais
@@ -305,7 +313,8 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
   // Handle time action otimizado
-  const handleTimeAction = useCallback(async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
+  // CORRIGIDO: Usar TimeRecordKey para tipar o parâmetro action
+  const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
 
@@ -315,7 +324,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
     // Usar debounced GPS request
     debouncedLocationRequest(
-      action,
+      action, // Passa a action como string para debouncedLocationRequest
       // O callback onSuccess agora recebe o resultado da validação
       async (locationValidationResult) => {
         console.log('➡️ Callback onSuccess do debouncedLocationRequest iniciado.');
@@ -347,8 +356,12 @@ const OptimizedTimeRegistration = React.memo(() => {
           };
 
 
-          // Obtém os dados de localização existentes ou inicia um objeto vazio
-          const existingLocations = timeRecord?.locations || {};
+          // Obtém os dados de localização existentes.
+          // CORRIGIDO: Verificar se timeRecord.locations é um objeto antes de usá-lo
+          // e fazer type assertion para LocationsData. Se não for objeto ou for null, inicia com {}
+          const existingLocations = (typeof timeRecord?.locations === 'object' && timeRecord.locations !== null
+              ? timeRecord.locations as LocationsData // Type assertion
+              : {}) as LocationsData; // Garante que sempre é tratado como LocationsData
 
 
           // Cria o objeto de locations atualizado
@@ -384,7 +397,10 @@ const OptimizedTimeRegistration = React.memo(() => {
               .single(); // Espera um único registro
 
 
-            savedRecordData = data;
+            // CORRIGIDO: O dado retornado pelo Supabase tem a tipagem Json para locations.
+            // Precisamos garantir que o estado local timeRecord seja atualizado com a tipagem correta.
+            // A tipagem TimeRecord agora aceita Json | null para locations, o que deve ser compatível.
+            savedRecordData = data ? data as TimeRecord : null; // Type assertion para TimeRecord
             supabaseError = error;
 
 
@@ -410,7 +426,10 @@ const OptimizedTimeRegistration = React.memo(() => {
               .single(); // Espera um único registro
 
 
-            savedRecordData = data;
+            // CORRIGIDO: O dado retornado pelo Supabase tem a tipagem Json para locations.
+            // Precisamos garantir que o estado local timeRecord seja atualizado com a tipagem correta.
+            // A tipagem TimeRecord agora aceita Json | null para locations, o que deve ser compatível.
+            savedRecordData = data ? data as TimeRecord : null; // Type assertion para TimeRecord
             supabaseError = error;
           }
 
@@ -434,6 +453,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                console.log('✨ Estado local timeRecord atualizado com dados salvos.');
           } else {
                console.warn('Supabase retornou sucesso, mas nenhum dado foi retornado.');
+          .');
           }
 
 
@@ -511,8 +531,8 @@ const OptimizedTimeRegistration = React.memo(() => {
           employee_id: user.id,
           employee_name: userProfile?.name || user.email || 'Usuário', // Usar nome do perfil se disponível
           date: localDate,
-          field: editField,
-          old_value: timeRecord?.[editField] || null,
+          field: editField, // editField já é TimeRecordKey
+          old_value: timeRecord?.[editField] || null, // Acessa o valor antigo corretamente
           new_value: editValue,
           reason: editReason,
           status: 'pending'
@@ -575,15 +595,16 @@ const OptimizedTimeRegistration = React.memo(() => {
 
   // Memoizar steps para evitar recálculo
   const steps = useMemo(() => [
-    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
-    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'lunch_end', label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
+    // CORRIGIDO: Tipar key como TimeRecordKey
+    { key: 'clock_in' as TimeRecordKey, label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
+    { key: 'lunch_start' as TimeRecordKey, label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'lunch_end' as TimeRecordKey, label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
+    { key: 'clock_out' as TimeRecordKey, label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ], []);
 
 
-  // CORRIGIDO: getValue agora só retorna string | undefined para os campos de horário
-  const getValue = useCallback((key: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
+  // CORRIGIDO: getValue agora aceita TimeRecordKey
+  const getValue = useCallback((key: TimeRecordKey) => {
     // Acessa diretamente a propriedade do timeRecord que corresponde ao horário
     return timeRecord?.[key];
   }, [timeRecord]);
@@ -594,7 +615,8 @@ const OptimizedTimeRegistration = React.memo(() => {
   }, [steps, getValue]);
 
 
-  const nextAction = useMemo(() => {
+  // CORRIGIDO: nextAction retorna TimeRecordKey | null
+  const nextAction = useMemo<TimeRecordKey | null>(() => {
     if (!timeRecord?.clock_in) return 'clock_in';
     if (!timeRecord?.lunch_start) return 'lunch_start';
     if (!timeRecord?.lunch_end) return 'lunch_end';
@@ -651,8 +673,8 @@ const OptimizedTimeRegistration = React.memo(() => {
             <div className="flex justify-between items-center mb-3">
               {steps.map((step, index) => {
                 const Icon = step.icon;
-                // CORRIGIDO: Usar getValue para verificar se o horário existe
-                const isCompleted = !!getValue(step.key as any); // Cast para any temporário se TS reclamar, mas a tipagem de getValue deve resolver
+                // CORRIGIDO: Usar getValue com a chave tipada corretamente
+                const isCompleted = !!getValue(step.key);
                 const isNext = !isCompleted && completedCount === index;
 
 
@@ -677,7 +699,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                     {/* CORRIGIDO: Chamar getValue com a chave correta para exibir o horário */}
                     {isCompleted && (
                       <span className="text-xs text-blue-600 mt-1 font-medium">
-                        {getValue(step.key as any)} {/* Cast para any temporário se TS reclamar */}
+                        {getValue(step.key)}
                       </span>
                     )}
                   </div>
@@ -702,7 +724,7 @@ const OptimizedTimeRegistration = React.memo(() => {
           {/* Botão Registrar */}
           {nextAction && (
             <Button
-              onClick={() => handleTimeAction(nextAction)}
+              onClick={() => handleTimeAction(nextAction)} // nextAction já é TimeRecordKey
               disabled={submitting}
               className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
             >
