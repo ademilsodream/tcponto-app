@@ -95,6 +95,14 @@ const OptimizedTimeRegistration = React.memo(() => {
     return 'Usuário';
   }, [userProfile?.name, user?.email]);
 
+  // MOVIDO PARA CIMA: Declaração de fieldNames antes de ser usado em useCallback
+  const fieldNames = useMemo(() => ({
+    clock_in: 'Entrada',
+    lunch_start: 'Início do Almoço',
+    lunch_end: 'Fim do Almoço',
+    clock_out: 'Saída'
+  }), []);
+
 
   // Query otimizada para localizações permitidas - cache longo pois raramente mudam
   const { data: allowedLocations = [] } = useOptimizedQuery<AllowedLocation[]>({
@@ -360,12 +368,8 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
           // 2. Mostrar toast de sucesso
-          const actionNames = {
-            clock_in: 'Entrada',
-            lunch_start: 'Início do Almoço',
-            lunch_end: 'Fim do Almoço',
-            clock_out: 'Saída'
-          };
+          // fieldNames agora está declarado antes deste useCallback
+          const actionNames = fieldNames; // Usar fieldNames
           toast({
             title: "Sucesso",
             description: `${actionNames[action]} registrada às ${currentTimeStr}`,
@@ -413,7 +417,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     // setSubmitting(false);
 
 
-  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames]); // Adicione fieldNames dependency
+  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames]);
 
 
   // Handle edit submit otimizado
@@ -528,12 +532,7 @@ const OptimizedTimeRegistration = React.memo(() => {
   }, [timeRecord]);
 
 
-  const fieldNames = useMemo(() => ({
-    clock_in: 'Entrada',
-    lunch_start: 'Início do Almoço',
-    lunch_end: 'Fim do Almoço',
-    clock_out: 'Saída'
-  }), []);
+  // fieldNames foi movido para cima
 
 
   if (loadingRecord) {
@@ -599,7 +598,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                             : 'bg-gray-100 text-gray-400'
                       }`}
                     >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <Icon className="w-4 h-4 sm:w-5 h-5" />
                     </div>
                     <span className={`text-xs text-center ${
                       isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
@@ -662,7 +661,7 @@ const OptimizedTimeRegistration = React.memo(() => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Solicitar Alteração - {editField ? fieldNames[editField] : ''}
+              Solicitar Alteração - {editField ? fieldNames[editField] : ''} {/* fieldNames usado aqui */}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
