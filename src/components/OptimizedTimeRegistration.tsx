@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
+import { clearLocationCache } from '@/utils/optimizedLocationValidation'; // Importe clearLocationCache
 
 
 interface TimeRecord {
@@ -31,6 +32,7 @@ interface TimeRecord {
   gps_accuracy?: number | null; // Adicionado gps_accuracy
 }
 
+
 interface AllowedLocation {
   id: string;
   name: string;
@@ -40,6 +42,7 @@ interface AllowedLocation {
   range_meters: number;
   is_active: boolean;
 }
+
 
 const OptimizedTimeRegistration = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
@@ -53,6 +56,7 @@ const OptimizedTimeRegistration = React.memo(() => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+
   // Memoizar data local para evitar recálculos
   const localDate = useMemo(() => {
     const now = new Date();
@@ -62,6 +66,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     return `${year}-${month}-${day}`;
   }, []);
 
+
   const localTime = useMemo(() => {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
@@ -69,13 +74,15 @@ const OptimizedTimeRegistration = React.memo(() => {
     return `${hours}:${minutes}`;
   }, [currentTime]);
 
+
   // Função de saudação memoizada
   const greeting = useMemo(() => {
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 12) return 'Bom dia';
     if (hour >= 12 && hour < 18) return 'Boa tarde';
     return 'Boa noite';
-  }, [currentTime.getHours()]);
+  }, [currentTime.getHours]); // Dependência correta: currentTime.getHours
+
 
   // Nome do usuário memoizado
   const userDisplayName = useMemo(() => {
@@ -88,6 +95,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     return 'Usuário';
   }, [userProfile?.name, user?.email]);
 
+
   // Query otimizada para localizações permitidas - cache longo pois raramente mudam
   const { data: allowedLocations = [] } = useOptimizedQuery<AllowedLocation[]>({
     queryKey: ['allowed-locations'],
@@ -99,7 +107,12 @@ const OptimizedTimeRegistration = React.memo(() => {
         .eq('is_active', true)
         .order('name');
 
-      if (error) throw error;
+
+      if (error) {
+        console.error('Erro ao carregar localizações permitidas:', error);
+        throw error;
+      }
+
 
       return (data || []).map(location => ({
         ...location,
@@ -112,11 +125,13 @@ const OptimizedTimeRegistration = React.memo(() => {
     refetchInterval: false
   });
 
+
   // Query otimizada para perfil do usuário
   const { data: profileData } = useOptimizedQuery<{ name?: string } | null>({
     queryKey: ['user-profile', user?.id],
     queryFn: async () => {
       if (!user) return null;
+
 
       const { data, error } = await supabase
         .from('profiles')
@@ -124,16 +139,23 @@ const OptimizedTimeRegistration = React.memo(() => {
         .eq('id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.warn('Perfil não encontrado');
-        return null;
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 é "nenhuma linha encontrada"
+        console.error('Erro ao buscar perfil do usuário:', error);
+        throw error; // Lança outros erros
       }
+       if (error && error.code === 'PGRST116') {
+           console.warn('Perfil não encontrado para o usuário logado.');
+           return null; // Retorna null se o perfil não for encontrado
+       }
+
 
       return data;
     },
     staleTime: 10 * 60 * 1000, // 10 minutos
-    enabled: !!user
+    enabled: !!user // Só executa se o usuário estiver logado
   });
+
 
   // Query otimizada para registro de hoje
   const {
@@ -145,7 +167,9 @@ const OptimizedTimeRegistration = React.memo(() => {
     queryFn: async () => {
       if (!user) return null;
 
+
       console.log('📅 Buscando registros para:', localDate);
+
 
       const { data, error } = await supabase
         .from('time_records')
@@ -154,30 +178,39 @@ const OptimizedTimeRegistration = React.memo(() => {
         .eq('date', localDate)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 é "nenhuma linha encontrada"
+         console.error('Erro ao buscar registro de hoje:', error);
+        throw error; // Lança outros erros
+      }
+      if (error && error.code === 'PGRST116') {
+          console.log('Nenhum registro encontrado para hoje.');
+          return null; // Retorna null se nenhum registro for encontrado
       }
 
+
+      console.log('✅ Registro de hoje encontrado:', data);
       return data;
     },
     staleTime: 2 * 60 * 1000, // 2 minutos para dados atuais
-    enabled: !!user
+    enabled: !!user // Só executa se o usuário estiver logado
   });
+
 
   // Atualizar estados quando dados chegam
   useEffect(() => {
-    if (profileData) {
+    if (profileData !== undefined) { // Verificar explicitamente undefined para permitir null
       setUserProfile(profileData);
     }
   }, [profileData]);
 
+
   useEffect(() => {
-    if (todayRecord) {
+    if (todayRecord !== undefined) { // Verificar explicitamente undefined para permitir null
       setTimeRecord(todayRecord);
-    } else {
-      setTimeRecord(null);
     }
   }, [todayRecord]);
+
 
   // Timer otimizado - apenas atualiza a cada segundo e com cleanup
   useEffect(() => {
@@ -185,41 +218,37 @@ const OptimizedTimeRegistration = React.memo(() => {
       setCurrentTime(new Date());
     }, 1000);
 
+
     return () => clearInterval(timer);
   }, []);
+
 
   // Debounced GPS request para evitar múltiplas chamadas
   const debouncedLocationRequest = useDebouncedCallback(
     // onSuccess agora recebe o resultado completo da validação de localização
-    async (action: string, onSuccess: (locationValidationResult: { location: Location; gpsAccuracy: number }) => void, onError: (message: string) => void) => {
+    async (action: string, onSuccess: (locationValidationResult: { valid: boolean; location?: Location; message: string; closestLocation?: AllowedLocation; distance?: number; gpsAccuracy?: number; adaptiveRange?: number; }) => void, onError: (message: string) => void) => {
       console.log(`🕐 Iniciando validação de localização para ${action}...`);
+
 
       if (!allowedLocations || allowedLocations.length === 0) {
         onError('Nenhuma localização permitida configurada');
         return;
       }
 
+
       try {
         const locationValidation = await validateLocationForTimeRecord(allowedLocations);
+
 
         if (!locationValidation.valid) {
           onError(locationValidation.message);
           return;
         }
 
-        // Se a validação foi bem-sucedida e temos os dados de localização
-        if (locationValidation.location && locationValidation.gpsAccuracy !== undefined) {
-             console.log('✅ Validação de localização bem-sucedida.');
-             // Chama onSuccess passando os dados de localização e precisão
-             onSuccess({
-                 location: locationValidation.location,
-                 gpsAccuracy: locationValidation.gpsAccuracy
-             });
-        } else {
-             // Fallback de segurança caso valid seja true mas location/accuracy estejam faltando
-             console.error('⚠️ Validação de localização retornou válido, mas dados de coordenada incompletos.');
-             onError('Erro interno: dados de localização incompletos.');
-        }
+
+        // Se a validação foi bem-sucedida, chama onSuccess com o resultado completo
+        console.log('✅ Validação de localização bem-sucedida.');
+        onSuccess(locationValidation);
 
 
       } catch (error: any) {
@@ -235,94 +264,156 @@ const OptimizedTimeRegistration = React.memo(() => {
   const handleTimeAction = useCallback(async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
     if (!user || submitting) return;
 
+
     setSubmitting(true);
+    console.log(`⚡️ Acionando handleTimeAction para: ${action}`);
+
 
     // Usar debounced GPS request
     debouncedLocationRequest(
       action,
       // O callback onSuccess agora recebe o resultado da validação
-      async (locationValidationResult: { location: Location; gpsAccuracy: number }) => {
-        // Sucesso na validação, registrar o ponto
+      async (locationValidationResult) => {
+        console.log('➡️ Callback onSuccess do debouncedLocationRequest iniciado.');
+        // Este try block agora engloba a operação Supabase E as ações subsequentes
         try {
-          const currentTime = localTime;
+          const currentTimeStr = localTime; // Usar localTime memoizado
           // Extrai location e accuracy do resultado passado pelo debouncedLocationRequest
           const { location, gpsAccuracy } = locationValidationResult;
 
-          let updateData: any = {
-            [action]: currentTime,
+
+          if (!location || gpsAccuracy === undefined) {
+               console.error('⚠️ Dados de localização incompletos após validação bem-sucedida.');
+               throw new Error('Erro interno: dados de localização incompletos.');
+          }
+
+
+          let payload: any = {
+            [action]: currentTimeStr,
             updated_at: new Date().toISOString(),
-            // ADICIONE A LATITUDE E LONGITUDE AQUI:
             latitude: location.latitude,
             longitude: location.longitude,
             gps_accuracy: gpsAccuracy
           };
 
-          console.log('➡️ Dados a serem enviados para Supabase:', updateData); // <-- MANTENHA ESTE LOG PARA VERIFICAR
 
-          if (timeRecord) {
-            // Se for uma atualização (registro já existe)
-            // Você pode decidir se quer atualizar a localização em todos os pontos
-            // ou apenas no primeiro (clock_in).
-            // Para este exemplo, vamos incluir a localização em todas as atualizações.
-            const { error } = await supabase
+          console.log('➡️ Dados a serem enviados para Supabase:', payload); // <-- MANTENHA ESTE LOG PARA VERIFICAR
+
+
+          let savedRecordData: TimeRecord | null = null;
+          let supabaseError = null;
+
+
+          if (timeRecord?.id) { // Verificar se timeRecord e timeRecord.id existem para UPDATE
+            console.log(`🔄 Tentando atualizar registro existente com ID: ${timeRecord.id}`);
+            const { data, error } = await supabase
               .from('time_records')
-              .update(updateData) // updateData agora inclui location, longitude e gps_accuracy
-              .eq('id', timeRecord.id);
+              .update(payload)
+              .eq('id', timeRecord.id)
+              .select() // Adiciona select() para retornar o registro atualizado
+              .single(); // Espera um único registro
 
-            if (error) throw error;
-          } else {
-            // Se for uma nova inserção (primeiro ponto do dia)
-            const { error } = await supabase
+
+            savedRecordData = data;
+            supabaseError = error;
+
+
+          } else { // Se não houver timeRecord ou ID, INSERIR novo registro
+            console.log('➕ Tentando inserir novo registro.');
+            payload.user_id = user.id;
+            payload.date = localDate;
+            payload.total_hours = 0; // Definir valor inicial para total_hours se necessário
+
+
+            const { data, error } = await supabase
               .from('time_records')
-              .insert({
-                user_id: user.id,
-                date: localDate,
-                ...updateData // updateData agora inclui location, longitude e gps_accuracy
-              });
+              .insert(payload)
+              .select() // Adiciona select() para retornar o registro inserido
+              .single(); // Espera um único registro
 
-            if (error) throw error;
+
+            savedRecordData = data;
+            supabaseError = error;
           }
 
-          // Refetch dados para atualizar a UI
-          refetchRecord();
 
+          if (supabaseError) {
+            console.error('💥 Erro do Supabase ao salvar/atualizar registro:', supabaseError); // <-- LOG DETALHADO DO ERRO SUPABASE
+            // Lança um novo erro com a mensagem do Supabase se disponível
+            throw new Error(supabaseError.message || 'Erro desconhecido do Supabase ao registrar');
+          }
+
+
+          console.log('✅ Supabase salvou/atualizou registro com sucesso. Dados retornados:', savedRecordData); // Log sucesso Supabase
+
+
+          // --- Ações que acontecem APÓS o sucesso do Supabase ---
+
+
+          // 1. Atualizar estado local com o registro retornado pelo Supabase
+          if (savedRecordData) {
+               setTimeRecord(savedRecordData);
+               console.log('✨ Estado local timeRecord atualizado com dados salvos.');
+          } else {
+               console.warn('Supabase retornou sucesso, mas nenhum dado foi retornado.');
+          }
+
+
+          // 2. Mostrar toast de sucesso
           const actionNames = {
             clock_in: 'Entrada',
             lunch_start: 'Início do Almoço',
             lunch_end: 'Fim do Almoço',
             clock_out: 'Saída'
           };
-
           toast({
             title: "Sucesso",
-            description: `${actionNames[action]} registrada às ${currentTime}`,
+            description: `${actionNames[action]} registrada às ${currentTimeStr}`,
           });
+          console.log('🎉 Toast de sucesso exibido.');
 
-        } catch (error: any) {
-          console.error('Erro ao registrar:', error);
+
+          // 3. Refetch dados para garantir a UI atualizada (opcional, mas bom para sincronia)
+          console.log('🔄 Iniciando refetchRecord...');
+          await refetchRecord(); // Refetch para garantir que o useOptimizedQuery esteja atualizado
+          console.log('✅ refetchRecord concluído.');
+
+
+          // 4. Limpar cache de localização
+          clearLocationCache();
+          console.log('🧹 Cache de localização limpo.');
+
+
+        } catch (error: any) { // <-- Este catch agora pega erros do Supabase OU das ações subsequentes
+          console.error('❌ Erro capturado no fluxo de registro (após validação):', error); // <-- LOG DETALHADO DO ERRO GERAL
           toast({
             title: "Erro",
-            description: "Erro ao registrar horário",
+            description: error.message || "Erro ao registrar horário", // Usa a mensagem do erro lançado
             variant: "destructive"
           });
         } finally {
-           setSubmitting(false); // Resetar estado de submissão no final do sucesso
+            // O setSubmitting(false) final será chamado no finally do handleTimeAction
+            console.log('➡️ Fim do callback onSuccess do debouncedLocationRequest.');
         }
       },
-      (message) => { // onError callback
+      (message) => { // onError callback do debouncedLocationRequest
         console.warn('Validação de localização falhou:', message);
         toast({
           title: "Localização não autorizada",
           description: message,
           variant: "destructive"
         });
-        setSubmitting(false); // Resetar estado de submissão no final do erro
+        // O setSubmitting(false) final será chamado no finally do handleTimeAction
+        console.log('➡️ Fim do callback onError do debouncedLocationRequest.');
       }
     );
 
-    // REMOVA ESTA LINHA - setSubmitting(false) deve ser chamado dentro dos callbacks
+
+    // REMOVA ESTA LINHA - setSubmitting(false) deve ser chamado no finally do handleTimeAction
     // setSubmitting(false);
-  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast]);
+
+
+  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames]); // Adicione fieldNames dependency
 
 
   // Handle edit submit otimizado
@@ -336,14 +427,16 @@ const OptimizedTimeRegistration = React.memo(() => {
       return;
     }
 
+
     try {
       setSubmitting(true);
+
 
       const { error } = await supabase
         .from('edit_requests')
         .insert({
           employee_id: user.id,
-          employee_name: user.email || 'Usuário', // Considerar usar userProfile.name se disponível
+          employee_name: userProfile?.name || user.email || 'Usuário', // Usar nome do perfil se disponível
           date: localDate,
           field: editField,
           old_value: timeRecord?.[editField] || null,
@@ -352,17 +445,21 @@ const OptimizedTimeRegistration = React.memo(() => {
           status: 'pending'
         });
 
+
       if (error) throw error;
+
 
       toast({
         title: "Sucesso",
         description: "Solicitação de alteração enviada para aprovação",
       });
 
+
       setIsEditDialogOpen(false);
       setEditField(null);
       setEditValue('');
       setEditReason('');
+
 
     } catch (error) {
       console.error('Erro ao enviar solicitação:', error);
@@ -374,7 +471,8 @@ const OptimizedTimeRegistration = React.memo(() => {
     } finally {
       setSubmitting(false);
     }
-  }, [user, editField, editValue, editReason, timeRecord, localDate, toast]);
+  }, [user, userProfile?.name, editField, editValue, editReason, timeRecord, localDate, toast]);
+
 
   // Verificar mudança de data otimizada
   useEffect(() => {
@@ -382,17 +480,24 @@ const OptimizedTimeRegistration = React.memo(() => {
       const currentDate = localDate;
       const recordDate = timeRecord?.date;
 
+
       if (recordDate && recordDate !== currentDate) {
         console.log('🗓️ Nova data detectada, recarregando...');
+        // Forçar um refetch quando a data muda
         refetchRecord();
+        // Opcional: limpar timeRecord para mostrar estado de loading/sem registro imediatamente
+        setTimeRecord(null);
       }
     };
+
 
     // Verifica a cada minuto se a data mudou
     const interval = setInterval(checkDateChange, 60000);
     // Limpa o intervalo quando o componente desmonta ou timeRecord/localDate/refetchRecord mudam
     return () => clearInterval(interval);
   }, [timeRecord, localDate, refetchRecord]);
+
+
 
 
   // Memoizar steps para evitar recálculo
@@ -403,13 +508,16 @@ const OptimizedTimeRegistration = React.memo(() => {
     { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ], []);
 
+
   const getValue = useCallback((key: string) => {
     return timeRecord?.[key as keyof TimeRecord];
   }, [timeRecord]);
 
+
   const completedCount = useMemo(() => {
     return steps.filter(step => getValue(step.key)).length;
   }, [steps, getValue]);
+
 
   const nextAction = useMemo(() => {
     if (!timeRecord?.clock_in) return 'clock_in';
@@ -419,12 +527,14 @@ const OptimizedTimeRegistration = React.memo(() => {
     return null;
   }, [timeRecord]);
 
+
   const fieldNames = useMemo(() => ({
     clock_in: 'Entrada',
     lunch_start: 'Início do Almoço',
     lunch_end: 'Fim do Almoço',
     clock_out: 'Saída'
   }), []);
+
 
   if (loadingRecord) {
     return (
@@ -435,12 +545,14 @@ const OptimizedTimeRegistration = React.memo(() => {
     );
   }
 
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       {/* Header com logo - otimizado para mobile */}
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
         {/* Espaço reservado para o logo */}
       </div>
+
 
       {/* Saudação com nome do usuário */}
       <div className="text-center mb-4">
@@ -452,6 +564,7 @@ const OptimizedTimeRegistration = React.memo(() => {
         </div>
       </div>
 
+
       {/* Relógio Principal */}
       <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
@@ -461,6 +574,7 @@ const OptimizedTimeRegistration = React.memo(() => {
           {format(currentTime, 'HH:mm:ss')}
         </div>
       </div>
+
 
       {/* Card Principal */}
       <Card className="w-full max-w-md bg-white shadow-lg">
@@ -472,6 +586,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                 const Icon = step.icon;
                 const isCompleted = !!getValue(step.key);
                 const isNext = !isCompleted && completedCount === index;
+
 
                 return (
                   <div key={step.key} className="flex flex-col items-center flex-1">
@@ -501,6 +616,7 @@ const OptimizedTimeRegistration = React.memo(() => {
               })}
             </div>
 
+
             {/* Barra de progresso */}
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
@@ -512,6 +628,7 @@ const OptimizedTimeRegistration = React.memo(() => {
               />
             </div>
           </div>
+
 
           {/* Botão Registrar */}
           {nextAction && (
@@ -525,6 +642,7 @@ const OptimizedTimeRegistration = React.memo(() => {
             </Button>
           )}
 
+
           {!nextAction && (
             <div className="text-center py-4">
               <div className="text-green-600 font-semibold mb-2">
@@ -537,6 +655,7 @@ const OptimizedTimeRegistration = React.memo(() => {
           )}
         </CardContent>
       </Card>
+
 
       {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -558,6 +677,7 @@ const OptimizedTimeRegistration = React.memo(() => {
               />
             </div>
 
+
             <div className="space-y-2">
               <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
               <Textarea
@@ -569,6 +689,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                 disabled={submitting}
               />
             </div>
+
 
             <div className="flex justify-end space-x-2">
               <Button
