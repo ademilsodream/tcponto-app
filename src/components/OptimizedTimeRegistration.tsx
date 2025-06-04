@@ -9,14 +9,12 @@ import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { validateLocationForTimeRecord } from '@/utils/optimizedLocationValidation';
+// Importe validateLocationForTimeRecord e a interface Location
+import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-
-// Importar a interface Location do arquivo de validação
-import { Location } from '@/utils/optimizedLocationValidation';
 
 
 interface TimeRecord {
