@@ -411,7 +411,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="w-5 h-5" />
-              Ajustar Dias Anteriores
+              Ajuste de Registro
             </CardTitle>
           </div>
         </CardHeader>
