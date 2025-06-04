@@ -248,9 +248,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       lunch_start: record.lunch_start,
                       lunch_end: record.lunch_end,
                       clock_out: record.clock_out,
-                      total_hours: totalHours, // Calculado no frontend para exibição inicial
-                      normal_hours: normalHours, // Calculado no frontend para exibição inicial
-                      overtime_hours: overtimeHours, // Calculado no frontend para exibição inicial
+                      total_hours: totalHours,
+                      normal_hours: normalHours,
+                      overtime_hours: overtimeHours,
                       created_at: record.created_at, // Incluir created_at
                       updated_at: record.updated_at // Incluir updated_at
                   });
@@ -321,21 +321,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   const formatTime = (timeString: string | null | undefined) => {
     if (!timeString) return '-';
-    // Verifica se a string já está no formato HH:mm ou HH:mm:ss
     if (timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
-        return timeString.slice(0, 5); // Retorna apenas HH:mm
+        return timeString.slice(0, 5);
     }
-     // Tenta converter de outros formatos comuns (ex: ISO string)
-    try {
-        const date = new Date(`1970-01-01T${timeString}Z`); // Usa uma data base para parsear apenas a hora
-        if (!isNaN(date.getTime())) {
-             return format(date, 'HH:mm', { timeZone: 'UTC' }); // Formata como HH:mm
-        }
-    } catch (e) {
-        // Ignore parsing errors
-    }
-
-    return '-'; // Retorna '-' se não for possível formatar
+    return '-';
   };
 
    // Função para abrir o modal de edição
@@ -367,10 +356,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       setEditLoading(true);
 
       try {
-          // Não precisamos calcular no frontend para o payload,
-          // o trigger do Supabase fará isso.
-          // Mas mantemos o calculateWorkingHours para validação se necessário,
-          // ou se quisermos exibir os calculos antes de salvar (não é o caso aqui).
+          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
+              editingRecord.clock_in || '',
+              editingRecord.lunch_start || '',
+              editingRecord.lunch_end || '',
+              editingRecord.clock_out || ''
+          );
 
           // Preparar o payload para atualização
           const updatePayload = {
@@ -378,12 +369,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               lunch_start: editingRecord.lunch_start,
               lunch_end: editingRecord.lunch_end,
               clock_out: editingRecord.clock_out,
-              // Removido total_hours, normal_hours, overtime_hours do payload
-              // O trigger calculate_time_and_pay no Supabase vai calcular e atualizar
+              // ✨ ATUALIZADO: Incluindo campos calculados no payload (se existirem no DB)
+              total_hours: totalHours,
+              normal_hours: normalHours,
+              overtime_hours: overtimeHours,
               // updated_at será definido automaticamente pelo trigger do Supabase
           };
 
-          // Filtra campos nulos para não sobrescrever com null se não foram alterados
           const cleanPayload = Object.fromEntries(
               Object.entries(updatePayload).filter(([_, v]) => v !== null)
           );
@@ -393,25 +385,17 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               .from('time_records')
               .update(cleanPayload)
               .eq('id', editingRecord.id)
-              // ✨ ATUALIZADO: Incluindo total_hours, normal_hours, overtime_hours na seleção
-              .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at, total_hours, normal_hours, overtime_hours, profiles(id, name, email, role)')
+              // ✨ ATUALIZADO: Selecionar created_at e updated_at após a atualização
+              .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at, profiles(id, name, email, role)')
               .single();
 
           if (error) throw error;
 
-          // Atualizar o estado local dos registros com os dados retornados (incluindo os novos calculados)
+          // Atualizar o estado local dos registros com os dados retornados (incluindo o novo updated_at)
           setTimeRecords(prevRecords =>
-              prevRecords.map(record => {
-                  if (record.id === editingRecord.id) {
-                       // Mescla os dados atualizados do Supabase, que agora incluem os calculados
-                      return {
-                          ...record, // Mantém propriedades originais
-                          ...data,   // Sobrescreve com os dados retornados (inclui updated_at, calculados, etc.)
-                          profiles: data.profiles || record.profiles // Garante que o perfil seja mantido/atualizado
-                      };
-                  }
-                  return record;
-              })
+              prevRecords.map(record =>
+                  record.id === editingRecord.id ? { ...record, ...data } : record
+              )
           );
 
           toast({
@@ -701,42 +685,56 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                 <TableHead className="w-[40px]"></TableHead>
                               </TableRow>
                             </TableHeader>
-                            <TableBody>
-                              {records.map((record: TimeRecord, index: number) => {
-                                const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                                // ✨ ATUALIZADO: Lógica de destaque usando created_at e updated_at
-                                // Destaca se o registro tem ID (existe no DB) E updated_at é diferente de created_at
-                                const isEdited = record.id && record.created_at && record.updated_at && record.updated_at !== record.created_at;
-                                const rowClassName = isEdited ? 'bg-yellow-50 hover:bg-yellow-100' : '';
-
-                                return (
-                                  <TableRow key={key} className={rowClassName}>
-                                    <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>{getDayOfWeek(record.date)}</TableCell>
-                                    <TableCell>{formatTime(record.clock_in)}</TableCell>
-                                    <TableCell>{formatTime(record.lunch_start)}</TableCell>
-                                    <TableCell>{formatTime(record.lunch_end)}</TableCell>
-                                    <TableCell>{formatTime(record.clock_out)}</TableCell>
-                                    <TableCell>{formatHoursAsTime(record.total_hours)}</TableCell>
-                                    <TableCell>{formatHoursAsTime(record.overtime_hours)}</TableCell>
-                                    <TableCell className="text-right">
-                                        {/* Só mostra o ícone se o registro tiver um ID (existe no DB) */}
-                                        {record.id && (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleEditClick(record)}
-                                                className="p-0 h-auto"
-                                                title="Editar registro"
-                                            >
-                                                <Pencil className="w-4 h-4 text-blue-600" />
-                                            </Button>
-                                        )}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
+                              <TableBody>
+                                {records.map((record: TimeRecord, index: number) => {
+                                  const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
+                              
+                                  // ✨ Lógica de destaque para registro editado
+                                  const isEdited = record.id && record.created_at && record.updated_at && record.updated_at !== record.created_at;
+                              
+                                  // ✨ Lógica para identificar Sábado e Domingo
+                                  const dayOfWeek = getDayOfWeek(record.date);
+                                  const isSaturday = dayOfWeek.toLowerCase() === 'sábado'; // Compare com a string em ptBR e minúsculas
+                                  const isSunday = dayOfWeek.toLowerCase() === 'domingo'; // Compare com a string em ptBR e minúsculas
+                              
+                                  // ✨ Combinar classes: editado > domingo > sábado > padrão
+                                  const rowClassName = cn(
+                                    isEdited && 'bg-yellow-50 hover:bg-yellow-100', // Destaque editado (prioridade visual)
+                                    !isEdited && isSunday && 'bg-red-50 hover:bg-red-100', // Destaque domingo (se não editado)
+                                    !isEdited && isSaturday && 'bg-blue-50 hover:bg-blue-100' // Destaque sábado (se não editado e não domingo)
+                                    // Se não for editado, domingo ou sábado, a classe será vazia (padrão)
+                                  );
+                              
+                              
+                                  return (
+                                    // ✨ Aplicando a classe combinada
+                                    <TableRow key={key} className={rowClassName}>
+                                      <TableCell>{format(new Date(record.date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
+                                      <TableCell>{getDayOfWeek(record.date)}</TableCell> {/* Mantém a exibição do dia */}
+                                      <TableCell>{formatTime(record.clock_in)}</TableCell>
+                                      <TableCell>{formatTime(record.lunch_start)}</TableCell>
+                                      <TableCell>{formatTime(record.lunch_end)}</TableCell>
+                                      <TableCell>{formatTime(record.clock_out)}</TableCell>
+                                      <TableCell>{formatHoursAsTime(record.total_hours)}</TableCell>
+                                      <TableCell>{formatHoursAsTime(record.overtime_hours)}</TableCell>
+                                      <TableCell className="text-right">
+                                          {/* Só mostra o ícone se o registro tiver um ID (existe no DB) */}
+                                          {record.id && (
+                                              <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={() => handleEditClick(record)}
+                                                  className="p-0 h-auto"
+                                                  title="Editar registro"
+                                              >
+                                                  <Pencil className="w-4 h-4 text-blue-600" />
+                                              </Button>
+                                          )}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
                           </Table>
                         </div>
                       </CardContent>
