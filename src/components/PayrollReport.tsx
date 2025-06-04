@@ -328,8 +328,10 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
               </div>
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
+      {/* ✨ DIV QUE FALTAVA O FECHAMENTO */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           <Card>
@@ -614,7 +616,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             </Card>
           )}
         </div>
-      </div>
+      </div> {/* ✨ FECHAMENTO DO DIV QUE FALTAVA */}
     </div>
   );
 };
