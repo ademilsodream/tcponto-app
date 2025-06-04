@@ -44,54 +44,8 @@ const TimeRegistration = () => {
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [userProfile, setUserProfile] = useState<{ name?: string } | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
-
-  // Função para obter saudação baseada no horário
-  const getGreeting = () => {
-    const hour = currentTime.getHours();
-    
-    if (hour >= 5 && hour < 12) {
-      return 'Bom dia';
-    } else if (hour >= 12 && hour < 18) {
-      return 'Boa tarde';
-    } else {
-      return 'Boa noite';
-    }
-  };
-
-  // Função para obter nome do usuário (primeiro nome)
-  const getUserDisplayName = () => {
-    if (userProfile?.name) {
-      // Pegar apenas o primeiro nome
-      return userProfile.name.split(' ')[0];
-    }
-    
-    if (user?.email) {
-      // Se não tem nome, usar parte do email antes do @
-      return user.email.split('@')[0];
-    }
-    
-    return 'Usuário';
-  };
-
-  // Função para obter data local (corrige problema de timezone)
-  const getLocalDate = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Função para obter horário local
-  const getLocalTime = () => {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
 
   // Atualizar relógio a cada segundo
   useEffect(() => {
@@ -104,48 +58,15 @@ const TimeRegistration = () => {
 
   useEffect(() => {
     if (user) {
-      // Debug da data para investigar problemas de timezone
-      const utcDate = new Date().toISOString().split('T')[0];
-      const localDate = getLocalDate();
-      console.log('🕐 Hora atual:', new Date().toString());
-      console.log('🌍 Data UTC:', utcDate);
-      console.log('🇧🇷 Data Local:', localDate);
-      console.log('⏰ Timezone offset:', new Date().getTimezoneOffset());
-      
       initializeData();
     }
   }, [user]);
 
-  // Carregar perfil do usuário
-  const loadUserProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.warn('Perfil não encontrado, usando dados do usuário');
-        return;
-      }
-
-      setUserProfile(data);
-    } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
-    }
-  };
-
   const initializeData = async () => {
     try {
       setLoading(true);
-      await Promise.all([
-        loadUserProfile(),
-        loadAllowedLocations(),
-        loadTodayRecord()
-      ]);
+      await loadAllowedLocations();
+      await loadTodayRecord();
     } catch (error) {
       console.error('Erro ao inicializar dados:', error);
       toast({
@@ -200,8 +121,7 @@ const TimeRegistration = () => {
     if (!user) return;
 
     try {
-      const today = getLocalDate(); // ✅ Usa data local em vez de UTC
-      console.log('📅 Buscando registros para a data local:', today);
+      const today = new Date().toISOString().split('T')[0];
       
       const { data, error } = await supabase
         .from('time_records')
@@ -214,7 +134,6 @@ const TimeRegistration = () => {
         throw error;
       }
 
-      console.log('📊 Registro encontrado para hoje:', data);
       setTimeRecord(data);
     } catch (error) {
       console.error('Erro ao carregar registro:', error);
@@ -262,11 +181,8 @@ const TimeRegistration = () => {
       console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
 
       const now = new Date();
-      const today = getLocalDate(); // ✅ Usa data local
-      const currentTime = getLocalTime(); // ✅ Usa horário local
-      
-      console.log('📅 Data do registro:', today);
-      console.log('🕐 Horário do registro:', currentTime);
+      const today = now.toISOString().split('T')[0];
+      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
       let updateData: any = {
         [action]: currentTime,
@@ -293,7 +209,6 @@ const TimeRegistration = () => {
       }
 
       if (timeRecord) {
-        console.log('🔄 Atualizando registro existente:', timeRecord.id);
         const { error } = await supabase
           .from('time_records')
           .update(updateData)
@@ -301,7 +216,6 @@ const TimeRegistration = () => {
 
         if (error) throw error;
       } else {
-        console.log('➕ Criando novo registro para:', today);
         const { error } = await supabase
           .from('time_records')
           .insert({
@@ -371,7 +285,7 @@ const TimeRegistration = () => {
         .insert({
           employee_id: user.id,
           employee_name: user.email || 'Usuário',
-          date: getLocalDate(), // ✅ Usa data local
+          date: new Date().toISOString().split('T')[0],
           field: editField,
           old_value: timeRecord?.[editField] || null,
           new_value: editValue,
@@ -403,26 +317,6 @@ const TimeRegistration = () => {
       setSubmitting(false);
     }
   };
-
-  // Verificar mudança de data automaticamente
-  useEffect(() => {
-    const checkDateChange = () => {
-      const currentDate = getLocalDate();
-      const recordDate = timeRecord?.date;
-      
-      // Se a data mudou, recarregar
-      if (recordDate && recordDate !== currentDate) {
-        console.log('🗓️ Nova data detectada, recarregando registros...');
-        console.log('📅 Data anterior:', recordDate);
-        console.log('📅 Data atual:', currentDate);
-        loadTodayRecord();
-      }
-    };
-
-    // Verificar a cada 30 segundos
-    const interval = setInterval(checkDateChange, 30000);
-    return () => clearInterval(interval);
-  }, [timeRecord]);
 
   if (loading) {
     return (
@@ -467,18 +361,8 @@ const TimeRegistration = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       {/* Header com logo movida para direita - otimizado para mobile */}
-      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
+      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16"> {/* padding-left para não ficar sob o menu */}
       
-      </div>
-
-      {/* ✨ NOVA: Saudação com nome do usuário */}
-      <div className="text-center mb-4">
-        <div className="text-blue-600 text-xl sm:text-2xl font-semibold mb-1">
-          {getGreeting()}, {getUserDisplayName()}! 👋
-        </div>
-        <div className="text-gray-500 text-sm sm:text-base">
-          Pronto para registrar seu ponto?
-        </div>
       </div>
 
       {/* Relógio Principal - otimizado para mobile */}
@@ -507,7 +391,7 @@ const TimeRegistration = () => {
                     <div 
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
                         isCompleted 
-                          ? `${step.color} text-white`
+                          ? `${step.color} text-white` // Usando a cor específica do step
                           : isNext
                             ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
                             : 'bg-gray-100 text-gray-400'
@@ -560,7 +444,7 @@ const TimeRegistration = () => {
                 ✅ Todos os registros concluídos!
               </div>
               <div className="text-sm text-gray-500">
-                Tenha um ótimo resto do dia, {getUserDisplayName()}!
+                Tenha um ótimo resto do dia!
               </div>
             </div>
           )}
