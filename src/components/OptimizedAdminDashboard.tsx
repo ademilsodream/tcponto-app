@@ -7,6 +7,8 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useQuery } from '@tanstack/react-query';
 import AdvancedAnalytics from './AdvancedAnalytics';
 import AnalyticsButton from './AnalyticsButton';
+// ✨ Importar a função calculateWorkingHours
+import { calculateWorkingHours } from '@/utils/timeCalculations';
 
 interface User {
   id: string;
@@ -61,18 +63,16 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
 
-    // Query única e otimizada para dados do mês usando apenas campos necessários
-    const { data: monthlyData, error: monthlyError } = await supabase
+    // ✨ MODIFICAÇÃO: Buscar todos os campos necessários para recalcular as horas do mês
+    const { data: monthlyRecords, error: monthlyError } = await supabase
       .from('time_records')
-      // ✨ Ajuste: Selecionar total_hours e total_pay apenas se existirem
-      .select('total_hours, total_pay')
+      .select('user_id, date, clock_in, lunch_start, lunch_end, clock_out') // Selecionar campos de tempo
       .gte('date', startOfMonth)
       .lte('date', endOfMonth);
-      // .eq('status', 'active'); // Removido filtro de status aqui, pois time_records não tem status
 
     if (monthlyError) throw monthlyError;
 
-    // Query separada e otimizada para dados de hoje
+    // Query separada e otimizada para dados de hoje (ainda necessária para o status)
     const { data: todayData, error: todayError } = await supabase
       .from('time_records')
       .select('user_id, clock_in, lunch_start, lunch_end, clock_out')
@@ -80,14 +80,33 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
 
     if (todayError) throw todayError;
 
-    // Cálculos otimizados
-    const totals = monthlyData?.reduce(
-      (acc, record) => ({
-        hours: acc.hours + (Number(record.total_hours) || 0),
-        earnings: acc.earnings + (Number(record.total_pay) || 0)
-      }),
-      { hours: 0, earnings: 0 }
-    ) || { hours: 0, earnings: 0 };
+    // ✨ MODIFICAÇÃO: Recalcular totais de horas e ganhos do mês
+    let totalHours = 0;
+    let totalEarnings = 0;
+
+    // Criar um mapa de funcionários para acessar hourlyRate e overtimeRate rapidamente
+    const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
+
+    monthlyRecords?.forEach(record => {
+      const employee = employeeMap.get(record.user_id);
+      if (employee) {
+        // Usar a mesma função de cálculo do PayrollReport
+        const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } =
+          calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
+
+        totalHours += dayTotalHours;
+
+        // Calcular pagamento diário usando as taxas do funcionário
+        const hourlyRate = Number(employee.hourlyRate) || 0;
+        const overtimeRate = Number(employee.overtimeRate) || hourlyRate; // Usar hourlyRate se overtimeRate não estiver definido
+
+        const dayNormalPay = dayNormalHours * hourlyRate;
+        const dayOvertimePay = dayOvertimeHours * overtimeRate;
+        const dayTotalPay = dayNormalPay + dayOvertimePay;
+
+        totalEarnings += dayTotalPay;
+      }
+    });
 
     // Mapa otimizado para status dos funcionários
     const todayRecordsMap = new Map(
@@ -113,11 +132,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     return {
       totalEmployees: employees.length,
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
-      totalHours: totals.hours,
-      totalEarnings: totals.earnings,
+      // ✨ Usar os totais recalculados
+      totalHours: totalHours,
+      totalEarnings: totalEarnings,
       employeeStatuses
     };
-  }, [employees]);
+  }, [employees]); // Dependência 'employees' é importante aqui
 
   // Query otimizada com cache inteligente
   const {
@@ -166,6 +186,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       color: 'green'
     };
   }, []);
+
 
   // Funções memoizadas para classes CSS
   const getStatusColorClasses = useCallback((color: string) => {
@@ -253,7 +274,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* ✨ Aplicando a formatação HH:MM aqui */}
+            {/* Aplicando a formatação HH:MM aqui */}
             <div className="text-2xl font-bold">{formatHoursAsTime(dashboardData?.totalHours)}</div>
             <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
