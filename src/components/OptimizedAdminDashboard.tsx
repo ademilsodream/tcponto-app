@@ -21,7 +21,7 @@ interface User {
 interface DashboardData {
   totalEmployees: number;
   totalAdmins: number;
-  totalHours: number;
+  totalNormalHours: number; // ✨ Alterado para total de horas NORMAIS
   totalOvertimeHours: number;
   totalEarnings: number;
   employeeStatuses: EmployeeStatus[];
@@ -90,7 +90,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       recordsByUser.get(record.user_id)!.push(record);
     });
 
-    let grandTotalHours = 0;
+    let grandTotalNormalHours = 0; // ✨ Novo acumulador para horas normais
     let grandTotalOvertimeHours = 0;
     let grandTotalEarnings = 0;
 
@@ -102,21 +102,18 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       const employee = employeeMap.get(userId);
       if (employee) {
         // Inicializar acumuladores para as horas do funcionário (soma das horas diárias arredondadas)
-        let employeeTotalHoursRoundedSum = 0;
-        let employeeTotalNormalHoursRoundedSum = 0;
-        let employeeTotalOvertimeHoursRoundedSum = 0;
+        let employeeTotalNormalHoursRoundedSum = 0; // Acumulador para horas normais do funcionário
+        let employeeTotalOvertimeHoursRoundedSum = 0; // Acumulador para horas extras do funcionário
 
         // Calcular totais diários, arredondar e somar para o total do funcionário
         records.forEach(record => {
           const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } =
             calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
 
-          // ✨ MODIFICAÇÃO: Arredondar as horas de CADA DIA para 1 casa decimal antes de somar
-          const roundedDayTotalHours = Math.round(dayTotalHours * 10) / 10;
+          // Arredondar as horas de CADA DIA para 1 casa decimal antes de somar
           const roundedDayNormalHours = Math.round(dayNormalHours * 10) / 10;
           const roundedDayOvertimeHours = Math.round(dayOvertimeHours * 10) / 10;
 
-          employeeTotalHoursRoundedSum += roundedDayTotalHours;
           employeeTotalNormalHoursRoundedSum += roundedDayNormalHours;
           employeeTotalOvertimeHoursRoundedSum += roundedDayOvertimeHours;
         });
@@ -130,12 +127,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
         const employeeOvertimePay = employeeTotalOvertimeHoursRoundedSum * overtimeRate;
         const employeeTotalPay = employeeNormalPay + employeeOvertimePay; // Total de pagamento do funcionário (baseado em horas arredondadas)
 
-        // ✨ MODIFICAÇÃO: Arredondar o total de pagamento do funcionário para 2 casas decimais
+        // Arredondar o total de pagamento do funcionário para 2 casas decimais
         const employeeTotalPayRounded = parseFloat(employeeTotalPay.toFixed(2));
 
         // Somar os totais do funcionário nos totais gerais
-        grandTotalHours += employeeTotalHoursRoundedSum; // Somar horas totais do funcionário (soma dos arredondados diários)
-        grandTotalOvertimeHours += employeeTotalOvertimeHoursRoundedSum; // Somar horas extras totais do funcionário (soma dos arredondados diários)
+        grandTotalNormalHours += employeeTotalNormalHoursRoundedSum; // Somar horas normais totais do funcionário
+        grandTotalOvertimeHours += employeeTotalOvertimeHoursRoundedSum; // Somar horas extras totais do funcionário
         grandTotalEarnings += employeeTotalPayRounded; // Somar pagamento total do funcionário *arredondado*
       }
     }
@@ -164,8 +161,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     return {
       totalEmployees: employees.length,
       totalAdmins: employees.filter(emp => emp.role === 'admin').length,
-      // Usar os totais gerais calculados pela agregação por funcionário (que agora somam os arredondados diários)
-      totalHours: grandTotalHours,
+      totalNormalHours: grandTotalNormalHours, // ✨ Retornando o total de horas NORMAIS
       totalOvertimeHours: grandTotalOvertimeHours,
       totalEarnings: grandTotalEarnings,
       employeeStatuses
@@ -302,12 +298,12 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-500" />
-              Horas Trabalhadas
+              Horas Normais {/* ✨ Alterado o label */}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Aplicando a formatação HH:MM aqui */}
-            <div className="text-2xl font-bold">{formatHoursAsTime(dashboardData?.totalHours)}</div>
+            {/* Aplicando a formatação HH:MM e usando o novo total de horas normais */}
+            <div className="text-2xl font-bold">{formatHoursAsTime(dashboardData?.totalNormalHours)}</div>
             <div className="text-sm text-gray-500">Mês atual</div>
           </CardContent>
         </Card>
