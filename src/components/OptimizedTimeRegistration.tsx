@@ -6,18 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
-// Importa Json do supabase-js
-import { supabase, Json } from '@/integrations/supabase/client';
+// CORRIGIDO: Importa Json do supabase-js
+import { Json } from '@supabase/supabase-js';
+// Importa o cliente supabase do seu arquivo local
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-// CORRIGIDO: Caminho do import do AuthContext
 import { useAuth } from '@/contexts/AuthContext';
-// Importe validateLocationForTimeRecord e a interface Location
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { clearLocationCache } from '@/utils/optimizedLocationValidation'; // Importe clearLocationCache
+import { clearLocationCache } from '@/utils/optimizedLocationValidation';
 
 
 // Define um tipo de união literal para as chaves de horário
@@ -59,7 +59,7 @@ interface TimeRecord {
   normal_pay?: number;
   overtime_pay?: number;
   total_pay?: number;
-  // CORRIGIDO: Tipagem da coluna locations para aceitar Json do Supabase
+  // Tipagem da coluna locations para aceitar Json do Supabase
   locations?: Json | null; // Supabase retorna Json, que pode ser qualquer tipo JSON válido
   created_at?: string;
   updated_at?: string;
@@ -89,7 +89,7 @@ const OptimizedTimeRegistration = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  // CORRIGIDO: Usar TimeRecordKey para tipar editField
+  // Usar TimeRecordKey para tipar editField
   const [editField, setEditField] = useState<TimeRecordKey | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -138,7 +138,7 @@ const OptimizedTimeRegistration = React.memo(() => {
   }, [userProfile?.name, user?.email]);
 
 
-  // CORRIGIDO: Usar TimeRecordKey para tipar as chaves de fieldNames
+  // Usar TimeRecordKey para tipar as chaves de fieldNames
   const fieldNames: Record<TimeRecordKey, string> = useMemo(() => ({
     clock_in: 'Entrada',
     lunch_start: 'Início do Almoço',
@@ -241,7 +241,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
       console.log('✅ Registro de hoje encontrado:', data);
-      // CORRIGIDO: O Supabase retorna 'locations' como Json.
+      // O Supabase retorna 'locations' como Json.
       // A tipagem TimeRecord agora aceita Json | null.
       // Não precisamos fazer nada especial aqui, a tipagem já está mais flexível.
       return data;
@@ -315,7 +315,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
   // Handle time action otimizado
-  // CORRIGIDO: Usar TimeRecordKey para tipar o parâmetro action
+  // Usar TimeRecordKey para tipar o parâmetro action
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
@@ -359,7 +359,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
           // Obtém os dados de localização existentes.
-          // CORRIGIDO: Verificar se timeRecord.locations é um objeto antes de usá-lo
+          // Verificar se timeRecord.locations é um objeto antes de usá-lo
           // e fazer type assertion para LocationsData. Se não for objeto ou for null, inicia com {}
           const existingLocations = (typeof timeRecord?.locations === 'object' && timeRecord.locations !== null
               ? timeRecord.locations as LocationsData // Type assertion
@@ -382,7 +382,7 @@ const OptimizedTimeRegistration = React.memo(() => {
           };
 
 
-          console.log('➡️ Dados a serem enviados para Supabase:', payload); // <-- MANTENHA ESTE LOG PARA VERIFICAR
+          console.log('➡️ Dados a serem enviados para Supabase:', payload);
 
 
           let savedRecordData: TimeRecord | null = null;
@@ -399,7 +399,7 @@ const OptimizedTimeRegistration = React.memo(() => {
               .single(); // Espera um único registro
 
 
-            // CORRIGIDO: O dado retornado pelo Supabase tem a tipagem Json para locations.
+            // O dado retornado pelo Supabase tem a tipagem Json para locations.
             // Precisamos garantir que o estado local timeRecord seja atualizado com a tipagem correta.
             // A tipagem TimeRecord agora aceita Json | null para locations, o que deve ser compatível.
             savedRecordData = data ? data as TimeRecord : null; // Type assertion para TimeRecord
@@ -428,7 +428,7 @@ const OptimizedTimeRegistration = React.memo(() => {
               .single(); // Espera um único registro
 
 
-            // CORRIGIDO: O dado retornado pelo Supabase tem a tipagem Json para locations.
+            // O dado retornado pelo Supabase tem a tipagem Json para locations.
             // Precisamos garantir que o estado local timeRecord seja atualizado com a tipagem correta.
             // A tipagem TimeRecord agora aceita Json | null para locations, o que deve ser compatível.
             savedRecordData = data ? data as TimeRecord : null; // Type assertion para TimeRecord
@@ -437,13 +437,13 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
           if (supabaseError) {
-            console.error('💥 Erro do Supabase ao salvar/atualizar registro:', supabaseError); // <-- LOG DETALHADO DO ERRO SUPABASE
+            console.error('💥 Erro do Supabase ao salvar/atualizar registro:', supabaseError);
             // Lança um novo erro com a mensagem do Supabase se disponível
             throw new Error(supabaseError.message || 'Erro desconhecido do Supabase ao registrar');
           }
 
 
-          console.log('✅ Supabase salvou/atualizou registro com sucesso. Dados retornados:', savedRecordData); // Log sucesso Supabase
+          console.log('✅ Supabase salvou/atualizou registro com sucesso. Dados retornados:', savedRecordData);
 
 
           // --- Ações que acontecem APÓS o sucesso do Supabase ---
@@ -474,14 +474,13 @@ const OptimizedTimeRegistration = React.memo(() => {
           // await refetchRecord();
           console.log('✅ RefetchRecord (opcional) concluído.');
 
-
           // 4. Limpar cache de localização
           clearLocationCache();
           console.log('🧹 Cache de localização limpo.');
 
 
-        } catch (error: any) { // <-- Este catch agora pega erros do Supabase OU das ações subsequentes
-          console.error('❌ Erro capturado no fluxo de registro (após validação):', error); // <-- LOG DETALHADO DO ERRO GERAL
+        } catch (error: any) { // Este catch agora pega erros do Supabase OU das ações subsequentes
+          console.error('❌ Erro capturado no fluxo de registro (após validação):', error);
           toast({
             title: "Erro",
             description: error.message || "Erro ao registrar horário", // Usa a mensagem do erro lançado
@@ -596,7 +595,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
   // Memoizar steps para evitar recálculo
   const steps = useMemo(() => [
-    // CORRIGIDO: Tipar key como TimeRecordKey
+    // Tipar key como TimeRecordKey
     { key: 'clock_in' as TimeRecordKey, label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
     { key: 'lunch_start' as TimeRecordKey, label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
     { key: 'lunch_end' as TimeRecordKey, label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
@@ -604,7 +603,7 @@ const OptimizedTimeRegistration = React.memo(() => {
   ], []);
 
 
-  // CORRIGIDO: getValue agora aceita TimeRecordKey
+  // getValue agora aceita TimeRecordKey
   const getValue = useCallback((key: TimeRecordKey) => {
     // Acessa diretamente a propriedade do timeRecord que corresponde ao horário
     return timeRecord?.[key];
@@ -616,7 +615,7 @@ const OptimizedTimeRegistration = React.memo(() => {
   }, [steps, getValue]);
 
 
-  // CORRIGIDO: nextAction retorna TimeRecordKey | null
+  // nextAction retorna TimeRecordKey | null
   const nextAction = useMemo<TimeRecordKey | null>(() => {
     if (!timeRecord?.clock_in) return 'clock_in';
     if (!timeRecord?.lunch_start) return 'lunch_start';
@@ -674,7 +673,7 @@ const OptimizedTimeRegistration = React.memo(() => {
             <div className="flex justify-between items-center mb-3">
               {steps.map((step, index) => {
                 const Icon = step.icon;
-                // CORRIGIDO: Usar getValue com a chave tipada corretamente
+                // Usar getValue com a chave tipada corretamente
                 const isCompleted = !!getValue(step.key);
                 const isNext = !isCompleted && completedCount === index;
 
@@ -697,7 +696,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                     }`}>
                       {step.label}
                     </span>
-                    {/* CORRIGIDO: Chamar getValue com a chave correta para exibir o horário */}
+                    {/* Chamar getValue com a chave correta para exibir o horário */}
                     {isCompleted && (
                       <span className="text-xs text-blue-600 mt-1 font-medium">
                         {getValue(step.key)}
