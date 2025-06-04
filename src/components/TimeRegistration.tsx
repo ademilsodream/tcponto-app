@@ -44,7 +44,7 @@ const TimeRegistration = () => {
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [userProfile, setUserProfile] = useState<{ full_name?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ name?: string } | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -63,9 +63,9 @@ const TimeRegistration = () => {
 
   // Função para obter nome do usuário (primeiro nome)
   const getUserDisplayName = () => {
-    if (userProfile?.full_name) {
+    if (userProfile?.name) {
       // Pegar apenas o primeiro nome
-      return userProfile.full_name.split(' ')[0];
+      return userProfile.name.split(' ')[0];
     }
     
     if (user?.email) {
@@ -123,7 +123,7 @@ const TimeRegistration = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name')
+        .select('name')
         .eq('id', user.id)
         .single();
 
