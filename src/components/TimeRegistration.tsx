@@ -8,10 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/Auth/AuthContext'; // Ajuste o caminho se necessário
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
 
 interface TimeRecord {
   id: string;
@@ -24,6 +25,7 @@ interface TimeRecord {
   locations?: any;
 }
 
+
 interface AllowedLocation {
   id: string;
   name: string;
@@ -33,6 +35,7 @@ interface AllowedLocation {
   range_meters: number;
   is_active: boolean;
 }
+
 
 const TimeRegistration = () => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
@@ -48,10 +51,11 @@ const TimeRegistration = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+
   // Função para obter saudação baseada no horário
   const getGreeting = () => {
     const hour = currentTime.getHours();
-    
+
     if (hour >= 5 && hour < 12) {
       return 'Bom dia';
     } else if (hour >= 12 && hour < 18) {
@@ -61,20 +65,22 @@ const TimeRegistration = () => {
     }
   };
 
+
   // Função para obter nome do usuário (primeiro nome)
   const getUserDisplayName = () => {
     if (userProfile?.name) {
       // Pegar apenas o primeiro nome
       return userProfile.name.split(' ')[0];
     }
-    
+
     if (user?.email) {
       // Se não tem nome, usar parte do email antes do @
       return user.email.split('@')[0];
     }
-    
+
     return 'Usuário';
   };
+
 
   // Função para obter data local (corrige problema de timezone)
   const getLocalDate = () => {
@@ -85,6 +91,7 @@ const TimeRegistration = () => {
     return `${year}-${month}-${day}`;
   };
 
+
   // Função para obter horário local
   const getLocalTime = () => {
     const now = new Date();
@@ -93,14 +100,17 @@ const TimeRegistration = () => {
     return `${hours}:${minutes}`;
   };
 
+
   // Atualizar relógio a cada segundo
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
+
     return () => clearInterval(timer);
   }, []);
+
 
   useEffect(() => {
     if (user) {
@@ -111,32 +121,37 @@ const TimeRegistration = () => {
       console.log('🌍 Data UTC:', utcDate);
       console.log('🇧🇷 Data Local:', localDate);
       console.log('⏰ Timezone offset:', new Date().getTimezoneOffset());
-      
+
       initializeData();
     }
   }, [user]);
+
 
   // Carregar perfil do usuário
   const loadUserProfile = async () => {
     if (!user) return;
 
+
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('name')
+        .select('name') // Mantido 'name' conforme o código fornecido
         .eq('id', user.id)
         .single();
+
 
       if (error && error.code !== 'PGRST116') {
         console.warn('Perfil não encontrado, usando dados do usuário');
         return;
       }
 
+
       setUserProfile(data);
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
     }
   };
+
 
   const initializeData = async () => {
     try {
@@ -158,6 +173,7 @@ const TimeRegistration = () => {
     }
   };
 
+
   const loadAllowedLocations = async () => {
     try {
       console.log('📍 CARREGANDO LOCALIZAÇÕES PERMITIDAS...');
@@ -167,17 +183,18 @@ const TimeRegistration = () => {
         .eq('is_active', true)
         .order('name');
 
+
       if (error) throw error;
-      
+
       const processedLocations = (data || []).map(location => ({
         ...location,
         latitude: Number(location.latitude),
         longitude: Number(location.longitude),
         range_meters: Number(location.range_meters)
       }));
-      
+
       setAllowedLocations(processedLocations);
-      
+
       if (!processedLocations || processedLocations.length === 0) {
         console.warn('⚠️ Nenhuma localização permitida encontrada no banco de dados');
         toast({
@@ -196,13 +213,15 @@ const TimeRegistration = () => {
     }
   };
 
+
   const loadTodayRecord = async () => {
     if (!user) return;
+
 
     try {
       const today = getLocalDate(); // ✅ Usa data local em vez de UTC
       console.log('📅 Buscando registros para a data local:', today);
-      
+
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
@@ -210,9 +229,11 @@ const TimeRegistration = () => {
         .eq('date', today)
         .single();
 
+
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
+
 
       console.log('📊 Registro encontrado para hoje:', data);
       setTimeRecord(data);
@@ -226,14 +247,16 @@ const TimeRegistration = () => {
     }
   };
 
+
   const handleTimeAction = async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
     if (!user) return;
 
+
     try {
       setSubmitting(true);
-      
+
       console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
-      
+
       if (!allowedLocations || allowedLocations.length === 0) {
         console.error('❌ Nenhuma localização permitida carregada');
         toast({
@@ -244,11 +267,12 @@ const TimeRegistration = () => {
         return;
       }
 
+
       console.log(`🏢 Validando contra ${allowedLocations.length} localizações permitidas`);
       console.log('📋 Validação de localização: GPS deve estar DENTRO DO RANGE de uma localização permitida');
-      
+
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
-      
+
       if (!locationValidation.valid) {
         console.error('❌ Localização não autorizada:', locationValidation.message);
         toast({
@@ -259,20 +283,24 @@ const TimeRegistration = () => {
         return;
       }
 
+
       console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
+
 
       const now = new Date();
       const today = getLocalDate(); // ✅ Usa data local
       const currentTime = getLocalTime(); // ✅ Usa horário local
-      
+
       console.log('📅 Data do registro:', today);
       console.log('🕐 Horário do registro:', currentTime);
+
 
       let updateData: any = {
         [action]: currentTime,
         updated_at: new Date().toISOString()
       };
 
+      // --- Início da lógica de salvamento de localização (completa) ---
       if (locationValidation.location) {
         const locationData = {
           [action]: {
@@ -291,6 +319,8 @@ const TimeRegistration = () => {
           updateData.locations = locationData;
         }
       }
+      // --- Fim da lógica de salvamento de localização ---
+
 
       if (timeRecord) {
         console.log('🔄 Atualizando registro existente:', timeRecord.id);
@@ -298,6 +328,7 @@ const TimeRegistration = () => {
           .from('time_records')
           .update(updateData)
           .eq('id', timeRecord.id);
+
 
         if (error) throw error;
       } else {
@@ -310,11 +341,13 @@ const TimeRegistration = () => {
             ...updateData
           });
 
+
         if (error) throw error;
       }
 
+
       await loadTodayRecord();
-      
+
       const actionNames = {
         clock_in: 'Entrada',
         lunch_start: 'Início do Almoço',
@@ -322,10 +355,12 @@ const TimeRegistration = () => {
         clock_out: 'Saída'
       };
 
+
       toast({
         title: "Sucesso",
         description: `${actionNames[action]} registrada às ${currentTime}`,
       });
+
 
     } catch (error) {
       console.error('❌ Erro ao registrar:', error);
@@ -339,6 +374,7 @@ const TimeRegistration = () => {
     }
   };
 
+
   const handleEditSubmit = async () => {
     if (!user || !editField || !editValue || !editReason) {
       toast({
@@ -349,11 +385,14 @@ const TimeRegistration = () => {
       return;
     }
 
+
     try {
       setSubmitting(true);
 
+
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
 
+      // --- Início da lógica de salvamento de localização para solicitação de edição (completa) ---
       let locationData = null;
       if (locationValidation.location) {
         locationData = {
@@ -365,6 +404,8 @@ const TimeRegistration = () => {
           distance: locationValidation.distance || 0
         };
       }
+      // --- Fim da lógica de salvamento de localização para solicitação de edição ---
+
 
       const { error } = await supabase
         .from('edit_requests')
@@ -376,21 +417,25 @@ const TimeRegistration = () => {
           old_value: timeRecord?.[editField] || null,
           new_value: editValue,
           reason: editReason,
-          location: locationData,
+          location: locationData, // Inclui os dados de localização
           status: 'pending'
         });
 
+
       if (error) throw error;
+
 
       toast({
         title: "Sucesso",
         description: "Solicitação de alteração enviada para aprovação",
       });
 
+
       setIsEditDialogOpen(false);
       setEditField(null);
       setEditValue('');
       setEditReason('');
+
 
     } catch (error) {
       console.error('Erro ao enviar solicitação:', error);
@@ -404,12 +449,13 @@ const TimeRegistration = () => {
     }
   };
 
+
   // Verificar mudança de data automaticamente
   useEffect(() => {
     const checkDateChange = () => {
       const currentDate = getLocalDate();
       const recordDate = timeRecord?.date;
-      
+
       // Se a data mudou, recarregar
       if (recordDate && recordDate !== currentDate) {
         console.log('🗓️ Nova data detectada, recarregando registros...');
@@ -419,10 +465,12 @@ const TimeRegistration = () => {
       }
     };
 
+
     // Verificar a cada 30 segundos
     const interval = setInterval(checkDateChange, 30000);
     return () => clearInterval(interval);
   }, [timeRecord]);
+
 
   if (loading) {
     return (
@@ -433,6 +481,7 @@ const TimeRegistration = () => {
     );
   }
 
+
   const steps = [
     { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
     { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
@@ -440,11 +489,14 @@ const TimeRegistration = () => {
     { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ];
 
+
   const getValue = (key: string) => {
     return timeRecord?.[key as keyof TimeRecord];
   };
 
+
   const completedCount = steps.filter(step => getValue(step.key)).length;
+
 
   // Determinar próxima ação
   const getNextAction = () => {
@@ -455,7 +507,9 @@ const TimeRegistration = () => {
     return null;
   };
 
+
   const nextAction = getNextAction();
+
 
   const fieldNames = {
     clock_in: 'Entrada',
@@ -464,12 +518,14 @@ const TimeRegistration = () => {
     clock_out: 'Saída'
   };
 
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       {/* Header com logo movida para direita - otimizado para mobile */}
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
-      
+
       </div>
+
 
       {/* ✨ NOVA: Saudação com nome do usuário */}
       <div className="text-center mb-4">
@@ -481,6 +537,7 @@ const TimeRegistration = () => {
         </div>
       </div>
 
+
       {/* Relógio Principal - otimizado para mobile */}
       <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
@@ -490,6 +547,7 @@ const TimeRegistration = () => {
           {format(currentTime, 'HH:mm:ss')}
         </div>
       </div>
+
 
       {/* Card Principal - otimizado para mobile */}
       <Card className="w-full max-w-md bg-white shadow-lg">
@@ -502,11 +560,12 @@ const TimeRegistration = () => {
                 const isCompleted = !!getValue(step.key);
                 const isNext = !isCompleted && completedCount === index;
 
+
                 return (
                   <div key={step.key} className="flex flex-col items-center flex-1">
-                    <div 
+                    <div
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
-                        isCompleted 
+                        isCompleted
                           ? `${step.color} text-white`
                           : isNext
                             ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
@@ -530,17 +589,19 @@ const TimeRegistration = () => {
               })}
             </div>
 
+
             {/* Barra de progresso horizontal */}
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ 
+                style={{
                 width: `${(completedCount / 4) * 100}%`,
                 background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6'
                 }}
               />
             </div>
           </div>
+
 
           {/* Botão Registrar - otimizado para mobile */}
           {nextAction && (
@@ -554,6 +615,7 @@ const TimeRegistration = () => {
             </Button>
           )}
 
+
           {!nextAction && (
             <div className="text-center py-4">
               <div className="text-green-600 font-semibold mb-2">
@@ -566,6 +628,7 @@ const TimeRegistration = () => {
           )}
         </CardContent>
       </Card>
+
 
       {/* Dialog de Edição - mantido igual */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -587,6 +650,7 @@ const TimeRegistration = () => {
               />
             </div>
 
+
             <div className="space-y-2">
               <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
               <Textarea
@@ -598,6 +662,7 @@ const TimeRegistration = () => {
                 disabled={submitting}
               />
             </div>
+
 
             <div className="flex justify-end space-x-2">
               <Button
@@ -620,5 +685,6 @@ const TimeRegistration = () => {
     </div>
   );
 };
+
 
 export default TimeRegistration;
