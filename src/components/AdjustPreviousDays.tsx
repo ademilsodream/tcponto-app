@@ -413,12 +413,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
               <CalendarIcon className="w-5 h-5" />
               Ajustar Dias Anteriores
             </CardTitle>
-            {onBack && (
-              <Button variant="outline" size="sm" onClick={onBack}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Voltar
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent>
