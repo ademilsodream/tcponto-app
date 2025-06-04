@@ -26,10 +26,22 @@ interface TimeRecord {
   lunch_end?: string;
   clock_out?: string;
   total_hours: number;
+  normal_hours?: number; // Adicionado conforme sua estrutura
+  overtime_hours?: number; // Adicionado conforme sua estrutura
+  normal_pay?: number; // Adicionado conforme sua estrutura
+  overtime_pay?: number; // Adicionado conforme sua estrutura
+  total_pay?: number; // Adicionado conforme sua estrutura
   locations?: any; // Considerar tipar melhor se locations for usado
-  latitude?: number | null; // Adicionado latitude
-  longitude?: number | null; // Adicionado longitude
-  gps_accuracy?: number | null; // Adicionado gps_accuracy
+  created_at?: string; // Adicionado conforme sua estrutura
+  updated_at?: string; // Adicionado conforme sua estrutura
+  status?: string; // Adicionado conforme sua estrutura
+  is_pending_approval?: boolean; // Adicionado conforme sua estrutura
+  approved_by?: string; // Adicionado conforme sua estrutura
+  approved_at?: string; // Adicionado conforme sua estrutura
+  // Removido latitude, longitude, gps_accuracy pois não estão na sua tabela
+  // latitude?: number | null;
+  // longitude?: number | null;
+  // gps_accuracy?: number | null;
 }
 
 
@@ -95,7 +107,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     return 'Usuário';
   }, [userProfile?.name, user?.email]);
 
-  // MOVIDO PARA CIMA: Declaração de fieldNames antes de ser usado em useCallback
+
   const fieldNames = useMemo(() => ({
     clock_in: 'Entrada',
     lunch_start: 'Início do Almoço',
@@ -181,7 +193,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
       const { data, error } = await supabase
         .from('time_records')
-        .select('*')
+        .select('*') // Seleciona todas as colunas conforme a interface TimeRecord
         .eq('user_id', user.id)
         .eq('date', localDate)
         .single();
@@ -286,22 +298,18 @@ const OptimizedTimeRegistration = React.memo(() => {
         // Este try block agora engloba a operação Supabase E as ações subsequentes
         try {
           const currentTimeStr = localTime; // Usar localTime memoizado
-          // Extrai location e accuracy do resultado passado pelo debouncedLocationRequest
-          const { location, gpsAccuracy } = locationValidationResult;
+          // Não precisamos extrair location ou gpsAccuracy aqui, pois não vamos salvar no time_records
+          // const { location, gpsAccuracy } = locationValidationResult;
 
 
-          if (!location || gpsAccuracy === undefined) {
-               console.error('⚠️ Dados de localização incompletos após validação bem-sucedida.');
-               throw new Error('Erro interno: dados de localização incompletos.');
-          }
-
-
+          // Payload ajustado para incluir SOMENTE as colunas que existem na sua tabela time_records
           let payload: any = {
             [action]: currentTimeStr,
             updated_at: new Date().toISOString(),
-            latitude: location.latitude,
-            longitude: location.longitude,
-            gps_accuracy: gpsAccuracy
+            // Removido latitude, longitude, gps_accuracy do payload
+            // latitude: location.latitude,
+            // longitude: location.longitude,
+            // gps_accuracy: gpsAccuracy
           };
 
 
@@ -330,7 +338,16 @@ const OptimizedTimeRegistration = React.memo(() => {
             console.log('➕ Tentando inserir novo registro.');
             payload.user_id = user.id;
             payload.date = localDate;
-            payload.total_hours = 0; // Definir valor inicial para total_hours se necessário
+            // Definir valores iniciais para colunas obrigatórias ou com default
+            payload.total_hours = 0;
+            payload.normal_hours = 0;
+            payload.overtime_hours = 0;
+            payload.normal_pay = 0;
+            payload.overtime_pay = 0;
+            payload.total_pay = 0;
+            // payload.locations = null; // Ou um objeto vazio {} se for JSONB
+            // payload.status = 'completed'; // Ou o status inicial apropriado
+            // payload.is_pending_approval = false; // Ou o valor inicial apropriado
 
 
             const { data, error } = await supabase
@@ -368,7 +385,6 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
           // 2. Mostrar toast de sucesso
-          // fieldNames agora está declarado antes deste useCallback
           const actionNames = fieldNames; // Usar fieldNames
           toast({
             title: "Sucesso",
@@ -398,6 +414,7 @@ const OptimizedTimeRegistration = React.memo(() => {
         } finally {
             // O setSubmitting(false) final será chamado no finally do handleTimeAction
             console.log('➡️ Fim do callback onSuccess do debouncedLocationRequest.');
+            setSubmitting(false); // Mover setSubmitting(false) para o finally aqui
         }
       },
       (message) => { // onError callback do debouncedLocationRequest
@@ -409,11 +426,12 @@ const OptimizedTimeRegistration = React.memo(() => {
         });
         // O setSubmitting(false) final será chamado no finally do handleTimeAction
         console.log('➡️ Fim do callback onError do debouncedLocationRequest.');
+        setSubmitting(false); // Mover setSubmitting(false) para o finally aqui
       }
     );
 
 
-    // REMOVA ESTA LINHA - setSubmitting(false) deve ser chamado no finally do handleTimeAction
+    // REMOVA ESTA LINHA - setSubmitting(false) deve ser chamado nos finally dos callbacks
     // setSubmitting(false);
 
 
@@ -530,9 +548,6 @@ const OptimizedTimeRegistration = React.memo(() => {
     if (!timeRecord?.clock_out) return 'clock_out';
     return null;
   }, [timeRecord]);
-
-
-  // fieldNames foi movido para cima
 
 
   if (loadingRecord) {
