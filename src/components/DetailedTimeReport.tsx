@@ -392,11 +392,21 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
           if (error) throw error;
 
           // Atualizar o estado local dos registros com os dados retornados (incluindo o novo updated_at)
-          setTimeRecords(prevRecords =>
-              prevRecords.map(record =>
-                  record.id === editingRecord.id ? { ...record, ...data } : record
-              )
-          );
+         setTimeRecords(prevRecords =>
+          prevRecords.map(record => {
+              if (record.id === editingRecord.id) {
+                  // Mescla os dados atualizados do Supabase, mas garante que o perfil
+                  // seja o do dado retornado (se existir) ou o perfil original
+                  return {
+                      ...record, // Mantém as propriedades originais (como created_at, etc.)
+                      ...data,   // Sobrescreve com os dados retornados pelo Supabase (incluindo updated_at)
+                      profiles: data.profiles || record.profiles // Usa o perfil retornado ou mantém o original
+                  };
+              }
+              return record;
+          })
+      );
+;
 
           toast({
               title: "Sucesso",
