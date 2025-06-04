@@ -36,8 +36,8 @@ interface TimeRecord {
     id: string;
     name: string;
     email: string;
-    hourly_rate: number;
     role: string;
+    hourly_rate?: number; // ✨ CORRIGIDO: Tornou-se opcional
   };
 }
 
