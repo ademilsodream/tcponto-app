@@ -9,7 +9,7 @@ import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
 // Importa Json do supabase-js
 import { supabase, Json } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-// CORRIGIDO: Caminho do import do AuthContext (mantido o padrão @/)
+// CORRIGIDO: Caminho do import do AuthContext
 import { useAuth } from '@/contexts/AuthContext';
 // Importe validateLocationForTimeRecord e a interface Location
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
@@ -56,6 +56,8 @@ interface TimeRecord {
   total_hours: number;
   normal_hours?: number;
   overtime_hours?: number;
+  normal_pay?: number;
+  overtime_pay?: number;
   total_pay?: number;
   // CORRIGIDO: Tipagem da coluna locations para aceitar Json do Supabase
   locations?: Json | null; // Supabase retorna Json, que pode ser qualquer tipo JSON válido
@@ -121,7 +123,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     if (hour >= 5 && hour < 12) return 'Bom dia';
     if (hour >= 12 && hour < 18) return 'Boa tarde';
     return 'Boa noite';
-  }, [currentTime.getHours]); // Dependência correta: currentTime.getHours
+  }, [currentTime.getHours]);
 
 
   // Nome do usuário memoizado
@@ -453,7 +455,6 @@ const OptimizedTimeRegistration = React.memo(() => {
                console.log('✨ Estado local timeRecord atualizado com dados salvos.');
           } else {
                console.warn('Supabase retornou sucesso, mas nenhum dado foi retornado.');
-          .');
           }
 
 
@@ -701,6 +702,22 @@ const OptimizedTimeRegistration = React.memo(() => {
                       <span className="text-xs text-blue-600 mt-1 font-medium">
                         {getValue(step.key)}
                       </span>
+                    )}
+                     {/* Botão de editar - aparece apenas se o horário já foi registrado */}
+                    {isCompleted && (
+                        <Button
+                            variant="link"
+                            size="sm"
+                            className="text-xs text-blue-500 hover:text-blue-700 p-0 h-auto"
+                            onClick={() => {
+                                setEditField(step.key);
+                                setEditValue(getValue(step.key) || ''); // Preenche com valor atual se existir
+                                setEditReason('');
+                                setIsEditDialogOpen(true);
+                            }}
+                        >
+                            Editar
+                        </Button>
                     )}
                   </div>
                 );
