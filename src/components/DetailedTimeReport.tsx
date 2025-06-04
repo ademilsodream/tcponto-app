@@ -17,6 +17,7 @@ import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 import { useToast } from '@/components/ui/use-toast';
 
+
 // ✨ ATUALIZADO: Usando updated_at e adicionado created_at
 interface TimeRecord {
   id?: string;
@@ -27,7 +28,7 @@ interface TimeRecord {
   lunch_end?: string | null;
   clock_out?: string | null;
   total_hours?: number | null;
-  normal_hours?: number | null;
+  normal_hours?: number | null; // ✨ Já existe, mas garantindo que está aqui
   overtime_hours?: number | null;
   created_at?: string; // ✨ NOVO: Adicionado created_at
   updated_at?: string; // ✨ ATUALIZADO: Usando updated_at
@@ -40,10 +41,12 @@ interface TimeRecord {
   };
 }
 
+
 interface DetailedTimeReportProps {
   employees: Employee[];
   onBack?: () => void;
 }
+
 
 // Interface para o estado do registro em edição
 interface EditingRecordState {
@@ -55,6 +58,8 @@ interface EditingRecordState {
   lunch_end: string | null;
   clock_out: string | null;
 }
+
+
 
 
 const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBack }) => {
@@ -69,24 +74,32 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   const [editLoading, setEditLoading] = useState(false);
 
 
+
+
   const { toast } = useToast();
+
 
   const activeEmployees = useMemo(() => getActiveEmployees(employees), [employees]);
 
+
   const formatHoursAsTime = (hours: number | null | undefined) => {
     if (hours === null || hours === undefined || hours === 0) return '-';
+
 
     const totalMinutes = Math.round(hours * 60);
     const hoursDisplay = Math.floor(totalMinutes / 60);
     const minutesDisplay = totalMinutes % 60;
 
+
     return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
   };
+
 
   const generateDateRange = (start: string, end: string) => {
     const dates = [];
     const startDateObj = new Date(start + 'T00:00:00');
     const endDateObj = new Date(end + 'T00:00:00');
+
 
     for (let date = new Date(startDateObj); date <= endDateObj; date.setDate(date.getDate() + 1)) {
       const dateString = format(date, 'yyyy-MM-dd');
@@ -95,18 +108,22 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return dates;
   };
 
+
   const isDateInPeriod = (dateStr: string, start: string, end: string) => {
     const date = new Date(dateStr + 'T00:00:00');
     const startDateObj = new Date(start + 'T00:00:00');
     const endDateObj = new Date(end + 'T00:00:00');
 
+
     return date >= startDateObj && date <= endDateObj;
   };
+
 
   const getDayOfWeek = (dateString: string) => {
     const date = new Date(dateString + 'T00:00:00');
     return format(date, 'EEEE', { locale: ptBR });
   };
+
 
   const generateReport = useCallback(async () => {
     if (!startDate || !endDate) {
@@ -118,6 +135,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       return;
     }
 
+
     if (startDate > endDate) {
       toast({
         title: "Período inválido",
@@ -127,27 +145,33 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       return;
     }
 
+
     if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
-       if (!activeEmployees.find(emp => emp.id === selectedEmployeeId)) {
-           toast({
-               title: "Sem funcionários",
-               description: "Não há funcionários ativos cadastrados para gerar o relatório.",
-               variant: "destructive"
-           });
-           return;
-       }
+        if (!activeEmployees.find(emp => emp.id === selectedEmployeeId)) {
+            toast({
+                title: "Sem funcionários",
+                description: "Não há funcionários ativos cadastrados para gerar o relatório.",
+                variant: "destructive"
+            });
+            return;
+        }
     }
+
+
 
 
     setLoading(true);
     setHasSearched(true);
     setTimeRecords([]);
 
+
     try {
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
 
+
       const dateRange = generateDateRange(startDateStr, endDateStr);
+
 
       let query = supabase
         .from('time_records')
@@ -158,15 +182,18 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         .order('user_id', { ascending: true })
         .order('date', { ascending: true });
 
+
       if (selectedEmployeeId !== 'all') {
         query = query.eq('user_id', selectedEmployeeId);
       }
 
+
       const { data, error } = await query;
+
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
-         console.error('Supabase Error Details:', error.message, error.details, error.hint);
+          console.error('Supabase Error Details:', error.message, error.details, error.hint);
         toast({
           title: "Erro",
           description: `Erro ao carregar registros de ponto: ${error.message}`,
@@ -174,6 +201,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         });
         return;
       }
+
 
       const recordsMap = (data || []).reduce((acc, record) => {
         if (isDateInPeriod(record.date, startDateStr, endDateStr)) {
@@ -184,18 +212,22 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       }, {} as Record<string, any>);
 
 
+
+
       let employeeIds: string[];
       if (selectedEmployeeId === 'all') {
-         employeeIds = activeEmployees.map(emp => emp.id);
-         const recordUserIds = new Set(data?.map(r => r.user_id).filter((id): id is string => id !== null && id !== undefined));
-         recordUserIds.forEach(id => {
-             if (!employeeIds.includes(id)) {
-                 employeeIds.push(id);
-             }
-         });
+          employeeIds = activeEmployees.map(emp => emp.id);
+          const recordUserIds = new Set(data?.map(r => r.user_id).filter((id): id is string => id !== null && id !== undefined));
+          recordUserIds.forEach(id => {
+              if (!employeeIds.includes(id)) {
+                  employeeIds.push(id);
+              }
+          });
       } else {
         employeeIds = [selectedEmployeeId];
       }
+
+
 
 
       // Buscar perfis dos funcionários relevantes
@@ -207,9 +239,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         .or('status.is.null,status.eq.active');
 
 
+
+
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
-         console.error('Supabase Profiles Error Details:', profilesError.message, profilesError.details, profilesError.hint);
+          console.error('Supabase Profiles Error Details:', profilesError.message, profilesError.details, profilesError.hint);
         toast({
           title: "Erro",
           description: `Erro ao carregar perfis dos funcionários: ${profilesError.message}`,
@@ -218,18 +252,23 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         return;
       }
 
+
       const profilesMap = (profilesData || []).reduce((acc, profile) => {
         acc[profile.id] = profile;
         return acc;
       }, {} as Record<string, typeof profilesData[0]>);
 
 
+
+
       const completeRecords: TimeRecord[] = [];
+
 
       profilesData?.forEach(profile => {
           dateRange.forEach(date => {
               const key = `${profile.id}-${date}`;
               const record = recordsMap[key];
+
 
               if (record) {
                   const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
@@ -238,6 +277,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       record.lunch_end || '',
                       record.clock_out || ''
                   );
+
 
                   completeRecords.push({
                       id: record.id,
@@ -249,7 +289,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       lunch_end: record.lunch_end,
                       clock_out: record.clock_out,
                       total_hours: totalHours,
-                      normal_hours: normalHours,
+                      normal_hours: normalHours, // ✨ Incluindo normalHours
                       overtime_hours: overtimeHours,
                       created_at: record.created_at, // Incluir created_at
                       updated_at: record.updated_at // Incluir updated_at
@@ -265,14 +305,15 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       lunch_end: null,
                       clock_out: null,
                       total_hours: null,
-                      normal_hours: null,
+                      normal_hours: null, // ✨ Incluindo normalHours nulo
                       overtime_hours: null,
                       created_at: undefined, // Não existe created_at para registro vazio
-                      updated_at: undefined  // Não existe updated_at para registro vazio
+                      updated_at: undefined // Não existe updated_at para registro vazio
                   });
               }
           });
       });
+
 
       completeRecords.sort((a, b) => {
           const nameA = a.profiles?.name || '';
@@ -285,12 +326,16 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       });
 
 
+
+
       setTimeRecords(completeRecords);
+
 
       toast({
         title: "Sucesso",
         description: `Relatório gerado com ${completeRecords.length} registros`,
       });
+
 
     } catch (error) {
       console.error('Erro inesperado ao gerar relatório:', error);
@@ -305,6 +350,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   }, [startDate, endDate, selectedEmployeeId, activeEmployees, toast]);
 
 
+
+
   const handleClearSearch = useCallback(() => {
     setStartDate(undefined);
     setEndDate(undefined);
@@ -312,11 +359,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     setTimeRecords([]);
     setHasSearched(false);
 
+
     toast({
       title: "Pesquisa limpa",
       description: "Filtros e resultados foram resetados.",
     });
   }, [toast]);
+
+
 
 
   const formatTime = (timeString: string | null | undefined) => {
@@ -327,7 +377,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     return '-';
   };
 
-   // Função para abrir o modal de edição
+
+    // Função para abrir o modal de edição
   const handleEditClick = useCallback((record: TimeRecord) => {
       if (!record.id || !record.user_id) {
           toast({
@@ -349,11 +400,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       setIsEditDialogOpen(true);
   }, [toast]);
 
+
   // Função para salvar as edições
   const handleSaveEdit = useCallback(async () => {
       if (!editingRecord || editLoading) return;
 
+
       setEditLoading(true);
+
 
       try {
           const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
@@ -363,6 +417,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               editingRecord.clock_out || ''
           );
 
+
           // Preparar o payload para atualização
           const updatePayload = {
               clock_in: editingRecord.clock_in,
@@ -371,14 +426,17 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               clock_out: editingRecord.clock_out,
               // ✨ ATUALIZADO: Incluindo campos calculados no payload (se existirem no DB)
               total_hours: totalHours,
-              normal_hours: normalHours,
+              normal_hours: normalHours, // ✨ Incluindo normalHours no payload
               overtime_hours: overtimeHours,
               // updated_at será definido automaticamente pelo trigger do Supabase
           };
 
+
           const cleanPayload = Object.fromEntries(
               Object.entries(updatePayload).filter(([_, v]) => v !== null)
           );
+
+
 
 
           const { data, error } = await supabase
@@ -389,22 +447,27 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at, profiles(id, name, email, role)')
               .single();
 
+
           if (error) throw error;
 
-          // Atualizar o estado local dos registros com os dados retornados (incluindo o novo updated_at)
+
+          // Atualizar o estado local dos registros com os dados retornados (incluindo o novo updated_at e horas calculadas)
           setTimeRecords(prevRecords =>
               prevRecords.map(record =>
-                  record.id === editingRecord.id ? { ...record, ...data } : record
+                  record.id === editingRecord.id ? { ...record, ...data, total_hours: totalHours, normal_hours: normalHours, overtime_hours: overtimeHours } : record
               )
           );
+
 
           toast({
               title: "Sucesso",
               description: "Registro de ponto atualizado com sucesso.",
           });
 
+
           setIsEditDialogOpen(false);
           setEditingRecord(null);
+
 
       } catch (error: any) {
           console.error('Erro ao salvar edição:', error);
@@ -417,6 +480,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
           setEditLoading(false);
       }
   }, [editingRecord, toast]);
+
+
 
 
   // Agrupar registros por funcionário para exibição
@@ -432,52 +497,63 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
   }, [timeRecords]);
 
 
+
+
+  // ✨ ATUALIZADO: Incluindo normalHours na soma total
   const calculateEmployeeTotals = useCallback((records: TimeRecord[]) => {
     return records.reduce((totals, record) => {
       const totalHours = Number(record.total_hours || 0);
+      const normalHours = Number(record.normal_hours || 0); // ✨ Somando normalHours
       const overtimeHours = Number(record.overtime_hours || 0);
+
 
       return {
         totalHours: totals.totalHours + totalHours,
+        normalHours: totals.normalHours + normalHours, // ✨ Adicionando ao total
         overtimeHours: totals.overtimeHours + overtimeHours
       };
-    }, { totalHours: 0, overtimeHours: 0 });
+    }, { totalHours: 0, normalHours: 0, overtimeHours: 0 }); // ✨ Inicializando normalHours em 0
   }, []);
 
 
-  if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
-     return (
-       <div className="min-h-screen bg-gray-50">
-         <header className="bg-white shadow-sm border-b">
-           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-             <div className="flex justify-between items-center h-16">
-               <div className="flex items-center space-x-4">
-                 <div>
-                   <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                     <Clock className="w-5 h-5" />
-                     Detalhamento de Ponto
-                   </h1>
-                   <p className="text-sm text-gray-600">Relatório detalhado de registros de ponto por funcionário</p>
-                 </div>
-               </div>
-             </div>
-           </div>
-         </header>
 
-         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-           <Card>
-             <CardContent className="text-center py-8">
-               <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-               <h3 className="text-lg font-medium mb-2">Nenhum funcionário ativo encontrado</h3>
-               <p className="text-sm text-gray-500">
-                 Cadastre funcionários ativos (não administradores) para visualizar relatórios detalhados.
-               </p>
-             </CardContent>
-           </Card>
-         </div>
-       </div>
-     );
+
+  if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
+      return (
+        <div className="min-h-screen bg-gray-50">
+          <header className="bg-white shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center h-16">
+                <div className="flex items-center space-x-4">
+                  <div>
+                    <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                      <Clock className="w-5 h-5" />
+                      Detalhamento de Ponto
+                    </h1>
+                    <p className="text-sm text-gray-600">Relatório detalhado de registros de ponto por funcionário</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </header>
+
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <Card>
+              <CardContent className="text-center py-8">
+                <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhum funcionário ativo encontrado</h3>
+                <p className="text-sm text-gray-500">
+                  Cadastre funcionários ativos (não administradores) para visualizar relatórios detalhados.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      );
   }
+
+
 
 
   return (
@@ -495,13 +571,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               </div>
             </div>
              {onBack && (
-                 <Button variant="outline" onClick={onBack}>
-                     Voltar
-                 </Button>
+                <Button variant="outline" onClick={onBack}>
+                    Voltar
+                </Button>
              )}
           </div>
         </div>
       </header>
+
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
@@ -541,6 +618,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   </Popover>
                 </div>
 
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Data Final *</label>
                   <Popover>
@@ -568,6 +646,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   </Popover>
                 </div>
 
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Funcionário</label>
                   <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
@@ -585,6 +664,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   </Select>
                 </div>
 
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Total de Registros</label>
                   <div className="text-2xl font-bold text-blue-600">
@@ -592,6 +672,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   </div>
                 </div>
               </div>
+
 
               <div className="flex gap-2 pt-4 border-t">
                 <Button
@@ -612,6 +693,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   )}
                 </Button>
 
+
                 {hasSearched && (
                   <Button
                     variant="outline"
@@ -623,6 +705,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 )}
               </div>
 
+
               {(!startDate || !endDate) && (
                 <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
@@ -632,6 +715,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               )}
             </CardContent>
           </Card>
+
 
           {loading ? (
             <Card>
@@ -647,6 +731,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               <div className="space-y-6">
                 {Object.entries(groupedRecords).map(([employeeName, records]) => {
                   const totals = calculateEmployeeTotals(records);
+
 
                   return (
                     <Card key={employeeName}>
@@ -664,9 +749,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                             )}
                           </div>
                         </CardTitle>
+                        {/* ✨ ATUALIZADO: Exibindo Horas Normais e Horas Extras */}
                         <div className="flex gap-6 text-sm text-gray-600">
-                          <span>Total de Horas: <strong>{formatHoursAsTime(totals.totalHours)}</strong></span>
+                          <span>Horas Normais: <strong>{formatHoursAsTime(totals.normalHours)}</strong></span>
                           <span>Horas Extras: <strong>{formatHoursAsTime(totals.overtimeHours)}</strong></span>
+                           {/* ✨ Removido o totalHours daqui para evitar confusão, já que Normal + Extra = Total */}
                         </div>
                       </CardHeader>
                       <CardContent className="p-0">
@@ -680,7 +767,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                 <TableHead>Saída Almoço</TableHead>
                                 <TableHead>Volta Almoço</TableHead>
                                 <TableHead>Saída</TableHead>
-                                <TableHead>Total Horas</TableHead>
+                                <TableHead>Total Horas</TableHead> {/* ✨ Mantido na tabela para o dia */}
                                 <TableHead>Horas Extras</TableHead>
                                 <TableHead className="w-[40px]"></TableHead>
                               </TableRow>
@@ -688,15 +775,15 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                               <TableBody>
                                 {records.map((record: TimeRecord, index: number) => {
                                   const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                              
+                                
                                   // ✨ Lógica de destaque para registro editado
                                   const isEdited = record.id && record.created_at && record.updated_at && record.updated_at !== record.created_at;
-                              
+                                
                                   // ✨ Lógica para identificar Sábado e Domingo
                                   const dayOfWeek = getDayOfWeek(record.date);
                                   const isSaturday = dayOfWeek.toLowerCase() === 'sábado'; // Compare com a string em ptBR e minúsculas
                                   const isSunday = dayOfWeek.toLowerCase() === 'domingo'; // Compare com a string em ptBR e minúsculas
-                              
+                                
                                   // ✨ Combinar classes: editado > domingo > sábado > padrão
                                   const rowClassName = cn(
                                     isEdited && 'bg-yellow-50 hover:bg-yellow-100', // Destaque editado (prioridade visual)
@@ -704,8 +791,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                     !isEdited && isSaturday && 'bg-blue-50 hover:bg-blue-100' // Destaque sábado (se não editado e não domingo)
                                     // Se não for editado, domingo ou sábado, a classe será vazia (padrão)
                                   );
-                              
-                              
+                                
+                                
                                   return (
                                     // ✨ Aplicando a classe combinada
                                     <TableRow key={key} className={rowClassName}>
@@ -782,6 +869,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
         </div>
       </div>
 
+
       {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
@@ -828,7 +916,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                   onChange={(e) => setEditingRecord({ ...editingRecord, lunch_end: e.target.value || null })}
                                   disabled={editLoading}
                                 />
-                            </div>
+                          </div>
                             <div className="space-y-2">
                                 <Label htmlFor="edit-clock-out">Saída</Label>
                                 <Input
@@ -839,9 +927,9 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                     disabled={editLoading}
                                 />
                             </div>
-                        </div>
-                    </div>
-                )}
+                      </div>
+                  </div>
+              )}
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={editLoading}>
                         Cancelar
@@ -850,11 +938,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                         {editLoading ? 'Salvando...' : 'Salvar Alterações'}
                     </Button>
                 </DialogFooter>
-            </DialogContent>
+          </DialogContent>
         </Dialog>
 
-      </div>
-    );
-  };
 
-  export default DetailedTimeReport;
+      </div>
+  );
+};
+
+
+export default DetailedTimeReport;
