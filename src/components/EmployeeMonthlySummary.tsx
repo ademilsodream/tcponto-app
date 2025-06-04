@@ -224,12 +224,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
             <Calendar className="w-5 h-5 text-primary-600" />
             Resumo de {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
           </CardTitle>
-          {onBack && (
-            <Button variant="outline" size="sm" onClick={onBack} className="border-primary-300 text-primary-700 hover:bg-primary-100">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar
-            </Button>
-          )}
         </div>
       </CardHeader>
       <CardContent className="pt-0"> {/* Ajuste no padding */}
