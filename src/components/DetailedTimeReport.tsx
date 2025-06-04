@@ -17,7 +17,7 @@ import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { getActiveEmployees, type Employee } from '@/utils/employeeFilters';
 import { useToast } from '@/components/ui/use-toast';
 
-// ✨ ATUALIZADO: last_edited_at adicionado
+// ✨ ATUALIZADO: Usando updated_at e adicionado created_at
 interface TimeRecord {
   id?: string;
   date: string;
@@ -26,10 +26,11 @@ interface TimeRecord {
   lunch_start?: string | null;
   lunch_end?: string | null;
   clock_out?: string | null;
-  total_hours?: number | null; // Mantido, pois é calculado e adicionado depois
-  normal_hours?: number | null; // Mantido, pois é calculado e adicionado depois
-  overtime_hours?: number | null; // Mantido, pois é calculado e adicionado depois
-  last_edited_at?: string | null; // Campo para indicar se foi editado
+  total_hours?: number | null;
+  normal_hours?: number | null;
+  overtime_hours?: number | null;
+  created_at?: string; // ✨ NOVO: Adicionado created_at
+  updated_at?: string; // ✨ ATUALIZADO: Usando updated_at
   profiles?: {
     id: string;
     name: string;
@@ -127,8 +128,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
     }
 
     if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
-       // Adicionado verificação para caso não haja ativos, mas um específico seja selecionado
-       // Permitir buscar se um ID específico é selecionado, mesmo que não esteja na lista ativa
        if (!activeEmployees.find(emp => emp.id === selectedEmployeeId)) {
            toast({
                title: "Sem funcionários",
@@ -152,8 +151,8 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       let query = supabase
         .from('time_records')
-        // ✨ CORRIGIDO: Removido total_hours e overtime_hours da seleção
-        .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, last_edited_at')
+        // ✨ ATUALIZADO: Selecionando created_at e updated_at
+        .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at')
         .gte('date', startDateStr)
         .lte('date', endDateStr)
         .order('user_id', { ascending: true })
@@ -167,11 +166,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       if (error) {
         console.error('Erro ao carregar registros:', error);
-         // ✨ NOVO: Log mais detalhado do erro do Supabase
          console.error('Supabase Error Details:', error.message, error.details, error.hint);
         toast({
           title: "Erro",
-          description: `Erro ao carregar registros de ponto: ${error.message}`, // Exibir mensagem de erro
+          description: `Erro ao carregar registros de ponto: ${error.message}`,
           variant: "destructive"
         });
         return;
@@ -188,9 +186,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       let employeeIds: string[];
       if (selectedEmployeeId === 'all') {
-         // Buscar IDs de todos os funcionários ativos
          employeeIds = activeEmployees.map(emp => emp.id);
-         // Adicionar IDs de usuários encontrados nos registros que não estão na lista de ativos (para histórico)
          const recordUserIds = new Set(data?.map(r => r.user_id).filter((id): id is string => id !== null && id !== undefined));
          recordUserIds.forEach(id => {
              if (!employeeIds.includes(id)) {
@@ -205,20 +201,18 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       // Buscar perfis dos funcionários relevantes
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        // ✨ CORRIGIDO: Revertido filtro para buscar apenas usuários ativos
         .select('id, name, email, role')
         .in('id', employeeIds)
-        .eq('role', 'user') // Buscar apenas usuários (não admins)
-        .or('status.is.null,status.eq.active'); // Buscar status nulo ou ativo
+        .eq('role', 'user')
+        .or('status.is.null,status.eq.active');
 
 
       if (profilesError) {
         console.error('Erro ao carregar perfis:', profilesError);
-         // ✨ NOVO: Log mais detalhado do erro do Supabase
          console.error('Supabase Profiles Error Details:', profilesError.message, profilesError.details, profilesError.hint);
         toast({
           title: "Erro",
-          description: `Erro ao carregar perfis dos funcionários: ${profilesError.message}`, // Exibir mensagem de erro
+          description: `Erro ao carregar perfis dos funcionários: ${profilesError.message}`,
           variant: "destructive"
         });
         return;
@@ -232,14 +226,12 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
       const completeRecords: TimeRecord[] = [];
 
-      // Iterar sobre os funcionários relevantes (cujos perfis foram encontrados) e as datas do período
-      profilesData?.forEach(profile => { // Iterar sobre profilesData para garantir que temos o perfil
+      profilesData?.forEach(profile => {
           dateRange.forEach(date => {
               const key = `${profile.id}-${date}`;
               const record = recordsMap[key];
 
               if (record) {
-                  // Usar a função padronizada com tolerância de 15 minutos
                   const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
                       record.clock_in || '',
                       record.lunch_start || '',
@@ -248,7 +240,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                   );
 
                   completeRecords.push({
-                      id: record.id, // Garantir que o ID é incluído
+                      id: record.id,
                       date,
                       user_id: profile.id,
                       profiles: profile,
@@ -256,14 +248,14 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       lunch_start: record.lunch_start,
                       lunch_end: record.lunch_end,
                       clock_out: record.clock_out,
-                      total_hours: totalHours, // Calculado aqui
-                      normal_hours: normalHours, // Calculado aqui
-                      overtime_hours: overtimeHours, // Calculado aqui
-                      last_edited_at: record.last_edited_at // Incluir o campo editado
+                      total_hours: totalHours,
+                      normal_hours: normalHours,
+                      overtime_hours: overtimeHours,
+                      created_at: record.created_at, // Incluir created_at
+                      updated_at: record.updated_at // Incluir updated_at
                   });
               } else {
-                  // Adicionar registros vazios para os dias sem ponto no período, APENAS se o perfil for de usuário ativo
-                  // A iteração sobre profilesData já garante que o perfil é relevante.
+                  // Adicionar registros vazios para os dias sem ponto no período
                   completeRecords.push({
                       date,
                       user_id: profile.id,
@@ -275,13 +267,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                       total_hours: null,
                       normal_hours: null,
                       overtime_hours: null,
-                      last_edited_at: null // Não editado se não há registro
+                      created_at: undefined, // Não existe created_at para registro vazio
+                      updated_at: undefined  // Não existe updated_at para registro vazio
                   });
               }
           });
       });
 
-      // Ordenar por nome do funcionário e depois por data
       completeRecords.sort((a, b) => {
           const nameA = a.profiles?.name || '';
           const nameB = b.profiles?.name || '';
@@ -329,11 +321,10 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
   const formatTime = (timeString: string | null | undefined) => {
     if (!timeString) return '-';
-    // Garantir que é um formato de hora válido antes de fatiar
     if (timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
         return timeString.slice(0, 5);
     }
-    return '-'; // Retorna '-' se não for um formato de hora esperado
+    return '-';
   };
 
    // Função para abrir o modal de edição
@@ -365,7 +356,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       setEditLoading(true);
 
       try {
-          // Recalcular horas com base nos novos horários
           const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
               editingRecord.clock_in || '',
               editingRecord.lunch_start || '',
@@ -379,13 +369,13 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               lunch_start: editingRecord.lunch_start,
               lunch_end: editingRecord.lunch_end,
               clock_out: editingRecord.clock_out,
-              total_hours: totalHours, // Salvar horas calculadas no DB (se as colunas existirem)
-              normal_hours: normalHours, // Salvar horas calculadas no DB (se as colunas existirem)
-              overtime_hours: overtimeHours, // Salvar horas calculadas no DB (se as colunas existirem)
-              last_edited_at: new Date().toISOString(), // Registrar a data/hora da edição
+              // ✨ ATUALIZADO: Incluindo campos calculados no payload (se existirem no DB)
+              total_hours: totalHours,
+              normal_hours: normalHours,
+              overtime_hours: overtimeHours,
+              // updated_at será definido automaticamente pelo trigger do Supabase
           };
 
-          // Remover campos nulos do payload para evitar erros de tipo no Supabase
           const cleanPayload = Object.fromEntries(
               Object.entries(updatePayload).filter(([_, v]) => v !== null)
           );
@@ -393,14 +383,15 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
 
           const { data, error } = await supabase
               .from('time_records')
-              .update(cleanPayload) // Usar payload limpo
+              .update(cleanPayload)
               .eq('id', editingRecord.id)
-              .select() // Selecionar o registro atualizado para obter o last_edited_at e outros campos
+              // ✨ ATUALIZADO: Selecionar created_at e updated_at após a atualização
+              .select('id, date, user_id, clock_in, lunch_start, lunch_end, clock_out, created_at, updated_at, profiles(id, name, email, role)')
               .single();
 
           if (error) throw error;
 
-          // Atualizar o estado local dos registros
+          // Atualizar o estado local dos registros com os dados retornados (incluindo o novo updated_at)
           setTimeRecords(prevRecords =>
               prevRecords.map(record =>
                   record.id === editingRecord.id ? { ...record, ...data } : record
@@ -452,14 +443,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
       };
     }, { totalHours: 0, overtimeHours: 0 });
   }, []);
-
-
-  // Efeito para gerar relatório inicial se datas estiverem preenchidas (opcional)
-  // useEffect(() => {
-  //     if (startDate && endDate && !hasSearched) {
-  //         generateReport();
-  //     }
-  // }, [startDate, endDate, hasSearched, generateReport]);
 
 
   if (activeEmployees.length === 0 && selectedEmployeeId === 'all') {
@@ -704,10 +687,11 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                             </TableHeader>
                             <TableBody>
                               {records.map((record: TimeRecord, index: number) => {
-                                // Usar ID se existir, caso contrário, um fallback
                                 const key = record.id || `${record.user_id || 'no-user'}-${record.date}-${index}`;
-                                // Classe condicional para destacar registros editados
-                                const rowClassName = record.last_edited_at ? 'bg-yellow-50 hover:bg-yellow-100' : '';
+                                // ✨ ATUALIZADO: Lógica de destaque usando created_at e updated_at
+                                // Destaca se o registro tem ID (existe no DB) E updated_at é diferente de created_at
+                                const isEdited = record.id && record.created_at && record.updated_at && record.updated_at !== record.created_at;
+                                const rowClassName = isEdited ? 'bg-yellow-50 hover:bg-yellow-100' : '';
 
                                 return (
                                   <TableRow key={key} className={rowClassName}>
@@ -793,7 +777,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
               {editingRecord && (
                   <div className="space-y-4">
                       <div>
-                          {/* Buscar o nome do funcionário do estado timeRecords */}
                           <p className="text-sm text-gray-600 mb-2">
                               Funcionário: <strong>{timeRecords.find(r => r.id === editingRecord.id)?.profiles?.name || 'N/A'}</strong>
                           </p>
@@ -830,34 +813,34 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                   value={editingRecord.lunch_end || ''}
                                   onChange={(e) => setEditingRecord({ ...editingRecord, lunch_end: e.target.value || null })}
                                   disabled={editLoading}
-                              />
-                          </div>
-                          <div className="space-y-2">
-                              <Label htmlFor="edit-clock-out">Saída</Label>
-                              <Input
-                                  id="edit-clock-out"
-                                  type="time"
-                                  value={editingRecord.clock_out || ''}
-                                  onChange={(e) => setEditingRecord({ ...editingRecord, clock_out: e.target.value || null })}
-                                  disabled={editLoading}
-                              />
-                          </div>
-                      </div>
-                  </div>
-              )}
-              <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={editLoading}>
-                      Cancelar
-                  </Button>
-                  <Button onClick={handleSaveEdit} disabled={editLoading}>
-                      {editLoading ? 'Salvando...' : 'Salvar Alterações'}
-                  </Button>
-              </DialogFooter>
-          </DialogContent>
-      </Dialog>
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="edit-clock-out">Saída</Label>
+                                <Input
+                                    id="edit-clock-out"
+                                    type="time"
+                                    value={editingRecord.clock_out || ''}
+                                    onChange={(e) => setEditingRecord({ ...editingRecord, clock_out: e.target.value || null })}
+                                    disabled={editLoading}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={editLoading}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={handleSaveEdit} disabled={editLoading}>
+                        {editLoading ? 'Salvando...' : 'Salvar Alterações'}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
-    </div>
-  );
-};
+      </div>
+    );
+  };
 
-export default DetailedTimeReport;
+  export default DetailedTimeReport;
