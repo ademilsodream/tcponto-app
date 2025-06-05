@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -34,6 +34,9 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
+// ✨ Constante para a duração do cooldown (20 minutos)
+const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
+
 const TimeRegistration = () => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,11 @@ const TimeRegistration = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // ✨ Novo estado para o fim do cooldown (timestamp em ms)
+  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
+  // ✨ Novo estado para o tempo restante do cooldown (em ms)
+  const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
+
   // Atualizar relógio a cada segundo
   useEffect(() => {
     const timer = setInterval(() => {
@@ -55,6 +63,53 @@ const TimeRegistration = () => {
 
     return () => clearInterval(timer);
   }, []);
+
+  // ✨ Efeito para carregar cooldown do localStorage e configurar timers
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    let intervalId: NodeJS.Timeout | null = null;
+
+    const storedCooldown = localStorage.getItem('timeRegistrationCooldown');
+    if (storedCooldown) {
+      const endTime = Number(storedCooldown);
+      if (endTime > Date.now()) {
+        setCooldownEndTime(endTime);
+        setRemainingCooldown(endTime - Date.now());
+
+        // Timer para finalizar o cooldown
+        timeoutId = setTimeout(() => {
+          setCooldownEndTime(null);
+          setRemainingCooldown(null);
+          localStorage.removeItem('timeRegistrationCooldown');
+          toast({
+            title: "Pronto!",
+            description: "Você já pode registrar o próximo ponto.",
+          });
+        }, endTime - Date.now());
+
+        // Intervalo para atualizar o tempo restante na UI
+        intervalId = setInterval(() => {
+          setRemainingCooldown(Math.max(0, endTime - Date.now()));
+        }, 1000);
+
+      } else {
+        // Cooldown expirou enquanto o app estava fechado
+        localStorage.removeItem('timeRegistrationCooldown');
+        setCooldownEndTime(null);
+        setRemainingCooldown(null);
+      }
+    } else {
+      // Sem cooldown no storage
+      setCooldownEndTime(null);
+      setRemainingCooldown(null);
+    }
+
+    // Função de limpeza para os timers
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [toast]); // Depende de toast para garantir que a função clearCooldown tenha acesso a ele
 
   useEffect(() => {
     if (user) {
@@ -89,23 +144,23 @@ const TimeRegistration = () => {
         .order('name');
 
       if (error) throw error;
-      
+
       const processedLocations = (data || []).map(location => ({
         ...location,
         latitude: Number(location.latitude),
         longitude: Number(location.longitude),
         range_meters: Number(location.range_meters)
       }));
-      
+
       setAllowedLocations(processedLocations);
-      
+
       if (!processedLocations || processedLocations.length === 0) {
         console.warn('⚠️ Nenhuma localização permitida encontrada no banco de dados');
-        toast({
-          title: "Aviso",
-          description: "Nenhuma localização permitida configurada no sistema",
-          variant: "destructive"
-        });
+        // toast({ // Comentado para não spamar toast se não houver localizações configuradas
+        //   title: "Aviso",
+        //   description: "Nenhuma localização permitida configurada no sistema",
+        //   variant: "destructive"
+        // });
       }
     } catch (error) {
       console.error('❌ Erro ao carregar localizações permitidas:', error);
@@ -122,7 +177,7 @@ const TimeRegistration = () => {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      
+
       const { data, error } = await supabase
         .from('time_records')
         .select('*')
@@ -148,11 +203,22 @@ const TimeRegistration = () => {
   const handleTimeAction = async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
     if (!user) return;
 
+    // ✨ Verifica se há cooldown ativo
+    if (cooldownEndTime && cooldownEndTime > Date.now()) {
+        toast({
+            title: "Aguarde",
+            description: "Você só pode registrar o próximo ponto após o período de espera.",
+            variant: "default" // Use default ou info para não parecer um erro
+        });
+        return;
+    }
+
+
     try {
       setSubmitting(true);
-      
+
       console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
-      
+
       if (!allowedLocations || allowedLocations.length === 0) {
         console.error('❌ Nenhuma localização permitida carregada');
         toast({
@@ -165,9 +231,9 @@ const TimeRegistration = () => {
 
       console.log(`🏢 Validando contra ${allowedLocations.length} localizações permitidas`);
       console.log('📋 Validação de localização: GPS deve estar DENTRO DO RANGE de uma localização permitida');
-      
+
       const locationValidation = await validateLocationForTimeRecord(allowedLocations);
-      
+
       if (!locationValidation.valid) {
         console.error('❌ Localização não autorizada:', locationValidation.message);
         toast({
@@ -179,6 +245,7 @@ const TimeRegistration = () => {
       }
 
       console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
+
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -227,8 +294,9 @@ const TimeRegistration = () => {
         if (error) throw error;
       }
 
+      // Recarrega o registro do dia para atualizar a UI
       await loadTodayRecord();
-      
+
       const actionNames = {
         clock_in: 'Entrada',
         lunch_start: 'Início do Almoço',
@@ -241,6 +309,12 @@ const TimeRegistration = () => {
         description: `${actionNames[action]} registrada às ${currentTime}`,
       });
 
+      // ✨ Define o fim do cooldown e salva no localStorage
+      const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
+      setCooldownEndTime(newCooldownEndTime);
+      localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
+
+
     } catch (error) {
       console.error('❌ Erro ao registrar:', error);
       toast({
@@ -252,6 +326,7 @@ const TimeRegistration = () => {
       setSubmitting(false);
     }
   };
+
 
   const handleEditSubmit = async () => {
     if (!user || !editField || !editValue || !editReason) {
@@ -284,7 +359,7 @@ const TimeRegistration = () => {
         .from('edit_requests')
         .insert({
           employee_id: user.id,
-          employee_name: user.email || 'Usuário',
+          employee_name: user.email || 'Usuário', // Pode ser melhor pegar o nome do perfil
           date: new Date().toISOString().split('T')[0],
           field: editField,
           old_value: timeRecord?.[editField] || null,
@@ -318,6 +393,15 @@ const TimeRegistration = () => {
     }
   };
 
+  // ✨ Função para formatar o tempo restante do cooldown
+  const formatRemainingTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8 min-h-screen">
@@ -338,7 +422,7 @@ const TimeRegistration = () => {
     return timeRecord?.[key as keyof TimeRecord];
   };
 
-  const completedCount = steps.filter(step => getValue(step.key)).length;
+  const completedCount = steps.filter(step => !!getValue(step.key)).length;
 
   // Determinar próxima ação
   const getNextAction = () => {
@@ -358,11 +442,15 @@ const TimeRegistration = () => {
     clock_out: 'Saída'
   };
 
+  // ✨ Verifica se o botão de registro deve estar desabilitado pelo cooldown
+  const isRegistrationButtonDisabled = submitting || (cooldownEndTime !== null && cooldownEndTime > Date.now());
+
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       {/* Header com logo movida para direita - otimizado para mobile */}
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16"> {/* padding-left para não ficar sob o menu */}
-      
+
       </div>
 
       {/* Relógio Principal - otimizado para mobile */}
@@ -388,9 +476,9 @@ const TimeRegistration = () => {
 
                 return (
                   <div key={step.key} className="flex flex-col items-center flex-1">
-                    <div 
+                    <div
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
-                        isCompleted 
+                        isCompleted
                           ? `${step.color} text-white` // Usando a cor específica do step
                           : isNext
                             ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
@@ -416,9 +504,9 @@ const TimeRegistration = () => {
 
             {/* Barra de progresso horizontal */}
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
+              <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ 
+                style={{
                 width: `${(completedCount / 4) * 100}%`,
                 background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6'
                 }}
@@ -428,14 +516,23 @@ const TimeRegistration = () => {
 
           {/* Botão Registrar - otimizado para mobile */}
           {nextAction && (
-            <Button
-              onClick={() => handleTimeAction(nextAction)}
-              disabled={submitting}
-              className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
-            >
-              <Clock className="w-5 h-5 mr-2" />
-              {submitting ? 'Registrando...' : 'Registrar'}
-            </Button>
+            <>
+              <Button
+                onClick={() => handleTimeAction(nextAction)}
+                // ✨ Usa a nova variável de estado para desabilitar o botão
+                disabled={isRegistrationButtonDisabled}
+                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
+              >
+                <Clock className="w-5 h-5 mr-2" />
+                {submitting ? 'Registrando...' : 'Registrar'}
+              </Button>
+              {/* ✨ Exibe o tempo restante do cooldown */}
+              {cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0 && (
+                  <div className="text-center text-sm text-gray-600 mt-4">
+                      Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
+                  </div>
+              )}
+            </>
           )}
 
           {!nextAction && (
