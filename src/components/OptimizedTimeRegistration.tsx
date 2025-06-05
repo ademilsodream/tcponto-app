@@ -315,7 +315,8 @@ const OptimizedTimeRegistration = React.memo(() => {
           const currentDateString = localDate;
 
           const locationData: LocationDetails = {
-            address: locationValidationResult.location?.address || 'Endereço não disponível',
+            // CORREÇÃO 1: Usar closestLocation para o endereço
+            address: locationValidationResult.closestLocation?.address || 'Endereço não disponível',
             distance: locationValidationResult.distance || 0,
             latitude: locationValidationResult.location?.latitude || 0,
             longitude: locationValidationResult.location?.longitude || 0,
@@ -330,7 +331,8 @@ const OptimizedTimeRegistration = React.memo(() => {
             user_id: user.id,
             date: currentDateString,
             [action]: currentTimeString,
-            locations: locationsJson,
+            // CORREÇÃO 2: Converter locationsJson para Json
+            locations: locationsJson as Json,
             // Campos de cálculo de horas serão atualizados por um trigger ou função no backend
           };
 
