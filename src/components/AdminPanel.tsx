@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -62,9 +63,11 @@ const AdminPanel = () => {
         overtimeRate: Number(profile.overtime_rate) || Number(profile.hourly_rate) * 1.5 // Fallback calculation
       }));
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    // Desabilitar refetchOnWindowFocus se não quiser que recarregue ao voltar para a aba
-    // refetchOnWindowFocus: false,
+    staleTime: 30 * 60 * 1000, // 30 minutos
+    refetchOnWindowFocus: false, // Desabilitado
+    refetchOnReconnect: false,   // Desabilitado
+    refetchOnMount: false,       // Desabilitado
+    refetchInterval: false,      // Desabilitado
   });
 
   // Query para contar solicitações pendentes
@@ -82,9 +85,11 @@ const AdminPanel = () => {
       if (error) throw error;
       return count || 0;
     },
-    staleTime: 1 * 60 * 1000, // 1 minuto
-    // Desabilitar refetchOnWindowFocus se não quiser que recarregue ao voltar para a aba
-    // refetchOnWindowFocus: false,
+    staleTime: 30 * 60 * 1000, // 30 minutos
+    refetchOnWindowFocus: false, // Desabilitado
+    refetchOnReconnect: false,   // Desabilitado
+    refetchOnMount: false,       // Desabilitado
+    refetchInterval: false,      // Desabilitado
   });
 
   // Function to refetch data after actions in child components if needed
