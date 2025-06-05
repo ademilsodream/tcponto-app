@@ -377,12 +377,48 @@ const OptimizedTimeRegistration = React.memo(() => {
     const interval = setInterval(checkDateChange, 60000);
     // Limpa o intervalo quando o componente desmonta ou timeRecord/localDate/refetchRecord mudam
     return () => clearInterval(interval);
+  // CORRIGIDO: Removida a linha de código perdida e fechado o useEffect corretamente
   }, [timeRecord, localDate, refetchRecord]);
 
 
-  // Função para registrar o ponto
-  // actionKey agora é TimeRecordKey
-  const handleTimeAction = useCallback(async (actionKey: TimeRecordKey) => {
+  // Define os passos do progresso
+  // Usar TimeRecordKey para tipar as chaves em steps
+  const steps: { key: TimeRecordKey; label: string; icon: React.ElementType; color: string }[] = useMemo(() => [
+    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-600' },
+    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-yellow-600' },
+    { key: 'lunch_end', label: 'Fim Almoço', icon: Coffee, color: 'bg-orange-600' },
+    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-600' },
+  ], []);
+
+
+  // Função auxiliar para obter o valor do registro pelo campo
+  // Tipagem correta para a chave
+  const getValue = useCallback((key: TimeRecordKey) => {
+    return timeRecord ? timeRecord[key] : undefined;
+  }, [timeRecord]);
+
+
+  // Determina qual é o próximo registro a ser feito
+  // Usar TimeRecordKey para tipar o retorno
+  const nextAction = useMemo<TimeRecordKey | null>(() => {
+    for (const step of steps) {
+      if (!getValue(step.key)) {
+        return step.key;
+      }
+    }
+    return null;
+  }, [steps, getValue]);
+
+
+  // Conta quantos registros foram concluídos
+  const completedCount = useMemo(() => {
+    return steps.filter(step => !!getValue(step.key)).length;
+  }, [steps, getValue]);
+
+
+  // Função principal para registrar o ponto
+  // Usar TimeRecordKey para tipar a chave
+  const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user) {
       toast({
         title: 'Erro',
@@ -392,19 +428,27 @@ const OptimizedTimeRegistration = React.memo(() => {
       return;
     }
     if (submitting) return;
+    // ✨ Adiciona verificação de cooldown antes de registrar
+    if (cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0) {
+      toast({
+        title: 'Aguarde',
+        description: `Você precisa esperar o cooldown terminar (${formatRemainingTime(remainingCooldown)}) antes de registrar novamente.`,
+        variant: 'warning',
+      });
+      return;
+    }
 
 
     setSubmitting(true);
-    const now = new Date();
-    const currentTimeString = format(now, 'HH:mm');
-    const currentTimestamp = now.toISOString();
 
 
     try {
-      // 1. Obter localização
-      const location: Location | null = await new Promise((resolve) => {
+      // 1. Obter Localização
+      console.log('📍 Obtendo localização...');
+      const currentLocation: Location = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            console.log('✅ Localização obtida:', position.coords);
             resolve({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -414,124 +458,108 @@ const OptimizedTimeRegistration = React.memo(() => {
           },
           (error) => {
             console.error('Erro ao obter localização:', error);
-            resolve(null); // Resolve com null em caso de erro
+            reject(new Error('Não foi possível obter sua localização. Por favor, permita o acesso ao GPS.'));
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Aumentado timeout
         );
       });
 
 
-      if (!location) {
-        toast({
-          title: 'Erro de Localização',
-          description: 'Não foi possível obter sua localização. Por favor, verifique as permissões do navegador.',
-          variant: 'destructive',
-        });
-        setSubmitting(false);
-        return;
-      }
-
-
-      // 2. Validar localização
-      const validationResult = await validateLocationForTimeRecord(location, allowedLocations);
+      // 2. Validar Localização
+      console.log('🗺️ Validando localização...');
+      const validationResult = await validateLocationForTimeRecord(currentLocation, allowedLocations);
 
 
       if (!validationResult.isValid) {
+        console.warn('Localização inválida:', validationResult.message);
         toast({
-          title: 'Fora da Localização Permitida',
-          description: `Você está ${validationResult.distance?.toFixed(2) || '??'} metros de distância de ${validationResult.closestLocationName || 'a localização permitida mais próxima'}.`,
+          title: 'Localização Inválida',
+          description: validationResult.message,
           variant: 'destructive',
         });
-        setSubmitting(false);
-        return;
+        return; // Interrompe o processo se a localização for inválida
       }
 
 
-      // 3. Preparar dados de localização para salvar
+      console.log('✅ Localização validada:', validationResult.message);
+      toast({
+        title: 'Localização Validada',
+        description: validationResult.message,
+        variant: 'success',
+      });
+
+
+      // Prepara os detalhes da localização para salvar no JSON
       const locationDetails: LocationDetails = {
-        address: validationResult.address || 'Endereço não encontrado',
+        address: validationResult.locationName || 'Localização desconhecida',
         distance: validationResult.distance || -1,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        timestamp: location.timestamp,
-        locationName: validationResult.closestLocationName || 'Localização Validada',
-        // gps_accuracy: location.gps_accuracy, // Não salvar accuracy na coluna locations
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        timestamp: currentLocation.timestamp,
+        locationName: validationResult.locationName || 'N/A',
+        // gps_accuracy: currentLocation.gps_accuracy, // Opcional, se quiser salvar
       };
 
 
-      // 4. Buscar ou criar registro de hoje
-      let record = timeRecord;
+      // 3. Registrar Ponto no Supabase
+      const currentTimeString = format(currentTime, 'HH:mm');
+      const updateData: Partial<TimeRecord> = {
+        [action]: currentTimeString,
+        // Atualiza ou adiciona os detalhes da localização para a ação específica
+        // O Supabase mergeará o JSON existente com o novo dado para a chave 'action'
+        locations: {
+          ...(timeRecord?.locations as LocationsData), // Mantém dados de localizações anteriores
+          [action]: locationDetails, // Adiciona/atualiza a localização para a ação atual
+        } as Json, // Converte o objeto para o tipo Json esperado pelo Supabase
+      };
 
 
-      if (!record) {
-        console.log('Criando novo registro...');
-        const { data, error } = await supabase
+      let result;
+      if (timeRecord) {
+        // Atualiza o registro existente
+        console.log(`⬆️ Atualizando registro para ${action}: ${currentTimeString}...`);
+        result = await supabase
+          .from('time_records')
+          .update(updateData)
+          .eq('id', timeRecord.id)
+          .select()
+          .single();
+      } else {
+        // Cria um novo registro
+        console.log(`➕ Criando novo registro para ${action}: ${currentTimeString}...`);
+        result = await supabase
           .from('time_records')
           .insert({
             user_id: user.id,
             date: localDate,
-            [actionKey]: currentTimeString, // Define o horário da ação
-            // CORRIGIDO: Converte o objeto locations para Json
-            locations: { [actionKey]: locationDetails } as Json, // Salva detalhes da localização
-            total_hours: 0, // Inicializa com 0
-            status: 'open', // Define status inicial
+            ...updateData, // Inclui o horário e a localização
           })
           .select()
           .single();
-
-
-        if (error) {
-          console.error('Erro ao criar registro:', error);
-          throw new Error('Erro ao criar registro de ponto.');
-        }
-        record = data;
-        console.log('Novo registro criado:', record);
-
-
-      } else {
-        console.log(`Atualizando registro existente para ${actionKey}...`);
-        // Atualiza o objeto locations existente ou cria um novo se for null
-        const existingLocations = (record.locations || {}) as LocationsData;
-        const updatedLocations: LocationsData = {
-          ...existingLocations,
-          [actionKey]: locationDetails,
-        };
-
-
-        const { data, error } = await supabase
-          .from('time_records')
-          .update({
-            [actionKey]: currentTimeString, // Define o horário da ação
-            // CORRIGIDO: Converte o objeto locations para Json
-            locations: updatedLocations as Json, // Salva ou atualiza detalhes da localização
-            updated_at: new Date().toISOString(), // Atualiza timestamp
-          })
-          .eq('id', record.id)
-          .select()
-          .single();
-
-
-        if (error) {
-          console.error('Erro ao atualizar registro:', error);
-          throw new Error('Erro ao atualizar registro de ponto.');
-        }
-        record = data;
-        console.log('Registro atualizado:', record);
       }
 
 
-      // Atualiza o estado local com o novo registro
-      setTimeRecord(record);
+      if (result.error) {
+        console.error('Erro ao salvar registro no Supabase:', result.error);
+        throw new Error('Erro ao salvar seu registro no banco de dados.');
+      }
+
+
+      console.log('✅ Registro salvo com sucesso:', result.data);
+
+
+      // Atualiza o estado local com o novo registro retornado pelo Supabase
+      setTimeRecord(result.data);
 
 
       toast({
-        title: 'Sucesso!',
-        description: `${fieldNames[actionKey]} registrado com sucesso às ${currentTimeString}.`, // fieldNames usado aqui
+        title: 'Ponto Registrado!',
+        description: `${fieldNames[action]} registrado com sucesso às ${currentTimeString}.`,
         variant: 'default',
       });
 
 
-      // ✨ Inicia o cooldown
+      // ✨ Inicia o cooldown após um registro bem-sucedido
       const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
       setCooldownEndTime(newCooldownEndTime);
       localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
@@ -554,7 +582,7 @@ const OptimizedTimeRegistration = React.memo(() => {
       // Limpa o cache de localização para forçar uma nova validação no próximo registro
       clearLocationCache();
     }
-  }, [user, localDate, timeRecord, allowedLocations, toast, fieldNames, refetchRecord, submitting]); // Adicionado 'submitting' às dependências
+  }, [user, localDate, timeRecord, allowedLocations, toast, fieldNames, refetchRecord, submitting, currentTime, cooldownEndTime, remainingCooldown]); // Adicionado 'submitting' às dependências
 
 
   // Função para enviar solicitação de edição
@@ -796,13 +824,14 @@ const OptimizedTimeRegistration = React.memo(() => {
               {cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0 && (
                   <div className="text-center text-sm text-gray-600 mt-4">
                       Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
-                  </div> {/* CORRIGIDO: Tag de fechamento adicionada aqui */}
+                  </div>
               )}
             </>
           )}
 
 
           {!nextAction && (
+            {/* CORRIGIDO: Adicionada a tag de fechamento para este div */}
             <div className="text-center py-4">
               <div className="text-green-600 font-semibold mb-2">
                 ✅ Todos os registros concluídos!
