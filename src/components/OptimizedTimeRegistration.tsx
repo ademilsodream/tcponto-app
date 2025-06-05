@@ -6,9 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
-// CORRIGIDO: Importa Json do arquivo de tipos do Supabase
 import { Json } from '@/integrations/supabase/types';
-// Importa o cliente supabase do seu arquivo local
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,16 +17,8 @@ import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { clearLocationCache } from '@/utils/optimizedLocationValidation';
 
-
-
-
-// Define um tipo de união literal para as chaves de horário
 type TimeRecordKey = 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
 
-
-
-
-// Interface para a estrutura de cada registro de localização dentro do JSON
 interface LocationDetails {
   address: string;
   distance: number;
@@ -36,23 +26,14 @@ interface LocationDetails {
   longitude: number;
   timestamp: string;
   locationName: string;
-  // gps_accuracy não é salvo na coluna locations, mas pode ser útil aqui se precisar
-  // gps_accuracy?: number;
 }
 
-
-
-
-// Interface para a estrutura completa da coluna 'locations' (o objeto JSON)
 interface LocationsData {
   clock_in?: LocationDetails;
   lunch_start?: LocationDetails;
   lunch_end?: LocationDetails;
   clock_out?: LocationDetails;
 }
-
-
-
 
 interface TimeRecord {
   id: string;
@@ -67,22 +48,14 @@ interface TimeRecord {
   normal_pay?: number;
   overtime_pay?: number;
   total_pay?: number;
-  // Tipagem da coluna locations para aceitar Json do Supabase
-  locations?: Json | null; // Supabase retorna Json, que pode ser qualquer tipo JSON válido
+  locations?: Json | null;
   created_at?: string;
   updated_at?: string;
   status?: string;
   is_pending_approval?: boolean;
   approved_by?: string;
   approved_at?: string;
-  // Removido latitude, longitude, gps_accuracy pois não são colunas separadas
-  // latitude?: number | null;
-  // longitude?: number | null;
-  // gps_accuracy?: number | null;
 }
-
-
-
 
 interface AllowedLocation {
   id: string;
@@ -94,16 +67,8 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
-
-
-
-// ✨ Constante para a duração do cooldown (20 minutos)
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
-
-
-
-// ✨ Função auxiliar para formatar o tempo restante (MM:SS)
 const formatRemainingTime = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -111,18 +76,10 @@ const formatRemainingTime = (ms: number): string => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-
-
-
-
-
-
-
 const OptimizedTimeRegistration = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  // Usar TimeRecordKey para tipar editField
   const [editField, setEditField] = useState<TimeRecordKey | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -131,18 +88,9 @@ const OptimizedTimeRegistration = React.memo(() => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-
-
-
-  // ✨ Novo estado para o fim do cooldown (timestamp em ms)
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
-  // ✨ Novo estado para o tempo restante do cooldown (em ms)
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
 
-
-
-
-  // Memoizar data local para evitar recálculos
   const localDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -151,9 +99,6 @@ const OptimizedTimeRegistration = React.memo(() => {
     return `${year}-${month}-${day}`;
   }, []);
 
-
-
-
   const localTime = useMemo(() => {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
@@ -161,10 +106,6 @@ const OptimizedTimeRegistration = React.memo(() => {
     return `${hours}:${minutes}`;
   }, [currentTime]);
 
-
-
-
-  // Função de saudação memoizada
   const greeting = useMemo(() => {
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 12) return 'Bom dia';
@@ -172,10 +113,6 @@ const OptimizedTimeRegistration = React.memo(() => {
     return 'Boa noite';
   }, [currentTime.getHours]);
 
-
-
-
-  // Nome do usuário memoizado
   const userDisplayName = useMemo(() => {
     if (userProfile?.name) {
       return userProfile.name.split(' ')[0];
@@ -186,10 +123,6 @@ const OptimizedTimeRegistration = React.memo(() => {
     return 'Usuário';
   }, [userProfile?.name, user?.email]);
 
-
-
-
-  // Usar TimeRecordKey para tipar as chaves de fieldNames
   const fieldNames: Record<TimeRecordKey, string> = useMemo(() => ({
     clock_in: 'Entrada',
     lunch_start: 'Início do Almoço',
@@ -197,30 +130,18 @@ const OptimizedTimeRegistration = React.memo(() => {
     clock_out: 'Saída'
   }), []);
 
-
-
-
-  // Query otimizada para localizações permitidas - cache longo pois raramente mudam
   const { data: allowedLocations = [] } = useOptimizedQuery<AllowedLocation[]>({
     queryKey: ['allowed-locations'],
     queryFn: async () => {
-      console.log('📍 Carregando localizações permitidas...');
       const { data, error } = await supabase
         .from('allowed_locations')
         .select('*')
         .eq('is_active', true)
         .order('name');
 
-
-
-
       if (error) {
-        console.error('Erro ao carregar localizações permitidas:', error);
         throw error;
       }
-
-
-
 
       return (data || []).map(location => ({
         ...location,
@@ -229,21 +150,14 @@ const OptimizedTimeRegistration = React.memo(() => {
         range_meters: Number(location.range_meters)
       }));
     },
-    staleTime: 30 * 60 * 1000, // 30 minutos - raramente mudam
+    staleTime: 30 * 60 * 1000,
     refetchInterval: false
   });
 
-
-
-
-  // Query otimizada para perfil do usuário
   const { data: profileData } = useOptimizedQuery<{ name?: string } | null>({
     queryKey: ['user-profile', user?.id],
     queryFn: async () => {
       if (!user) return null;
-
-
-
 
       const { data, error } = await supabase
         .from('profiles')
@@ -251,31 +165,19 @@ const OptimizedTimeRegistration = React.memo(() => {
         .eq('id', user.id)
         .single();
 
-
-
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 é "nenhuma linha encontrada"
-        console.error('Erro ao buscar perfil do usuário:', error);
-        throw error; // Lança outros erros
+      if (error && error.code !== 'PGRST116') {
+        throw error;
       }
        if (error && error.code === 'PGRST116') {
-           console.warn('Perfil não encontrado para o usuário logado.');
-           return null; // Retorna null se o perfil não for encontrado
+          return null;
        }
-
-
-
 
       return data;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutos
-    enabled: !!user // Só executa se o usuário estiver logado
+    staleTime: 10 * 60 * 1000,
+    enabled: !!user
   });
 
-
-
-
-  // Query otimizada para registro de hoje
   const {
     data: todayRecord,
     refetch: refetchRecord,
@@ -285,90 +187,49 @@ const OptimizedTimeRegistration = React.memo(() => {
     queryFn: async () => {
       if (!user) return null;
 
-
-
-
-      console.log('📅 Buscando registros para:', localDate);
-
-
-
-
       const { data, error } = await supabase
         .from('time_records')
-        .select('*') // Seleciona todas as colunas conforme a interface TimeRecord
+        .select('*')
         .eq('user_id', user.id)
         .eq('date', localDate)
         .single();
 
-
-
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 é "nenhuma linha encontrada"
-         console.error('Erro ao buscar registro de hoje:', error);
-        throw error; // Lança outros erros
+      if (error && error.code !== 'PGRST116') {
+         throw error;
       }
       if (error && error.code === 'PGRST116') {
-         console.log('Nenhum registro encontrado para hoje.');
-         return null; // Retorna null se nenhum registro for encontrado
+         return null;
       }
 
-
-
-
-      console.log('✅ Registro de hoje encontrado:', data);
-      // O Supabase retorna 'locations' como Json.
-      // A tipagem TimeRecord agora aceita Json | null.
-      // Não precisamos fazer nada especial aqui, a tipagem já está mais flexível.
       return data;
     },
-    staleTime: 2 * 60 * 1000, // 2 minutos para dados atuais
-    enabled: !!user // Só executa se o usuário estiver logado
+    staleTime: 2 * 60 * 1000,
+    enabled: !!user
   });
 
-
-
-
-  // Atualizar estados quando dados chegam
   useEffect(() => {
-    if (profileData !== undefined) { // Verificar explicitamente undefined para permitir null
+    if (profileData !== undefined) {
       setUserProfile(profileData);
     }
   }, [profileData]);
 
-
-
-
   useEffect(() => {
-    if (todayRecord !== undefined) { // Verificar explicitamente undefined para permitir null
+    if (todayRecord !== undefined) {
       setTimeRecord(todayRecord);
     }
   }, [todayRecord]);
 
-
-
-
-  // Timer otimizado - apenas atualiza a cada segundo e com cleanup
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
-
-
-
     return () => clearInterval(timer);
   }, []);
 
-
-
-
-  // ✨ Efeito para carregar cooldown do localStorage e configurar timers
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null;
     let intervalId: NodeJS.Timeout | null = null;
-
-
-
 
     const storedCooldown = localStorage.getItem('timeRegistrationCooldown');
     if (storedCooldown) {
@@ -377,10 +238,6 @@ const OptimizedTimeRegistration = React.memo(() => {
         setCooldownEndTime(endTime);
         setRemainingCooldown(endTime - Date.now());
 
-
-
-
-        // Timer para finalizar o cooldown
         timeoutId = setTimeout(() => {
           setCooldownEndTime(null);
           setRemainingCooldown(null);
@@ -391,376 +248,145 @@ const OptimizedTimeRegistration = React.memo(() => {
           });
         }, endTime - Date.now());
 
-
-
-
-        // Intervalo para atualizar o tempo restante na UI
         intervalId = setInterval(() => {
           setRemainingCooldown(Math.max(0, endTime - Date.now()));
         }, 1000);
 
-
-
-
       } else {
-        // Cooldown expirou enquanto o app estava fechado
         localStorage.removeItem('timeRegistrationCooldown');
         setCooldownEndTime(null);
         setRemainingCooldown(null);
       }
     } else {
-      // Sem cooldown no storage
       setCooldownEndTime(null);
       setRemainingCooldown(null);
     }
 
-
-
-
-    // Função de limpeza para os timers
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [toast]); // Depende de toast para garantir que a função clearCooldown tenha acesso a ele
+  }, [toast]);
 
-
-
-
-
-
-
-
-  // Debounced GPS request para evitar múltiplas chamadas
   const debouncedLocationRequest = useDebouncedCallback(
-    // onSuccess agora recebe o resultado completo da validação de localização
     async (action: string, onSuccess: (locationValidationResult: { valid: boolean; location?: Location; message: string; closestLocation?: AllowedLocation; distance?: number; gpsAccuracy?: number; adaptiveRange?: number; }) => void, onError: (message: string) => void) => {
-      console.log(`🕐 Iniciando validação de localização para ${action}...`);
-
-
-
-
       if (!allowedLocations || allowedLocations.length === 0) {
         onError('Nenhuma localização permitida configurada');
         return;
       }
 
-
-
-
       try {
         const locationValidation = await validateLocationForTimeRecord(allowedLocations);
-
-
-
 
         if (!locationValidation.valid) {
           onError(locationValidation.message);
           return;
         }
 
-
-
-
-        // Se a validação foi bem-sucedida, chama onSuccess com o resultado completo
-        console.log('✅ Validação de localização bem-sucedida.');
         onSuccess(locationValidation);
 
-
-
-
       } catch (error: any) {
-        console.error('Erro na validação de localização:', error);
         onError(error.message || 'Erro ao validar localização');
       }
     },
-    2000 // 2 segundos de debounce
+    2000
   );
 
-
-
-
-  // Handle time action otimizado
-  // Usar TimeRecordKey para tipar o parâmetro action
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
-
-
-
-    // ✨ Verifica se há cooldown ativo
     if (cooldownEndTime && cooldownEndTime > Date.now()) {
         toast({
             title: "Aguarde",
             description: `Você só pode registrar o próximo ponto após ${formatRemainingTime(cooldownEndTime - Date.now())}.`,
-            variant: "default" // Use default ou info para não parecer um erro
+            variant: "default"
         });
         return;
     }
 
-
-
-
-
-
-
-
     setSubmitting(true);
-    console.log(`⚡️ Acionando handleTimeAction para: ${action}`);
 
-
-
-
-    // Usar debounced GPS request
     debouncedLocationRequest(
-      action, // Passa a action como string para debouncedLocationRequest
-      // O callback onSuccess agora recebe o resultado da validação
+      action,
       async (locationValidationResult) => {
-        console.log('➡️ Callback onSuccess do debouncedLocationRequest iniciado.');
-        // Este try block agora engloba a operação Supabase E as ações subsequentes
         try {
-          const currentTimeStr = localTime; // Usar localTime memoizado
-          const currentTimestampISO = new Date().toISOString(); // Timestamp ISO para o JSON
+          const now = new Date();
+          const currentTimeString = format(now, 'HH:mm:ss');
+          const currentDateString = localDate;
 
-
-
-
-          // Extrai os dados necessários do resultado da validação
-          const { location, closestLocation, distance } = locationValidationResult;
-
-
-
-
-          if (!location || !closestLocation || distance === undefined) {
-              console.error('⚠️ Dados de localização incompletos após validação bem-sucedida.');
-              throw new Error('Erro interno: dados de localização incompletos para salvar.');
-          }
-
-
-
-
-          // Constrói o objeto de detalhes da localização para este ponto
-          const newLocationDetail: LocationDetails = {
-              address: closestLocation.address,
-              distance: Math.round(distance), // Arredonda a distância para inteiro
-              latitude: location.latitude,
-              longitude: location.longitude,
-              timestamp: currentTimestampISO,
-              locationName: closestLocation.name,
-              // gps_accuracy: location.gpsAccuracy // Não incluído no JSON final se não for necessário
+          const locationData: LocationDetails = {
+            address: locationValidationResult.location?.address || 'Endereço não disponível',
+            distance: locationValidationResult.distance || 0,
+            latitude: locationValidationResult.location?.latitude || 0,
+            longitude: locationValidationResult.location?.longitude || 0,
+            timestamp: now.toISOString(),
+            locationName: locationValidationResult.closestLocation?.name || 'Localização Desconhecida',
           };
 
+          const locationsJson = timeRecord?.locations ? { ...timeRecord.locations as LocationsData } : {};
+          locationsJson[action] = locationData;
 
-
-
-          // Obtém os dados de localização existentes.
-          // Verificar se timeRecord.locations é um objeto antes de usá-lo
-          // e fazer type assertion para LocationsData. Se não for objeto ou for null, inicia com {}
-          const existingLocations = (typeof timeRecord?.locations === 'object' && timeRecord.locations !== null
-              ? timeRecord.locations as LocationsData // Type assertion
-              : {}) as LocationsData; // Garante que sempre é tratado como LocationsData
-
-
-
-
-          // Cria o objeto de locations atualizado
-          const updatedLocations: LocationsData = {
-              ...existingLocations,
-              [action]: newLocationDetail // Adiciona/atualiza o detalhe para a ação atual
+          const upsertData = {
+            user_id: user.id,
+            date: currentDateString,
+            [action]: currentTimeString,
+            locations: locationsJson,
+            // Campos de cálculo de horas serão atualizados por um trigger ou função no backend
           };
 
+          const { data: updatedRecord, error: updateError } = await supabase
+            .from('time_records')
+            .upsert(upsertData, { onConflict: 'date, user_id' })
+            .select('*')
+            .single();
 
-
-
-          // Payload ajustado para incluir o horário E o objeto JSON de locations
-          let payload: any = {
-            [action]: currentTimeStr, // Ex: clock_in: "08:00"
-            updated_at: currentTimestampISO,
-            locations: updatedLocations // Ex: locations: { clock_in: { ... } }
-            // Removido latitude, longitude, gps_accuracy como colunas separadas
-          };
-
-
-
-
-          console.log('➡️ Dados a serem enviados para Supabase:', payload);
-
-
-
-
-          let savedRecordData: TimeRecord | null = null;
-          let supabaseError = null;
-
-
-
-
-          if (timeRecord?.id) { // Verificar se timeRecord e timeRecord.id existem para UPDATE
-            console.log(`🔄 Tentando atualizar registro existente com ID: ${timeRecord.id}`);
-            const { data, error } = await supabase
-              .from('time_records')
-              .update(payload)
-              .eq('id', timeRecord.id)
-              .select() // Adiciona select() para retornar o registro atualizado
-              .single(); // Espera um único registro
-
-
-
-
-            // O dado retornado pelo Supabase tem a tipagem Json para locations.
-            // Precisamos garantir que o estado local timeRecord seja atualizado com a tipagem correta.
-            // A tipagem TimeRecord agora aceita Json | null para locations, o que deve ser compatível.
-            savedRecordData = data ? data as TimeRecord : null; // Type assertion para TimeRecord
-            supabaseError = error;
-
-
-
-
-          } else { // Se não houver timeRecord ou ID, INSERIR novo registro
-            console.log('➕ Tentando inserir novo registro.');
-            payload.user_id = user.id;
-            payload.date = localDate;
-            // Definir valores iniciais para colunas obrigatórias ou com default
-            payload.total_hours = 0;
-            payload.normal_hours = 0;
-            payload.overtime_hours = 0;
-            payload.normal_pay = 0;
-            payload.overtime_pay = 0;
-            payload.total_pay = 0;
-            // payload.status = 'completed'; // Ou o status inicial apropriado
-            // payload.is_pending_approval = false; // Ou o valor inicial apropriado
-
-
-
-
-            const { data, error } = await supabase
-              .from('time_records')
-              .insert(payload)
-              .select() // Adiciona select() para retornar o registro inserido
-              .single(); // Espera um único registro
-
-
-
-
-            // O dado retornado pelo Supabase tem a tipagem Json para locations.
-            // Precisamos garantir que o estado local timeRecord seja atualizado com a tipagem correta.
-            // A tipagem TimeRecord agora aceita Json | null para locations, o que deve ser compatível.
-            savedRecordData = data ? data as TimeRecord : null; // Type assertion para TimeRecord
-            supabaseError = error;
+          if (updateError) {
+            throw new Error(`Erro ao salvar registro: ${updateError.message}`);
           }
 
+          // Update local state immediately with the data returned from upsert
+          // This provides a faster UI update than waiting for refetch
+          setTimeRecord(updatedRecord);
 
+          // Refetch dados para garantir a UI atualizada e o cache
+          await refetchRecord();
 
+          // Limpar cache de localização
+          clearLocationCache();
 
-          if (supabaseError) {
-            console.error('💥 Erro do Supabase ao salvar/atualizar registro:', supabaseError);
-            // Lança um novo erro com a mensagem do Supabase se disponível
-            throw new Error(supabaseError.message || 'Erro desconhecido do Supabase ao registrar');
-          }
-
-
-
-
-          console.log('✅ Supabase salvou/atualizou registro com sucesso. Dados retornados:', savedRecordData);
-
-
-
-
-          // --- Ações que acontecem APÓS o sucesso do Supabase ---
-
-
-
-
-          // 1. Atualizar estado local com o registro retornado pelo Supabase
-          if (savedRecordData) {
-              setTimeRecord(savedRecordData);
-              console.log('✨ Estado local timeRecord atualizado com dados salvos.');
-          } else {
-              console.warn('Supabase retornou sucesso, mas nenhum dado foi retornado.');
-          }
-
-
-
-
-          // 2. Mostrar toast de sucesso
-          const actionNames = fieldNames; // Usar fieldNames
-          toast({
-            title: "Sucesso",
-            description: `${actionNames[action]} registrada às ${currentTimeStr}`,
-          });
-          console.log('🎉 Toast de sucesso exibido.');
-
-
-
-
-          // ✨ 3. Configurar o cooldown
+          // Iniciar cooldown
           const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
           setCooldownEndTime(newCooldownEndTime);
           localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
-          console.log('⏳ Cooldown iniciado.');
 
+          toast({
+            title: "Sucesso",
+            description: `${fieldNames[action]} registrado em ${localTime}!`,
+          });
 
-
-
-
-
-
-
-          // 4. Refetch dados para garantir a UI atualizada (opcional, mas bom para sincronia)
-          console.log('🔄 Iniciando refetchRecord...');
-          // Não é estritamente necessário refetch aqui se setTimeRecord já atualizou o estado
-          // mas pode ser útil para garantir consistência com o cache do useOptimizedQuery.
-          // await refetchRecord();
-          console.log('✅ RefetchRecord (opcional) concluído.');
-
-
-
-
-          // 5. Limpar cache de localização
-          clearLocationCache();
-          console.log('🧹 Cache de localização limpo.');
-
-
-
-
-
-
-
-
-        } catch (error: any) { // Este catch agora pega erros do Supabase OU das ações subsequentes
-          console.error('❌ Erro capturado no fluxo de registro (após validação):', error);
+        } catch (error: any) {
+          console.error('Erro capturado no fluxo de registro (após validação):', error);
           toast({
             title: "Erro",
-            description: error.message || "Erro ao registrar horário", // Usa a mensagem do erro lançado
+            description: error.message || "Erro ao registrar horário",
             variant: "destructive"
           });
         } finally {
-            // O setSubmitting(false) final será chamado no finally dos callbacks
-            console.log('➡️ Fim do callback onSuccess do debouncedLocationRequest.');
-            setSubmitting(false); // Mover setSubmitting(false) para o finally aqui
+          setSubmitting(false);
         }
       },
-      (message) => { // onError callback do debouncedLocationRequest
-        console.warn('Validação de localização falhou:', message);
+      (message) => {
         toast({
           title: "Localização não autorizada",
           description: message,
           variant: "destructive"
         });
-        // O setSubmitting(false) final será chamado no finally dos callbacks
-        console.log('➡️ Fim do callback onError do debouncedLocationRequest.');
-        setSubmitting(false); // Mover setSubmitting(false) para o finally aqui
+        setSubmitting(false);
       }
     );
 
+  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames, cooldownEndTime]);
 
-
-
-  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames, cooldownEndTime]); // Adicionado cooldownEndTime como dependência para o toast no handleTimeAction
-
-
-
-
-  // Handle edit submit otimizado
   const handleEditSubmit = useCallback(async () => {
     if (!user || !editField || !editValue || !editReason) {
       toast({
@@ -771,51 +397,33 @@ const OptimizedTimeRegistration = React.memo(() => {
       return;
     }
 
-
-
-
     try {
       setSubmitting(true);
-
-
-
 
       const { error } = await supabase
         .from('edit_requests')
         .insert({
           employee_id: user.id,
-          employee_name: userProfile?.name || user.email || 'Usuário', // Usar nome do perfil se disponível
+          employee_name: userProfile?.name || user.email || 'Usuário',
           date: localDate,
-          field: editField, // editField já é TimeRecordKey
-          old_value: timeRecord?.[editField] || null, // Acessa o valor antigo corretamente
+          field: editField,
+          old_value: timeRecord?.[editField] || null,
           new_value: editValue,
           reason: editReason,
           status: 'pending'
         });
 
-
-
-
       if (error) throw error;
-
-
-
 
       toast({
         title: "Sucesso",
         description: "Solicitação de alteração enviada para aprovação",
       });
 
-
-
-
       setIsEditDialogOpen(false);
       setEditField(null);
       setEditValue('');
       setEditReason('');
-
-
-
 
     } catch (error) {
       console.error('Erro ao enviar solicitação:', error);
@@ -829,72 +437,36 @@ const OptimizedTimeRegistration = React.memo(() => {
     }
   }, [user, userProfile?.name, editField, editValue, editReason, timeRecord, localDate, toast]);
 
-
-
-
-  // Verificar mudança de data otimizada
   useEffect(() => {
     const checkDateChange = () => {
       const currentDate = localDate;
       const recordDate = timeRecord?.date;
 
-
-
-
       if (recordDate && recordDate !== currentDate) {
-        console.log('🗓️ Nova data detectada, recarregando...');
-        // Forçar um refetch quando a data muda
         refetchRecord();
-        // Opcional: limpar timeRecord para mostrar estado de loading/sem registro imediatamente
         setTimeRecord(null);
       }
     };
 
-
-
-
-    // Verifica a cada minuto se a data mudou
     const interval = setInterval(checkDateChange, 60000);
-    // Limpa o intervalo quando o componente desmonta ou timeRecord/localDate/refetchRecord mudam
     return () => clearInterval(interval);
   }, [timeRecord, localDate, refetchRecord]);
 
-
-
-
-
-
-
-
-  // Memoizar steps para evitar recálculo
   const steps = useMemo(() => [
-    // Tipar key como TimeRecordKey
     { key: 'clock_in' as TimeRecordKey, label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
     { key: 'lunch_start' as TimeRecordKey, label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
     { key: 'lunch_end' as TimeRecordKey, label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
     { key: 'clock_out' as TimeRecordKey, label: 'Saída', icon: LogOut, color: 'bg-red-500' },
   ], []);
 
-
-
-
-  // getValue agora aceita TimeRecordKey
   const getValue = useCallback((key: TimeRecordKey) => {
-    // Acessa diretamente a propriedade do timeRecord que corresponde ao horário
     return timeRecord?.[key];
   }, [timeRecord]);
-
-
-
 
   const completedCount = useMemo(() => {
     return steps.filter(step => getValue(step.key)).length;
   }, [steps, getValue]);
 
-
-
-
-  // nextAction retorna TimeRecordKey | null
   const nextAction = useMemo<TimeRecordKey | null>(() => {
     if (!timeRecord?.clock_in) return 'clock_in';
     if (!timeRecord?.lunch_start) return 'lunch_start';
@@ -903,20 +475,9 @@ const OptimizedTimeRegistration = React.memo(() => {
     return null;
   }, [timeRecord]);
 
-
-
-
-  // ✨ Determina se o botão de registro deve estar desabilitado
   const isRegistrationButtonDisabled = useMemo(() => {
       return submitting || (cooldownEndTime !== null && cooldownEndTime > Date.now());
   }, [submitting, cooldownEndTime]);
-
-
-
-
-
-
-
 
   if (loadingRecord) {
     return (
@@ -927,20 +488,11 @@ const OptimizedTimeRegistration = React.memo(() => {
     );
   }
 
-
-
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
-      {/* Header com logo - otimizado para mobile */}
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
-        {/* Espaço reservado para o logo */}
       </div>
 
-
-
-
-      {/* Saudação com nome do usuário */}
       <div className="text-center mb-4">
         <div className="text-blue-600 text-xl sm:text-2xl font-semibold mb-1">
           {greeting}, {userDisplayName}! 👋
@@ -950,10 +502,6 @@ const OptimizedTimeRegistration = React.memo(() => {
         </div>
       </div>
 
-
-
-
-      {/* Relógio Principal */}
       <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
           {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
@@ -963,23 +511,14 @@ const OptimizedTimeRegistration = React.memo(() => {
         </div>
       </div>
 
-
-
-
-      {/* Card Principal */}
       <Card className="w-full max-w-md bg-white shadow-lg">
         <CardContent className="p-4 sm:p-6">
-          {/* Progresso Horizontal */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-3">
               {steps.map((step, index) => {
                 const Icon = step.icon;
-                // Usar getValue com a chave tipada corretamente
                 const isCompleted = !!getValue(step.key);
                 const isNext = !isCompleted && completedCount === index;
-
-
-
 
                 return (
                   <div key={step.key} className="flex flex-col items-center flex-1">
@@ -999,37 +538,31 @@ const OptimizedTimeRegistration = React.memo(() => {
                     }`}>
                       {step.label}
                     </span>
-                    {/* Chamar getValue com a chave correta para exibir o horário */}
                     {isCompleted && (
                       <span className="text-xs text-blue-600 mt-1 font-medium">
                         {getValue(step.key)}
                       </span>
                     )}
-                     {/* Botão de editar - aparece apenas se o horário já foi registrado */}
-                    {isCompleted && (
+                     {isCompleted && (
                         <Button
                             variant="link"
                             size="sm"
                             className="text-xs text-blue-500 hover:text-blue-700 p-0 h-auto"
                             onClick={() => {
                                 setEditField(step.key);
-                                setEditValue(getValue(step.key) || ''); // Preenche com valor atual se existir
+                                setEditValue(getValue(step.key) || '');
                                 setEditReason('');
                                 setIsEditDialogOpen(true);
                             }}
                         >
                             Editar
                         </Button>
-                    )}
+                     )}
                   </div>
                 );
               })}
             </div>
 
-
-
-
-            {/* Barra de progresso */}
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
@@ -1041,22 +574,16 @@ const OptimizedTimeRegistration = React.memo(() => {
             </div>
           </div>
 
-
-
-
-          {/* Botão Registrar */}
           {nextAction && (
             <>
               <Button
-                onClick={() => handleTimeAction(nextAction)} // nextAction já é TimeRecordKey
-                // ✨ Usa a nova variável de estado para desabilitar o botão
+                onClick={() => handleTimeAction(nextAction)}
                 disabled={isRegistrationButtonDisabled}
                 className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
               >
                 <Clock className="w-5 h-5 mr-2" />
                 {submitting ? 'Registrando...' : 'Registrar'}
               </Button>
-              {/* ✨ Exibe o tempo restante do cooldown */}
               {cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0 && (
                   <div className="text-center text-sm text-gray-600 mt-4">
                       Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
@@ -1064,9 +591,6 @@ const OptimizedTimeRegistration = React.memo(() => {
               )}
             </>
           )}
-
-
-
 
           {!nextAction && (
             <div className="text-center py-4">
@@ -1081,15 +605,11 @@ const OptimizedTimeRegistration = React.memo(() => {
         </CardContent>
       </Card>
 
-
-
-
-      {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Solicitar Alteração - {editField ? fieldNames[editField] : ''} {/* fieldNames usado aqui */}
+              Solicitar Alteração - {editField ? fieldNames[editField] : ''}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -1104,9 +624,6 @@ const OptimizedTimeRegistration = React.memo(() => {
               />
             </div>
 
-
-
-
             <div className="space-y-2">
               <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
               <Textarea
@@ -1118,9 +635,6 @@ const OptimizedTimeRegistration = React.memo(() => {
                 disabled={submitting}
               />
             </div>
-
-
-
 
             <div className="flex justify-end space-x-2">
               <Button
@@ -1144,12 +658,6 @@ const OptimizedTimeRegistration = React.memo(() => {
   );
 });
 
-
-
-
 OptimizedTimeRegistration.displayName = 'OptimizedTimeRegistration';
-
-
-
 
 export default OptimizedTimeRegistration;
