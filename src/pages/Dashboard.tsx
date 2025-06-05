@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +28,7 @@ import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
 import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import AdjustPreviousDays from '@/components/AdjustPreviousDays';
 import EmployeeDrawer from '@/components/EmployeeDrawer';
+import HourBankDetailedView from '@/components/HourBankDetailedView';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,6 +114,8 @@ const Dashboard = () => {
         return <LocationReport employees={employees} />;
       case 'autoDeObras':
         return <AutoDeObras employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
+      case 'hourBank':
+        return <HourBankDetailedView employees={employees} />;
       default:
         return <AdminPanel />;
     }
@@ -239,6 +243,18 @@ const Dashboard = () => {
             >
               <Building2 className="w-4 h-4 mr-2" />
               Painel de Alocação
+            </button>
+
+            <button
+              onClick={() => setActiveTab('hourBank')}
+              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+                activeTab === 'hourBank'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Clock className="w-4 h-4 mr-2" />
+              Banco de Horas
             </button>
           </nav>
         </div>
