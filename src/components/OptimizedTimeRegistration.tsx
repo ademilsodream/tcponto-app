@@ -6,8 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
-// CORRIGIDO: Importa Json do supabase-js
-import { Json } from '@supabase/supabase-js';
+// CORRIGIDO: Importa Json do arquivo de tipos do Supabase
+import { Json } from '@/integrations/supabase/types';
 // Importa o cliente supabase do seu arquivo local
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -18,7 +18,6 @@ import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
 import { clearLocationCache } from '@/utils/optimizedLocationValidation';
-
 
 // Define um tipo de união literal para as chaves de horário
 type TimeRecordKey = 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
@@ -822,6 +821,5 @@ const OptimizedTimeRegistration = React.memo(() => {
 
 
 OptimizedTimeRegistration.displayName = 'OptimizedTimeRegistration';
-
 
 export default OptimizedTimeRegistration;
