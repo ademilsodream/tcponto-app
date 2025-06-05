@@ -16,7 +16,7 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
   
   const {
     enabled = true,
-    staleTime = 2 * 60 * 1000, // 2 minutos por padrão
+    staleTime = 30 * 60 * 1000, // 30 minutos por padrão
     refetchInterval = false
   } = options;
 
@@ -43,8 +43,10 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
     },
     enabled: enabled && !!user,
     staleTime,
-    refetchInterval,
+    refetchInterval: false, // Sempre desabilitado
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
     retry: 1
   });
 
@@ -107,9 +109,11 @@ export function useOptimizedLocationsQuery() {
   const query = useQuery({
     queryKey: ['allowed-locations-static'],
     queryFn: fetchLocations,
-    staleTime: 30 * 60 * 1000, // 30 minutos
+    staleTime: 60 * 60 * 1000, // 60 minutos
     refetchInterval: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
     retry: 1
   });
 
@@ -118,7 +122,7 @@ export function useOptimizedLocationsQuery() {
     queryClient.prefetchQuery({
       queryKey: ['allowed-locations-static'],
       queryFn: fetchLocations,
-      staleTime: 30 * 60 * 1000
+      staleTime: 60 * 60 * 1000
     });
   }, [queryClient]);
 
@@ -152,9 +156,11 @@ export function useOptimizedProfileQuery() {
       return data;
     },
     enabled: !!user,
-    staleTime: 10 * 60 * 1000, // 10 minutos
+    staleTime: 30 * 60 * 1000, // 30 minutos
     refetchInterval: false,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
     retry: 1
   });
 

@@ -7,13 +7,15 @@ import { supabase } from '@/integrations/supabase/client';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Cache por 10 minutos por padrão
-      staleTime: 10 * 60 * 1000,
-      // Dados ficam no cache por 15 minutos
-      gcTime: 15 * 60 * 1000,
-      // Não refetch automático em focus
+      // Cache por 30 minutos por padrão
+      staleTime: 30 * 60 * 1000,
+      // Dados ficam no cache por 60 minutos
+      gcTime: 60 * 60 * 1000,
+      // Desabilitar todos os refetches automáticos
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      refetchInterval: false,
       // Retry inteligente com foco em erros de auth
       retry: (failureCount, error) => {
         if (failureCount >= 2) return false;

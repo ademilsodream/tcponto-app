@@ -8,13 +8,14 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       // Cache inteligente baseado no tipo de dados
-      staleTime: 5 * 60 * 1000, // 5 minutos padrão
-      gcTime: 10 * 60 * 1000, // 10 minutos no garbage collector
+      staleTime: 30 * 60 * 1000, // 30 minutos padrão
+      gcTime: 60 * 60 * 1000, // 60 minutos no garbage collector
       
-      // Configurações de refetch otimizadas
+      // Configurações de refetch desabilitadas
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-      refetchOnMount: true,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
+      refetchInterval: false,
       
       // Retry otimizado com menos tentativas
       retry: (failureCount, error) => {
@@ -140,7 +141,7 @@ const setupCacheCleanup = () => {
     
     // Garbage collect queries antigas
     queryClient.getQueryCache().clear();
-  }, 5 * 60 * 1000); // A cada 5 minutos
+  }, 30 * 60 * 1000); // A cada 30 minutos
   
   return () => clearInterval(cleanupInterval);
 };

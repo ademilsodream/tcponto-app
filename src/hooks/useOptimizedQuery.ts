@@ -14,8 +14,8 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
   const {
     queryKey,
     queryFn,
-    staleTime = 10 * 60 * 1000, // 10 minutos por padrão
-    refetchInterval = false, // Desabilitado por padrão
+    staleTime = 30 * 60 * 1000, // 30 minutos por padrão
+    refetchInterval = false, // Sempre desabilitado
     enableRealtime = false,
     ...otherOptions
   } = options;
@@ -44,9 +44,10 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
     queryKey,
     queryFn: optimizedQueryFn,
     staleTime,
-    refetchInterval,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: true,
+    refetchInterval: false, // Sempre desabilitado
+    refetchOnWindowFocus: false, // Desabilitado
+    refetchOnReconnect: false, // Desabilitado
+    refetchOnMount: false, // Desabilitado
     retry: (failureCount, error: any) => {
       // Retry logic inteligente com foco em auth
       if (failureCount >= 2) return false;
@@ -79,9 +80,9 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
 export function useRealtimeQuery<T>(options: OptimizedQueryOptions<T>) {
   return useOptimizedQuery({
     ...options,
-    staleTime: 2 * 60 * 1000, // 2 minutos para real-time
-    refetchInterval: 5 * 60 * 1000, // 5 minutos
-    enableRealtime: true
+    staleTime: 30 * 60 * 1000, // 30 minutos
+    refetchInterval: false, // Desabilitado
+    enableRealtime: false // Desabilitado
   });
 }
 
@@ -89,8 +90,10 @@ export function useRealtimeQuery<T>(options: OptimizedQueryOptions<T>) {
 export function useStaticQuery<T>(options: OptimizedQueryOptions<T>) {
   return useOptimizedQuery({
     ...options,
-    staleTime: 30 * 60 * 1000, // 30 minutos
+    staleTime: 60 * 60 * 1000, // 60 minutos
     refetchInterval: false,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false
   });
 }
