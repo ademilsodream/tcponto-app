@@ -64,7 +64,7 @@ interface AllowedLocation {
 // Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
 interface LocationDetailsForEdit {
   address: string | null;
-  distance: number | null; // Para edição manual, pode ser null ou 0
+  distance: number | null; // Para edição manual, a distância não é aplicável/conhecida
   latitude: number | null;
   longitude: number | null;
   timestamp: string; // Timestamp da solicitação de edição
@@ -333,12 +333,18 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     }
 
 
-    // Validar se pelo menos um campo de horário foi preenchido
-    const hasAnyTime = editForm.clock_in || editForm.lunch_start || editForm.lunch_end || editForm.clock_out;
-    if (!hasAnyTime) {
+    // Validar se pelo menos um campo de horário foi preenchido E é diferente do original
+    const hasAnyTimeChanged =
+      (editForm.clock_in && editForm.clock_in !== (timeRecord.clock_in || '')) ||
+      (editForm.lunch_start && editForm.lunch_start !== (timeRecord.lunch_start || '')) ||
+      (editForm.lunch_end && editForm.lunch_end !== (timeRecord.lunch_end || '')) ||
+      (editForm.clock_out && editForm.clock_out !== (timeRecord.clock_out || ''));
+
+
+    if (!hasAnyTimeChanged) {
       toast({
-        title: "Erro",
-        description: "Preencha pelo menos um horário para solicitar a edição.",
+        title: "Aviso",
+        description: "Nenhuma alteração foi detectada nos horários.",
         variant: "destructive",
       });
       return;
@@ -417,19 +423,21 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       };
 
 
+      // Adicionar solicitação para clock_in se alterado
       if (editForm.clock_in && editForm.clock_in !== (timeRecord.clock_in || '')) {
         requests.push({
           ...baseRequest,
           field: fieldMapping.clock_in, // 'clockIn'
           old_value: timeRecord.clock_in || null,
           new_value: editForm.clock_in,
-          // --- NOVO: Estrutura da localização para este campo específico ---
+          // --- CORRIGIDO: Estrutura da localização para este campo específico ---
           location: { [fieldMapping.clock_in]: locationDetailsForEdit },
           // -------------------------------------------------------------
         });
       }
 
 
+      // Adicionar solicitação para lunch_start se alterado
       if (editForm.lunch_start && editForm.lunch_start !== (timeRecord.lunch_start || '')) {
         requests.push({
           ...baseRequest,
@@ -443,6 +451,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       }
 
 
+      // Adicionar solicitação para lunch_end se alterado
       if (editForm.lunch_end && editForm.lunch_end !== (timeRecord.lunch_end || '')) {
         requests.push({
           ...baseRequest,
@@ -456,6 +465,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       }
 
 
+      // Adicionar solicitação para clock_out se alterado
       if (editForm.clock_out && editForm.clock_out !== (timeRecord.clock_out || '')) {
         requests.push({
           ...baseRequest,
@@ -469,15 +479,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       }
 
 
-      if (requests.length === 0) {
-        toast({
-          title: "Aviso",
-          description: "Nenhuma alteração foi detectada nos horários.",
-          variant: "destructive",
-        });
-        setSubmitting(false);
-        return;
-      }
+      // A validação de ter pelo menos um horário alterado já foi feita no início
+      // if (requests.length === 0) { ... } // Este bloco agora é redundante aqui
 
 
       // --- NOVO LOG PARA VERIFICAR A ESTRUTURA ANTES DE ENVIAR ---
@@ -747,7 +750,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                     <Button
                       onClick={handleSubmitEdit}
                       className="w-full"
-                      disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0}
+                      disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
                     >
                       {submitting ? (
                         <>
