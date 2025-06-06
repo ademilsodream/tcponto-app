@@ -127,7 +127,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
       const employeeIds = employeesToProcess.map(emp => emp.id);
       const { data: dbEmployees, error: employeesError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, name, email, hourly_rate, overtime_rate')
         .in('id', employeeIds)
         .eq('role', 'user')
         .or('status.is.null,status.eq.active');
@@ -202,12 +202,13 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
           totalOvertimeHoursSum
         });
 
-        // Usar o hourly_rate do banco de dados
+        // Usar o hourly_rate e overtime_rate do banco de dados
         const hourlyRate = Number(employee.hourly_rate) || 0;
+        const overtimeRate = Number(employee.overtime_rate) || 0;
 
-        // Calcular pagamentos - hora extra com mesmo valor da hora normal
+        // Calcular pagamentos - usando valores específicos para normal e extra
         const normalPay = totalNormalHoursSum * hourlyRate;
-        const overtimePay = totalOvertimeHoursSum * hourlyRate; // Mesmo valor da hora normal
+        const overtimePay = totalOvertimeHoursSum * overtimeRate; // ✨ Usando overtime_rate
         const totalPay = normalPay + overtimePay;
 
         payrollResults.push({
@@ -216,7 +217,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             name: employee.name,
             email: employee.email,
             hourlyRate: hourlyRate,
-            overtimeRate: hourlyRate // Mesmo valor da hora normal
+            overtimeRate: overtimeRate // ✨ Usando valor real do overtime_rate
           },
           totalHours: totalHoursSum, // Soma dos totais diários (Normal + Extra)
           normalHours: totalNormalHoursSum, // Soma dos normais diários
