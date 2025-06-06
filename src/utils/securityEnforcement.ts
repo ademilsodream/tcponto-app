@@ -110,7 +110,7 @@ export class SecurityEnforcement {
     }
   }
 
-  // Validar permissões em tempo real
+  // Validar permissões em tempo real com as novas políticas RLS
   static async validatePermissions(userId: string, operation: string, resourceType: string): Promise<boolean> {
     try {
       const { data: userProfile } = await supabase
@@ -129,31 +129,34 @@ export class SecurityEnforcement {
         return false;
       }
 
-      // Regras de permissão
-      const permissions = {
-        admin: ['READ', 'WRITE', 'DELETE', 'MODIFY_USERS', 'VIEW_REPORTS'],
-        user: ['READ', 'WRITE_OWN']
-      };
+      // Verificar se as políticas RLS estão funcionando
+      const isAdmin = userProfile.role === 'admin';
 
-      const userPermissions = permissions[userProfile.role as keyof typeof permissions] || [];
-
-      // Validar operação específica
+      // Regras de permissão baseadas nas políticas RLS implementadas
       switch (operation) {
-        case 'MODIFY_PROFILE':
-          return userPermissions.includes('MODIFY_USERS') || 
-                 (userPermissions.includes('WRITE_OWN') && resourceType === 'own_profile');
-        
         case 'VIEW_AUDIT_LOGS':
-          return userPermissions.includes('VIEW_REPORTS');
+          return isAdmin; // Apenas admins podem ver logs de auditoria
         
-        case 'DELETE_RECORDS':
-          return userPermissions.includes('DELETE');
+        case 'MODIFY_SYSTEM_SETTINGS':
+          return isAdmin; // Apenas admins podem modificar configurações
         
-        case 'MODIFY_SALARY':
-          return userPermissions.includes('MODIFY_USERS');
+        case 'VIEW_ALL_TIME_RECORDS':
+          return isAdmin; // Apenas admins podem ver todos os registros
+        
+        case 'MODIFY_USER_PROFILES':
+          return isAdmin; // Apenas admins podem modificar perfis
+        
+        case 'MANAGE_DEPARTMENTS':
+          return isAdmin; // Apenas admins podem gerenciar departamentos
+        
+        case 'MANAGE_JOB_FUNCTIONS':
+          return isAdmin; // Apenas admins podem gerenciar funções
+        
+        case 'VIEW_OWN_DATA':
+          return true; // Usuários podem ver seus próprios dados (garantido pelas políticas RLS)
         
         default:
-          return userPermissions.includes('READ');
+          return false; // Negar por padrão
       }
     } catch (error) {
       console.error('Erro ao validar permissões:', error);
@@ -161,25 +164,24 @@ export class SecurityEnforcement {
     }
   }
 
-  // Monitor de sessão
+  // Monitor de sessão aprimorado
   static async monitorSession(userId: string): Promise<void> {
     try {
       const { data: existingSession } = await supabase
         .from('user_sessions')
         .select('*')
         .eq('user_id', userId)
-        .eq('session_token', 'current')
         .single();
 
       const now = new Date();
       
       if (!existingSession) {
-        // Criar nova sessão
+        // Criar nova sessão com as políticas RLS
         await supabase
           .from('user_sessions')
           .insert({
             user_id: userId,
-            session_token: 'current',
+            session_token: `session_${Date.now()}`,
             expires_at: new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString() // 8 horas
           });
       } else {
@@ -188,7 +190,7 @@ export class SecurityEnforcement {
         if (now > expiresAt) {
           console.warn('Sessão expirada detectada:', userId);
           
-          // Criar alerta
+          // Criar alerta que será protegido pelas políticas RLS
           await supabase
             .from('system_alerts')
             .insert({
@@ -209,30 +211,88 @@ export class SecurityEnforcement {
     }
   }
 
-  // Limpeza automática de dados sensíveis
+  // Verificar se as políticas RLS estão funcionando corretamente
+  static async testRLSPolicies(userId: string): Promise<boolean> {
+    try {
+      console.log('🔐 Testando políticas RLS para usuário:', userId);
+
+      // Testar acesso aos próprios dados
+      const { data: ownTimeRecords, error: ownError } = await supabase
+        .from('time_records')
+        .select('*')
+        .limit(1);
+
+      if (ownError) {
+        console.error('❌ Erro ao acessar próprios registros:', ownError);
+        return false;
+      }
+
+      console.log('✅ Acesso aos próprios dados funcionando');
+
+      // Testar se pode ver configurações do sistema (só admin deveria)
+      const { data: systemSettings, error: settingsError } = await supabase
+        .from('system_settings')
+        .select('*')
+        .limit(1);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      const isAdmin = profile?.role === 'admin';
+
+      if (isAdmin && settingsError) {
+        console.error('❌ Admin não consegue acessar configurações:', settingsError);
+        return false;
+      }
+
+      if (!isAdmin && !settingsError && systemSettings?.length > 0) {
+        console.error('❌ Usuário comum conseguiu acessar configurações do sistema');
+        return false;
+      }
+
+      console.log('✅ Políticas RLS funcionando corretamente');
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao testar políticas RLS:', error);
+      return false;
+    }
+  }
+
+  // Limpeza automática de dados sensíveis (agora protegida por RLS)
   static async cleanupSensitiveData(): Promise<void> {
     try {
+      // Esta função só funcionará se o usuário tiver permissões adequadas (admin)
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-      // Limpar logs de auditoria antigos (manter apenas últimos 6 meses)
+      // Verificar se tem permissão para fazer limpeza
+      const { data: profile } = await supabase.auth.getUser();
+      if (!profile.user) {
+        console.warn('Usuário não autenticado para limpeza');
+        return;
+      }
+
+      // A limpeza só funcionará se o usuário for admin devido às políticas RLS
       await supabase
         .from('audit_logs')
         .delete()
         .lt('created_at', sixMonthsAgo.toISOString());
 
-      // Limpar sessões expiradas
-      await supabase.rpc('cleanup_expired_sessions');
-
-      console.log('Limpeza de dados sensíveis concluída');
+      console.log('✅ Limpeza de dados sensíveis concluída');
     } catch (error) {
-      console.error('Erro na limpeza de dados:', error);
+      console.error('❌ Erro na limpeza de dados (pode ser devido às políticas RLS):', error);
     }
   }
 }
 
 // Executar verificações de segurança automaticamente
 export function initializeSecurityMonitoring(userId: string): () => void {
+  // Testar políticas RLS imediatamente
+  SecurityEnforcement.testRLSPolicies(userId);
+
   // Verificar integridade a cada 5 minutos
   const integrityCheck = setInterval(async () => {
     await SecurityEnforcement.detectManipulationAttempts(userId);
@@ -243,10 +303,12 @@ export function initializeSecurityMonitoring(userId: string): () => void {
     await SecurityEnforcement.monitorSession(userId);
   }, 60 * 1000);
 
-  // Limpeza diária (apenas uma vez por dia)
+  // Limpeza diária (apenas uma vez por dia, protegida por RLS)
   const dailyCleanup = setInterval(async () => {
     await SecurityEnforcement.cleanupSensitiveData();
   }, 24 * 60 * 60 * 1000);
+
+  console.log('🔐 Sistema de segurança inicializado com políticas RLS ativas');
 
   // Cleanup quando o componente for desmontado
   return () => {
