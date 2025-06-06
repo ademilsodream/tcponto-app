@@ -26,9 +26,9 @@ interface TimeRecord {
   total_hours: number;
   normal_hours: number;
   overtime_hours: number;
-  normal_pay: number;
-  overtime_pay: number;
-  total_pay: number;
+  normal_pay: number; // ✨ Agora calculado em tempo real
+  overtime_pay: number; // ✨ Agora calculado em tempo real
+  total_pay: number; // ✨ Agora calculado em tempo real
   isWeekend?: boolean;
 }
 
@@ -62,6 +62,32 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
+  
+  // ✨ NOVO: Estado para armazenar dados do funcionário (hourly_rate e overtime_rate)
+  const [userProfile, setUserProfile] = useState<{ hourly_rate: number; overtime_rate: number } | null>(null);
+
+  // ✨ NOVO: Função para buscar dados do perfil do usuário
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('hourly_rate, overtime_rate')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        console.error('Error loading user profile:', error);
+        return;
+      }
+
+      setUserProfile({ 
+        hourly_rate: Number(data.hourly_rate) || 0,
+        overtime_rate: Number(data.overtime_rate) || 0
+      });
+    } catch (error) {
+      console.error('Unexpected error loading user profile:', error);
+    }
+  };
 
   const loadRecords = async (userId: string, start: Date, end: Date) => {
     setLoading(true);
@@ -86,28 +112,33 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
         return;
       }
 
-      // Processar os dados para incluir cálculos e formatar
+      // ✨ ALTERAÇÃO: Processar os dados com cálculo financeiro em tempo real
       const processedRecords = data.map(record => {
         const date = parseISO(record.date);
-        const isWeekendDay = !isWorkingDay(date); // Assume que isWorkingDay está implementado
+        const isWeekendDay = !isWorkingDay(date);
 
-        // Recalcular horas e pagamentos se necessário, ou usar os do DB se confiáveis
-        // Se os campos calculados (total_hours, normal_hours, etc.) já vêm do DB, usar eles
-        // Caso contrário, recalcular aqui:
-        // const calculated = calculateWorkingHours(record, hourlyRate, overtimeMultiplier);
-        // return { ...record, ...calculated, isWeekend: isWeekendDay };
+        // ✨ Usar os dados de horas que já vêm do banco ou recalcular se necessário
+        const totalHours = Number(record.total_hours || 0);
+        const normalHours = Number(record.normal_hours || 0);
+        const overtimeHours = Number(record.overtime_hours || 0);
 
-        // Usando dados do DB (assumindo que já estão calculados e armazenados)
-         return {
-           ...record,
-           total_hours: Number(record.total_hours || 0),
-           normal_hours: Number(record.normal_hours || 0),
-           overtime_hours: Number(record.overtime_hours || 0),
-           normal_pay: Number(record.normal_pay || 0),
-           overtime_pay: Number(record.overtime_pay || 0),
-           total_pay: Number(record.total_pay || 0),
-           isWeekend: isWeekendDay,
-         };
+        // ✨ NOVO: Calcular valores financeiros usando ambos hourly_rate e overtime_rate
+        const hourlyRate = userProfile?.hourly_rate || 0;
+        const overtimeRate = userProfile?.overtime_rate || 0;
+        const normalPay = normalHours * hourlyRate;
+        const overtimePay = overtimeHours * overtimeRate; // ✨ Usando overtime_rate diferenciado
+        const totalPay = normalPay + overtimePay;
+
+        return {
+          ...record,
+          total_hours: totalHours,
+          normal_hours: normalHours,
+          overtime_hours: overtimeHours,
+          normal_pay: normalPay, // ✨ Calculado em tempo real
+          overtime_pay: overtimePay, // ✨ Calculado em tempo real  
+          total_pay: totalPay, // ✨ Calculado em tempo real
+          isWeekend: isWeekendDay,
+        };
       });
 
       setRecords(processedRecords);
@@ -120,14 +151,21 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
     }
   };
 
-  // Carrega os registros sempre que o usuário, startDate ou endDate mudam
+  // ✨ NOVO: Carrega perfil do usuário quando o componente monta
   useEffect(() => {
-    if (user?.id && startDate && endDate) {
+    if (user?.id) {
+      loadUserProfile(user.id);
+    }
+  }, [user?.id]);
+
+  // ✨ ALTERAÇÃO: Carrega os registros quando o perfil do usuário é carregado também
+  useEffect(() => {
+    if (user?.id && startDate && endDate && userProfile) {
       loadRecords(user.id, startDate, endDate);
     } else {
-        setRecords([]); // Limpa os registros se as datas ou usuário não estiverem definidos
+        setRecords([]); // Limpa os registros se as datas, usuário ou perfil não estiverem definidos
     }
-  }, [user?.id, startDate, endDate]); // Dependências: user.id, startDate, endDate
+  }, [user?.id, startDate, endDate, userProfile]); // ✨ Adicionado userProfile como dependência
 
   // Alterna a expansão do card
   const toggleExpand = (recordId: string) => {
@@ -269,13 +307,11 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                   <p className="text-sm text-gray-600">Horas Extras</p>
                   <p className="text-xl font-bold text-orange-600">{formatHoursAsTime(totals.overtimeHours)}</p>
                 </div>
-                 {/* Adicionar totais de pagamento se relevante */}
-                 {totals.totalPay > 0 && (
-                    <div className="md:col-span-3 pt-4 border-t">
-                        <p className="text-sm text-gray-600">Total Ganho Estimado</p>
-                        <p className="text-2xl font-bold text-green-700">{formatCurrency(totals.totalPay)}</p>
-                    </div>
-                 )}
+                 {/* ✨ Sempre mostrar totais de pagamento agora que são calculados */}
+                 <div className="md:col-span-3 pt-4 border-t">
+                    <p className="text-sm text-gray-600">Total Ganho Estimado</p>
+                    <p className="text-2xl font-bold text-green-700">{formatCurrency(totals.totalPay)}</p>
+                 </div>
               </CardContent>
             </Card>
 
@@ -328,14 +364,13 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                                     <span>{formatHoursAsTime(record.overtime_hours)}</span>
                                 </div>
                             )}
-                             {record.total_pay > 0 && (
-                                <div className="flex justify-between text-sm font-medium pt-2 border-t">
-                                    <span>Total Ganho Estimado:</span>
-                                    <span className="text-green-600">
-                                        {formatCurrency(Number(record.total_pay))}
-                                    </span>
-                                </div>
-                             )}
+                             {/* ✨ Sempre mostrar pagamento agora que é calculado */}
+                             <div className="flex justify-between text-sm font-medium pt-2 border-t">
+                                <span>Total Ganho Estimado:</span>
+                                <span className="text-green-600">
+                                    {formatCurrency(Number(record.total_pay))}
+                                </span>
+                             </div>
                         </div>
                     </CardContent>
                 )}
