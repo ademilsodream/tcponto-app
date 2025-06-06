@@ -413,7 +413,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       // CORREÇÃO: Incluir employee_name na base da solicitação
       const baseRequest = {
         employee_id: user.id,
-        employee_name: user.user_metadata?.full_name || user.email || 'Nome Desconhecido', // Adiciona o nome do usuário
+        employee_name: user.user_metadata?.name || user.email || 'Nome Desconhecido', // Adiciona o nome do usuário
         date: format(selectedDate, 'yyyy-MM-dd'),
         reason: editForm.reason.trim(),
         status: 'pending',
