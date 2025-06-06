@@ -544,7 +544,7 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
                           <TableRow>
                             <TableHead>Funcionário</TableHead>
                             <TableHead>Valor/Hora</TableHead>
-                            <TableHead>Total de Horas (Normal + Extra)</TableHead> {/* ✨ Label mais claro */}
+                            <TableHead>Horas Totais</TableHead>
                             <TableHead>Horas Normais</TableHead>
                             <TableHead>Horas Extras</TableHead>
                             <TableHead>Pagamento Normal</TableHead>
