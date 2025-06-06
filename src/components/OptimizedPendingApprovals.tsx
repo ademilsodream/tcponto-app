@@ -111,13 +111,20 @@ const ITEMS_PER_PAGE = 10;
 
 // Helper function to map database field names (snake_case strings) to camelCase used in the component
 const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut' => {
+  // ✨ MELHORADO: Se já estiver em camelCase, retorna diretamente
+  const camelCaseFields = ['clockIn', 'lunchStart', 'lunchEnd', 'clockOut'];
+  if (camelCaseFields.includes(dbField)) {
+    return dbField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
+  }
+  
+  // Se estiver em snake_case, converte para camelCase
   switch (dbField) {
     case 'clock_in': return 'clockIn';
     case 'lunch_start': return 'lunchStart';
     case 'lunch_end': return 'lunchEnd';
     case 'clock_out': return 'clockOut';
     default:
-      console.error(`Unexpected field value from DB: ${dbField}`);
+      console.error(`Campo inesperado do DB: ${dbField}`);
       // Fallback or handle error appropriately
       return 'clockIn'; // ✨ CORRIGIDO: retorna valor válido em vez de any
   }
@@ -203,20 +210,30 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
       // Map raw database data (RawEditRequestData[]) to the component's EditRequest interface (EditRequest[])
       // ✨ Cast data to unknown first to bypass strictness before casting to RawEditRequestData[]
-      return (data as unknown as RawEditRequestData[]).map(request => ({
-        id: request.id,
-        employeeId: request.employee_id,
-        employeeName: request.employee_name,
-        date: request.date,
-        field: mapFieldDbToCamelCase(request.field), // Use mapping function for field value conversion
-        oldValue: request.old_value || '',
-        newValue: request.new_value,
-        reason: request.reason,
-        timestamp: request.created_at,
-        status: request.status,
-        // ✨ CORRIGIDO: Usar função de conversão segura
-        location: safeConvertToLocationContent(request.location),
-      }));
+      return (data as unknown as RawEditRequestData[]).map(request => {
+        // ✨ DEBUG: Log para verificar dados do banco
+        console.log('🔍 DEBUG - OptimizedPendingApprovals:', {
+          field_original: request.field,
+          field_mapeado: mapFieldDbToCamelCase(request.field),
+          employee_name: request.employee_name,
+          location: request.location
+        });
+
+        return {
+          id: request.id,
+          employeeId: request.employee_id,
+          employeeName: request.employee_name,
+          date: request.date,
+          field: mapFieldDbToCamelCase(request.field), // Use mapping function for field value conversion
+          oldValue: request.old_value || '',
+          newValue: request.new_value,
+          reason: request.reason,
+          timestamp: request.created_at,
+          status: request.status,
+          // ✨ CORRIGIDO: Usar função de conversão segura
+          location: safeConvertToLocationContent(request.location),
+        };
+      });
     },
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
@@ -341,11 +358,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         for (const request of group.requests) {
           const dbFieldName = mapFieldCamelCaseToDb(request.field);
           
-          console.log('🔍 DEBUG: Processando request:', {
+          console.log('🔍 DEBUG: Processando request OptimizedPendingApprovals:', {
             field: request.field,
             dbFieldName,
             location: request.location,
-            newValue: request.newValue
+            newValue: request.newValue,
+            locationForField: request.location?.[dbFieldName]
           });
 
           // Add the new time value
@@ -434,6 +452,40 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     return labels[field]; // field is now guaranteed to be one of the keys
   }, []);
 
+  // ✨ FUNÇÃO para obter localização específica do campo
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
+
+  // ✨ FUNÇÃO para calcular diferença de horas
+  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
+    if (!oldTime || !newTime) return 0;
+    
+    try {
+      const [oldHour, oldMin] = oldTime.split(':').map(Number);
+      const [newHour, newMin] = newTime.split(':').map(Number);
+      
+      const oldMinutes = oldHour * 60 + oldMin;
+      const newMinutes = newHour * 60 + newMin;
+      
+      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo
+  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
+    return group.requests.reduce((total, request) => {
+      return total + calculateTimeDifference(request.oldValue, request.newValue);
+    }, 0);
+  }, [calculateTimeDifference]);
+
   // Loading optimized
   if (isLoading) {
     return (
@@ -478,15 +530,23 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
               {groupedPendingRequests.map((group) => (
                 <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
                   <div className="flex justify-between items-start mb-3">
-                    <div>
+                    <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
                       <p className="text-sm text-gray-600">
                         {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
                     </div>
-                    <Badge variant="secondary">
-                      {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                    </Badge>
+                    <div className="text-right">
+                      <Badge variant="secondary" className="mb-2">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
+                      {/* ✨ NOVO: Total de horas ajustadas mais destacado */}
+                      <div className="bg-blue-100 px-3 py-1 rounded-full">
+                        <p className="text-xs text-blue-800 font-semibold">
+                          ⏱️ {calculateGroupTotalHours(group).toFixed(2)}h total
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="mb-3">
@@ -494,20 +554,25 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {group.requests.map((request) => (
                         <div key={request.id} className="text-sm border rounded p-2 bg-white">
-                          <div className="font-medium">{getFieldLabel(request.field)}</div>
+                          {/* ✨ CORRIGIDO: Usar getFieldLabel corretamente */}
+                          <div className="font-medium flex justify-between items-center">
+                            <span>{getFieldLabel(request.field)}</span>
+                            {/* ✨ NOVO: Diferença de horas mais sutil */}
+                            <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                              +{calculateTimeDifference(request.oldValue, request.newValue).toFixed(1)}h
+                            </span>
+                          </div>
                           <div className="flex justify-between text-xs mt-1">
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
-                          {/* Display location if available in the request */}
-                          {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
-                              </div>
-                          )}
+                          {/* ✨ CORRIGIDO: Exibir localização específica para cada campo */}
+                          <div className="text-xs text-gray-600 mt-1">
+                            📍 {getFieldLocation(request)}
+                          </div>
                           {request.reason && (
                             <div className="text-xs text-gray-600 mt-1">
-                              Motivo: {request.reason}
+                              💬 {request.reason}
                             </div>
                           )}
                         </div>
