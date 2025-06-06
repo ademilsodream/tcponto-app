@@ -42,31 +42,26 @@ interface EmployeeAutoObrasData {
   employeeName: string;
   departmentId: string;
   jobFunctionId: string;
-  jobFunctionName: string; // Adicionado para o novo formato de exibição
+  jobFunctionName: string;
   autoValue: number;
   locations: Array<{
     locationName: string;
     totalHours: number;
-    totalDays: number; // totalDays aqui é por funcionário/local, mas será usado o total por local no summary
+    totalDays: number;
     totalValue: number;
   }>;
 }
 
 
-// Interface para somatório por localização (mantida para o cálculo da porcentagem e nova tabela)
 interface LocationSummary {
   locationName: string;
-  totalDays: number; // Total de dias únicos de todos os funcionários no local
-  totalValue: number; // Valor total SEM porcentagem
-  totalValueWithPercentage: number; // Valor total COM porcentagem
-  percentage: number; // Porcentagem aplicada
+  totalDays: number;
+  totalValue: number;
+  totalValueWithPercentage: number;
+  percentage: number;
 }
 
 
-// Removida a interface GroupedLocationDisplayData pois não será mais usada para exibição
-
-
-// Interface para configuração de porcentagem (Mantida)
 interface PercentageConfig {
   [locationName: string]: number;
 }
@@ -82,22 +77,15 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
-  // Mantido para o primeiro relatório (Painel de Alocação)
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
 
-  // Mantido para o cálculo da porcentagem e agora para a nova tabela de resumo
   const [locationSummary, setLocationSummary] = useState<LocationSummary[]>([]);
 
 
-  // ✨ REMOVIDO: Estado para os dados agrupados que eram usados na exibição anterior
-  // const [groupedLocationDisplayData, setGroupedLocationDisplayData] = useState<GroupedLocationDisplayData>({});
-
-
   const [percentageConfig, setPercentageConfig] = useState<PercentageConfig>(() => {
-    // Carregar configuração salva do localStorage ao iniciar
     const savedConfig = localStorage.getItem('percentageConfig');
     return savedConfig ? JSON.parse(savedConfig) : {};
   });
@@ -110,7 +98,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const { toast } = useToast();
 
 
-  // Função para formatar horas no padrão HH:MM (Mantida)
   const formatHoursAsTime = (hours: number) => {
     if (!hours || hours === 0) return '00:00';
 
@@ -124,7 +111,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   };
 
 
-  // Função para extrair locationName (Mantida)
   const extractLocationName = (locations: any): string | null => {
     if (!locations) {
       return null;
@@ -238,7 +224,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         });
         setEmployeeAutoObrasData([]);
         setLocationSummary([]);
-        // setGroupedLocationDisplayData({}); // REMOVIDO
         return;
       }
 
@@ -249,7 +234,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, name, department_id, job_function_id');
-        // .in('id', userIds); // Não precisa filtrar por userIds aqui, pois profilesMap será construído com todos os profiles disponíveis
 
 
       if (profilesError) {
@@ -261,7 +245,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         });
         setEmployeeAutoObrasData([]);
         setLocationSummary([]);
-        // setGroupedLocationDisplayData({}); // REMOVIDO
         return;
       }
 
@@ -272,7 +255,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       });
 
 
-      // Buscar valores do auto de obras (Mantido)
       const { data: autoValues, error: autoError } = await supabase
         .from('auto_obras_values')
         .select('department_id, job_function_id, auto_value')
@@ -291,7 +273,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       });
 
 
-      // Buscar nomes das funções (Mantido)
       const { data: jobFunctions, error: jobFunctionsError } = await supabase
         .from('job_functions')
         .select('id, name');
@@ -308,10 +289,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       });
 
 
-      // Processamento dos registros para employeeMap (Painel de Alocação) e locationSummaryMap (Total por Localização)
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
       const locationSummaryMap = new Map<string, LocationSummary>();
-      const locationDaysMap = new Map<string, Map<string, Set<string>>>(); // Para contar dias únicos por local/usuário
+      const locationDaysMap = new Map<string, Map<string, Set<string>>>();
 
 
       timeRecords?.forEach((record) => {
@@ -330,7 +310,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         if (!locationName) return;
 
 
-        const jobFunctionName = jobFunctionsMap.get(profile.job_function_id) || 'Função Desconhecida'; // Obter nome da função
+        const jobFunctionName = jobFunctionsMap.get(profile.job_function_id) || 'Função Desconhecida';
 
 
         // --- Lógica para employeeMap (Painel de Alocação) ---
@@ -340,7 +320,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
             employeeName: profile.name,
             departmentId: profile.department_id,
             jobFunctionId: profile.job_function_id,
-            jobFunctionName: jobFunctionName, // Armazenar nome da função
+            jobFunctionName: jobFunctionName,
             autoValue: autoValue,
             locations: []
           });
@@ -355,7 +335,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           locationEntry = {
             locationName: locationName,
             totalHours: 0,
-            totalDays: 0, // totalDays aqui será calculado depois por localização
+            totalDays: 0,
             totalValue: 0
           };
           employeeData.locations.push(locationEntry);
@@ -370,10 +350,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         if (!locationSummaryMap.has(locationName)) {
           locationSummaryMap.set(locationName, {
             locationName: locationName,
-            totalDays: 0, // Será calculado depois
+            totalDays: 0,
             totalValue: 0,
-            totalValueWithPercentage: 0, // Será calculado depois
-            percentage: percentageConfig[locationName] || 0 // Aplicar configuração de porcentagem existente
+            totalValueWithPercentage: 0,
+            percentage: percentageConfig[locationName] || 0
           });
         }
         locationSummaryMap.get(locationName)!.totalValue += (Number(record.total_hours) * autoValue);
@@ -405,56 +385,66 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       // Calcular totalValueWithPercentage usando percentageConfig para locationSummaryMap
       locationSummaryMap.forEach(summary => {
         const percentage = percentageConfig[summary.locationName] || 0;
-        summary.percentage = percentage; // Garantir que o estado de porcentagem seja refletido
+        summary.percentage = percentage;
         summary.totalValueWithPercentage = summary.totalValue * (1 + percentage / 100);
       });
 
 
       const locationSummaryArray = Array.from(locationSummaryMap.values());
-      locationSummaryArray.sort((a, b) => a.locationName.localeCompare(b.locationName)); // Ordenar por nome do local
+      locationSummaryArray.sort((a, b) => a.locationName.localeCompare(b.locationName));
 
 
-      // ✨ REMOVIDO: Lógica para construir groupedLocationData
-      // const groupedLocationData: GroupedLocationDisplayData = {};
-      // employeeMap.forEach(employeeData => { ... });
-      // Object.values(groupedLocationData).forEach(locationData => { ... });
-
-
-      // Definir estados
-      setEmployeeAutoObrasData(Array.from(employeeMap.values())); // Para o Painel de Alocação
-      setLocationSummary(locationSummaryArray); // Para o Total por Localização (nova tabela)
-      // setGroupedLocationDisplayData(groupedLocationData); // REMOVIDO
+      setEmployeeAutoObrasData(Array.from(employeeMap.values()));
+      setLocationSummary(locationSummaryArray);
 
 
     } catch (error) {
       console.error('❌ Erro geral ao carregar dados:', error);
       toast({
-        title: "Erro",
-        description: "Erro inesperado ao carregar dados.",
+        title: "Erro Inesperado",
+        description: "Ocorreu um erro ao processar os dados.",
         variant: "destructive"
       });
-      setEmployeeAutoObrasData([]);
-      setLocationSummary([]);
-      // setGroupedLocationDisplayData({}); // REMOVIDO
     } finally {
       setLoading(false);
     }
   };
 
 
-  // Efeito para recarregar dados quando a configuração de porcentagem muda
   useEffect(() => {
-    // Apenas recarrega se já houver dados pesquisados
-    if (hasSearched) {
-      loadAutoObrasData();
-    }
-  }, [percentageConfig]); // Depende de percentageConfig
-
-
-  // Efeito para salvar percentageConfig no localStorage
-  useEffect(() => {
-    localStorage.setItem('percentageConfig', JSON.stringify(percentageConfig));
+    // Recalcular locationSummary com porcentagem aplicada sempre que percentageConfig mudar
+    setLocationSummary(prevSummary =>
+      prevSummary.map(summary => {
+        const percentage = percentageConfig[summary.locationName] || 0;
+        return {
+          ...summary,
+          percentage: percentage,
+          totalValueWithPercentage: summary.totalValue * (1 + percentage / 100)
+        };
+      })
+    );
   }, [percentageConfig]);
+
+
+  // Função para expandir os dados do employeeAutoObrasData para a tabela do Painel de Alocação
+  const expandedData = useMemo(() => {
+    return employeeAutoObrasData.flatMap(employee =>
+      employee.locations.map(location => ({
+        employeeId: employee.employeeId,
+        employeeName: employee.employeeName,
+        locationName: location.locationName,
+        totalHours: location.totalHours,
+        totalDays: location.totalDays, // Note: This totalDays here is per employee/location, but the table uses the total from locationSummary
+        totalValue: location.totalValue,
+      }))
+    );
+  }, [employeeAutoObrasData]);
+
+
+  // Obter lista única de locais para o diálogo de porcentagem
+  const uniqueLocations = useMemo(() => {
+    return Array.from(new Set(locationSummary.map(summary => summary.locationName))).sort();
+  }, [locationSummary]);
 
 
   const handleSearch = () => {
@@ -468,47 +458,15 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     setSelectedEmployee('all');
     setEmployeeAutoObrasData([]);
     setLocationSummary([]);
-    // setGroupedLocationDisplayData({}); // REMOVIDO
     setHasSearched(false);
-    // Não limpa percentageConfig ao limpar a pesquisa
   };
 
 
-  // Expande os dados do employeeAutoObrasData para a tabela de alocação (Mantido)
-  const expandedData = useMemo(() => {
-    return employeeAutoObrasData.flatMap(employee =>
-      employee.locations.map(location => ({
-        employeeId: employee.employeeId,
-        employeeName: employee.employeeName,
-        locationName: location.locationName,
-        totalHours: location.totalHours,
-        totalDays: location.totalDays, // Este totalDays aqui é por funcionário/local (não usado na tabela, mas mantido na estrutura)
-        totalValue: location.totalValue,
-      }))
-    );
-  }, [employeeAutoObrasData]);
-
-
-  // Lista única de locais para o diálogo de porcentagem (Mantido)
-  const uniqueLocations = useMemo(() => {
-    const locations = new Set<string>();
-    employeeAutoObrasData.forEach(employee => {
-      employee.locations.forEach(location => {
-        locations.add(location.locationName);
-      });
-    });
-    // Incluir locais do locationSummary mesmo que não apareçam no employeeAutoObrasData (caso raro, mas segurança)
-    locationSummary.forEach(summary => {
-      locations.add(summary.locationName);
-    });
-    return Array.from(locations).sort();
-  }, [employeeAutoObrasData, locationSummary]); // Depende de ambos agora
-
-
-  // Lógica do diálogo de porcentagem (Mantida)
-  const toggleLocationSelection = (location: string) => {
+  const toggleLocationSelection = (locationName: string) => {
     setSelectedLocations(prev =>
-      prev.includes(location) ? prev.filter(loc => loc !== location) : [...prev, location]
+      prev.includes(locationName)
+        ? prev.filter(loc => loc !== locationName)
+        : [...prev, locationName]
     );
   };
 
@@ -525,108 +483,60 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
 
-    if (selectedLocations.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Selecione pelo menos uma localização para aplicar a porcentagem.",
-        variant: "default"
-      });
-      return;
-    }
-
-
     const newPercentageConfig = { ...percentageConfig };
-    selectedLocations.forEach(location => {
-      newPercentageConfig[location] = percentage;
+    selectedLocations.forEach(locationName => {
+      newPercentageConfig[locationName] = percentage;
     });
 
 
     setPercentageConfig(newPercentageConfig);
-    setIsPercentageDialogOpen(false);
+    localStorage.setItem('percentageConfig', JSON.stringify(newPercentageConfig));
+
+
     setTempPercentage('');
     setSelectedLocations([]);
+    setIsPercentageDialogOpen(false);
+
+
+    toast({
+      title: "Sucesso",
+      description: "Porcentagem aplicada com sucesso.",
+    });
   };
 
 
   const handleClearPercentages = () => {
     setPercentageConfig({});
-    // Não precisa recarregar explicitamente aqui, o useEffect fará isso
+    localStorage.removeItem('percentageConfig');
+    toast({
+      title: "Sucesso",
+      description: "Todas as porcentagens foram removidas.",
+    });
   };
 
 
-  // Efeito para pré-selecionar locais no diálogo ao abrir
-  useEffect(() => {
-    if (isPercentageDialogOpen) {
-      // Ao abrir, pré-seleciona os locais que já têm porcentagem configurada
-      setSelectedLocations(Object.keys(percentageConfig));
-      setTempPercentage(''); // Limpa o campo de porcentagem
-    }
-  }, [isPercentageDialogOpen, percentageConfig]);
-
-
   return (
-    <div className="flex flex-col space-y-6">
-      {/* Botão Voltar (Mantido) */}
+    <div className="space-y-6 p-6">
       {onBack && (
-        <Button variant="outline" className="w-fit" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Voltar
+        <Button variant="outline" onClick={onBack} className="mb-4">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
         </Button>
       )}
 
 
-      {/* Card de Filtros e Resumo (Mantido) */}
       <Card>
         <CardHeader>
-          <CardTitle>Filtros e Resumo</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="w-5 h-5" /> Auto de Obras
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Filtro de Data */}
-          <div className="space-y-2">
-            <Label htmlFor="dateRange">Período</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="dateRange"
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !startDate && !endDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {startDate && endDate ? (
-                    `${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} - ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`
-                  ) : (
-                    "Selecione o período"
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="range"
-                  selected={{
-                    from: startDate,
-                    to: endDate,
-                  }}
-                  onSelect={(range) => {
-                    setStartDate(range?.from);
-                    setEndDate(range?.to);
-                  }}
-                  numberOfMonths={2}
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-
-          {/* Filtro de Funcionário */}
-          <div className="space-y-2">
-            <Label htmlFor="employeeFilter">Funcionário</Label>
+          {/* Seleção de Funcionário (Mantido) */}
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="employee-select">Funcionário</Label>
             <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-              <SelectTrigger id="employeeFilter">
-                <SelectValue placeholder="Todos os Funcionários" />
+              <SelectTrigger id="employee-select">
+                <SelectValue placeholder="Selecione um funcionário" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Funcionários</SelectItem>
@@ -638,37 +548,66 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           </div>
 
 
-          {/* Resumo dos Dados Carregados (Mantido) */}
-          <div className="md:col-span-2 lg:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="border rounded-lg p-3 text-center">
-              <div className="text-sm text-gray-500">Registros Processados</div>
-              <div className="text-xl font-bold text-blue-600">
-                {hasSearched ? employeeAutoObrasData.reduce((sum, emp) => sum + emp.locations.length, 0) : '-'}
-              </div>
-            </div>
-            <div className="border rounded-lg p-3 text-center">
-              <div className="text-sm text-gray-500">Funcionários Envolvidos</div>
-              <div className="text-xl font-bold text-blue-600">
-                {hasSearched ? employeeAutoObrasData.length : '-'}
-              </div>
-            </div>
-            <div className="border rounded-lg p-3 text-center">
-              <div className="text-sm text-gray-500">Locais Envolvidos</div>
-              <div className="text-xl font-bold text-blue-600">
-                {hasSearched ? uniqueLocations.length : '-'}
-              </div>
-            </div>
-            <div className="border rounded-lg p-3 text-center">
-              <div className="text-sm text-gray-500">Registros no Painel</div>
-              <div className="text-xl font-bold text-blue-600">
-                {hasSearched ? expandedData.length : '-'}
-              </div>
-            </div>
+          {/* Seleção de Data de Início (Mantido) */}
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="start-date">Data de Início</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !startDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "dd/MM/yyyy") : <span>Selecione a data</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
 
-          {/* Botões de ação (Mantidos) */}
-          <div className="flex gap-2 pt-4 border-t md:col-span-2 lg:col-span-3">
+          {/* Seleção de Data de Fim (Mantido) */}
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="end-date">Data de Fim</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !endDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "dd/MM/yyyy") : <span>Selecione a data</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+          </Popover>
+          </div>
+
+
+          {/* Botões de Ação (Mantido) */}
+          <div className="flex gap-4 md:col-span-2 lg:col-span-3 mt-2">
             <Button
               onClick={handleSearch}
               disabled={loading || !startDate || !endDate}
@@ -712,7 +651,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       </Card>
 
 
-      {/* ✨ MUDANÇA: Condicional para mostrar resultados ou estado inicial */}
       {loading ? (
         <Card>
           <CardContent className="p-6">
@@ -723,8 +661,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           </CardContent>
         </Card>
       ) : hasSearched ? (
-         // Mostrar resultados apenas após pesquisar
-         (expandedData.length > 0 || locationSummary.length > 0) ? ( // Verifica se há dados em qualquer um dos relatórios
+         (expandedData.length > 0 || locationSummary.length > 0) ? (
           <>
             {/* Painel de Alocação (Mantido como Tabela) */}
             {expandedData.length > 0 && (
@@ -771,11 +708,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                       </TableBody>
                     </Table>
                   </div>
+                </CardContent>
               </Card>
             )}
 
 
-            {/* ✨ NOVO LAYOUT: Somatório por Localização (AGORA COMO TABELA) */}
+            {/* Total por Localização (AGORA COMO TABELA) */}
             {locationSummary.length > 0 && (
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -826,7 +764,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                                   />
                                   <Label htmlFor={`location-${location}`} className="text-sm">
                                     {location}
-                                    {percentageConfig[location] !== undefined && ( // Mostrar % configurada
+                                    {percentageConfig[location] !== undefined && (
                                       <span className="text-blue-600 ml-1">
                                         ({percentageConfig[location]}%)
                                       </span>
@@ -849,7 +787,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                             Aplicar
                           </Button>
                         </div>
-                        </div>
                       </DialogContent>
                     </Dialog>
 
@@ -862,7 +799,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {/* Renderizar a nova estrutura agrupada como tabela */}
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -891,18 +827,14 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                               {formatCurrency(summary.totalValueWithPercentage)}
                             </TableCell>
                           </TableRow>
-                        ))}
                       </TableBody>
                     </Table>
                   </div>
                 </CardContent>
               </Card>
             )}
-
-
           </>
          ) : (
-              // Mensagem de nenhum registro encontrado após pesquisa
               <Card>
                 <CardContent className="p-6">
                   <div className="text-center text-gray-500 py-12">
@@ -919,12 +851,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                       <br />
                       Verifique se existem registros de ponto com valores configurados.
                     </p>
-                  </div>
                 </CardContent>
               </Card>
            )
          ) : (
-          // Estado inicial - sem dados e sem pesquisa
           <Card>
             <CardContent className="p-6">
               <div className="text-center text-gray-500 py-12">
