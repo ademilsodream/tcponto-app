@@ -179,8 +179,8 @@ const Login = () => {
             </form>
           </CardContent>
           
-        </Card>V-1.9
-      </div>
+        </Card>
+      </div>V-1.9
     </div>
   );
 };
