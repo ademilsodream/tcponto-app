@@ -6,8 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-// ✨ Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
-// Replicando a estrutura que definimos na tela de ajuste
+// Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
 interface LocationDetailsForEdit {
   address: string | null;
   distance: number | null; // Pode ser nulo para edições manuais
@@ -17,7 +16,7 @@ interface LocationDetailsForEdit {
   locationName: string;
 }
 
-// ✨ Interface para a estrutura esperada na coluna location do edit_requests
+// Interface para a estrutura esperada na coluna location do edit_requests
 // Ex: { "clock_in": { ...LocationDetailsForEdit... } }
 interface EditRequestLocation {
   clock_in?: LocationDetailsForEdit;
@@ -26,7 +25,6 @@ interface EditRequestLocation {
   clock_out?: LocationDetailsForEdit;
   [key: string]: LocationDetailsForEdit | undefined; // Para permitir acesso dinâmico
 }
-
 
 interface EditRequest {
   id: string;
@@ -39,7 +37,7 @@ interface EditRequest {
   reason: string;
   timestamp: string;
   status: 'pending' | 'approved' | 'rejected';
-  location?: EditRequestLocation | null; // ✨ ADICIONADO: Usar a nova interface para location
+  location?: EditRequestLocation | null; // Coluna 'location' na tabela 'edit_requests'
 }
 
 interface GroupedRequest {
@@ -75,7 +73,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
     try {
       const { data, error } = await supabase
         .from('edit_requests')
-        .select('*') // ✨ MANTER '*': Para buscar a coluna 'location'
+        .select('*') // Busca todas as colunas, incluindo 'location'
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -91,7 +89,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
         reason: request.reason,
         timestamp: request.created_at,
         status: request.status as 'pending' | 'approved' | 'rejected',
-        location: request.location as EditRequestLocation | null, // ✨ ADICIONADO: Mapear a coluna location com a nova interface
+        location: request.location as EditRequestLocation | null, // Mapeia a coluna 'location' de 'edit_requests'
       })) || [];
 
       setEditRequests(formattedRequests);
@@ -118,10 +116,10 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
       if (updateError) throw updateError;
 
       if (approved) {
-        // ✨ ADICIONADO: Buscar registro existente de forma otimizada, incluindo a localização atual
+        // ✨ CORRIGIDO: Buscar a coluna 'locations' da tabela 'time_records'
         const { data: timeRecord, error: fetchError } = await supabase
           .from('time_records')
-          .select('id, location') // ✨ ADICIONADO: Buscar a coluna location
+          .select('id, locations') // ✨ Usar 'locations' (plural)
           .eq('user_id', group.employeeId)
           .eq('date', group.date)
           .maybeSingle();
@@ -137,27 +135,29 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
           clockOut: 'clock_out'
         };
 
-        // ✨ Lógica para mesclar localizações
-        let mergedLocations: any = timeRecord?.location || {}; // Inicia com a localização existente ou um objeto vazio
+        // Lógica para mesclar localizações
+        // ✨ CORRIGIDO: Inicia com a localização existente da coluna 'locations'
+        let mergedLocations: any = timeRecord?.locations || {}; // ✨ Usar 'locations' (plural)
 
         for (const request of group.requests) {
           const dbFieldName = fieldMap[request.field] as keyof EditRequestLocation; // Nome do campo no DB (snake_case)
           updateData[dbFieldName] = request.newValue; // Adiciona o novo valor do horário
 
           // Se a solicitação de edição tiver dados de localização para este campo, mesclar
+          // A solicitação de edição tem a coluna 'location' (singular) com a estrutura JSON interna
           if (request.location && request.location[dbFieldName]) {
              mergedLocations[dbFieldName] = request.location[dbFieldName];
           }
         }
 
-        // ✨ ADICIONADO: Adicionar o objeto de localização mesclada aos dados de atualização
-        updateData.location = mergedLocations;
+        // ✨ CORRIGIDO: Adicionar o objeto de localização mesclada à coluna 'locations'
+        updateData.locations = mergedLocations; // ✨ Usar 'locations' (plural)
 
         if (timeRecord) {
           // Atualizar registro existente
           const { error: updateRecordError } = await supabase
             .from('time_records')
-            .update(updateData) // ✨ updateData agora inclui location mesclada
+            .update(updateData) // ✨ updateData agora inclui locations mesclada
             .eq('id', timeRecord.id);
 
           if (updateRecordError) throw updateRecordError;
@@ -168,7 +168,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
             .insert({
               user_id: group.employeeId,
               date: group.date,
-              ...updateData, // ✨ updateData agora inclui location mesclada
+              ...updateData, // ✨ updateData agora inclui locations mesclada
             });
 
           if (insertError) throw insertError;
@@ -286,7 +286,7 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
-                          {/* ✨ Exibir localização se disponível na solicitação */}
+                          {/* Exibir localização se disponível na solicitação */}
                           {request.location && Object.keys(request.location).length > 0 && (
                               <div className="text-xs text-gray-600 mt-1">
                                 Localização: {Object.values(request.location)[0]?.locationName || 'N/A'}
