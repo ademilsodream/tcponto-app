@@ -62,8 +62,8 @@ interface EditRequest {
   reason: string;
   timestamp: string; // Mapped from created_at
   status: 'pending' | 'approved' | 'rejected';
-  // ✨ Property name is 'location' in the mapped data, but its content type is LocationDetailsForEdit
-  location?: LocationDetailsForEdit | null;
+  // ✨ Property name is 'location' in the mapped data, but its content type is LocationContent
+  location?: LocationContent | null;
 }
 
 // ✨ NEW Interface for the raw data directly from the Supabase 'time_records' table
@@ -169,7 +169,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         timestamp: request.created_at,
         status: request.status,
         // ✨ Map 'location' from RawEditRequestData to 'location' in EditRequest, casting content type
-        location: request.location as unknown as LocationDetailsForEdit | null,
+        location: request.location as unknown as LocationContent | null,
       }));
     },
     staleTime: 10 * 60 * 1000,
@@ -304,10 +304,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           // Add the new time value
           updateData[dbFieldName] = request.newValue;
 
-          // Se a solicitação tem dados de localização, adicione ao objeto de localização mesclado
-          if (request.location) {
-            mergedLocationContent[dbFieldName] = request.location;
-            console.log('🔍 DEBUG: Adicionando localização para', dbFieldName, ':', request.location);
+          // Se a solicitação tem dados de localização, extraia o valor correto
+          if (request.location && request.location[dbFieldName]) {
+            mergedLocationContent[dbFieldName] = request.location[dbFieldName];
+            console.log('🔍 DEBUG: Adicionando localização para', dbFieldName, ':', request.location[dbFieldName]);
           } else {
             console.log('⚠️ DEBUG: Nenhuma localização encontrada para', dbFieldName);
           }
@@ -453,9 +453,9 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
                           {/* Display location if available in the request */}
-                          {request.location && (
+                          {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
                               <div className="text-xs text-gray-600 mt-1">
-                                Localização: {request.location.locationName || 'N/A'}
+                                Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
                               </div>
                           )}
                           {request.reason && (
