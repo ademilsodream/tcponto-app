@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { User } from '@supabase/supabase-js'; // <-- Importação adicionada
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
@@ -351,114 +352,80 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       const requests = [];
       // Mapeamento para a coluna 'field' (camelCase)
-      const fieldColumnMapping = {
-        clock_in: 'clockIn',
-        lunch_start: 'lunchStart',
-        lunch_end: 'lunchEnd',
-        clock_out: 'clockOut',
+      const fieldColumnMapping: { [key in keyof Omit<EditForm, 'reason' | 'locationName'>]: string } = {
+        clock_in: 'clock_in',
+        lunch_start: 'lunch_start',
+        lunch_end: 'lunch_end',
+        clock_out: 'clock_out',
       };
 
       // CORREÇÃO: Incluir employee_name na base da solicitação
       const baseRequest = {
         employee_id: user.id,
-        employee_name: user.user_metadata?.full_name || user.email || 'Nome Desconhecido', // Adiciona o nome do usuário
+        // Use a asserção de tipo 'as User' para acessar user_metadata
+        employee_name: (user as User).user_metadata?.full_name || user.email || 'Nome Desconhecido', // <-- Linha corrigida
         date: format(selectedDate, 'yyyy-MM-dd'),
         reason: editForm.reason.trim(),
         status: 'pending',
       };
 
-      // Adicionar solicitação para clock_in se alterado
+      // Verificar quais campos foram alterados e criar as solicitações correspondentes
       if (editForm.clock_in !== (timeRecord.clock_in || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldColumnMapping.clock_in, // 'clockIn'
-          old_value: timeRecord.clock_in || null,
-          // Envia string vazia '' se o campo estiver vazio, não NULL
+          field: fieldColumnMapping.clock_in,
+          old_value: timeRecord.clock_in,
           new_value: editForm.clock_in,
-          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
-          location: { clock_in: locationDetailsForEdit },
+          location: locationDetailsForEdit, // Adiciona a localização
         });
       }
-
-      // Adicionar solicitação para lunch_start se alterado
       if (editForm.lunch_start !== (timeRecord.lunch_start || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldColumnMapping.lunch_start, // 'lunchStart'
-          old_value: timeRecord.lunch_start || null,
-          // Envia string vazia '' se o campo estiver vazio, não NULL
+          field: fieldColumnMapping.lunch_start,
+          old_value: timeRecord.lunch_start,
           new_value: editForm.lunch_start,
-          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
-          location: { lunch_start: locationDetailsForEdit },
+          location: locationDetailsForEdit, // Adiciona a localização
         });
       }
-
-      // Adicionar solicitação para lunch_end se alterado
       if (editForm.lunch_end !== (timeRecord.lunch_end || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldColumnMapping.lunch_end, // 'lunchEnd'
-          old_value: timeRecord.lunch_end || null,
-          // Envia string vazia '' se o campo estiver vazio, não NULL
+          field: fieldColumnMapping.lunch_end,
+          old_value: timeRecord.lunch_end,
           new_value: editForm.lunch_end,
-          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
-          location: { lunch_end: locationDetailsForEdit },
+          location: locationDetailsForEdit, // Adiciona a localização
         });
       }
-
-      // Adicionar solicitação para clock_out se alterado
       if (editForm.clock_out !== (timeRecord.clock_out || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldColumnMapping.clock_out, // 'clockOut'
-          old_value: timeRecord.clock_out || null,
-          // Envia string vazia '' se o campo estiver vazio, não NULL
+          field: fieldColumnMapping.clock_out,
+          old_value: timeRecord.clock_out,
           new_value: editForm.clock_out,
-          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
-          location: { clock_out: locationDetailsForEdit },
+          location: locationDetailsForEdit, // Adiciona a localização
         });
       }
 
-      // Validar se pelo menos uma solicitação foi gerada
       if (requests.length === 0) {
-        console.log('⚠️ Nenhuma alteração detectada ou válida para enviar.');
         toast({
-          title: "Aviso",
-          description: "Nenhuma alteração válida foi detectada nos horários para enviar.",
-          variant: "destructive",
+          title: "Nenhuma Alteração",
+          description: "Nenhum horário foi alterado para este dia.",
+          variant: "default",
         });
         setSubmitting(false);
         return;
       }
 
-      // --- NOVO LOG PARA VERIFICAR A ESTRUTURA ANTES DE ENVIAR ---
-      console.log('📤 Estrutura das solicitações a serem enviadas (com localização por campo, chaves snake_case):', JSON.stringify(requests, null, 2));
-      // --- Fim do novo LOG ---
-
-      // Inserir todas as solicitações
-      // Certifique-se de que a coluna 'location' na tabela 'edit_requests' é do tipo JSONB
-      // Certifique-se de que a coluna 'employee_name' na tabela 'edit_requests' é do tipo TEXT NOT NULL
-      const { data, error } = await supabase
+      // Inserir as solicitações no banco de dados
+      const { error: insertError } = await supabase
         .from('edit_requests')
-        .insert(requests)
-        .select();
+        .insert(requests);
 
-      console.log('📥 Resposta do Supabase:', { data, error });
-
-      if (error) {
-        console.error('❌ Erro detalhado do Supabase:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
-      }
-
-      console.log('✅ Solicitações inseridas com sucesso:', data);
+      if (insertError) throw insertError;
 
       toast({
-        title: "Sucesso",
+        title: "Sucesso!",
         description: `${requests.length} solicitação(ões) de edição enviada(s) para aprovação.`,
       });
 
