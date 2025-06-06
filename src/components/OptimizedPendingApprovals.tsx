@@ -6,9 +6,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-// ✨ This import is still needed. Ensure src/types/supabase.ts exists and contains 'export type Json = ...'
-// If you don't have it, you MUST generate it using the Supabase CLI or manually define the Json type.
-import { Json } from '@/types/supabase';
+
+// ✨ DEFINIR TIPO Json LOCALMENTE (em vez de importar de @/types/supabase)
+type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 // Interface for the JSON location object saved within a field key (e.g., "clock_in": {...})
 interface LocationDetailsForEdit {
@@ -30,7 +30,7 @@ interface LocationContent {
   [key: string]: LocationDetailsForEdit | undefined; // Allow dynamic access
 }
 
-// ✨ NEW Interface for the raw data directly from the Supabase 'edit_requests' table
+// ✨ Interface for the raw data directly from the Supabase 'edit_requests' table
 // Matches the database column names and types for this specific table.
 interface RawEditRequestData {
   id: string;
@@ -66,7 +66,7 @@ interface EditRequest {
   location?: LocationContent | null;
 }
 
-// ✨ NEW Interface for the raw data directly from the Supabase 'time_records' table
+// ✨ Interface for the raw data directly from the Supabase 'time_records' table
 // Matches the database column names and types for this specific table.
 interface RawTimeRecordData {
     id: string;
@@ -80,7 +80,6 @@ interface RawTimeRecordData {
     locations: Json | null; // Database column is named 'locations', type is Json/JSONB
     // Add other time_records columns as needed (e.g., created_at, updated_at, etc.)
 }
-
 
 interface GroupedRequest {
   employeeId: string;
@@ -114,7 +113,7 @@ const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lun
     default:
       console.error(`Unexpected field value from DB: ${dbField}`);
       // Fallback or handle error appropriately
-      return dbField as any; // Use with caution
+      return 'clockIn'; // ✨ CORRIGIDO: retorna valor válido em vez de any
   }
 };
 
@@ -129,6 +128,38 @@ const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunch
     }
 };
 
+// ✨ FUNÇÃO HELPER para buscar email do funcionário
+const getEmployeeEmail = (employeeId: string, employees: Array<{id: string; email: string; name: string}>): string => {
+  const employee = employees.find(emp => emp.id === employeeId);
+  return employee?.email || 'Email não encontrado';
+};
+
+// ✨ FUNÇÃO HELPER para conversão segura de Json para LocationContent
+const safeConvertToLocationContent = (jsonData: Json | null): LocationContent | null => {
+  if (!jsonData || typeof jsonData !== 'object' || Array.isArray(jsonData)) {
+    return null;
+  }
+  
+  try {
+    // Verificar se o objeto tem a estrutura esperada
+    const obj = jsonData as { [key: string]: Json | undefined };
+    const result: LocationContent = {};
+    
+    // Converter apenas os campos conhecidos
+    const validFields = ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'];
+    
+    for (const field of validFields) {
+      if (obj[field] && typeof obj[field] === 'object' && !Array.isArray(obj[field])) {
+        result[field] = obj[field] as LocationDetailsForEdit;
+      }
+    }
+    
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (error) {
+    console.error('Erro ao converter Json para LocationContent:', error);
+    return null;
+  }
+};
 
 const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
   const [message, setMessage] = useState('');
@@ -168,8 +199,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         reason: request.reason,
         timestamp: request.created_at,
         status: request.status,
-        // ✨ Map 'location' from RawEditRequestData to 'location' in EditRequest, casting content type
-        location: request.location as unknown as LocationContent | null,
+        // ✨ CORRIGIDO: Usar função de conversão segura
+        location: safeConvertToLocationContent(request.location),
       }));
     },
     staleTime: 10 * 60 * 1000,
@@ -287,7 +318,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
         // Prepare update data for time_records
         const updateData: any = {};
-        let mergedLocationContent: LocationContent = (timeRecord?.locations as unknown as LocationContent) || {};
+        // ✨ CORRIGIDO: Usar conversão segura para LocationContent
+        let mergedLocationContent: LocationContent = safeConvertToLocationContent(timeRecord?.locations) || {};
         
         console.log('🔍 DEBUG: Localizações existentes:', mergedLocationContent);
 
@@ -433,8 +465,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
+                      {/* ✨ NOVO: Exibir email do funcionário */}
+                      <p className="text-xs text-gray-500 mb-1">📧 {getEmployeeEmail(group.employeeId, employees)}</p>
                       <p className="text-sm text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                        📅 {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
                     </div>
                     <Badge variant="secondary">
@@ -447,7 +481,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {group.requests.map((request) => (
                         <div key={request.id} className="text-sm border rounded p-2 bg-white">
-                          <div className="font-medium">{getFieldLabel(request.field)}</div> {/* Use getFieldLabel */}
+                          <div className="font-medium">{getFieldLabel(request.field)}</div>
                           <div className="flex justify-between text-xs mt-1">
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
@@ -550,10 +584,14 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                   {paginatedProcessedRequests.map((request) => (
                     <tr key={request.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
+                        {/* ✨ MODIFICADO: Incluir email na coluna funcionário */}
+                        <div>
+                          <div className="font-medium text-gray-900">{request.employeeName}</div>
+                          <div className="text-xs text-gray-500">{getEmployeeEmail(request.employeeId, employees)}</div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)} {/* Use getFieldLabel */}
+                        {getFieldLabel(request.field)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {request.oldValue || 'Vazio'} → {request.newValue}
