@@ -289,28 +289,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
           </Card>
         ) : records.length > 0 ? (
           <div className="space-y-4">
-            {/* Card de Totais */}
-            <Card>
-              <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-sm text-gray-600">Total de Horas</p>
-                  <p className="text-xl font-bold text-blue-600">{formatHoursAsTime(totals.totalHours)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Horas Normais</p>
-                  <p className="text-xl font-bold text-green-600">{formatHoursAsTime(totals.normalHours)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Horas Extras</p>
-                  <p className="text-xl font-bold text-orange-600">{formatHoursAsTime(totals.overtimeHours)}</p>
-                </div>
-                 {/* ✨ Sempre mostrar totais de pagamento agora que são calculados */}
-                 <div className="md:col-span-3 pt-4 border-t">
-                    <p className="text-sm text-gray-600">Total Ganho Estimado</p>
-                    <p className="text-2xl font-bold text-green-700">{formatCurrency(totals.totalPay)}</p>
-                 </div>
-              </CardContent>
-            </Card>
 
             {/* Lista de Registros Detalhados */}
             {records.map((record) => (
