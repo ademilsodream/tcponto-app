@@ -203,7 +203,7 @@ const OptimizedTimeRegistration = React.memo(() => {
 
       return data;
     },
-    staleTime: 2 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // ✨ Aumentei o staleTime para evitar refetch desnecessário
     enabled: !!user
   });
 
@@ -213,12 +213,22 @@ const OptimizedTimeRegistration = React.memo(() => {
     }
   }, [profileData]);
 
+  // ✨ MELHORIA: Melhor gerenciamento do estado do timeRecord
   useEffect(() => {
     if (todayRecord !== undefined) {
-      setTimeRecord(todayRecord);
+      setTimeRecord(prevRecord => {
+        // Se já temos um registro local mais recente, manter ele
+        if (prevRecord && todayRecord && prevRecord.updated_at && todayRecord.updated_at) {
+          const prevTime = new Date(prevRecord.updated_at).getTime();
+          const newTime = new Date(todayRecord.updated_at).getTime();
+          return prevTime >= newTime ? prevRecord : todayRecord;
+        }
+        return todayRecord;
+      });
     }
   }, [todayRecord]);
 
+  // ✨ Timer do relógio - atualizado a cada segundo
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -227,46 +237,40 @@ const OptimizedTimeRegistration = React.memo(() => {
     return () => clearInterval(timer);
   }, []);
 
+  // ✨ MELHORIA: Gerenciamento do cooldown mais robusto
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
     let intervalId: NodeJS.Timeout | null = null;
 
-    const storedCooldown = localStorage.getItem('timeRegistrationCooldown');
-    if (storedCooldown) {
-      const endTime = Number(storedCooldown);
-      if (endTime > Date.now()) {
-        setCooldownEndTime(endTime);
-        setRemainingCooldown(endTime - Date.now());
-
-        timeoutId = setTimeout(() => {
+    const updateCooldown = () => {
+      const storedCooldown = localStorage.getItem('timeRegistrationCooldown');
+      if (storedCooldown) {
+        const endTime = Number(storedCooldown);
+        const now = Date.now();
+        
+        if (endTime > now) {
+          setCooldownEndTime(endTime);
+          setRemainingCooldown(endTime - now);
+        } else {
+          localStorage.removeItem('timeRegistrationCooldown');
           setCooldownEndTime(null);
           setRemainingCooldown(null);
-          localStorage.removeItem('timeRegistrationCooldown');
-          toast({
-            title: "Pronto!",
-            description: "Você já pode registrar o próximo ponto.",
-          });
-        }, endTime - Date.now());
-
-        intervalId = setInterval(() => {
-          setRemainingCooldown(Math.max(0, endTime - Date.now()));
-        }, 1000);
-
+        }
       } else {
-        localStorage.removeItem('timeRegistrationCooldown');
         setCooldownEndTime(null);
         setRemainingCooldown(null);
       }
-    } else {
-      setCooldownEndTime(null);
-      setRemainingCooldown(null);
-    }
+    };
+
+    // Verificar imediatamente
+    updateCooldown();
+
+    // Atualizar a cada segundo
+    intervalId = setInterval(updateCooldown, 1000);
 
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [toast]);
+  }, []);
 
   const debouncedLocationRequest = useDebouncedCallback(
     async (action: string, onSuccess: (locationValidationResult: { valid: boolean; location?: Location; message: string; closestLocation?: AllowedLocation; distance?: number; gpsAccuracy?: number; adaptiveRange?: number; }) => void, onError: (message: string) => void) => {
@@ -315,7 +319,6 @@ const OptimizedTimeRegistration = React.memo(() => {
           const currentDateString = localDate;
 
           const locationData: LocationDetails = {
-            // CORREÇÃO 1: Usar closestLocation para o endereço
             address: locationValidationResult.closestLocation?.address || 'Endereço não disponível',
             distance: locationValidationResult.distance || 0,
             latitude: locationValidationResult.location?.latitude || 0,
@@ -331,9 +334,7 @@ const OptimizedTimeRegistration = React.memo(() => {
             user_id: user.id,
             date: currentDateString,
             [action]: currentTimeString,
-            // CORREÇÃO 2: Converter locationsJson para Json
             locations: locationsJson as Json,
-            // Campos de cálculo de horas serão atualizados por um trigger ou função no backend
           };
 
           const { data: updatedRecord, error: updateError } = await supabase
@@ -346,25 +347,27 @@ const OptimizedTimeRegistration = React.memo(() => {
             throw new Error(`Erro ao salvar registro: ${updateError.message}`);
           }
 
-          // Update local state immediately with the data returned from upsert
-          // This provides a faster UI update than waiting for refetch
+          // ✨ MELHORIA: Atualizar estado local imediatamente para feedback visual instantâneo
           setTimeRecord(updatedRecord);
 
-          // Refetch dados para garantir a UI atualizada e o cache
-          await refetchRecord();
+          // ✨ MELHORIA: Iniciar cooldown imediatamente para feedback visual
+          const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
+          setCooldownEndTime(newCooldownEndTime);
+          setRemainingCooldown(COOLDOWN_DURATION_MS);
+          localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
 
           // Limpar cache de localização
           clearLocationCache();
 
-          // Iniciar cooldown
-          const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
-          setCooldownEndTime(newCooldownEndTime);
-          localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
-
           toast({
             title: "Sucesso",
-            description: `${fieldNames[action]} registrado em ${localTime}!`,
+            description: `${fieldNames[action]} registrado em ${currentTimeString.slice(0, 5)}!`,
           });
+
+          // ✨ MELHORIA: Refetch em background, mas não substituir o estado local se mais recente
+          setTimeout(() => {
+            refetchRecord();
+          }, 1000);
 
         } catch (error: any) {
           console.error('Erro capturado no fluxo de registro (após validação):', error);
@@ -387,7 +390,7 @@ const OptimizedTimeRegistration = React.memo(() => {
       }
     );
 
-  }, [user, submitting, timeRecord, localDate, localTime, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames, cooldownEndTime]);
+  }, [user, submitting, timeRecord, localDate, allowedLocations, debouncedLocationRequest, refetchRecord, toast, fieldNames, cooldownEndTime]);
 
   const handleEditSubmit = useCallback(async () => {
     if (!user || !editField || !editValue || !editReason) {
@@ -439,20 +442,21 @@ const OptimizedTimeRegistration = React.memo(() => {
     }
   }, [user, userProfile?.name, editField, editValue, editReason, timeRecord, localDate, toast]);
 
+  // ✨ MELHORIA: Verificação de mudança de data mais eficiente
   useEffect(() => {
     const checkDateChange = () => {
       const currentDate = localDate;
       const recordDate = timeRecord?.date;
 
       if (recordDate && recordDate !== currentDate) {
-        refetchRecord();
         setTimeRecord(null);
+        refetchRecord();
       }
     };
 
     const interval = setInterval(checkDateChange, 60000);
     return () => clearInterval(interval);
-  }, [timeRecord, localDate, refetchRecord]);
+  }, [timeRecord?.date, localDate, refetchRecord]);
 
   const steps = useMemo(() => [
     { key: 'clock_in' as TimeRecordKey, label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
@@ -480,6 +484,11 @@ const OptimizedTimeRegistration = React.memo(() => {
   const isRegistrationButtonDisabled = useMemo(() => {
       return submitting || (cooldownEndTime !== null && cooldownEndTime > Date.now());
   }, [submitting, cooldownEndTime]);
+
+  // ✨ MELHORIA: Calcular se está em cooldown de forma mais dinâmica
+  const isInCooldown = useMemo(() => {
+    return cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0;
+  }, [cooldownEndTime, remainingCooldown]);
 
   if (loadingRecord) {
     return (
@@ -581,14 +590,21 @@ const OptimizedTimeRegistration = React.memo(() => {
               <Button
                 onClick={() => handleTimeAction(nextAction)}
                 disabled={isRegistrationButtonDisabled}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
+                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation disabled:bg-gray-400"
               >
                 <Clock className="w-5 h-5 mr-2" />
-                {submitting ? 'Registrando...' : 'Registrar'}
+                {submitting ? 'Registrando...' : isInCooldown ? 'Aguarde...' : 'Registrar'}
               </Button>
-              {cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0 && (
-                  <div className="text-center text-sm text-gray-600 mt-4">
-                      Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
+              
+              {/* ✨ MELHORIA: Contador sempre visível quando há cooldown */}
+              {isInCooldown && (
+                  <div className="text-center text-sm mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="text-yellow-800 font-medium mb-1">
+                          ⏱️ Aguarde para o próximo registro
+                      </div>
+                      <div className="text-yellow-700">
+                          Disponível em: <span className="font-mono font-bold">{formatRemainingTime(remainingCooldown!)}</span>
+                      </div>
                   </div>
               )}
             </>
