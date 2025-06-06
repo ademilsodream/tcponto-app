@@ -271,61 +271,84 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       if (updateError) throw updateError;
 
       if (approved) {
+        console.log('🔍 DEBUG: Aprovando solicitações para', group.employeeName, 'data:', group.date);
+        
         // Fetch existing time record efficiently, including current locations
         const { data: timeRecord, error: fetchError } = await supabase
           .from('time_records')
-          // ✨ Select 'locations' from time_records table
-          .select('id, locations') // Include locations
+          .select('id, locations')
           .eq('user_id', group.employeeId)
           .eq('date', group.date)
-          .maybeSingle<RawTimeRecordData>(); // ✨ Cast the result to RawTimeRecordData
+          .maybeSingle<RawTimeRecordData>();
 
         if (fetchError) throw fetchError;
+        
+        console.log('🔍 DEBUG: Registro existente:', timeRecord);
 
         // Prepare update data for time_records
-        // Use 'any' or define a specific type for time_records update payload
         const updateData: any = {};
-        // ✨ Access timeRecord?.locations and cast through unknown to LocationContent
-        let mergedLocationContent: LocationContent = (timeRecord?.locations as unknown as LocationContent) || {}; // Start with existing location content or empty object
+        let mergedLocationContent: LocationContent = (timeRecord?.locations as unknown as LocationContent) || {};
+        
+        console.log('🔍 DEBUG: Localizações existentes:', mergedLocationContent);
 
         for (const request of group.requests) {
-          // Map camelCase field back to snake_case for DB update
           const dbFieldName = mapFieldCamelCaseToDb(request.field);
+          
+          console.log('🔍 DEBUG: Processando request:', {
+            field: request.field,
+            dbFieldName,
+            location: request.location,
+            newValue: request.newValue
+          });
 
           // Add the new time value
           updateData[dbFieldName] = request.newValue;
 
-          // ✨ CORREÇÃO: Se a solicitação tem dados de localização, adicione ao objeto de localização mesclado
+          // Se a solicitação tem dados de localização, adicione ao objeto de localização mesclado
           if (request.location) {
             mergedLocationContent[dbFieldName] = request.location;
+            console.log('🔍 DEBUG: Adicionando localização para', dbFieldName, ':', request.location);
+          } else {
+            console.log('⚠️ DEBUG: Nenhuma localização encontrada para', dbFieldName);
           }
         }
 
+        console.log('🔍 DEBUG: Localizações mescladas finais:', mergedLocationContent);
+        
         // Add the merged location content object to the update data
-        // Set to null if no location data was merged/existed, depending on schema requirements
-        // ✨ Assign merged content to the 'locations' property for the time_records update
         updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
-
+        
+        console.log('🔍 DEBUG: Dados finais do update:', updateData);
 
         if (timeRecord) {
           // Update existing record
+          console.log('🔍 DEBUG: Atualizando registro existente ID:', timeRecord.id);
           const { error: updateRecordError } = await supabase
             .from('time_records')
-            .update(updateData) // updateData includes merged location content assigned to 'locations'
+            .update(updateData)
             .eq('id', timeRecord.id);
 
-          if (updateRecordError) throw updateRecordError;
+          if (updateRecordError) {
+            console.error('❌ DEBUG: Erro ao atualizar registro:', updateRecordError);
+            throw updateRecordError;
+          }
+          console.log('✅ DEBUG: Registro atualizado com sucesso');
         } else {
-          // Create new record (should be rare if original record exists)
+          // Create new record
+          console.log('🔍 DEBUG: Criando novo registro');
           const { error: insertError } = await supabase
             .from('time_records')
             .insert({
               user_id: group.employeeId,
               date: group.date,
-              ...updateData, // updateData includes merged location content assigned to 'locations'
+              ...updateData,
             });
 
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error('❌ DEBUG: Erro ao inserir registro:', insertError);
+            throw insertError;
+          }
+          console.log('✅ DEBUG: Novo registro criado com sucesso');
         }
 
         setMessage(`Edições aprovadas para ${group.employeeName}`);
