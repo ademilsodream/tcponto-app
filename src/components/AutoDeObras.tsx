@@ -38,7 +38,7 @@ interface EmployeeAutoObrasData {
   employeeId: string;
   employeeName: string;
   departmentId: string;
-  jobFunctionId: string;
+  jobFunctionId: string; // Mantido como ID, pois o nome da função não está disponível diretamente
   autoValue: number;
   locations: Array<{
     locationName: string;
@@ -76,13 +76,23 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [hasSearched, setHasSearched] = useState(false);
 
   // ✨ NOVOS: Estados para porcentagem e somatório
-  const [percentageConfig, setPercentageConfig] = useState<PercentageConfig>({});
+  const [percentageConfig, setPercentageConfig] = useState<PercentageConfig>(() => {
+    // Tenta carregar do localStorage ao iniciar
+    const savedConfig = localStorage.getItem('percentageConfig');
+    return savedConfig ? JSON.parse(savedConfig) : {};
+  });
   const [isPercentageDialogOpen, setIsPercentageDialogOpen] = useState(false);
   const [tempPercentage, setTempPercentage] = useState<string>('');
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
 
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
+
+  // Salva percentageConfig no localStorage sempre que mudar
+  useEffect(() => {
+    localStorage.setItem('percentageConfig', JSON.stringify(percentageConfig));
+  }, [percentageConfig]);
+
 
   // ✨ NOVA: Função para formatar horas no padrão HH:MM
   const formatHoursAsTime = (hours: number) => {
@@ -97,10 +107,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
   // Função CORRIGIDA para extrair locationName
   const extractLocationName = (locations: any): string | null => {
-    console.log('🔍 EXTRAÇÃO - Input completo:', JSON.stringify(locations, null, 2));
+    // console.log('🔍 EXTRAÇÃO - Input completo:', JSON.stringify(locations, null, 2));
 
     if (!locations) {
-      console.log('❌ Locations é null/undefined');
+      // console.log('❌ Locations é null/undefined');
       return null;
     }
 
@@ -110,12 +120,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       for (const event of events) {
         const eventData = locations[event];
-        console.log(`🔍 Verificando evento ${event}:`, eventData);
+        // console.log(`🔍 Verificando evento ${event}:`, eventData);
 
         if (eventData && typeof eventData === 'object') {
           const locationName = eventData.locationName;
           if (locationName && typeof locationName === 'string' && locationName.trim()) {
-            console.log(`✅ LOCATION ENCONTRADO em ${event}: "${locationName}"`);
+            // console.log(`✅ LOCATION ENCONTRADO em ${event}: "${locationName}"`);
             return locationName.trim();
           }
         }
@@ -124,7 +134,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     // ESTRATÉGIA 2: Se locations é uma string direta
     if (typeof locations === 'string' && locations.trim()) {
-      console.log(`✅ LOCATION STRING DIRETO: "${locations.trim()}"`);
+      // console.log(`✅ LOCATION STRING DIRETO: "${locations.trim()}"`);
       return locations.trim();
     }
 
@@ -148,16 +158,15 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     const recursiveResult = findLocationNameRecursive(locations);
     if (recursiveResult) {
-      console.log(`✅ LOCATION ENCONTRADO RECURSIVAMENTE: "${recursiveResult}"`);
+      // console.log(`✅ LOCATION ENCONTRADO RECURSIVAMENTE: "${recursiveResult}"`);
       return recursiveResult;
     }
 
-    console.log('❌ NENHUM LOCATION ENCONTRADO - Usando fallback');
+    // console.log('❌ NENHUM LOCATION ENCONTRADO - Usando fallback');
     return "Local Não Identificado"; // Fallback para não rejeitar registros
   };
 
   const loadAutoObrasData = async () => {
-    // ✨ NOVO: Validar se as datas foram selecionadas
     if (!startDate || !endDate) {
       console.warn('⚠️ Datas de início e fim são obrigatórias');
       return;
@@ -169,7 +178,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     setLoading(true);
-    setHasSearched(true); // ✨ NOVO: Marcar que foi feita uma pesquisa
+    setHasSearched(true);
     console.log('\n🚀 === CARREGAMENTO COM JOIN CORRIGIDO ===');
 
     const startDateStr = format(startDate, 'yyyy-MM-dd');
@@ -178,7 +187,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     console.log(`👤 FUNCIONÁRIO SELECIONADO: ${selectedEmployee}`);
 
     try {
-      // Query CORRIGIDA - fazer JOIN explícito ao invés de usar select aninhado
       let query = supabase
         .from('time_records')
         .select(`
@@ -214,7 +222,6 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       console.log(`📊 REGISTROS TIME_RECORDS: ${timeRecords?.length || 0}`);
 
-      // Buscar profiles separadamente para evitar problemas no JOIN
       const userIds = [...new Set(timeRecords?.map(r => r.user_id) || [])];
       console.log(`👥 USER_IDS únicos: ${userIds.length}`, userIds);
 
@@ -235,17 +242,15 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       }
 
       console.log(`👤 PROFILES ENCONTRADOS: ${profiles?.length || 0}`);
-      profiles?.forEach(p => {
-        console.log(` - ${p.name} (ID: ${p.id}, Dept: ${p.department_id}, Job: ${p.job_function_id})`);
-      });
+      // profiles?.forEach(p => {
+      //   console.log(` - ${p.name} (ID: ${p.id}, Dept: ${p.department_id}, Job: ${p.job_function_id})`);
+      // });
 
-      // Criar mapa de profiles
       const profilesMap = new Map();
       profiles?.forEach(profile => {
         profilesMap.set(profile.id, profile);
       });
 
-      // Buscar valores do auto de obras
       const { data: autoValues, error: autoError } = await supabase
         .from('auto_obras_values')
         .select('department_id, job_function_id, auto_value')
@@ -261,10 +266,9 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       autoValues?.forEach(av => {
         const key = `${av.department_id}-${av.job_function_id}`;
         autoValuesMap.set(key, av.auto_value);
-        console.log(`💰 Auto-valor mapeado: ${key} = R$ ${av.auto_value}`);
+        // console.log(`💰 Auto-valor mapeado: ${key} = R$ ${av.auto_value}`);
       });
 
-      // Processamento dos registros
       const employeeMap = new Map<string, EmployeeAutoObrasData>();
       let stats = {
         total: 0,
@@ -279,58 +283,56 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
       timeRecords?.forEach((record, index) => {
         stats.total++;
-        console.log(`\n🔄 PROCESSANDO ${index + 1}/${timeRecords.length}: ID=${record.id}, User_ID=${record.user_id}`);
+        // console.log(`\n🔄 PROCESSANDO ${index + 1}/${timeRecords.length}: ID=${record.id}, User_ID=${record.user_id}`);
 
-        // Buscar profile no mapa
         const profile = profilesMap.get(record.user_id);
         if (!profile) {
-          console.log(`❌ REJEITADO - Profile não encontrado para user_id: ${record.user_id}`);
+          // console.log(`❌ REJEITADO - Profile não encontrado para user_id: ${record.user_id}`);
           stats.noProfile++;
           return;
         }
 
-        console.log(`✅ Profile encontrado: ${profile.name} (ID: ${profile.id})`);
+        // console.log(`✅ Profile encontrado: ${profile.name} (ID: ${profile.id})`);
 
         if (!profile.department_id || !profile.job_function_id) {
-          console.log(`❌ REJEITADO - Falta dept/job: dept=${profile.department_id}, job=${profile.job_function_id}`);
+          // console.log(`❌ REJEITADO - Falta dept/job: dept=${profile.department_id}, job=${profile.job_function_id}`);
           stats.noDeptJob++;
           return;
         }
 
-        console.log(`✅ Dept/Job: ${profile.department_id}/${profile.job_function_id}`);
+        // console.log(`✅ Dept/Job: ${profile.department_id}/${profile.job_function_id}`);
 
         const autoKey = `${profile.department_id}-${profile.job_function_id}`;
         const autoValue = autoValuesMap.get(autoKey) || 0;
 
         if (autoValue <= 0) {
-          console.log(`❌ REJEITADO - Auto-valor zero para chave: ${autoKey}`);
+          // console.log(`❌ REJEITADO - Auto-valor zero para chave: ${autoKey}`);
           stats.noAutoValue++;
           return;
         }
 
-        console.log(`✅ Auto-valor: R$ ${autoValue} para chave ${autoKey}`);
+        // console.log(`✅ Auto-valor: R$ ${autoValue} para chave ${autoKey}`);
 
-        // Extrair location
         const locationName = extractLocationName(record.locations);
 
         if (!locationName) {
-          console.log(`❌ REJEITADO - LocationName não extraído`);
-          console.log(`📍 Locations object completo:`, record.locations);
+          // console.log(`❌ REJEITADO - LocationName não extraído`);
+          // console.log(`📍 Locations object completo:`, record.locations);
           stats.noLocation++;
           return;
         }
 
-        console.log(`✅ Location extraído: "${locationName}"`);
+        // console.log(`✅ Location extraído: "${locationName}"`);
         stats.valid++;
 
-        console.log(`🎉 REGISTRO VÁLIDO - SERÁ INCLUÍDO NO RELATÓRIO!`);
+        // console.log(`🎉 REGISTRO VÁLIDO - SERÁ INCLUÍDO NO RELATÓRIO!`);
 
         if (!employeeMap.has(record.user_id)) {
           employeeMap.set(record.user_id, {
             employeeId: record.user_id,
             employeeName: profile.name,
             departmentId: profile.department_id,
-            jobFunctionId: profile.job_function_id,
+            jobFunctionId: profile.job_function_id, // Usando o ID da função
             autoValue: autoValue,
             locations: []
           });
@@ -343,7 +345,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           locationEntry = {
             locationName: locationName,
             totalHours: 0,
-            totalDays: 0, // Assuming totalDays is calculated elsewhere or is count of records
+            totalDays: 0,
             totalValue: 0
           };
           employeeData.locations.push(locationEntry);
@@ -352,135 +354,87 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
         locationEntry.totalHours += Number(record.total_hours);
         locationEntry.totalValue = locationEntry.totalHours * autoValue;
 
-        // Note: The original code had a syntax error here.
-        // The processing for this record is now complete.
-      }); // <-- Correct end of timeRecords?.forEach loop
+        // console.log(`📊 DADOS ATUALIZADOS: ${profile.name} em ${locationName} -> Horas: ${locationEntry.totalHours}, Valor: ${locationEntry.totalValue}`);
+      });
 
-      console.log('\n=== FIM DO PROCESSAMENTO ===');
-      console.log('📊 Estatísticas de processamento:', stats);
+      console.log('\n=== ESTATÍSTICAS DE PROCESSAMENTO ===');
+      console.log(`Total de registros lidos: ${stats.total}`);
+      console.log(`Registros sem Profile: ${stats.noProfile}`);
+      console.log(`Registros sem Dept/Job: ${stats.noDeptJob}`);
+      console.log(`Registros sem Auto-valor: ${stats.noAutoValue}`);
+      console.log(`Registros sem Location: ${stats.noLocation}`);
+      console.log(`Registros Válidos Processados: ${stats.valid}`);
+      console.log('====================================');
 
-      // Convert map to array and sort by employee name
-      const processedData = Array.from(employeeMap.values()).sort((a, b) =>
-        a.employeeName.localeCompare(b.employeeName)
+
+      // Flatten data for the first table and for easier location-based grouping later
+      const flattenedData = Array.from(employeeMap.values()).flatMap(employee =>
+        employee.locations.map(location => ({
+          employeeId: employee.employeeId,
+          employeeName: employee.employeeName,
+          departmentId: employee.departmentId,
+          jobFunctionId: employee.jobFunctionId, // Incluído JobFunctionId
+          autoValue: employee.autoValue,
+          locationName: location.locationName,
+          totalHours: location.totalHours,
+          totalDays: location.totalDays, // Total days is calculated later in useMemo
+          totalValue: location.totalValue,
+        }))
       );
 
-      console.log(`✅ Dados processados para exibição: ${processedData.length} funcionários/locais`);
-      setEmployeeAutoObrasData(processedData);
+      // Calculate total days per employee per location based on distinct dates
+      const totalDaysMap = new Map<string, number>(); // Key: `${userId}-${locationName}`, Value: totalDays
+
+      timeRecords?.forEach(record => {
+        const locationName = extractLocationName(record.locations);
+        if (locationName) {
+          const key = `${record.user_id}-${locationName}`;
+          // Use date string to count distinct days
+          const dateStr = format(new Date(record.date), 'yyyy-MM-dd');
+          const existingDays = totalDaysMap.get(key) || new Set();
+          existingDays.add(dateStr);
+          totalDaysMap.set(key, existingDays);
+        }
+      });
+
+      // Update flattenedData with totalDays count
+      const finalExpandedData = flattenedData.map(item => {
+        const key = `${item.employeeId}-${item.locationName}`;
+        const daysSet = totalDaysMap.get(key) || new Set();
+        return {
+          ...item,
+          totalDays: daysSet.size,
+        };
+      });
+
+
+      setEmployeeAutoObrasData(Array.from(employeeMap.values())); // Keep original structure if needed elsewhere
+      // Use the flattened data for rendering the tables/lists
+      setExpandedData(finalExpandedData); // Set the state used by useMemo and rendering
+      console.log('✨ DADOS FINAIS PROCESSADOS:', finalExpandedData);
+
 
     } catch (error) {
       console.error('❌ Erro geral ao carregar dados:', error);
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao carregar os dados do painel.",
+        description: "Ocorreu um erro ao processar os dados.",
         variant: "destructive"
       });
-      setEmployeeAutoObrasData([]);
     } finally {
       setLoading(false);
     }
-  }; // <-- Correct end of loadAutoObrasData function definition
+  };
 
+  const [expandedData, setExpandedData] = useState<any[]>([]); // State to hold the flattened data
 
   useEffect(() => {
-    // Clear results if dates are cleared
-    if (!startDate || !endDate) {
-      setEmployeeAutoObrasData([]);
-      setHasSearched(false);
-    }
-  }, [startDate, endDate]); // Depend on dates to clear results if dates are unset
-
-  // UseMemo to flatten and expand data for the first table
-  const expandedData = useMemo(() => {
-    const data: Array<{
-      employeeId: string;
-      employeeName: string;
-      locationName: string;
-      totalHours: number;
-      totalDays: number;
-      totalValue: number;
-    }> = [];
-
-    employeeAutoObrasData.forEach(employee => {
-      employee.locations.forEach(location => {
-        data.push({
-          employeeId: employee.employeeId,
-          employeeName: employee.employeeName,
-          locationName: location.locationName,
-          totalHours: location.totalHours,
-          totalDays: location.totalDays, // Assuming totalDays is already calculated or 1 per record
-          totalValue: location.totalValue,
-        });
-      });
-    });
-
-    // Sort by employee name then location name
-    return data.sort((a, b) => {
-      const employeeCompare = a.employeeName.localeCompare(b.employeeName);
-      if (employeeCompare !== 0) return employeeCompare;
-      return a.locationName.localeCompare(b.locationName);
-    });
-
-  }, [employeeAutoObrasData]);
-
-
-  // UseMemo to get unique locations for the percentage dialog
-  const uniqueLocations = useMemo(() => {
-    const locations = new Set<string>();
-    expandedData.forEach(item => locations.add(item.locationName));
-    return Array.from(locations).sort();
-  }, [expandedData]);
-
-
-  // UseMemo to calculate summary by location, applying percentages
-  const locationSummary = useMemo(() => {
-    const summaryMap = new Map<string, LocationSummary>();
-
-    expandedData.forEach(item => {
-      if (!summaryMap.has(item.locationName)) {
-        summaryMap.set(item.locationName, {
-          locationName: item.locationName,
-          totalDays: 0, // Need to calculate total days per location
-          totalValue: 0,
-          totalValueWithPercentage: 0,
-          percentage: percentageConfig[item.locationName] || 0,
-        });
-      }
-
-      const summary = summaryMap.get(item.locationName)!;
-      // Summing up total value per location
-      summary.totalValue += item.totalValue;
-      // Summing up total days per location
-      summary.totalDays += item.totalDays; // This sums the 'totalDays' value from each expandedData item.
-
-    });
-
-    // Apply percentage and calculate final value
-    const summaryArray = Array.from(summaryMap.values()).map(summary => {
-      const percentage = percentageConfig[summary.locationName] || 0;
-      const totalValueWithPercentage = summary.totalValue * (1 + percentage / 100);
-      return {
-        ...summary,
-        percentage,
-        totalValueWithPercentage,
-      };
-    });
-
-    // Sort by location name
-    return summaryArray.sort((a, b) => a.locationName.localeCompare(b.locationName));
-
-  }, [expandedData, percentageConfig]); // Recalculate when expandedData or percentageConfig changes
-
+    // Initial load or when employees prop changes (if needed)
+    // loadAutoObrasData(); // Decided to only load on search button click
+  }, [employees]); // Dependency array includes employees
 
   const handleSearch = () => {
-    if (startDate && endDate) {
-      loadAutoObrasData();
-    } else {
-      toast({
-        title: "Datas Obrigatórias",
-        description: "Por favor, selecione as datas de início e fim.",
-        variant: "warning"
-      });
-    }
+    loadAutoObrasData();
   };
 
   const handleClearSearch = () => {
@@ -488,17 +442,18 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     setEndDate(undefined);
     setSelectedEmployee('all');
     setEmployeeAutoObrasData([]);
+    setExpandedData([]); // Clear flattened data as well
     setHasSearched(false);
     setPercentageConfig({}); // Clear percentages on clear search
-    setSelectedLocations([]); // Clear selected locations
-    setTempPercentage(''); // Clear temp percentage input
+    localStorage.removeItem('percentageConfig'); // Clear from localStorage
   };
 
-  const toggleLocationSelection = (location: string) => {
+  // ✨ NOVOS: Funções para porcentagem
+  const toggleLocationSelection = (locationName: string) => {
     setSelectedLocations(prev =>
-      prev.includes(location)
-        ? prev.filter(loc => loc !== location)
-        : [...prev, location]
+      prev.includes(locationName)
+        ? prev.filter(loc => loc !== locationName)
+        : [...prev, locationName]
     );
   };
 
@@ -506,134 +461,202 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     const percentage = parseFloat(tempPercentage);
     if (isNaN(percentage) || percentage < 0) {
       toast({
-        title: "Entrada Inválida",
-        description: "Por favor, insira uma porcentagem válida (número positivo).",
-        variant: "warning"
+        title: "Erro",
+        description: "Porcentagem inválida. Insira um número positivo.",
+        variant: "destructive"
       });
       return;
     }
 
-    const newPercentageConfig = { ...percentageConfig };
+    const newConfig = { ...percentageConfig };
     selectedLocations.forEach(location => {
-      newPercentageConfig[location] = percentage;
+      newConfig[location] = percentage;
     });
 
-    setPercentageConfig(newPercentageConfig);
+    setPercentageConfig(newConfig);
     setIsPercentageDialogOpen(false);
-    setSelectedLocations([]); // Clear selection after applying
-    setTempPercentage(''); // Clear input after applying
+    setTempPercentage('');
+    setSelectedLocations([]);
+    toast({
+      title: "Sucesso",
+      description: `Porcentagem de ${percentage}% aplicada às localizações selecionadas.`,
+    });
   };
 
   const handleClearPercentages = () => {
     setPercentageConfig({});
-    setSelectedLocations([]);
-    setTempPercentage('');
+    localStorage.removeItem('percentageConfig');
+    toast({
+      title: "Sucesso",
+      description: "Todas as porcentagens foram removidas.",
+    });
+  };
+
+
+  const uniqueLocations = useMemo(() => {
+    const locations = expandedData.map(item => item.locationName);
+    return [...new Set(locations)].sort();
+  }, [expandedData]);
+
+  const locationSummary = useMemo(() => {
+    const summaryMap = new Map<string, LocationSummary>();
+
+    expandedData.forEach(item => {
+      const locationName = item.locationName;
+      const totalValue = item.totalValue;
+      const totalDays = item.totalDays; // Use totalDays from expandedData
+
+      if (!summaryMap.has(locationName)) {
+        summaryMap.set(locationName, {
+          locationName: locationName,
+          totalDays: 0,
+          totalValue: 0,
+          totalValueWithPercentage: 0,
+          percentage: percentageConfig[locationName] || 0, // Use percentage from config
+        });
+      }
+
+      const summary = summaryMap.get(locationName)!;
+      summary.totalDays += totalDays;
+      summary.totalValue += totalValue;
+    });
+
+    // Apply percentage after summing up base values
+    summaryMap.forEach((summary, locationName) => {
+      const percentage = percentageConfig[locationName] || 0;
+      summary.percentage = percentage; // Store the applied percentage
+      summary.totalValueWithPercentage = summary.totalValue * (1 + percentage / 100);
+    });
+
+    return Array.from(summaryMap.values()).sort((a, b) => a.locationName.localeCompare(b.locationName));
+  }, [expandedData, percentageConfig]); // Depend on percentageConfig
+
+  // Helper to get employee entries for a specific location
+  const getEmployeesForLocation = (locationName: string) => {
+    // Filter expandedData and then group by employee to sum hours per employee per location
+    const employeeHoursMap = new Map<string, { employeeName: string, jobFunctionId: string, totalHours: number }>();
+
+    expandedData
+      .filter(item => item.locationName === locationName)
+      .forEach(item => {
+        const employeeKey = item.employeeId;
+        if (!employeeHoursMap.has(employeeKey)) {
+          employeeHoursMap.set(employeeKey, {
+            employeeName: item.employeeName,
+            jobFunctionId: item.jobFunctionId,
+            totalHours: 0,
+          });
+        }
+        employeeHoursMap.get(employeeKey)!.totalHours += item.totalHours;
+      });
+
+    // Sort employees by name for consistent display
+    return Array.from(employeeHoursMap.values()).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
   };
 
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <Button onClick={onBack} variant="outline" className="mb-6">
-        <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
-      </Button>
+    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+      {onBack && (
+        <Button variant="ghost" onClick={onBack} className="mb-6">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
+        </Button>
+      )}
 
-      <h1 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
-        <Building2 className="w-7 h-7 text-blue-600" /> Auto de Obras
-      </h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Filters and Stats Card */}
-        <Card className="lg:col-span-1">
+      <div className="space-y-6">
+        <Card>
           <CardHeader>
-            <CardTitle>Filtros e Estatísticas</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5" /> Filtros do Relatório
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Date Range Picker */}
-            <div className="space-y-2">
-              <Label htmlFor="date-range">Período</Label>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !startDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Data Início"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !endDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Data Fim"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            {/* Employee Select */}
-            <div className="space-y-2">
-              <Label htmlFor="employee-select">Funcionário</Label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger id="employee-select">
-                  <SelectValue placeholder="Selecione um funcionário" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Funcionários</SelectItem>
-                  {employees.map(employee => (
-                    <SelectItem key={employee.id} value={employee.id}>{employee.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-gray-500">Período Selecionado</div>
-                <div className="text-lg font-semibold">
-                  {startDate && endDate ? `${format(startDate, 'dd/MM')} - ${format(endDate, 'dd/MM')}` : '-'}
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+              {/* Seleção de Período */}
+              <div>
+                <Label htmlFor="date-range">Período</Label>
+                <div className="flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date-range"
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !startDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Data Início"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <span>-</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Data Fim"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
-              <div className="space-y-1">
-                <div className="text-sm font-medium text-gray-500">Registros Encontrados</div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {hasSearched ? expandedData.length : '-'}
+
+              {/* Seleção de Funcionário */}
+              <div>
+                <Label htmlFor="employee-filter">Funcionário</Label>
+                <Select onValueChange={setSelectedEmployee} value={selectedEmployee}>
+                  <SelectTrigger id="employee-filter">
+                    <SelectValue placeholder="Selecione um funcionário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Funcionários</SelectItem>
+                    {employees.map(employee => (
+                      <SelectItem key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* ✨ NOVO: Estatísticas rápidas */}
+              <div className="flex items-center gap-4 col-span-1 md:col-span-2 lg:col-span-1">
+                <div className="flex-1 p-3 border rounded-lg bg-blue-50">
+                  <label className="text-sm font-medium">Registros Válidos</label>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {hasSearched ? expandedData.length : '-'}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* ✨ NOVOS: Botões de ação */}
             <div className="flex gap-2 pt-4 border-t">
               <Button
                 onClick={handleSearch}
@@ -664,7 +687,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
               )}
             </div>
 
-            {/* Date Required Warning */}
+            {/* ✨ NOVO: Aviso sobre obrigatoriedade das datas */}
             {(!startDate || !endDate) && (
               <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-sm text-yellow-800">
@@ -675,227 +698,214 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
           </CardContent>
         </Card>
 
-        {/* Results Section */}
-        <div className="lg:col-span-2 space-y-6">
-          {loading ? (
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center">
-                  <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-                  Carregando dados painel de alocação...
-                </div>
-              </CardContent>
-            </Card>
-          ) : hasSearched ? (
-            // Show results only after searching
-            expandedData.length > 0 ? (
-              <>
-                {/* Painel de Alocação (Employee/Location Breakdown) - Keep as Table */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Painel de Alocação</CardTitle>
-                    <p className="text-sm text-gray-600">
-                      Valores calculados com base no valor por função
-                      {startDate && endDate && (
-                        <span className="ml-2 text-gray-400">
-                          ({format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')})
-                        </span>
-                      )}
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="font-semibold">Funcionário</TableHead>
-                            <TableHead className="font-semibold">Local</TableHead>
-                            <TableHead className="text-center font-semibold">Total de Horas</TableHead>
-                            <TableHead className="text-center font-semibold">Total de Dias</TableHead>
-                            <TableHead className="text-right font-semibold">Valor Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {expandedData.map((row, index) => (
-                            <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
-                              <TableCell className="font-medium">{row.employeeName}</TableCell>
-                              <TableCell>{row.locationName}</TableCell>
-                              <TableCell className="text-center">
-                                {formatHoursAsTime(row.totalHours)}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
-                              </TableCell>
-                              <TableCell className="text-right font-semibold">
-                                {formatCurrency(row.totalValue)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Total por Localização (Location Summary) - Modified Display */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Calculator className="w-5 h-5" />
-                        Total por Localização
-                      </CardTitle>
-                      <p className="text-sm text-gray-600">Totais agrupados por local de trabalho</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Percent className="w-4 h-4 mr-2" />
-                            Adicionar %
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Configurar Porcentagem por Localização</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="percentage">Porcentagem (%)</Label>
-                              <Input
-                                id="percentage"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="Ex: 15.5"
-                                value={tempPercentage}
-                                onChange={(e) => setTempPercentage(e.target.value)}
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Selecionar Localizações</Label>
-                              <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
-                                {uniqueLocations.map(location => (
-                                  <div key={location} className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`location-${location}`}
-                                      checked={selectedLocations.includes(location)}
-                                      onCheckedChange={() => toggleLocationSelection(location)}
-                                    />
-                                    <Label htmlFor={`location-${location}`} className="text-sm">
-                                      {location}
-                                      {percentageConfig[location] && (
-                                        <span className="text-blue-600 ml-1">
-                                          ({percentageConfig[location]}%)
-                                        </span>
-                                      )}
-                                    </Label>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end space-x-2">
-                              <Button
-                                variant="outline"
-                                onClick={() => setIsPercentageDialogOpen(false)}
-                              >
-                                Cancelar
-                              </Button>
-                              <Button onClick={handleApplyPercentage}>
-                                Aplicar
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-
-                      {Object.keys(percentageConfig).length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleClearPercentages}>
-                          Limpar %
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {/* --- START: Modified display for Location Summary --- */}
-                    <div className="space-y-6"> {/* Add spacing between locations */}
-                      {locationSummary.map((summary) => (
-                        <div key={summary.locationName} className="border p-4 rounded-lg bg-gray-50"> {/* Added bg-gray-50 for slight distinction */}
-                          <h4 className="text-lg font-semibold mb-2 text-gray-800">Local - {summary.locationName}</h4>
-                          <ul className="list-none ml-0 space-y-1 text-gray-700"> {/* Changed list-disc to list-none */}
-                            {expandedData
-                              .filter(item => item.locationName === summary.locationName)
-                              .sort((a, b) => a.employeeName.localeCompare(b.employeeName)) // Optional: sort employees within location
-                              .map(item => (
-                                <li key={`${item.employeeId}-${item.locationName}`} className="text-sm">
-                                  {item.employeeName} - {formatHoursAsTime(item.totalHours)}
-                                </li>
-                              ))}
-                          </ul>
-                          <div className="mt-3 pt-3 border-t text-right font-bold text-blue-600">
-                            Total = {formatCurrency(summary.totalValueWithPercentage)} {currency}
-                            {summary.percentage > 0 && (
-                              <span className="ml-2 text-sm font-normal text-green-700">
-                                (+{summary.percentage}%)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {/* Display Grand Total outside individual location blocks */}
-                      {locationSummary.length > 0 && (
-                        <div className="border-t-2 border-blue-600 pt-4 text-right font-bold text-xl text-blue-800">
-                          TOTAL GERAL = {formatCurrency(locationSummary.reduce((sum, s) => sum + s.totalValueWithPercentage, 0))} {currency}
-                        </div>
-                      )}
-                    </div>
-                    {/* --- END: Modified display for Location Summary --- */}
-                  </CardContent>
-                </Card>
-              </>
-            ) : (
+        {/* ✨ MUDANÇA: Condicional para mostrar resultados */}
+        {loading ? (
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center">
+                <Search className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                Carregando dados painel de alocação...
+              </div>
+            </CardContent>
+          </Card>
+        ) : hasSearched ? (
+          // Mostrar resultados apenas após pesquisar
+          expandedData.length > 0 ? (
+            <>
+              {/* Painel de Alocação - Mantido como tabela */}
               <Card>
-                <CardContent className="p-6">
-                  <div className="text-center text-gray-500 py-12">
-                    <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium mb-2">
-                      Nenhum registro encontrado
-                    </h3>
-                    <p className="text-sm">
-                      {startDate && endDate ? (
-                        `Nenhum registro válido encontrado para o período de ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}.`
-                      ) : (
-                        'Nenhum registro válido encontrado para os filtros selecionados.'
-                      )}
-                      <br />
-                      Verifique se existem registros de ponto com valores configurados.
-                    </p>
+                <CardHeader>
+                  <CardTitle>Painel de Alocação</CardTitle>
+                  <p className="text-sm text-gray-600">
+                    Valores calculados com base no valor por função
+                    {startDate && endDate && (
+                      <span className="ml-2 text-gray-400">
+                        ({format(startDate, 'dd/MM/yyyy')} - {format(endDate, 'dd/MM/yyyy')})
+                      </span>
+                    )}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-semibold">Funcionário</TableHead>
+                          <TableHead className="font-semibold">Local</TableHead>
+                          <TableHead className="text-center font-semibold">Total de Horas</TableHead>
+                          <TableHead className="text-center font-semibold">Total de Dias</TableHead>
+                          <TableHead className="text-right font-semibold">Valor Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {expandedData.map((row, index) => (
+                          <TableRow key={`${row.employeeId}-${row.locationName}-${index}`}>
+                            <TableCell className="font-medium">{row.employeeName}</TableCell>
+                            <TableCell>{row.locationName}</TableCell>
+                            <TableCell className="text-center">
+                              {formatHoursAsTime(row.totalHours)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {row.totalDays} dia{row.totalDays !== 1 ? 's' : ''}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatCurrency(row.totalValue)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 </CardContent>
               </Card>
-            )
+
+              {/* ✨ MUDANÇA: Somatório por Localização - NOVO FORMATO DE LISTA */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calculator className="w-5 h-5" />
+                      Total por Localização
+                    </CardTitle>
+                    <p className="text-sm text-gray-600">Totais agrupados por local de trabalho</p>
+                  </div>
+                  {/* Diálogo de Porcentagem - Mantido */}
+                  <div className="flex gap-2">
+                    <Dialog open={isPercentageDialogOpen} onOpenChange={setIsPercentageDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Percent className="w-4 h-4 mr-2" />
+                          Adicionar %
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Configurar Porcentagem por Localização</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="percentage">Porcentagem (%)</Label>
+                            <Input
+                              id="percentage"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="Ex: 15.5"
+                              value={tempPercentage}
+                              onChange={(e) => setTempPercentage(e.target.value)}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Selecionar Localizações</Label>
+                            <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
+                              {uniqueLocations.map(location => (
+                                <div key={location} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`location-${location}`}
+                                    checked={selectedLocations.includes(location)}
+                                    onCheckedChange={() => toggleLocationSelection(location)}
+                                  />
+                                  <Label htmlFor={`location-${location}`} className="text-sm">
+                                    {location}
+                                    {percentageConfig[location] && (
+                                      <span className="text-blue-600 ml-1">
+                                        ({percentageConfig[location]}%)
+                                      </span>
+                                    )}
+                                  </Label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => setIsPercentageDialogOpen(false)}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button onClick={handleApplyPercentage}>
+                              Aplicar
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+
+                    {Object.keys(percentageConfig).length > 0 && (
+                      <Button variant="outline" size="sm" onClick={handleClearPercentages}>
+                        Limpar %
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {/* ✨ NOVO: Renderizar o relatório no formato de lista */}
+                  <div className="space-y-6"> {/* Adiciona espaço entre os blocos de localização */}
+                    {locationSummary.map((summary) => (
+                      <div key={summary.locationName} className="border rounded-lg p-4 bg-gray-50">
+                        <h3 className="text-lg font-semibold mb-2">Local - {summary.locationName}</h3>
+                        <ul className="list-disc list-inside space-y-1 ml-4">
+                          {/* Usando jobFunctionId como placeholder para o nome da função */}
+                          {getEmployeesForLocation(summary.locationName).map((employeeEntry, index) => (
+                            <li key={`${employeeEntry.employeeName}-${index}`} className="text-sm text-gray-700">
+                              {/* Exibe JobFunctionId e Nome do Funcionário */}
+                              {employeeEntry.jobFunctionId} {employeeEntry.employeeName} - {formatHoursAsTime(employeeEntry.totalHours)}
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-4 pt-2 border-t border-gray-200 text-right font-bold text-base">
+                          Total = {formatCurrency(summary.totalValueWithPercentage)} {currency}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
           ) : (
-            // Initial state - no data
+            // Estado de "Nenhum registro encontrado" - Mantido
             <Card>
               <CardContent className="p-6">
                 <div className="text-center text-gray-500 py-12">
-                  <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-medium mb-2">
-                    Painel de Alocação
+                    Nenhum registro encontrado
                   </h3>
                   <p className="text-sm">
-                    Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar o relatório por localização e funcionário.
+                    {startDate && endDate ? (
+                      `Nenhum registro válido encontrado para o período de ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}.`
+                    ) : (
+                      'Nenhum registro válido encontrado para os filtros selecionados.'
+                    )}
+                    <br />
+                    Verifique se existem registros de ponto com valores configurados.
                   </p>
-                  <div className="mt-4 text-xs text-gray-400">
-                    💡 Este relatório mostra valores calculados com base nos valores configurados por departamento e função.
-                  </div>
                 </div>
               </CardContent>
             </Card>
-          )}
-        </div>
+          )
+        ) : (
+          // Estado Inicial - Sem dados visíveis até pesquisar
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-center text-gray-500 py-12">
+                <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">
+                  Painel de Alocação
+                </h3>
+                <p className="text-sm">
+                  Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar o relatório por localização e funcionário.
+                </p>
+                <div className="mt-4 text-xs text-gray-400">
+                  💡 Este relatório mostra valores calculados com base nos valores configurados por departamento e função.
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
