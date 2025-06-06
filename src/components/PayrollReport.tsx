@@ -183,24 +183,20 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
             const { totalHours: dayTotalHours, normalHours: dayNormalHours, overtimeHours: dayOvertimeHours } =
               calculateWorkingHours(record.clock_in, record.lunch_start, record.lunch_end, record.clock_out);
 
-            // Arredondar as horas de CADA DIA antes de somar
-            const roundedDayTotalHours = Math.round(dayTotalHours * 10) / 10;
-            const roundedDayNormalHours = Math.round(dayNormalHours * 10) / 10;
-            const roundedDayOvertimeHours = Math.round(dayOvertimeHours * 10) / 10;
-
-            console.log(`Horas do dia ${record.date} (arredondadas):`, {
-              roundedDayTotalHours,
-              roundedDayNormalHours,
-              roundedDayOvertimeHours
+            console.log(`Horas do dia ${record.date}:`, {
+              dayTotalHours,
+              dayNormalHours,
+              dayOvertimeHours
             });
 
-            totalHoursSum += roundedDayTotalHours; // Soma das horas totais diárias
-            totalNormalHoursSum += roundedDayNormalHours; // Soma das horas normais diárias
-            totalOvertimeHoursSum += roundedDayOvertimeHours; // Soma das horas extras diárias
+            // ✨ ALTERAÇÃO: Soma direta sem arredondamento (igual ao DetailedTimeReport)
+            totalHoursSum += dayTotalHours; // Soma das horas totais diárias
+            totalNormalHoursSum += dayNormalHours; // Soma das horas normais diárias
+            totalOvertimeHoursSum += dayOvertimeHours; // Soma das horas extras diárias
           });
         }
 
-        console.log(`Totais para ${employee.name} (soma dos arredondados):`, {
+        console.log(`Totais para ${employee.name}:`, {
           totalHoursSum,
           totalNormalHoursSum,
           totalOvertimeHoursSum
@@ -210,7 +206,6 @@ const PayrollReport: React.FC<PayrollReportProps> = ({ employees, onBack }) => {
         const hourlyRate = Number(employee.hourly_rate) || 0;
 
         // Calcular pagamentos - hora extra com mesmo valor da hora normal
-        // Usar os totais que já são a soma dos arredondados
         const normalPay = totalNormalHoursSum * hourlyRate;
         const overtimePay = totalOvertimeHoursSum * hourlyRate; // Mesmo valor da hora normal
         const totalPay = normalPay + overtimePay;
