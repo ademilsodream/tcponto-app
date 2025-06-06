@@ -6,6 +6,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { Json } from '@/integrations/supabase/types'; // Importar Json type
 
 // Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
 interface LocationDetailsForEdit {
@@ -27,450 +32,491 @@ interface EditRequestLocation {
   [key: string]: LocationDetailsForEdit | undefined; // Para permitir acesso dinâmico
 }
 
+// Interface para a estrutura esperada na coluna locations do time_records (plural)
+interface TimeRecordLocationsData {
+  clock_in?: LocationDetailsForEdit;
+  lunch_start?: LocationDetailsForEdit;
+  lunch_end?: LocationDetailsForEdit;
+  clock_out?: LocationDetailsForEdit;
+  [key: string]: LocationDetailsForEdit | undefined; // Para permitir acesso dinâmico
+}
+
+
 interface EditRequest {
   id: string;
-  employeeId: string;
-  employeeName: string;
+  employee_id: string;
+  employee_name: string;
   date: string;
-  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
-  oldValue: string;
-  newValue: string;
+  field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
+  old_value: string | null;
+  new_value: string;
   reason: string;
-  timestamp: string;
   status: 'pending' | 'approved' | 'rejected';
-  location?: EditRequestLocation | null; // ✨ CORRIGIDO: Usar a interface detalhada para 'location'
+  requested_at: string;
+  processed_at: string | null;
+  processed_by: string | null;
+  // Adicionado a coluna location da tabela edit_requests
+  location: Json | null;
 }
 
-interface GroupedRequest {
-  employeeId: string;
-  employeeName: string;
+interface TimeRecord {
+  id: string;
+  user_id: string;
   date: string;
-  requests: EditRequest[];
-  timestamp: string;
+  clock_in: string | null;
+  lunch_start: string | null;
+  lunch_end: string | null;
+  clock_out: string | null;
+  total_hours: number | null;
+  normal_hours?: number | null;
+  overtime_hours?: number | null;
+  normal_pay?: number | null;
+  overtime_pay?: number | null;
+  total_pay?: number | null;
+  // A coluna locations na tabela time_records (plural)
+  locations: Json | null;
+  created_at?: string;
+  updated_at?: string;
+  status?: string;
+  is_pending_approval?: boolean;
+  approved_by?: string;
+  approved_at?: string;
 }
 
-interface PendingApprovalsProps {
-  employees: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: 'admin' | 'user';
-    hourlyRate: number;
-    overtimeRate: number;
-  }>;
-  onApprovalChange?: () => void;
-}
 
-const ITEMS_PER_PAGE = 10;
+const PAGE_SIZE = 10;
 
-const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
-  const [message, setMessage] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+const OptimizedPendingApproval = () => {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { user } = useAuth(); // Assume useAuth provides the current user
 
-  // Query otimizada
-  const {
-    data: editRequests = [],
-    isLoading,
-    refetch
-  } = useQuery({
-    queryKey: ['edit-requests'],
+  const [currentPage, setCurrentPage] = useState(0);
+  const [filterStatus, setFilterStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+
+  const fieldNames: Record<EditRequest['field'], string> = useMemo(() => ({
+    clock_in: 'Entrada',
+    lunch_start: 'Início do Almoço',
+    lunch_end: 'Fim do Almoço',
+    clock_out: 'Saída'
+  }), []);
+
+  const { data: requests, isLoading, error, refetch } = useQuery<EditRequest[]>({
+    queryKey: ['editRequests', filterStatus],
     queryFn: async () => {
+      console.log(`Fetching requests with status: ${filterStatus}`);
       const { data, error } = await supabase
         .from('edit_requests')
-        .select('*') // Continua buscando todas as colunas, incluindo 'location'
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
+        .select('*')
+        .eq('status', filterStatus)
+        .order('requested_at', { ascending: false });
 
-      return data.map(request => ({
-        id: request.id,
-        employeeId: request.employee_id,
-        employeeName: request.employee_name,
-        date: request.date,
-        field: request.field as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut',
-        oldValue: request.old_value || '',
-        newValue: request.new_value,
-        reason: request.reason,
-        timestamp: request.created_at,
-        status: request.status as 'pending' | 'approved' | 'rejected',
-        location: request.location as EditRequestLocation | null, // ✨ CORRIGIDO: Mapear com a interface correta
-      }));
+      if (error) {
+        console.error("Fetch error:", error);
+        throw error;
+      }
+
+      // LOG 1: Dados buscados do Supabase
+      console.log('LOG 1: Fetched edit_requests:', data);
+
+      return data || [];
     },
-    staleTime: 10 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
-    retry: 1
+    refetchInterval: 60000, // Refetch every 60 seconds
   });
 
-  // Real-time otimizado com throttling
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const subscription = supabase
-      .channel('edit_requests_throttled')
-      .on('postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'edit_requests'
-        },
-        () => {
-          // Throttling de 2 segundos
-          clearTimeout(timeoutId);
-          timeoutId = setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ['edit-requests'] });
-          }, 2000);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      clearTimeout(timeoutId);
-      subscription.unsubscribe();
-    };
-  }, [queryClient]);
-
-  // Memoized calculations com dependências otimizadas
-  const { pendingRequests, processedRequests, groupedPendingRequests } = useMemo(() => {
-    const pending = editRequests.filter(r => r.status === 'pending');
-    const processed = editRequests.filter(r => r.status !== 'pending');
-
-    // Agrupar solicitações pendentes de forma mais eficiente
-    const groupsMap = new Map<string, GroupedRequest>();
-
-    for (const request of pending) {
-      const key = `${request.employeeId}-${request.date}`;
-
-      if (!groupsMap.has(key)) {
-        groupsMap.set(key, {
-          employeeId: request.employeeId,
-          employeeName: request.employeeName,
-          date: request.date,
-          requests: [],
-          timestamp: request.timestamp
-        });
+  const groupedRequests = useMemo(() => {
+    if (!requests) return {};
+    const groups: { [key: string]: EditRequest[] } = {};
+    requests.forEach(req => {
+      const key = `${req.employee_id}-${req.date}`;
+      if (!groups[key]) {
+        groups[key] = [];
       }
+      groups[key].push(req);
+    });
+    console.log('LOG 2: Grouped pending requests:', groups); // LOG 2: Grupos de solicitações
+    return groups;
+  }, [requests]);
 
-      groupsMap.get(key)!.requests.push(request);
+  const paginatedGroups = useMemo(() => {
+    const groupKeys = Object.keys(groupedRequests);
+    const start = currentPage * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+    return groupKeys.slice(start, end).reduce((obj, key) => {
+      obj[key] = groupedRequests[key];
+      return obj;
+    }, {} as { [key: string]: EditRequest[] });
+  }, [groupedRequests, currentPage]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(Object.keys(groupedRequests).length / PAGE_SIZE);
+  }, [groupedRequests]);
+
+  const handlePageChange = useCallback((direction: 'prev' | 'next') => {
+    setCurrentPage(prev => {
+      if (direction === 'prev') return Math.max(0, prev - 1);
+      if (direction === 'next') return Math.min(totalPages - 1, prev + 1);
+      return prev;
+    });
+  }, [totalPages]);
+
+  const handleApproveGroup = useCallback(async (groupKey: string) => {
+    if (!user) {
+      toast({ title: "Erro", description: "Usuário não autenticado.", variant: "destructive" });
+      return;
     }
 
-    return {
-      pendingRequests: pending,
-      processedRequests: processed,
-      groupedPendingRequests: Array.from(groupsMap.values())
-    };
-  }, [editRequests]);
+    const requestsToProcess = groupedRequests[groupKey];
+    if (!requestsToProcess || requestsToProcess.length === 0) return;
 
-  // Paginação otimizada
-  const paginatedProcessedRequests = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return processedRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [processedRequests, currentPage]);
+    console.log(`Processing approval for group: ${groupKey}`);
 
-  const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
+    const updates = requestsToProcess.map(req => ({
+      id: req.id,
+      status: 'approved',
+      processed_at: new Date().toISOString(),
+      processed_by: user.id,
+    }));
 
-  // Handler otimizado com callback
-  const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
+    // Start transaction or use a function if possible for atomicity
+    const { error: updateRequestsError } = await supabase
+      .from('edit_requests')
+      .upsert(updates); // Use upsert to update by ID
+
+    if (updateRequestsError) {
+      console.error("Error updating edit_requests status:", updateRequestsError);
+      toast({
+        title: "Erro",
+        description: `Erro ao atualizar status das solicitações: ${updateRequestsError.message}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // --- Lógica para atualizar time_records e mesclar localizações ---
+    const firstRequest = requestsToProcess[0]; // Use any request from the group for user_id and date
+    const userId = firstRequest.employee_id;
+    const date = firstRequest.date;
+
     try {
-      const requestIds = group.requests.map(r => r.id);
+      // 1. Buscar o registro time_records existente para mesclar
+      console.log(`LOG 3: Fetching time_record for user ${userId} on date ${date}`);
+      const { data: existingTimeRecord, error: fetchRecordError } = await supabase
+        .from('time_records')
+        .select('id, clock_in, lunch_start, lunch_end, clock_out, locations') // Selecionar a coluna locations
+        .eq('user_id', userId)
+        .eq('date', date)
+        .single();
 
-      // Atualização em lote mais eficiente para edit_requests
-      const { error: updateError } = await supabase
-        .from('edit_requests')
-        .update({
-          status: approved ? 'approved' : 'rejected',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .in('id', requestIds);
+      console.log('LOG 4: Fetched time_record for merging:', existingTimeRecord); // LOG 4: Registro time_records buscado
 
-      if (updateError) throw updateError;
-
-      if (approved) {
-        // ✨ CORRIGIDO: Buscar a coluna 'locations' da tabela 'time_records'
-        const { data: timeRecord, error: fetchError } = await supabase
-          .from('time_records')
-          .select('id, locations') // ✨ Usar 'locations' (plural)
-          .eq('user_id', group.employeeId)
-          .eq('date', group.date)
-          .maybeSingle();
-
-        if (fetchError) throw fetchError;
-
-        // Preparar dados de atualização para time_records
-        const updateData: any = {};
-        const fieldMap = {
-          clockIn: 'clock_in',
-          lunchStart: 'lunch_start',
-          lunchEnd: 'lunch_end',
-          clockOut: 'clock_out'
-        };
-
-        // Lógica para mesclar localizações
-        // ✨ CORRIGIDO: Inicia com a localização existente da coluna 'locations'
-        let mergedLocations: any = timeRecord?.locations || {}; // ✨ Usar 'locations' (plural)
-
-        for (const request of group.requests) {
-          const dbFieldName = fieldMap[request.field] as keyof EditRequestLocation; // Nome do campo no DB (snake_case)
-          updateData[dbFieldName] = request.newValue; // Adiciona o novo valor do horário
-
-          // Se a solicitação de edição tiver dados de localização para este campo, mesclar
-          // A solicitação de edição tem a coluna 'location' (singular) com a estrutura JSON interna
-          if (request.location && request.location[dbFieldName]) {
-             mergedLocations[dbFieldName] = request.location[dbFieldName];
-          }
-        }
-
-        // ✨ CORRIGIDO: Adicionar o objeto de localização mesclada à coluna 'locations'
-        updateData.locations = mergedLocations; // ✨ Usar 'locations' (plural)
-
-        if (timeRecord) {
-          // Atualizar registro existente
-          const { error: updateRecordError } = await supabase
-            .from('time_records')
-            .update(updateData) // ✨ updateData agora inclui locations mesclada
-            .eq('id', timeRecord.id);
-
-          if (updateRecordError) throw updateRecordError;
-        } else {
-          // Criar novo registro
-          const { error: insertError } = await supabase
-            .from('time_records')
-            .insert({
-              user_id: group.employeeId,
-              date: group.date,
-              ...updateData, // ✨ updateData agora inclui locations mesclada
-            });
-
-          if (insertError) throw insertError;
-        }
-
-        setMessage(`Edições aprovadas para ${group.employeeName}`);
-      } else {
-        setMessage(`Edições rejeitadas para ${group.employeeName}`);
+      if (fetchRecordError && fetchRecordError.code !== 'PGRST116') { // PGRST116 means not found
+        throw fetchRecordError;
       }
 
-      // Invalidação otimizada do cache
-      queryClient.invalidateQueries({
-        queryKey: ['edit-requests'],
-        exact: true
+      let mergedLocations: TimeRecordLocationsData = existingTimeRecord?.locations ? { ...existingTimeRecord.locations as TimeRecordLocationsData } : {};
+      let updateData: any = {}; // Data to update time_records
+
+      console.log('LOG 5: Initial mergedLocations:', mergedLocations); // LOG 5: Objeto de localizações inicial
+
+      // 2. Iterar sobre as solicitações aprovadas e mesclar os novos valores e localizações
+      for (const request of requestsToProcess) {
+          // Adicionar o novo valor do campo
+          updateData[request.field] = request.new_value;
+
+          // Mesclar a localização, se existir na solicitação
+          if (request.location) {
+              try {
+                  const requestLocation = request.location as EditRequestLocation;
+                  const dbFieldName = request.field; // O nome do campo no DB (clock_in, etc.)
+
+                  console.log(`LOG 6a: Processing location for field: ${dbFieldName}`); // LOG 6a
+                  console.log('LOG 6b: Request location JSON:', requestLocation); // LOG 6b
+
+                  // Acessar a localização específica para este campo dentro do JSON da solicitação
+                  const specificLocationDetails = requestLocation[dbFieldName];
+
+                  console.log(`LOG 6c: Specific location details for ${dbFieldName}:`, specificLocationDetails); // LOG 6c
+
+                  if (specificLocationDetails) {
+                      // Mesclar a localização específica para este campo
+                      mergedLocations[dbFieldName] = specificLocationDetails;
+                      console.log(`LOG 6d: Merged location for ${dbFieldName}. Current mergedLocations:`, mergedLocations); // LOG 6d
+                  } else {
+                       console.log(`LOG 6e: No specific location details found in request.location for field: ${dbFieldName}`); // LOG 6e
+                  }
+
+              } catch (locationParseError) {
+                  console.error(`Error processing location for request ID ${request.id}:`, locationParseError);
+                  // Decide how to handle this - maybe log and continue, or fail the whole group?
+                  // For now, we'll just log and skip this location.
+              }
+          } else {
+              console.log(`LOG 6f: Request ID ${request.id} has no location data.`); // LOG 6f
+          }
+      }
+
+      // 3. Incluir as localizações mescladas nos dados de atualização
+      updateData.locations = mergedLocations as Json; // Salvar o objeto mesclado
+
+      console.log('LOG 7: Final updateData for time_records:', updateData); // LOG 7: Dados finais para atualização
+
+      // 4. Realizar o upsert no time_records com os novos valores e localizações mescladas
+      const { error: updateRecordError } = await supabase
+        .from('time_records')
+        .upsert({
+          user_id: userId,
+          date: date,
+          ...updateData // Inclui os campos de tempo e a coluna locations
+        }, { onConflict: 'date, user_id' });
+
+      if (updateRecordError) {
+        console.error("Error upserting time_records:", updateRecordError);
+        throw updateRecordError;
+      }
+
+      console.log(`LOG SUCESSO: Group ${groupKey} approved and time_records updated successfully.`); // LOG SUCESSO
+
+      toast({
+        title: "Sucesso",
+        description: `Solicitações para ${requestsToProcess[0].employee_name} em ${requestsToProcess[0].date} aprovadas.`,
       });
 
-      // Chamar callback se fornecido
-      if (onApprovalChange) {
-        onApprovalChange();
-      }
+      // Invalidate and refetch queries
+      queryClient.invalidateQueries({ queryKey: ['editRequests', 'pending'] });
+      queryClient.invalidateQueries({ queryKey: ['editRequests', 'approved'] });
+      // Optionally invalidate time_records query for this user/date if needed elsewhere
+      queryClient.invalidateQueries({ queryKey: ['today-record', userId, date] });
 
-      // Auto-clear da mensagem
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Error handling group approval:', error);
-      setMessage('Erro ao processar aprovação');
-      setTimeout(() => setMessage(''), 3000);
+
+    } catch (error: any) {
+      console.error("LOG ERRO: Error during time_records update process:", error); // LOG ERRO
+      toast({
+        title: "Erro",
+        description: `Erro ao processar aprovação para ${requestsToProcess[0].employee_name} em ${requestsToProcess[0].date}: ${error.message}`,
+        variant: "destructive"
+      });
+      // Consider reverting edit_requests status if time_records update fails
+      // This would require another upsert call here to set status back to 'pending'
     }
-  }, [queryClient, onApprovalChange]);
 
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: string) => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field as keyof typeof labels] || field;
-  }, []);
 
-  // Loading otimizado
+  }, [groupedRequests, user, toast, queryClient]);
+
+
+  const handleRejectGroup = useCallback(async (groupKey: string) => {
+    if (!user) {
+      toast({ title: "Erro", description: "Usuário não autenticado.", variant: "destructive" });
+      return;
+    }
+
+    const requestsToProcess = groupedRequests[groupKey];
+    if (!requestsToProcess || requestsToProcess.length === 0) return;
+
+    console.log(`Processing rejection for group: ${groupKey}`);
+
+    const updates = requestsToProcess.map(req => ({
+      id: req.id,
+      status: 'rejected',
+      processed_at: new Date().toISOString(),
+      processed_by: user.id,
+    }));
+
+    const { error } = await supabase
+      .from('edit_requests')
+      .upsert(updates); // Use upsert to update by ID
+
+    if (error) {
+      console.error("Error updating edit_requests status on rejection:", error);
+      toast({
+        title: "Erro",
+        description: `Erro ao rejeitar solicitações: ${error.message}`,
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Sucesso",
+        description: `Solicitações para ${requestsToProcess[0].employee_name} em ${requestsToProcess[0].date} rejeitadas.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['editRequests', 'pending'] });
+      queryClient.invalidateQueries({ queryKey: ['editRequests', 'rejected'] });
+    }
+
+  }, [groupedRequests, user, toast, queryClient]);
+
+
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-200 rounded"></div>
-            <div className="h-20 bg-gray-200 rounded"></div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center p-8 min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Carregando solicitações...</span>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {message && (
-        <Alert className="border-accent-200 bg-accent-50">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-accent-800">
-            {message}
-          </AlertDescription>
-        </Alert>
-      )}
+  if (error) {
+    return (
+      <Alert variant="destructive" className="max-w-md mx-auto mt-8">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Erro ao carregar solicitações: {error.message}
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
-      {/* Solicitações Pendentes Otimizadas */}
-      <Card>
+  const hasGroups = Object.keys(paginatedGroups).length > 0;
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 pt-8">
+      <Card className="max-w-4xl mx-auto bg-white shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
+          <CardTitle className="text-2xl font-bold text-center text-blue-600">
+            Solicitações de Alteração de Ponto
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
-                      <p className="text-sm text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <Badge variant="secondary">
-                      {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                    </Badge>
-                  </div>
+          <div className="mb-6 flex justify-center space-x-4">
+            <Button
+              variant={filterStatus === 'pending' ? 'default' : 'outline'}
+              onClick={() => setFilterStatus('pending')}
+            >
+              Pendentes
+            </Button>
+            <Button
+              variant={filterStatus === 'approved' ? 'default' : 'outline'}
+              onClick={() => setFilterStatus('approved')}
+            >
+              Aprovadas
+            </Button>
+            <Button
+              variant={filterStatus === 'rejected' ? 'default' : 'outline'}
+              onClick={() => setFilterStatus('rejected')}
+            >
+              Rejeitadas
+            </Button>
+          </div>
 
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2">Ajustes:</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {group.requests.map((request) => (
-                        <div key={request.id} className="text-sm border rounded p-2 bg-white">
-                          <div className="font-medium">{getFieldLabel(request.field)}</div>
-                          <div className="flex justify-between text-xs mt-1">
-                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
-                            <span className="text-green-600">Para: {request.newValue}</span>
-                          </div>
-                          {/* Exibir localização se disponível na solicitação */}
-                          {request.location && Object.keys(request.location).length > 0 && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                Localização: {Object.values(request.location)[0]?.locationName || 'N/A'}
-                              </div>
-                          )}
-                          {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              Motivo: {request.reason}
-                            </div>
-                          )}
+          {!hasGroups && (
+            <div className="text-center text-gray-500 py-8">
+              Nenhuma solicitação {filterStatus === 'pending' ? 'pendente' : filterStatus === 'approved' ? 'aprovada' : 'rejeitada'} encontrada.
+            </div>
+          )}
+
+          {hasGroups && (
+            <div className="space-y-6">
+              {Object.entries(paginatedGroups).map(([groupKey, requestsInGroup]) => (
+                <Card key={groupKey} className="border-l-4 border-blue-500">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800">
+                          {requestsInGroup[0].employee_name}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Data: {format(new Date(requestsInGroup[0].date + 'T12:00:00Z'), 'dd/MM/yyyy', { locale: ptBR })}
+                        </p>
+                      </div>
+                      <Badge
+                        className={`px-3 py-1 text-xs font-medium ${
+                          filterStatus === 'pending' ? 'bg-yellow-500 text-white' :
+                          filterStatus === 'approved' ? 'bg-green-500 text-white' :
+                          'bg-red-500 text-white'
+                        }`}
+                      >
+                        {filterStatus === 'pending' ? 'Pendente' : filterStatus === 'approved' ? 'Aprovada' : 'Rejeitada'}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-3 mb-4">
+                      {requestsInGroup.map(req => (
+                        <div key={req.id} className="p-3 bg-gray-50 rounded-md border border-gray-200">
+                          <p className="text-sm font-medium text-gray-700 mb-1">
+                            Campo: <span className="font-normal">{fieldNames[req.field]}</span>
+                          </p>
+                          <p className="text-sm text-gray-700 mb-1">
+                            Valor Antigo: <span className="font-normal">{req.old_value || 'Não registrado'}</span>
+                          </p>
+                          <p className="text-sm text-gray-700 mb-1">
+                            Novo Valor: <span className="font-normal text-blue-600">{req.new_value}</span>
+                          </p>
+                           <p className="text-sm text-gray-700 italic mb-1">
+                            Motivo: <span className="font-normal">{req.reason}</span>
+                          </p>
+                           {/* Opcional: Exibir detalhes da localização da solicitação se existir */}
+                           {req.location && (
+                               <div className="text-xs text-gray-500 mt-2">
+                                   Localização na solicitação ({fieldNames[req.field]}):
+                                   <pre className="whitespace-pre-wrap break-words text-gray-700 bg-gray-100 p-1 rounded mt-1">
+                                        {JSON.stringify((req.location as EditRequestLocation)?.[req.field], null, 2)}
+                                   </pre>
+                               </div>
+                           )}
                         </div>
                       ))}
                     </div>
-                  </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Aprovar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleGroupApproval(group, false)}
-                    >
-                      <XCircle className="w-4 h-4 mr-1" />
-                      Rejeitar
-                    </Button>
-                  </div>
-                </div>
+                    {filterStatus === 'pending' && (
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRejectGroup(groupKey)}
+                          className="text-red-600 border-red-600 hover:bg-red-50"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" /> Rejeitar
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveGroup(groupKey)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" /> Aprovar
+                        </Button>
+                      </div>
+                    )}
+
+                     {filterStatus !== 'pending' && requestsInGroup[0].processed_by && (
+                         <div className="text-right text-sm text-gray-500 mt-2">
+                             Processado por: {requestsInGroup[0].processed_by} em {requestsInGroup[0].processed_at ? format(new Date(requestsInGroup[0].processed_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'N/A'}
+                         </div>
+                     )}
+
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
+
+          {/* Pagination */}
+          {hasGroups && totalPages > 1 && (
+            <div className="flex justify-center items-center space-x-4 mt-8">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange('prev')}
+                disabled={currentPage === 0}
+              >
+                <ChevronLeft className="h-4 w-4" /> Anterior
+              </Button>
+              <span className="text-sm text-gray-700">
+                Página {currentPage + 1} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange('next')}
+                disabled={currentPage >= totalPages - 1}
+              >
+                Próxima <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
         </CardContent>
       </Card>
-
-      {/* Histórico Otimizado */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Histórico</span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600">
-                    {currentPage}/{totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };
 
-export default OptimizedPendingApprovals;
+export default OptimizedPendingApproval;
