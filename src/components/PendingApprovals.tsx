@@ -6,6 +6,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+// ✨ DEFINIR TIPO Json LOCALMENTE
+type Json = 
+  | string 
+  | number 
+  | boolean 
+  | null 
+  | { [key: string]: Json } 
+  | Json[];
+
 // Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
 interface LocationDetailsForEdit {
   address: string | null;
@@ -60,6 +69,46 @@ interface PendingApprovalsProps {
   onApprovalChange?: () => void;
 }
 
+// ✨ FUNÇÃO HELPER para conversão segura
+const safeConvertToEditRequestLocation = (jsonData: Json | null): EditRequestLocation | null => {
+  // Retorna null se não há dados
+  if (!jsonData) {
+    return null;
+  }
+  
+  // Retorna null se não é um objeto válido
+  if (typeof jsonData !== 'object' || Array.isArray(jsonData)) {
+    return null;
+  }
+  
+  try {
+    // Conversão via unknown para evitar erros TypeScript
+    const obj = jsonData as unknown as { [key: string]: any };
+    const result: EditRequestLocation = {};
+    
+    const validFields = ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'];
+    
+    for (const field of validFields) {
+      const fieldData = obj[field];
+      
+      // Verificar se o campo existe e é um objeto válido
+      if (fieldData && 
+          typeof fieldData === 'object' && 
+          !Array.isArray(fieldData) &&
+          fieldData !== null) {
+        
+        // Conversão mais segura via unknown
+        result[field] = fieldData as unknown as LocationDetailsForEdit;
+      }
+    }
+    
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (error) {
+    console.error('Erro ao converter Json para EditRequestLocation:', error);
+    return null;
+  }
+};
+
 const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
   const [editRequests, setEditRequests] = useState<EditRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +138,8 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
         reason: request.reason,
         timestamp: request.created_at,
         status: request.status as 'pending' | 'approved' | 'rejected',
-        location: request.location as EditRequestLocation | null, // Mapeia a coluna 'location' de 'edit_requests'
+        // ✨ CORRIGIDO: Usar função de conversão segura em vez de casting direto
+        location: safeConvertToEditRequestLocation(request.location),
       })) || [];
 
       setEditRequests(formattedRequests);
