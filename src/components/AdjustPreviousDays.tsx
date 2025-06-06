@@ -350,7 +350,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       // --- Fim da construção dos detalhes da localização ---
 
       const requests = [];
-      const fieldMapping = {
+      // Mapeamento para a coluna 'field' (camelCase)
+      const fieldColumnMapping = {
         clock_in: 'clockIn',
         lunch_start: 'lunchStart',
         lunch_end: 'lunchEnd',
@@ -370,12 +371,12 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       if (editForm.clock_in !== (timeRecord.clock_in || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldMapping.clock_in, // 'clockIn'
+          field: fieldColumnMapping.clock_in, // 'clockIn'
           old_value: timeRecord.clock_in || null,
-          // CORREÇÃO: Envia string vazia '' se o campo estiver vazio, não NULL
+          // Envia string vazia '' se o campo estiver vazio, não NULL
           new_value: editForm.clock_in,
-          // Estrutura da localização para este campo específico
-          location: { [fieldMapping.clock_in]: locationDetailsForEdit },
+          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
+          location: { clock_in: locationDetailsForEdit },
         });
       }
 
@@ -383,12 +384,12 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       if (editForm.lunch_start !== (timeRecord.lunch_start || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldMapping.lunch_start, // 'lunchStart'
+          field: fieldColumnMapping.lunch_start, // 'lunchStart'
           old_value: timeRecord.lunch_start || null,
-          // CORREÇÃO: Envia string vazia '' se o campo estiver vazio, não NULL
+          // Envia string vazia '' se o campo estiver vazio, não NULL
           new_value: editForm.lunch_start,
-          // Estrutura da localização para este campo específico
-          location: { [fieldMapping.lunch_start]: locationDetailsForEdit },
+          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
+          location: { lunch_start: locationDetailsForEdit },
         });
       }
 
@@ -396,12 +397,12 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       if (editForm.lunch_end !== (timeRecord.lunch_end || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldMapping.lunch_end, // 'lunchEnd'
+          field: fieldColumnMapping.lunch_end, // 'lunchEnd'
           old_value: timeRecord.lunch_end || null,
-          // CORREÇÃO: Envia string vazia '' se o campo estiver vazio, não NULL
+          // Envia string vazia '' se o campo estiver vazio, não NULL
           new_value: editForm.lunch_end,
-          // Estrutura da localização para este campo específico
-          location: { [fieldMapping.lunch_end]: locationDetailsForEdit },
+          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
+          location: { lunch_end: locationDetailsForEdit },
         });
       }
 
@@ -409,12 +410,12 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       if (editForm.clock_out !== (timeRecord.clock_out || '')) {
         requests.push({
           ...baseRequest,
-          field: fieldMapping.clock_out, // 'clockOut'
+          field: fieldColumnMapping.clock_out, // 'clockOut'
           old_value: timeRecord.clock_out || null,
-          // CORREÇÃO: Envia string vazia '' se o campo estiver vazio, não NULL
+          // Envia string vazia '' se o campo estiver vazio, não NULL
           new_value: editForm.clock_out,
-          // Estrutura da localização para este campo específico
-          location: { [fieldMapping.clock_out]: locationDetailsForEdit },
+          // CORREÇÃO: Estrutura da localização para este campo específico usando a chave snake_case
+          location: { clock_out: locationDetailsForEdit },
         });
       }
 
@@ -431,7 +432,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       }
 
       // --- NOVO LOG PARA VERIFICAR A ESTRUTURA ANTES DE ENVIAR ---
-      console.log('📤 Estrutura das solicitações a serem enviadas (com localização por campo):', JSON.stringify(requests, null, 2));
+      console.log('📤 Estrutura das solicitações a serem enviadas (com localização por campo, chaves snake_case):', JSON.stringify(requests, null, 2));
       // --- Fim do novo LOG ---
 
       // Inserir todas as solicitações
@@ -487,7 +488,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       } else if (error.code === '42501') {
         errorMessage = 'Sem permissão para criar solicitação. Contate o administrador.';
       } else if (error.code === '23502') {
-        // CORREÇÃO: Mensagem de erro mais específica para NOT NULL
+        // Mensagem de erro mais específica para NOT NULL
         errorMessage = `Erro: Dados obrigatórios faltando. Verifique se todos os campos necessários (incluindo nome do funcionário e novos valores) estão sendo enviados corretamente. Detalhes: ${error.details}`;
       } else if (error.message?.includes('check constraint')) {
         errorMessage = 'Valor inválido para o campo. Contate o administrador.';
@@ -506,7 +507,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   };
 
   // Calcular se há alguma alteração nos horários (para habilitar/desabilitar o botão)
-  // Movemos esta lógica para fora do handleSubmitEdit
   const hasAnyTimeChanged = timeRecord ? (
     editForm.clock_in !== (timeRecord.clock_in || '') ||
     editForm.lunch_start !== (timeRecord.lunch_start || '') ||
@@ -687,7 +687,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                     <Button
                       onClick={handleSubmitEdit}
                       className="w-full"
-                      // CORRIGIDO: Usar a variável hasAnyTimeChanged calculada fora da função
                       disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
                     >
                       {submitting ? (
