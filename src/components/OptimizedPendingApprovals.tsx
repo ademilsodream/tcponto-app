@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/Auth/AuthContext'; // Verifique o caminho correto do AuthContext
 import { Json } from '@/integrations/supabase/types'; // Importar Json type
 
 // Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
@@ -19,7 +19,7 @@ interface LocationDetailsForEdit {
   latitude: number | null;
   longitude: number | null;
   timestamp: string; // Timestamp da solicitação de edição
-  locationName: string;
+  locationName: string | null; // Pode ser nulo
 }
 
 // Interface para a estrutura esperada na coluna location do edit_requests
@@ -56,7 +56,7 @@ interface EditRequest {
   processed_at: string | null;
   processed_by: string | null;
   // Adicionado a coluna location da tabela edit_requests
-  location: Json | null;
+  location: Json | null; // Supabase Json type is 'any'
 }
 
 interface TimeRecord {
@@ -74,7 +74,7 @@ interface TimeRecord {
   overtime_pay?: number | null;
   total_pay?: number | null;
   // A coluna locations na tabela time_records (plural)
-  locations: Json | null;
+  locations: Json | null; // Supabase Json type is 'any'
   created_at?: string;
   updated_at?: string;
   status?: string;
@@ -118,6 +118,12 @@ const OptimizedPendingApproval = () => {
 
       // LOG 1: Dados buscados do Supabase
       console.log('LOG 1: Fetched edit_requests:', data);
+
+      // DEBUG: Log location data for each fetched request
+      data?.forEach(req => {
+          console.log(`DEBUG: Request ID ${req.id}, Field: ${req.field}, Raw location data:`, req.location);
+      });
+
 
       return data || [];
     },
@@ -214,7 +220,8 @@ const OptimizedPendingApproval = () => {
         throw fetchRecordError;
       }
 
-      let mergedLocations: TimeRecordLocationsData = existingTimeRecord?.locations ? { ...existingTimeRecord.locations as TimeRecordLocationsData } : {};
+      // Ensure existing locations is treated as a plain object, even if null initially
+      let mergedLocations: TimeRecordLocationsData = (existingTimeRecord?.locations as TimeRecordLocationsData) || {};
       let updateData: any = {}; // Data to update time_records
 
       console.log('LOG 5: Initial mergedLocations:', mergedLocations); // LOG 5: Objeto de localizações inicial
@@ -225,39 +232,41 @@ const OptimizedPendingApproval = () => {
           updateData[request.field] = request.new_value;
 
           // Mesclar a localização, se existir na solicitação
-          if (request.location) {
+          // Verifica se request.location não é null e é um objeto
+          if (request.location && typeof request.location === 'object' && request.location !== null) {
               try {
-                  const requestLocation = request.location as EditRequestLocation;
+                  // Treat request.location as a generic object initially for safer access
+                  const requestLocationObject = request.location as Record<string, any>;
                   const dbFieldName = request.field; // O nome do campo no DB (clock_in, etc.)
 
-                  console.log(`LOG 6a: Processing location for field: ${dbFieldName}`); // LOG 6a
-                  console.log('LOG 6b: Request location JSON:', requestLocation); // LOG 6b
+                  console.log(`LOG 6a: Processing location for field: ${dbFieldName} for request ID ${request.id}`); // LOG 6a
+                  console.log('LOG 6b: Raw request.location object:', requestLocationObject); // LOG 6b
 
                   // Acessar a localização específica para este campo dentro do JSON da solicitação
-                  const specificLocationDetails = requestLocation[dbFieldName];
+                  const specificLocationDetails = requestLocationObject[dbFieldName] as LocationDetailsForEdit | undefined;
 
-                  console.log(`LOG 6c: Specific location details for ${dbFieldName}:`, specificLocationDetails); // LOG 6c
+                  console.log(`LOG 6c: Specific location details found for ${dbFieldName}:`, specificLocationDetails); // LOG 6c
 
-                  if (specificLocationDetails) {
+                  if (specificLocationDetails && typeof specificLocationDetails === 'object') {
                       // Mesclar a localização específica para este campo
                       mergedLocations[dbFieldName] = specificLocationDetails;
                       console.log(`LOG 6d: Merged location for ${dbFieldName}. Current mergedLocations:`, mergedLocations); // LOG 6d
                   } else {
-                       console.log(`LOG 6e: No specific location details found in request.location for field: ${dbFieldName}`); // LOG 6e
+                       console.log(`LOG 6e: No valid specific location details found in request.location for field: ${dbFieldName}`); // LOG 6e
                   }
 
-              } catch (locationParseError) {
-                  console.error(`Error processing location for request ID ${request.id}:`, locationParseError);
-                  // Decide how to handle this - maybe log and continue, or fail the whole group?
-                  // For now, we'll just log and skip this location.
+              } catch (locationProcessError) {
+                  console.error(`Error processing location for request ID ${request.id}:`, locationProcessError);
+                  // Continue processing other requests in the group
               }
           } else {
-              console.log(`LOG 6f: Request ID ${request.id} has no location data.`); // LOG 6f
+              console.log(`LOG 6f: Request ID ${request.id} has no valid location data (null, not object, or empty). Value:`, request.location); // LOG 6f
           }
       }
 
       // 3. Incluir as localizações mescladas nos dados de atualização
-      updateData.locations = mergedLocations as Json; // Salvar o objeto mesclado
+      // Ensure mergedLocations is saved as a JSON object
+      updateData.locations = mergedLocations as Json;
 
       console.log('LOG 7: Final updateData for time_records:', updateData); // LOG 7: Dados finais para atualização
 
@@ -444,11 +453,12 @@ const OptimizedPendingApproval = () => {
                             Motivo: <span className="font-normal">{req.reason}</span>
                           </p>
                            {/* Opcional: Exibir detalhes da localização da solicitação se existir */}
-                           {req.location && (
+                           {req.location && typeof req.location === 'object' && (
                                <div className="text-xs text-gray-500 mt-2">
                                    Localização na solicitação ({fieldNames[req.field]}):
+                                   {/* Access the specific field's location data for display */}
                                    <pre className="whitespace-pre-wrap break-words text-gray-700 bg-gray-100 p-1 rounded mt-1">
-                                        {JSON.stringify((req.location as EditRequestLocation)?.[req.field], null, 2)}
+                                        {JSON.stringify((req.location as Record<string, any>)?.[req.field], null, 2)}
                                    </pre>
                                </div>
                            )}
