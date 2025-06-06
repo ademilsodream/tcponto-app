@@ -180,7 +180,12 @@ const Login = () => {
           </CardContent>
           
         </Card>
-      </div>V-1.9
+
+        {/* ✨ Versão do App */}
+        <div className="text-center mt-6">
+          <p className="text-white text-sm opacity-75">V-1.10</p>
+        </div>
+      </div>
     </div>
   );
 };
