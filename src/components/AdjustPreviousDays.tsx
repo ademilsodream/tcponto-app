@@ -61,8 +61,8 @@ interface AllowedLocation {
 }
 
 
-// Interface para o objeto JSON de localização que será salvo
-interface LocationJson {
+// Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
+interface LocationDetailsForEdit {
   address: string | null;
   distance: number | null; // Para edição manual, pode ser null ou 0
   latitude: number | null;
@@ -367,82 +367,65 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     }
 
 
-    // --- Lógica para obter os detalhes da localização selecionada ---
-    const selectedLocationDetails = allowedLocations.find(loc => loc.name === editForm.locationName);
-
-
-    if (!selectedLocationDetails) {
-      toast({
-        title: "Erro Interno",
-        description: "Detalhes da localização selecionada não encontrados.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-
-    // Construir o objeto JSON para a coluna 'location'
-    const locationJson: LocationJson = {
-      address: selectedLocationDetails.address,
-      distance: null, // Para edição manual, a distância não é aplicável
-      latitude: selectedLocationDetails.latitude,
-      longitude: selectedLocationDetails.longitude,
-      timestamp: new Date().toISOString(), // Usar o timestamp da solicitação de edição
-      locationName: selectedLocationDetails.name,
-    };
-    // --- Fim da lógica para obter os detalhes da localização selecionada ---
-
-
+    setSubmitting(true);
 
 
     try {
-      setSubmitting(true);
+      // --- Lógica para obter os detalhes da localização selecionada ---
+      const selectedLocationDetails = allowedLocations.find(loc => loc.name === editForm.locationName);
 
 
-      console.log('🔄 Iniciando envio da solicitação...');
+      if (!selectedLocationDetails) {
+        toast({
+          title: "Erro Interno",
+          description: "Detalhes da localização selecionada não encontrados.",
+          variant: "destructive",
+        });
+        setSubmitting(false); // Garantir que o estado de submissão seja resetado
+        return;
+      }
 
 
-      const { data: authData } = await supabase.auth.getUser();
-      const currentUserId = authData.user?.id || user.id;
-      const currentUserName = user.email || user.name || 'Usuário';
-
-
-      console.log('🔐 Auth user:', currentUserId);
-      console.log('👤 Context user:', user.id);
+      // Construir o objeto de detalhes da localização para a edição
+      const locationDetailsForEdit: LocationDetailsForEdit = {
+        address: selectedLocationDetails.address,
+        distance: null, // Para edição manual, a distância não é aplicável/conhecida
+        latitude: selectedLocationDetails.latitude,
+        longitude: selectedLocationDetails.longitude,
+        timestamp: new Date().toISOString(), // Usar o timestamp da solicitação de edição
+        locationName: selectedLocationDetails.name,
+      };
+      // --- Fim da construção dos detalhes da localização ---
 
 
       const requests = [];
-
-
       const fieldMapping = {
         clock_in: 'clockIn',
         lunch_start: 'lunchStart',
         lunch_end: 'lunchEnd',
-        clock_out: 'clockOut'
+        clock_out: 'clockOut',
       };
 
 
       const baseRequest = {
-        employee_id: currentUserId,
-        employee_name: currentUserName,
+        employee_id: user.id,
         date: format(selectedDate, 'yyyy-MM-dd'),
         reason: editForm.reason.trim(),
         status: 'pending',
-        // --- Adiciona o objeto JSON de localização aqui ---
-        location: locationJson,
-        // --- Remove location_name se a coluna for jsonb ---
-        // location_name: editForm.locationName,
-        // --- Fim da adição do objeto JSON ---
+        // A coluna 'location' será adicionada individualmente para cada campo abaixo
+        // com a estrutura {"campo": {...detalhes_localizacao...}}
       };
 
 
-      // Verificar cada campo que foi alterado
       if (editForm.clock_in && editForm.clock_in !== (timeRecord.clock_in || '')) {
         requests.push({
           ...baseRequest,
           field: fieldMapping.clock_in, // 'clockIn'
           old_value: timeRecord.clock_in || null,
           new_value: editForm.clock_in,
+          // --- NOVO: Estrutura da localização para este campo específico ---
+          location: { [fieldMapping.clock_in]: locationDetailsForEdit },
+          // -------------------------------------------------------------
         });
       }
 
@@ -453,6 +436,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           field: fieldMapping.lunch_start, // 'lunchStart'
           old_value: timeRecord.lunch_start || null,
           new_value: editForm.lunch_start,
+          // --- NOVO: Estrutura da localização para este campo específico ---
+          location: { [fieldMapping.lunch_start]: locationDetailsForEdit },
+          // -------------------------------------------------------------
         });
       }
 
@@ -463,6 +449,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           field: fieldMapping.lunch_end, // 'lunchEnd'
           old_value: timeRecord.lunch_end || null,
           new_value: editForm.lunch_end,
+          // --- NOVO: Estrutura da localização para este campo específico ---
+          location: { [fieldMapping.lunch_end]: locationDetailsForEdit },
+          // -------------------------------------------------------------
         });
       }
 
@@ -473,6 +462,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           field: fieldMapping.clock_out, // 'clockOut'
           old_value: timeRecord.clock_out || null,
           new_value: editForm.clock_out,
+          // --- NOVO: Estrutura da localização para este campo específico ---
+          location: { [fieldMapping.clock_out]: locationDetailsForEdit },
+          // -------------------------------------------------------------
         });
       }
 
@@ -483,12 +475,13 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           description: "Nenhuma alteração foi detectada nos horários.",
           variant: "destructive",
         });
+        setSubmitting(false);
         return;
       }
 
 
       // --- NOVO LOG PARA VERIFICAR A ESTRUTURA ANTES DE ENVIAR ---
-      console.log('📤 Estrutura das solicitações a serem enviadas:', JSON.stringify(requests, null, 2));
+      console.log('📤 Estrutura das solicitações a serem enviadas (com localização por campo):', JSON.stringify(requests, null, 2));
       // --- FIM DO NOVO LOG ---
 
 
