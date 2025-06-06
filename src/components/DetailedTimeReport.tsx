@@ -767,7 +767,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                 <TableHead>Saída Almoço</TableHead>
                                 <TableHead>Volta Almoço</TableHead>
                                 <TableHead>Saída</TableHead>
-                                <TableHead>Total Horas</TableHead> {/* ✨ Mantido na tabela para o dia */}
+                                <TableHead>Horas Normais</TableHead> {/* ✨ MUDANÇA: Alterado de "Total Horas" para "Horas Normais" */}
                                 <TableHead>Horas Extras</TableHead>
                                 <TableHead className="w-[40px]"></TableHead>
                               </TableRow>
@@ -802,7 +802,7 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                                       <TableCell>{formatTime(record.lunch_start)}</TableCell>
                                       <TableCell>{formatTime(record.lunch_end)}</TableCell>
                                       <TableCell>{formatTime(record.clock_out)}</TableCell>
-                                      <TableCell>{formatHoursAsTime(record.total_hours)}</TableCell>
+                                      <TableCell>{formatHoursAsTime(record.normal_hours)}</TableCell> {/* ✨ MUDANÇA: Exibindo normal_hours em vez de total_hours */}
                                       <TableCell>{formatHoursAsTime(record.overtime_hours)}</TableCell>
                                       <TableCell className="text-right">
                                           {/* Só mostra o ícone se o registro tiver um ID (existe no DB) */}
