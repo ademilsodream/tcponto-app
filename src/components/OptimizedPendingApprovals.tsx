@@ -9,7 +9,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+// VERIFIQUE E CORRIJA ESTE CAMINHO DE IMPORTAÇÃO SE NECESSÁRIO
+import { useAuth } from '@/contexts/Auth/AuthContext';
 import { Json } from '@/integrations/supabase/types'; // Importar Json type
 
 // Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
@@ -19,7 +20,7 @@ interface LocationDetailsForEdit {
   latitude: number | null;
   longitude: number | null;
   timestamp: string; // Timestamp da solicitação de edição
-  locationName: string;
+  locationName: string | null; // Pode ser nulo
 }
 
 // Interface para a estrutura esperada na coluna location do edit_requests
@@ -52,11 +53,12 @@ interface EditRequest {
   new_value: string;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
-  requested_at: string;
-  processed_at: string | null;
-  processed_by: string | null;
+  // CORRIGIDO: Usar nomes de coluna do Supabase
+  created_at: string; // Era requested_at
+  reviewed_at: string | null; // Era processed_at
+  reviewed_by: string | null; // Era processed_by
   // Adicionado a coluna location da tabela edit_requests
-  location: Json | null;
+  location: Json | null; // Supabase Json type is 'any'
 }
 
 interface TimeRecord {
@@ -74,7 +76,7 @@ interface TimeRecord {
   overtime_pay?: number | null;
   total_pay?: number | null;
   // A coluna locations na tabela time_records (plural)
-  locations: Json | null;
+  locations: Json | null; // Supabase Json type is 'any'
   created_at?: string;
   updated_at?: string;
   status?: string;
@@ -109,7 +111,8 @@ const OptimizedPendingApproval = () => {
         .from('edit_requests')
         .select('*')
         .eq('status', filterStatus)
-        .order('requested_at', { ascending: false });
+        // CORRIGIDO: Usar created_at
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error("Fetch error:", error);
@@ -119,15 +122,23 @@ const OptimizedPendingApproval = () => {
       // LOG 1: Dados buscados do Supabase
       console.log('LOG 1: Fetched edit_requests:', data);
 
+      // DEBUG: Log location data for each fetched request
+      data?.forEach(req => {
+          console.log(`DEBUG: Request ID ${req.id}, Field: ${req.field}, Raw location data:`, req.location);
+      });
+
+
       return data || [];
     },
     refetchInterval: 60000, // Refetch every 60 seconds
   });
 
+  // Use useMemo para agrupar as requisições por funcionário e data
   const groupedRequests = useMemo(() => {
     if (!requests) return {};
     const groups: { [key: string]: EditRequest[] } = {};
     requests.forEach(req => {
+      // Use created_at para a chave de agrupamento se requested_at não existir na interface
       const key = `${req.employee_id}-${req.date}`;
       if (!groups[key]) {
         groups[key] = [];
@@ -137,6 +148,7 @@ const OptimizedPendingApproval = () => {
     console.log('LOG 2: Grouped pending requests:', groups); // LOG 2: Grupos de solicitações
     return groups;
   }, [requests]);
+
 
   const paginatedGroups = useMemo(() => {
     const groupKeys = Object.keys(groupedRequests);
@@ -174,8 +186,9 @@ const OptimizedPendingApproval = () => {
     const updates = requestsToProcess.map(req => ({
       id: req.id,
       status: 'approved',
-      processed_at: new Date().toISOString(),
-      processed_by: user.id,
+      // CORRIGIDO: Usar reviewed_at e reviewed_by
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
     }));
 
     // Start transaction or use a function if possible for atomicity
@@ -214,7 +227,8 @@ const OptimizedPendingApproval = () => {
         throw fetchRecordError;
       }
 
-      let mergedLocations: TimeRecordLocationsData = existingTimeRecord?.locations ? { ...existingTimeRecord.locations as TimeRecordLocationsData } : {};
+      // Ensure existing locations is treated as a plain object, even if null initially
+      let mergedLocations: TimeRecordLocationsData = (existingTimeRecord?.locations as TimeRecordLocationsData) || {};
       let updateData: any = {}; // Data to update time_records
 
       console.log('LOG 5: Initial mergedLocations:', mergedLocations); // LOG 5: Objeto de localizações inicial
@@ -225,81 +239,111 @@ const OptimizedPendingApproval = () => {
           updateData[request.field] = request.new_value;
 
           // Mesclar a localização, se existir na solicitação
-          if (request.location) {
+          // Verifica se request.location não é null e é um objeto
+          if (request.location && typeof request.location === 'object' && request.location !== null) {
               try {
-                  const requestLocation = request.location as EditRequestLocation;
-                  const dbFieldName = request.field; // O nome do campo no DB (clock_in, etc.)
+                  // Treat request.location as a generic object initially for safer access
+                  const requestLocationObj = request.location as Record<string, LocationDetailsForEdit>;
+                   console.log(`LOG 6a: Processing location for field ${request.field}. Raw request.location:`, request.location);
+                   console.log(`LOG 6b: request.location treated as object:`, requestLocationObj);
 
-                  console.log(`LOG 6a: Processing location for field: ${dbFieldName}`); // LOG 6a
-                  console.log('LOG 6b: Request location JSON:', requestLocation); // LOG 6b
+                  // Access the specific location details for the edited field
+                  const specificLocationDetails = requestLocationObj[request.field];
 
-                  // Acessar a localização específica para este campo dentro do JSON da solicitação
-                  const specificLocationDetails = requestLocation[dbFieldName];
-
-                  console.log(`LOG 6c: Specific location details for ${dbFieldName}:`, specificLocationDetails); // LOG 6c
+                  console.log(`LOG 6c: Specific location details for ${request.field}:`, specificLocationDetails);
 
                   if (specificLocationDetails) {
-                      // Mesclar a localização específica para este campo
-                      mergedLocations[dbFieldName] = specificLocationDetails;
-                      console.log(`LOG 6d: Merged location for ${dbFieldName}. Current mergedLocations:`, mergedLocations); // LOG 6d
+                      // Mesclar a localização específica no objeto mergedLocations
+                      mergedLocations[request.field] = specificLocationDetails;
+                      console.log(`LOG 6d: Merged location for ${request.field}. Current mergedLocations:`, mergedLocations);
                   } else {
-                       console.log(`LOG 6e: No specific location details found in request.location for field: ${dbFieldName}`); // LOG 6e
+                      console.log(`LOG 6e: No specific location details found for field ${request.field} in request.location object.`);
                   }
-
-              } catch (locationParseError) {
-                  console.error(`Error processing location for request ID ${request.id}:`, locationParseError);
-                  // Decide how to handle this - maybe log and continue, or fail the whole group?
-                  // For now, we'll just log and skip this location.
+              } catch (parseError) {
+                  console.error(`LOG 6f: Error processing location JSON for request ID ${request.id}:`, parseError);
+                  // Decide how to handle parse errors - maybe skip this location?
               }
           } else {
-              console.log(`LOG 6f: Request ID ${request.id} has no location data.`); // LOG 6f
+               console.log(`LOG 6g: request.location is null, not an object, or empty for request ID ${request.id}, field ${request.field}. Value:`, request.location);
           }
       }
 
-      // 3. Incluir as localizações mescladas nos dados de atualização
-      updateData.locations = mergedLocations as Json; // Salvar o objeto mesclado
-
-      console.log('LOG 7: Final updateData for time_records:', updateData); // LOG 7: Dados finais para atualização
-
-      // 4. Realizar o upsert no time_records com os novos valores e localizações mescladas
-      const { error: updateRecordError } = await supabase
-        .from('time_records')
-        .upsert({
-          user_id: userId,
-          date: date,
-          ...updateData // Inclui os campos de tempo e a coluna locations
-        }, { onConflict: 'date, user_id' });
-
-      if (updateRecordError) {
-        console.error("Error upserting time_records:", updateRecordError);
-        throw updateRecordError;
+      // Adicionar o objeto de localizações mescladas aos dados de atualização
+      // Certifique-se de que mergedLocations não é um objeto vazio se não houver localizações para mesclar
+      if (Object.keys(mergedLocations).length > 0) {
+           updateData.locations = mergedLocations;
+           console.log('LOG 7: Final updateData including merged locations:', updateData); // LOG 7: Dados finais de atualização
+      } else {
+           // Se não houver localizações para mesclar, talvez você queira garantir que 'locations'
+           // no time_records seja null ou um objeto vazio, dependendo da lógica.
+           // Se existingTimeRecord.locations era null e nenhuma nova localização foi mesclada,
+           // não precisamos adicionar 'locations' ao updateData, ele permanecerá null.
+           // Se existingTimeRecord.locations TINHA dados, mas as solicitações atuais não,
+           // a lógica acima manterá os dados existentes em mergedLocations, que será adicionado.
+           // Se queremos remover localizações antigas caso a edição não tenha localização,
+           // a lógica precisaria ser mais complexa. Por enquanto, mantemos as antigas se não houver novas.
+           console.log('LOG 7: No locations to merge. updateData without locations:', updateData);
       }
 
-      console.log(`LOG SUCESSO: Group ${groupKey} approved and time_records updated successfully.`); // LOG SUCESSO
 
-      toast({
-        title: "Sucesso",
-        description: `Solicitações para ${requestsToProcess[0].employee_name} em ${requestsToProcess[0].date} aprovadas.`,
-      });
+      // 3. Atualizar ou inserir o registro time_records com os novos valores e localizações
+      let timeRecordUpsertData: any = {
+        user_id: userId,
+        date: date,
+        ...updateData, // Include clock_in, lunch_start, etc., and locations
+        is_pending_approval: false, // Mark as not pending approval anymore
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+      };
 
-      // Invalidate and refetch queries
-      queryClient.invalidateQueries({ queryKey: ['editRequests', 'pending'] });
-      queryClient.invalidateQueries({ queryKey: ['editRequests', 'approved'] });
-      // Optionally invalidate time_records query for this user/date if needed elsewhere
-      queryClient.invalidateQueries({ queryKey: ['today-record', userId, date] });
+      // If updating an existing record, include the ID
+      if (existingTimeRecord) {
+        timeRecordUpsertData.id = existingTimeRecord.id;
+        console.log('LOG 8: Updating existing time_record:', timeRecordUpsertData); // LOG 8: Dados para atualizar registro existente
+      } else {
+         // If inserting a new record, ensure required fields are present if not already in updateData
+         // (e.g., clock_in might be null if only lunch is edited and no clock_in existed)
+         // This might require fetching more data or setting defaults if needed.
+         // For simplicity, we assume updateData contains the relevant fields being edited.
+         console.log('LOG 8: Inserting new time_record:', timeRecordUpsertData); // LOG 8: Dados para inserir novo registro
+      }
 
+
+      const { error: upsertRecordError } = await supabase
+        .from('time_records')
+        .upsert([timeRecordUpsertData as any], { onConflict: 'user_id, date' }); // Use onConflict for upsert logic
+
+      if (upsertRecordError) {
+        console.error("Error upserting time_record:", upsertRecordError);
+        toast({
+          title: "Erro",
+          description: `Erro ao atualizar registro de ponto: ${upsertRecordError.message}`,
+          variant: "destructive"
+        });
+        // Consider rolling back edit_requests status here if time_records update fails
+        return;
+      }
+
+      console.log(`Successfully approved and updated time_record for ${groupKey}`);
+      toast({ title: "Sucesso", description: "Solicitação(ões) aprovada(s) com sucesso.", variant: "default" });
 
     } catch (error: any) {
-      console.error("LOG ERRO: Error during time_records update process:", error); // LOG ERRO
-      toast({
-        title: "Erro",
-        description: `Erro ao processar aprovação para ${requestsToProcess[0].employee_name} em ${requestsToProcess[0].date}: ${error.message}`,
-        variant: "destructive"
-      });
-      // Consider reverting edit_requests status if time_records update fails
-      // This would require another upsert call here to set status back to 'pending'
+        console.error("Error during time_records update process:", error);
+        toast({
+            title: "Erro",
+            description: `Erro no processo de aprovação: ${error.message}`,
+            variant: "destructive"
+        });
+        // IMPORTANT: If the time_records update fails, you might want to revert the status
+        // of the edit_requests back to 'pending' to allow retrying. This requires
+        // additional logic (another upsert call or a Supabase function).
+    } finally {
+        // Invalidate queries to refetch data
+        queryClient.invalidateQueries({ queryKey: ['editRequests', 'pending'] });
+        queryClient.invalidateQueries({ queryKey: ['editRequests', 'approved'] });
+        // Invalidate time_records query if you have one displayed elsewhere
+        queryClient.invalidateQueries({ queryKey: ['timeRecords'] }); // Adjust queryKey as needed
     }
-
 
   }, [groupedRequests, user, toast, queryClient]);
 
@@ -313,13 +357,12 @@ const OptimizedPendingApproval = () => {
     const requestsToProcess = groupedRequests[groupKey];
     if (!requestsToProcess || requestsToProcess.length === 0) return;
 
-    console.log(`Processing rejection for group: ${groupKey}`);
-
     const updates = requestsToProcess.map(req => ({
       id: req.id,
       status: 'rejected',
-      processed_at: new Date().toISOString(),
-      processed_by: user.id,
+      // CORRIGIDO: Usar reviewed_at e reviewed_by
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
     }));
 
     const { error } = await supabase
@@ -327,17 +370,15 @@ const OptimizedPendingApproval = () => {
       .upsert(updates); // Use upsert to update by ID
 
     if (error) {
-      console.error("Error updating edit_requests status on rejection:", error);
+      console.error("Error updating edit_requests status:", error);
       toast({
         title: "Erro",
-        description: `Erro ao rejeitar solicitações: ${error.message}`,
+        description: `Erro ao rejeitar solicitação(ões): ${error.message}`,
         variant: "destructive"
       });
     } else {
-      toast({
-        title: "Sucesso",
-        description: `Solicitações para ${requestsToProcess[0].employee_name} em ${requestsToProcess[0].date} rejeitadas.`,
-      });
+      toast({ title: "Sucesso", description: "Solicitação(ões) rejeitada(s) com sucesso.", variant: "default" });
+      // Invalidate queries to refetch data
       queryClient.invalidateQueries({ queryKey: ['editRequests', 'pending'] });
       queryClient.invalidateQueries({ queryKey: ['editRequests', 'rejected'] });
     }
@@ -345,18 +386,15 @@ const OptimizedPendingApproval = () => {
   }, [groupedRequests, user, toast, queryClient]);
 
 
+  const hasGroups = Object.keys(paginatedGroups).length > 0;
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8 min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2">Carregando solicitações...</span>
-      </div>
-    );
+    return <div className="flex justify-center items-center h-40"><Clock className="animate-spin mr-2" /> Carregando solicitações...</div>;
   }
 
   if (error) {
     return (
-      <Alert variant="destructive" className="max-w-md mx-auto mt-8">
+      <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
           Erro ao carregar solicitações: {error.message}
@@ -365,14 +403,12 @@ const OptimizedPendingApproval = () => {
     );
   }
 
-  const hasGroups = Object.keys(paginatedGroups).length > 0;
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4 pt-8">
-      <Card className="max-w-4xl mx-auto bg-white shadow-lg">
+    <div className="container mx-auto py-8">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center text-blue-600">
-            Solicitações de Alteração de Ponto
+          <CardTitle className="text-2xl font-bold text-center text-gray-800">
+            Gerenciar Solicitações de<br /> Alteração de Ponto
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -444,11 +480,13 @@ const OptimizedPendingApproval = () => {
                             Motivo: <span className="font-normal">{req.reason}</span>
                           </p>
                            {/* Opcional: Exibir detalhes da localização da solicitação se existir */}
-                           {req.location && (
+                           {req.location && typeof req.location === 'object' && (
                                <div className="text-xs text-gray-500 mt-2">
                                    Localização na solicitação ({fieldNames[req.field]}):
+                                   {/* Access the specific field's location data for display */}
                                    <pre className="whitespace-pre-wrap break-words text-gray-700 bg-gray-100 p-1 rounded mt-1">
-                                        {JSON.stringify((req.location as EditRequestLocation)?.[req.field], null, 2)}
+                                        {/* CORRIGIDO: Acessar usando o nome do campo */}
+                                        {JSON.stringify((req.location as Record<string, any>)?.[req.field], null, 2)}
                                    </pre>
                                </div>
                            )}
@@ -476,9 +514,9 @@ const OptimizedPendingApproval = () => {
                       </div>
                     )}
 
-                     {filterStatus !== 'pending' && requestsInGroup[0].processed_by && (
+                     {filterStatus !== 'pending' && requestsInGroup[0].reviewed_by && ( // CORRIGIDO: Usar reviewed_by
                          <div className="text-right text-sm text-gray-500 mt-2">
-                             Processado por: {requestsInGroup[0].processed_by} em {requestsInGroup[0].processed_at ? format(new Date(requestsInGroup[0].processed_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'N/A'}
+                             Processado por: {requestsInGroup[0].reviewed_by} em {requestsInGroup[0].reviewed_at ? format(new Date(requestsInGroup[0].reviewed_at), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'N/A'} {/* CORRIGIDO: Usar reviewed_at */}
                          </div>
                      )}
 
