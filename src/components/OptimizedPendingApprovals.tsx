@@ -7,67 +7,61 @@ import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } f
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-// ✨ DEFINIR TIPO Json LOCALMENTE (em vez de importar de @/types/supabase)
+// ✨ DEFINIR TIPO Json LOCALMENTE
 type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-// Interface for the JSON location object saved within a field key (e.g., "clock_in": {...})
+// Interface para os detalhes de localização
 interface LocationDetailsForEdit {
   address: string | null;
-  distance: number | null; // Can be null for manual edits
+  distance: number | null;
   latitude: number | null;
   longitude: number | null;
-  timestamp: string; // Timestamp of the edit request
+  timestamp: string;
   locationName: string;
 }
 
-// Interface for the expected structure *inside* the JSON column (whether it's named 'location' or 'locations')
-// Ex: { "clock_in": { ...LocationDetailsForEdit... } }
-interface LocationContent {
+// Interface para o conteúdo de localização
+interface EditRequestLocation {
   clock_in?: LocationDetailsForEdit;
   lunch_start?: LocationDetailsForEdit;
   lunch_end?: LocationDetailsForEdit;
   clock_out?: LocationDetailsForEdit;
-  [key: string]: LocationDetailsForEdit | undefined; // Allow dynamic access
+  [key: string]: LocationDetailsForEdit | undefined;
 }
 
 // ✨ Interface for the raw data directly from the Supabase 'edit_requests' table
-// Matches the database column names and types for this specific table.
 interface RawEditRequestData {
   id: string;
   employee_id: string;
   employee_name: string;
   date: string;
-  field: string; // Database stores 'clock_in', 'lunch_start', etc. as strings
+  field: string;
   old_value: string | null;
   new_value: string;
   reason: string;
-  created_at: string; // Database timestamp
+  created_at: string;
   status: 'pending' | 'approved' | 'rejected';
   reviewed_at: string | null;
   reviewed_by: string | null;
-  // ✨ Column name is 'location' in the 'edit_requests' table
-  location: Json | null; // Database column is named 'location', type is Json/JSONB
+  location: Json | null;
 }
 
-// Keep the EditRequest interface for mapped data used within the component
-// This uses camelCase and the desired union type for the 'field' value
+// Interface para dados mapeados usados no componente
 interface EditRequest {
   id: string;
-  employeeId: string; // Mapped from employee_id
-  employeeName: string; // Mapped from employee_name
+  employeeId: string;
+  employeeName: string;
   date: string;
-  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut'; // Mapped VALUE from DB field string
-  oldValue: string; // Mapped from old_value
-  newValue: string; // Mapped from new_value
+  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
+  oldValue: string;
+  newValue: string;
   reason: string;
-  timestamp: string; // Mapped from created_at
+  timestamp: string;
   status: 'pending' | 'approved' | 'rejected';
-  // ✨ Property name is 'location' in the mapped data, but its content type is LocationContent
-  location?: LocationContent | null;
+  location?: EditRequestLocation | null;
 }
 
-// ✨ Interface for the raw data directly from the Supabase 'time_records' table
-// Matches the database column names and types for this specific table.
+// ✨ Interface for the raw data from the 'time_records' table
 interface RawTimeRecordData {
     id: string;
     user_id: string;
@@ -76,9 +70,7 @@ interface RawTimeRecordData {
     lunch_start: string | null;
     lunch_end: string | null;
     clock_out: string | null;
-    // ✨ Column name is 'locations' in the 'time_records' table
-    locations: Json | null; // Database column is named 'locations', type is Json/JSONB
-    // Add other time_records columns as needed (e.g., created_at, updated_at, etc.)
+    locations: Json | null;
 }
 
 interface GroupedRequest {
@@ -103,7 +95,33 @@ interface PendingApprovalsProps {
 
 const ITEMS_PER_PAGE = 10;
 
-// Helper function to map database field names (snake_case strings) to camelCase used in the component
+// ✨ FUNÇÃO HELPER para conversão segura
+const safeConvertToEditRequestLocation = (jsonData: Json | null): EditRequestLocation | null => {
+  if (!jsonData || typeof jsonData !== 'object' || Array.isArray(jsonData)) {
+    return null;
+  }
+  
+  try {
+    const obj = jsonData as { [key: string]: Json | undefined };
+    const result: EditRequestLocation = {};
+    
+    const validFields = ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'];
+    
+    for (const field of validFields) {
+      if (obj[field] && typeof obj[field] === 'object' && !Array.isArray(obj[field])) {
+        // ✨ Conversão segura via unknown
+        result[field] = obj[field] as unknown as LocationDetailsForEdit;
+      }
+    }
+    
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (error) {
+    console.error('Erro ao converter Json para EditRequestLocation:', error);
+    return null;
+  }
+};
+
+// Helper function para mapear campos do banco para camelCase
 const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut' => {
   switch (dbField) {
     case 'clock_in': return 'clockIn';
@@ -111,96 +129,61 @@ const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lun
     case 'lunch_end': return 'lunchEnd';
     case 'clock_out': return 'clockOut';
     default:
-      console.error(`Unexpected field value from DB: ${dbField}`);
-      // Fallback or handle error appropriately
-      return 'clockIn'; // ✨ CORRIGIDO: retorna valor válido em vez de any
+      console.error(`Campo inesperado do DB: ${dbField}`);
+      return 'clockIn'; // Fallback seguro
   }
 };
 
-// Helper function to map camelCase field names used in the component to database snake_case
+// Helper function para mapear camelCase para snake_case do banco
 const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut'): string => {
     switch (camelCaseField) {
         case 'clockIn': return 'clock_in';
         case 'lunchStart': return 'lunch_start';
         case 'lunchEnd': return 'lunch_end';
         case 'clockOut': return 'clock_out';
-        // No default needed here as input type is a strict union
     }
 };
 
-// ✨ FUNÇÃO HELPER para buscar email do funcionário
-const getEmployeeEmail = (employeeId: string, employees: Array<{id: string; email: string; name: string}>): string => {
-  const employee = employees.find(emp => emp.id === employeeId);
-  return employee?.email || 'Email não encontrado';
-};
+// Função removida - não precisamos exibir email
 
-// ✨ FUNÇÃO HELPER para conversão segura de Json para LocationContent
-const safeConvertToLocationContent = (jsonData: Json | null): LocationContent | null => {
-  if (!jsonData || typeof jsonData !== 'object' || Array.isArray(jsonData)) {
-    return null;
-  }
-  
-  try {
-    // Verificar se o objeto tem a estrutura esperada
-    const obj = jsonData as { [key: string]: Json | undefined };
-    const result: LocationContent = {};
-    
-    // Converter apenas os campos conhecidos
-    const validFields = ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'];
-    
-    for (const field of validFields) {
-      if (obj[field] && typeof obj[field] === 'object' && !Array.isArray(obj[field])) {
-        result[field] = obj[field] as LocationDetailsForEdit;
-      }
-    }
-    
-    return Object.keys(result).length > 0 ? result : null;
-  } catch (error) {
-    console.error('Erro ao converter Json para LocationContent:', error);
-    return null;
-  }
-};
-
-const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
+const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
   const [message, setMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
 
-  // Query fetching raw data and mapping it to the component's interface
+  // Query para buscar dados e mapear para interface do componente
   const {
-    data: editRequests = [], // Initialize with empty array
+    data: editRequests = [],
     isLoading,
     refetch
-  } = useQuery<EditRequest[]>({ // Type the hook result as EditRequest[]
+  } = useQuery<EditRequest[]>({
     queryKey: ['edit-requests'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('edit_requests')
-        // ✨ Select 'location' from edit_requests table
         .select('id, employee_id, employee_name, date, field, old_value, new_value, reason, created_at, status, reviewed_at, reviewed_by, location')
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) {
-          console.error('Error fetching edit requests:', error);
+          console.error('Erro ao buscar solicitações:', error);
           throw error;
       }
 
-      // Map raw database data (RawEditRequestData[]) to the component's EditRequest interface (EditRequest[])
-      // ✨ Cast data to unknown first to bypass strictness before casting to RawEditRequestData[]
+      // ✨ Mapear dados do banco para interface do componente
       return (data as unknown as RawEditRequestData[]).map(request => ({
         id: request.id,
         employeeId: request.employee_id,
         employeeName: request.employee_name,
         date: request.date,
-        field: mapFieldDbToCamelCase(request.field), // Use mapping function for field value conversion
+        field: mapFieldDbToCamelCase(request.field),
         oldValue: request.old_value || '',
         newValue: request.new_value,
         reason: request.reason,
         timestamp: request.created_at,
         status: request.status,
         // ✨ CORRIGIDO: Usar função de conversão segura
-        location: safeConvertToLocationContent(request.location),
+        location: safeConvertToEditRequestLocation(request.location),
       }));
     },
     staleTime: 10 * 60 * 1000,
@@ -209,12 +192,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     retry: 1
   });
 
-  // Real-time optimized with throttling
+  // Real-time com throttling
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
     const subscription = supabase
-      .channel('edit_requests_throttled')
+      .channel('edit_requests_realtime')
       .on('postgres_changes',
         {
           event: '*',
@@ -222,7 +205,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           table: 'edit_requests'
         },
         () => {
-          // Throttling of 2 seconds
           clearTimeout(timeoutId);
           timeoutId = setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['edit-requests'] });
@@ -237,16 +219,14 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     };
   }, [queryClient]);
 
-  // Memoized calculations with optimized dependencies
+  // Cálculos memoizados
   const { pendingRequests, processedRequests, groupedPendingRequests } = useMemo(() => {
-    // editRequests is now correctly typed as EditRequest[]
     const pending = editRequests.filter(r => r.status === 'pending');
     const processed = editRequests.filter(r => r.status !== 'pending');
 
-    // Group pending requests more efficiently
+    // Agrupar solicitações pendentes
     const groupsMap = new Map<string, GroupedRequest>();
 
-    // This loop iterates over `pending`, which is correctly typed as EditRequest[]
     for (const request of pending) {
       const key = `${request.employeeId}-${request.date}`;
 
@@ -268,9 +248,9 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       processedRequests: processed,
       groupedPendingRequests: Array.from(groupsMap.values())
     };
-  }, [editRequests]); // Dependency is the correctly typed editRequests array
+  }, [editRequests]);
 
-  // Pagination optimized
+  // Paginação
   const paginatedProcessedRequests = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return processedRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -278,33 +258,32 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
-  // Handler optimized with callback
+  // Handler para aprovação/rejeição
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
       const requestIds = group.requests.map(r => r.id);
 
-      // Get the current user's ID
+      // Obter ID do usuário atual
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
-      const reviewerId = user?.id || null; // Use null if user or id is undefined
+      const reviewerId = user?.id || null;
 
-      // Batch update edit_requests status
-      // This update uses database column names (snake_case)
+      // Atualizar status das solicitações
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
           status: approved ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: reviewerId // Pass the user ID (string | null)
+          reviewed_by: reviewerId
         })
-        .in('id', requestIds); // Filter rows by ID
+        .in('id', requestIds);
 
       if (updateError) throw updateError;
 
       if (approved) {
         console.log('🔍 DEBUG: Aprovando solicitações para', group.employeeName, 'data:', group.date);
         
-        // Fetch existing time record efficiently, including current locations
+        // Buscar registro existente
         const { data: timeRecord, error: fetchError } = await supabase
           .from('time_records')
           .select('id, locations')
@@ -316,10 +295,9 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         
         console.log('🔍 DEBUG: Registro existente:', timeRecord);
 
-        // Prepare update data for time_records
+        // Preparar dados para atualização
         const updateData: any = {};
-        // ✨ CORRIGIDO: Usar conversão segura para LocationContent
-        let mergedLocationContent: LocationContent = safeConvertToLocationContent(timeRecord?.locations) || {};
+        let mergedLocationContent: EditRequestLocation = safeConvertToEditRequestLocation(timeRecord?.locations) || {};
         
         console.log('🔍 DEBUG: Localizações existentes:', mergedLocationContent);
 
@@ -333,10 +311,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
             newValue: request.newValue
           });
 
-          // Add the new time value
+          // Adicionar novo valor de tempo
           updateData[dbFieldName] = request.newValue;
 
-          // Se a solicitação tem dados de localização, extraia o valor correto
+          // Se a solicitação tem dados de localização, extrair o valor correto
           if (request.location && request.location[dbFieldName]) {
             mergedLocationContent[dbFieldName] = request.location[dbFieldName];
             console.log('🔍 DEBUG: Adicionando localização para', dbFieldName, ':', request.location[dbFieldName]);
@@ -347,13 +325,13 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
         console.log('🔍 DEBUG: Localizações mescladas finais:', mergedLocationContent);
         
-        // Add the merged location content object to the update data
+        // Adicionar conteúdo de localização mesclado aos dados de atualização
         updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
         
         console.log('🔍 DEBUG: Dados finais do update:', updateData);
 
         if (timeRecord) {
-          // Update existing record
+          // Atualizar registro existente
           console.log('🔍 DEBUG: Atualizando registro existente ID:', timeRecord.id);
           const { error: updateRecordError } = await supabase
             .from('time_records')
@@ -366,7 +344,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           }
           console.log('✅ DEBUG: Registro atualizado com sucesso');
         } else {
-          // Create new record
+          // Criar novo registro
           console.log('🔍 DEBUG: Criando novo registro');
           const { error: insertError } = await supabase
             .from('time_records')
@@ -388,27 +366,27 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         setMessage(`Edições rejeitadas para ${group.employeeName}`);
       }
 
-      // Invalidate cache to refetch updated data
+      // Invalidar cache para recarregar dados
       queryClient.invalidateQueries({
         queryKey: ['edit-requests'],
         exact: true
       });
 
-      // Call callback if provided
+      // Chamar callback se fornecido
       if (onApprovalChange) {
         onApprovalChange();
       }
 
-      // Auto-clear message after a delay
+      // Limpar mensagem automaticamente
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
-      console.error('Error handling group approval:', error);
+      console.error('Erro ao processar aprovação:', error);
       setMessage('Erro ao processar aprovação');
       setTimeout(() => setMessage(''), 3000);
     }
-  }, [queryClient, onApprovalChange]); // Added onApprovalChange as dependency
+  }, [queryClient, onApprovalChange]);
 
-  // Memoized field label function
+  // Função para obter label do campo
   const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
     const labels = {
       clockIn: 'Entrada',
@@ -416,10 +394,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       lunchEnd: 'Fim do Almoço',
       clockOut: 'Saída'
     };
-    return labels[field]; // field is now guaranteed to be one of the keys
+    return labels[field];
   }, []);
 
-  // Loading optimized
+  // Loading
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -445,7 +423,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         </Alert>
       )}
 
-      {/* Pending Requests Optimized */}
+      {/* Solicitações Pendentes */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -465,8 +443,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
-                      {/* ✨ NOVO: Exibir email do funcionário */}
-                      <p className="text-xs text-gray-500 mb-1">📧 {getEmployeeEmail(group.employeeId, employees)}</p>
                       <p className="text-sm text-gray-600">
                         📅 {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
@@ -486,7 +462,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
-                          {/* Display location if available in the request */}
+                          {/* Exibir localização se disponível */}
                           {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
                               <div className="text-xs text-gray-600 mt-1">
                                 Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
@@ -527,7 +503,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         </CardContent>
       </Card>
 
-      {/* History Optimized */}
+      {/* Histórico */}
       {processedRequests.length > 0 && (
         <Card>
           <CardHeader>
@@ -584,11 +560,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                   {paginatedProcessedRequests.map((request) => (
                     <tr key={request.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {/* ✨ MODIFICADO: Incluir email na coluna funcionário */}
-                        <div>
-                          <div className="font-medium text-gray-900">{request.employeeName}</div>
-                          <div className="text-xs text-gray-500">{getEmployeeEmail(request.employeeId, employees)}</div>
-                        </div>
+                        {request.employeeName}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {getFieldLabel(request.field)}
@@ -616,4 +588,4 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
   );
 };
 
-export default OptimizedPendingApprovals;
+export default PendingApprovals;
