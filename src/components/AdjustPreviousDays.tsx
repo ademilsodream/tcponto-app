@@ -227,7 +227,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         .single();
 
 
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') { // PGRST116 means "No rows found"
         throw error;
       }
 
@@ -328,23 +328,10 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
   const handleSubmitEdit = async () => {
     if (!selectedDate || !timeRecord || !user) {
-      console.log('Erro: Dados básicos faltando', { selectedDate, timeRecord: !!timeRecord, user: !!user });
-      return;
-    }
-
-
-    // Validar se pelo menos um campo de horário foi preenchido E é diferente do original
-    const hasAnyTimeChanged =
-      (editForm.clock_in && editForm.clock_in !== (timeRecord.clock_in || '')) ||
-      (editForm.lunch_start && editForm.lunch_start !== (timeRecord.lunch_start || '')) ||
-      (editForm.lunch_end && editForm.lunch_end !== (timeRecord.lunch_end || '')) ||
-      (editForm.clock_out && editForm.clock_out !== (timeRecord.clock_out || ''));
-
-
-    if (!hasAnyTimeChanged) {
+      console.log('Erro: Dados básicos faltando (data, registro ou usuário)', { selectedDate: !!selectedDate, timeRecord: !!timeRecord, user: !!user });
       toast({
-        title: "Aviso",
-        description: "Nenhuma alteração foi detectada nos horários.",
+        title: "Erro Interno",
+        description: "Dados essenciais para a submissão estão faltando.",
         variant: "destructive",
       });
       return;
@@ -418,69 +405,76 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         date: format(selectedDate, 'yyyy-MM-dd'),
         reason: editForm.reason.trim(),
         status: 'pending',
-        // A coluna 'location' será adicionada individualmente para cada campo abaixo
-        // com a estrutura {"campo": {...detalhes_localizacao...}}
       };
 
 
       // Adicionar solicitação para clock_in se alterado
-      if (editForm.clock_in && editForm.clock_in !== (timeRecord.clock_in || '')) {
+      // CORRIGIDO: Verifica apenas se o novo valor é diferente do antigo
+      if (editForm.clock_in !== (timeRecord.clock_in || '')) {
         requests.push({
           ...baseRequest,
           field: fieldMapping.clock_in, // 'clockIn'
           old_value: timeRecord.clock_in || null,
-          new_value: editForm.clock_in,
-          // --- CORRIGIDO: Estrutura da localização para este campo específico ---
+          new_value: editForm.clock_in || null, // Salva vazio como null
+          // Estrutura da localização para este campo específico
           location: { [fieldMapping.clock_in]: locationDetailsForEdit },
-          // -------------------------------------------------------------
         });
       }
 
 
       // Adicionar solicitação para lunch_start se alterado
-      if (editForm.lunch_start && editForm.lunch_start !== (timeRecord.lunch_start || '')) {
+      // CORRIGIDO: Verifica apenas se o novo valor é diferente do antigo
+      if (editForm.lunch_start !== (timeRecord.lunch_start || '')) {
         requests.push({
           ...baseRequest,
           field: fieldMapping.lunch_start, // 'lunchStart'
           old_value: timeRecord.lunch_start || null,
-          new_value: editForm.lunch_start,
-          // --- NOVO: Estrutura da localização para este campo específico ---
+          new_value: editForm.lunch_start || null, // Salva vazio como null
+          // Estrutura da localização para este campo específico
           location: { [fieldMapping.lunch_start]: locationDetailsForEdit },
-          // -------------------------------------------------------------
         });
       }
 
 
       // Adicionar solicitação para lunch_end se alterado
-      if (editForm.lunch_end && editForm.lunch_end !== (timeRecord.lunch_end || '')) {
+      // CORRIGIDO: Verifica apenas se o novo valor é diferente do antigo
+      if (editForm.lunch_end !== (timeRecord.lunch_end || '')) {
         requests.push({
           ...baseRequest,
           field: fieldMapping.lunch_end, // 'lunchEnd'
           old_value: timeRecord.lunch_end || null,
-          new_value: editForm.lunch_end,
-          // --- NOVO: Estrutura da localização para este campo específico ---
+          new_value: editForm.lunch_end || null, // Salva vazio como null
+          // Estrutura da localização para este campo específico
           location: { [fieldMapping.lunch_end]: locationDetailsForEdit },
-          // -------------------------------------------------------------
         });
       }
 
 
       // Adicionar solicitação para clock_out se alterado
-      if (editForm.clock_out && editForm.clock_out !== (timeRecord.clock_out || '')) {
+      // CORRIGIDO: Verifica apenas se o novo valor é diferente do antigo
+      if (editForm.clock_out !== (timeRecord.clock_out || '')) {
         requests.push({
           ...baseRequest,
           field: fieldMapping.clock_out, // 'clockOut'
           old_value: timeRecord.clock_out || null,
-          new_value: editForm.clock_out,
-          // --- NOVO: Estrutura da localização para este campo específico ---
+          new_value: editForm.clock_out || null, // Salva vazio como null
+          // Estrutura da localização para este campo específico
           location: { [fieldMapping.clock_out]: locationDetailsForEdit },
-          // -------------------------------------------------------------
         });
       }
 
 
-      // A validação de ter pelo menos um horário alterado já foi feita no início
-      // if (requests.length === 0) { ... } // Este bloco agora é redundante aqui
+      // Validar se pelo menos uma solicitação foi gerada
+      if (requests.length === 0) {
+        console.log('⚠️ Nenhuma alteração detectada ou válida para enviar.');
+        toast({
+          title: "Aviso",
+          description: "Nenhuma alteração válida foi detectada nos horários para enviar.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
+      }
 
 
       // --- NOVO LOG PARA VERIFICAR A ESTRUTURA ANTES DE ENVIAR ---
@@ -566,6 +560,16 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       setSubmitting(false);
     }
   };
+
+
+  // Calcular se há alguma alteração nos horários (para habilitar/desabilitar o botão)
+  // Movemos esta lógica para fora do handleSubmitEdit
+  const hasAnyTimeChanged = timeRecord ? (
+    editForm.clock_in !== (timeRecord.clock_in || '') ||
+    editForm.lunch_start !== (timeRecord.lunch_start || '') ||
+    editForm.lunch_end !== (timeRecord.lunch_end || '') ||
+    editForm.clock_out !== (timeRecord.clock_out || '')
+  ) : false;
 
 
   if (loading) {
@@ -750,6 +754,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                     <Button
                       onClick={handleSubmitEdit}
                       className="w-full"
+                      // CORRIGIDO: Usar a variável hasAnyTimeChanged calculada fora da função
                       disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
                     >
                       {submitting ? (
