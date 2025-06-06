@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -171,89 +170,89 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
       {/* Navigation Tabs - apenas para Admin */}
       <div className="bg-white border-b w-full">
-        <div className="w-full px-6">
-          <nav className="flex space-x-8 overflow-x-auto">
+        <div className="w-full px-4">
+          <nav className="flex space-x-3 overflow-x-auto">
             <button
               onClick={() => setActiveTab('adminDashboard')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'adminDashboard'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Users className="w-4 h-4 mr-2" />
+              <Users className="w-4 h-4 mr-1" />
               Dashboard
             </button>
 
             <button
               onClick={() => setActiveTab('monthlyControl')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'monthlyControl'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <CalendarIcon className="w-4 h-4 mr-2" />
-              Fechamento Mensal
+              <CalendarIcon className="w-4 h-4 mr-1" />
+              Fechamento
             </button>
 
             <button
               onClick={() => setActiveTab('payrollReport')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'payrollReport'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <FileText className="w-4 h-4 mr-2" />
-              Folha de Pagamento
+              <FileText className="w-4 h-4 mr-1" />
+              Folha
             </button>
 
             <button
               onClick={() => setActiveTab('detailedReport')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'detailedReport'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <BarChart3 className="w-4 h-4 mr-2" />
-              Detalhamento de Ponto
+              <BarChart3 className="w-4 h-4 mr-1" />
+              Detalhamento
             </button>
 
             <button
               onClick={() => setActiveTab('locationReport')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'locationReport'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <MapPin className="w-4 h-4 mr-2" />
-              Painel de Localização
+              <MapPin className="w-4 h-4 mr-1" />
+              Localização
             </button>
 
             <button
               onClick={() => setActiveTab('autoDeObras')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'autoDeObras'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Building2 className="w-4 h-4 mr-2" />
-              Painel de Alocação
+              <Building2 className="w-4 h-4 mr-1" />
+              Alocação
             </button>
 
             <button
               onClick={() => setActiveTab('hourBank')}
-              className={`flex items-center px-3 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
+              className={`flex items-center px-2 py-4 text-sm font-medium border-b-2 whitespace-nowrap ${
                 activeTab === 'hourBank'
                   ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <Clock className="w-4 h-4 mr-2" />
+              <Clock className="w-4 h-4 mr-1" />
               Banco de Horas
             </button>
           </nav>
