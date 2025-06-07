@@ -421,12 +421,13 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   if (isLoading) {
     return (
-      <div className="space-y-2 p-2"> {/* Reduced padding */}
+      <div className="space-y-2 p-2">
         <div className="animate-pulse">
-          <div className="h-5 bg-gray-200 rounded w-1/4 mb-2"></div> {/* Reduced size */}
-          <div className="space-y-1"> {/* Reduced space */}
-            <div className="h-14 bg-gray-200 rounded"></div> {/* Reduced height */}
-            <div className="h-14 bg-gray-200 rounded"></div> {/* Reduced height */}
+          <div className="h-5 bg-gray-200 rounded w-1/4 mb-2"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"> {/* Grid for skeleton loading */}
+            <div className="h-32 bg-gray-200 rounded"></div> {/* Increased height slightly for visual */}
+            <div className="h-32 bg-gray-200 rounded"></div>
+            <div className="h-32 bg-gray-200 rounded hidden lg:block"></div> {/* Hide 3rd on smaller screens */}
           </div>
         </div>
       </div>
@@ -435,68 +436,70 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
 
   return (
-    <div className="space-y-3 p-2"> {/* Reduced overall padding and space */}
+    <div className="space-y-3 p-2">
       {message && (
-        <Alert className={`border p-2 text-sm ${message.startsWith('✅') ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50'}`}> {/* Reduced padding */}
-          {message.startsWith('✅') ? <CheckCircle className="h-3 w-3 text-green-600" /> : <AlertCircle className="h-3 w-3 text-red-600" />} {/* Reduced icon size */}
-          <AlertDescription className={`${message.startsWith('✅') ? 'text-green-800' : 'text-red-800'} text-xs`}> {/* Reduced text size */}
+        <Alert className={`border p-2 text-sm ${message.startsWith('✅') ? 'border-green-400 bg-green-50' : 'border-red-400 bg-red-50'}`}>
+          {message.startsWith('✅') ? <CheckCircle className="h-3 w-3 text-green-600" /> : <AlertCircle className="h-3 w-3 text-red-600" />}
+          <AlertDescription className={`${message.startsWith('✅') ? 'text-green-800' : 'text-red-800'} text-xs`}>
             {message}
           </AlertDescription>
         </Alert>
       )}
 
 
-      {/* Pending Requests - More Compact Card Layout */}
-      <Card className="p-0"> {/* Removed Card padding */}
-        <CardHeader className="px-3 py-2 pb-1"> {/* Reduced padding */}
-          <CardTitle className="flex items-center gap-1 text-sm"> {/* Reduced title size */}
-            <Clock className="w-3 h-3" /> {/* Reduced icon size */}
+      {/* Pending Requests - Grid Layout */}
+      <Card className="p-0">
+        <CardHeader className="px-3 py-2 pb-1">
+          <CardTitle className="flex items-center gap-1 text-sm">
+            <Clock className="w-3 h-3" />
             Solicitações Pendentes ({groupedPendingRequests.length})
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-3 pt-0 space-y-2"> {/* Reduced padding and space */}
+        <CardContent className="p-3 pt-0"> {/* Keep some padding around the grid */}
           {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-3 text-xs"> {/* Reduced padding and text size */}
+            <p className="text-gray-500 text-center py-3 text-xs">
               Nenhuma solicitação pendente
             </p>
           ) : (
-            <div className="space-y-2"> {/* Reduced space */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"> {/* <<-- GRID AQUI -->> */}
               {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-md p-2 bg-yellow-50 border-yellow-200 text-xs"> {/* Reduced padding and text size */}
-                  <div className="flex justify-between items-center mb-1"> {/* Reduced margin */}
-                    <div>
-                      <h4 className="font-medium text-gray-900 flex items-center gap-1 text-sm"> {/* Reduced text size */}
-                        <User className="w-3 h-3" /> {group.employeeName}
-                      </h4>
-                      <p className="text-xs text-gray-600 flex items-center gap-1"> {/* Reduced text size */}
-                        <CalendarDays className="w-3 h-3" /> {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs px-1 py-0.5"> {/* Reduced padding */}
-                      {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                    </Badge>
+                {/* Each group is now an item in the grid */}
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-md p-2 bg-yellow-50 border-yellow-200 text-xs flex flex-col justify-between"> {/* Added flex-col for button alignment */}
+                  <div> {/* Content wrapper */}
+                    <div className="flex justify-between items-start mb-1"> {/* Adjusted items-start */}
+                      <div>
+                        <h4 className="font-medium text-gray-900 flex items-center gap-1 text-sm">
+                          <User className="w-3 h-3" /> {group.employeeName}
+                        </h4>
+                        <p className="text-xs text-gray-600 flex items-center gap-1">
+                          <CalendarDays className="w-3 h-3" /> {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="text-xs px-1 py-0.5">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
                   </div>
 
 
-                  <div className="mb-1 space-y-0.5"> {/* Reduced margin and space */}
-                    <h5 className="font-medium mb-0.5 text-xs">Ajustes:</h5> {/* Reduced margin */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1"> {/* Reduced gap */}
+                  <div className="mb-2 space-y-0.5"> {/* Increased margin slightly before buttons */}
+                    <h5 className="font-medium mb-0.5 text-xs">Ajustes:</h5>
+                    <div className="grid grid-cols-1 gap-1"> {/* Adjusted to single column within the smaller card */}
                       {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-1 bg-white space-y-0.5"> {/* Reduced padding */}
+                        <div key={request.id} className="text-xs border rounded p-1 bg-white space-y-0.5">
                           <div className="font-medium flex items-center gap-1"><Tag className="w-3 h-3" /> {getFieldLabel(request.field)}</div>
                           <div className="flex justify-between text-xs">
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
                           {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
-                              <div className="text-[10px] text-gray-600 flex items-start gap-1"> {/* Smaller text */}
-                                <MapPin className="w-2.5 h-2.5 mt-0.5" /> {/* Smaller icon */}
+                              <div className="text-[10px] text-gray-600 flex items-start gap-1">
+                                <MapPin className="w-2.5 h-2.5 mt-0.5" />
                                 <span className="flex-1">Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}</span>
                               </div>
                           )}
                           {request.reason && (
-                            <div className="text-[10px] text-gray-600 flex items-start gap-1"> {/* Smaller text */}
-                              <Text className="w-2.5 h-2.5 mt-0.5" /> {/* Smaller icon */}
+                            <div className="text-[10px] text-gray-600 flex items-start gap-1">
+                              <Text className="w-2.5 h-2.5 mt-0.5" />
                               <span className="flex-1">Motivo: {request.reason}</span>
                             </div>
                           )}
@@ -506,22 +509,23 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                   </div>
 
 
-                  <div className="flex gap-1"> {/* Reduced gap */}
+                  {/* Buttons at the bottom */}
+                  <div className="flex gap-1 mt-auto"> {/* mt-auto pushes buttons to the bottom */}
                     <Button
                       size="sm"
                       onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 text-xs h-5 px-1.5" // Reduced height and padding
+                      className="bg-green-600 hover:bg-green-700 text-xs h-5 px-1.5 flex-1" // flex-1 makes buttons fill space
                     >
-                      <CheckCircle className="w-2.5 h-2.5 mr-1" /> {/* Reduced icon size */}
+                      <CheckCircle className="w-2.5 h-2.5 mr-1" />
                       Aprovar
                     </Button>
                     <Button
                       size="sm"
                       variant="destructive"
                       onClick={() => handleGroupApproval(group, false)}
-                      className="text-xs h-5 px-1.5" // Reduced height and padding
+                      className="text-xs h-5 px-1.5 flex-1" // flex-1 makes buttons fill space
                     >
-                      <XCircle className="w-2.5 h-2.5 mr-1" /> {/* Reduced icon size */}
+                      <XCircle className="w-2.5 h-2.5 mr-1" />
                       Rejeitar
                     </Button>
                   </div>
@@ -533,20 +537,20 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       </Card>
 
 
-      {/* History - More Compact Card Layout */}
+      {/* History - Grid Layout */}
       {processedRequests.length > 0 && (
-        <Card className="p-0"> {/* Removed Card padding */}
-          <CardHeader className="px-3 py-2 pb-1"> {/* Reduced padding */}
-            <CardTitle className="flex items-center justify-between text-sm"> {/* Reduced title size */}
+        <Card className="p-0">
+          <CardHeader className="px-3 py-2 pb-1">
+            <CardTitle className="flex items-center justify-between text-sm">
               <span>Histórico</span>
               {totalPages > 1 && (
-                <div className="flex items-center gap-1"> {/* Reduced gap */}
+                <div className="flex items-center gap-1">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="h-5 px-1 text-xs" // Reduced size
+                    className="h-5 px-1 text-xs"
                   >
                     <ChevronLeft className="w-3 h-3" />
                   </Button>
@@ -558,7 +562,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="h-5 px-1 text-xs" // Reduced size
+                    className="h-5 px-1 text-xs"
                   >
                     <ChevronRight className="w-3 h-3" />
                   </Button>
@@ -566,26 +570,28 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-2"> {/* Reduced padding and space */}
-            <div className="space-y-2"> {/* Reduced space */}
+          <CardContent className="p-3 pt-0"> {/* Keep some padding around the grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"> {/* <<-- GRID AQUI -->> */}
               {paginatedProcessedRequests.map((request) => (
-                <div key={request.id} className="border rounded-md p-2 bg-gray-50 border-gray-200 text-xs"> {/* Reduced padding and text size */}
-                  <div className="flex justify-between items-center mb-1"> {/* Reduced margin */}
-                    <div>
-                      <h4 className="font-medium text-gray-900 flex items-center gap-1 text-sm"> {/* Reduced text size */}
-                        <User className="w-3 h-3" /> {request.employeeName}
-                      </h4>
-                      <p className="text-xs text-gray-600 flex items-center gap-1">
-                        <CalendarDays className="w-3 h-3" /> {new Date(request.date).toLocaleDateString('pt-BR')}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={request.status === 'approved' ? 'default' : 'destructive'}
-                      className="text-xs flex items-center gap-1 px-1 py-0.5" // Reduced padding
-                    >
-                      {request.status === 'approved' ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                      {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                    </Badge>
+                {/* Each request is now an item in the grid */}
+                <div key={request.id} className="border rounded-md p-2 bg-gray-50 border-gray-200 text-xs flex flex-col justify-between"> {/* Added flex-col */}
+                  <div> {/* Content wrapper */}
+                    <div className="flex justify-between items-start mb-1"> {/* Adjusted items-start */}
+                      <div>
+                        <h4 className="font-medium text-gray-900 flex items-center gap-1 text-sm">
+                          <User className="w-3 h-3" /> {request.employeeName}
+                        </h4>
+                        <p className="text-xs text-gray-600 flex items-center gap-1">
+                          <CalendarDays className="w-3 h-3" /> {new Date(request.date).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={request.status === 'approved' ? 'default' : 'destructive'}
+                        className="text-xs flex items-center gap-1 px-1 py-0.5"
+                      >
+                        {request.status === 'approved' ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                        {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                      </Badge>
                   </div>
 
 
@@ -598,19 +604,19 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                       <span className="text-green-600">Para: {request.newValue}</span>
                     </div>
                     {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
-                        <div className="text-[10px] text-gray-600 flex items-start gap-1"> {/* Smaller text */}
-                          <MapPin className="w-2.5 h-2.5 mt-0.5" /> {/* Smaller icon */}
+                        <div className="text-[10px] text-gray-600 flex items-start gap-1">
+                          <MapPin className="w-2.5 h-2.5 mt-0.5" />
                           <span className="flex-1">Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}</span>
                         </div>
                     )}
                     {request.reason && (
-                        <div className="text-[10px] text-gray-600 flex items-start gap-1"> {/* Smaller text */}
-                          <Text className="w-2.5 h-2.5 mt-0.5" /> {/* Smaller icon */}
+                        <div className="text-[10px] text-gray-600 flex items-start gap-1">
+                          <Text className="w-2.5 h-2.5 mt-0.5" />
                           <span className="flex-1">Motivo: {request.reason}</span>
                         </div>
                     )}
                   </div>
-                  <p className="text-right text-[9px] text-gray-500 mt-1"> {/* Even Smaller text and margin */}
+                  <p className="text-right text-[9px] text-gray-500 mt-auto pt-1"> {/* mt-auto pushes timestamp down */}
                     Solicitado em: {new Date(request.timestamp).toLocaleDateString('pt-BR')}
                   </p>
                 </div>
@@ -618,13 +624,13 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
             </div>
           </CardContent>
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-1 pb-2"> {/* Reduced gap and padding */}
+            <div className="flex justify-center items-center gap-1 pb-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="h-5 px-1 text-xs" // Reduced size
+                className="h-5 px-1 text-xs"
               >
                 <ChevronLeft className="w-3 h-3" />
               </Button>
@@ -636,7 +642,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                 size="sm"
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="h-5 px-1 text-xs" // Reduced size
+                className="h-5 px-1 text-xs"
               >
                 <ChevronRight className="w-3 h-3" />
               </Button>
