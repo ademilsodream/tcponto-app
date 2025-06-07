@@ -39,6 +39,15 @@ interface AdminDashboardProps {
   employees: User[];
 }
 
+// ✅ CORREÇÃO 1: Função auxiliar para data local (fora do componente)
+const getTodayLocalDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const day = now.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Função para formatar horas no padrão HH:MM
 const formatHoursAsTime = (hours: number | null | undefined) => {
   if (hours === null || hours === undefined || hours === 0) return '00:00';
@@ -53,6 +62,39 @@ const formatHoursAsTime = (hours: number | null | undefined) => {
 const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) => {
   const { formatCurrency } = useCurrency();
 
+  // ✅ CORREÇÃO 2: Mover getEmployeeStatus para ANTES de fetchDashboardData
+  const getEmployeeStatus = useCallback((record: any): { status: string; label: string; color: string } => {
+    if (!record?.clock_in) {
+      return {
+        status: 'not_working',
+        label: 'Não iniciou',
+        color: 'red'
+      };
+    }
+
+    if (record.clock_out) {
+      return {
+        status: 'day_finished',
+        label: 'Finalizou',
+        color: 'blue'
+      };
+    }
+
+    if (record.lunch_start && !record.lunch_end) {
+      return {
+        status: 'lunch_break',
+        label: 'Almoço',
+        color: 'yellow'
+      };
+    }
+
+    return {
+      status: 'working',
+      label: 'Trabalhando',
+      color: 'green'
+    };
+  }, []);
+
   // Função extremamente otimizada para buscar dados
   const fetchDashboardData = useCallback(async (): Promise<DashboardData> => {
     const now = new Date();
@@ -60,7 +102,17 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
     const currentYear = now.getFullYear();
     const startOfMonth = `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`;
     const endOfMonth = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
-    const today = new Date().toISOString().split('T')[0];
+    
+    // ✅ CORREÇÃO 3: Usar função externa
+    const today = getTodayLocalDate();
+
+    // ✅ CORREÇÃO 4: Adicionar debug log
+    console.log('🔍 DEBUG Dashboard:', {
+      now: now.toString(),
+      today,
+      utcToday: new Date().toISOString().split('T')[0],
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
 
     // ✨ NOVO: Buscar dados atualizados dos funcionários do banco (igual PayrollReport)
     const employeeIds = employees.map(emp => emp.id);
@@ -87,6 +139,13 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       .eq('date', today);
 
     if (todayError) throw todayError;
+
+    // ✅ CORREÇÃO 5: Adicionar debug para dados de hoje
+    console.log('🔍 DEBUG Dados de hoje:', {
+      today,
+      todayDataCount: todayData?.length || 0,
+      todayData: todayData
+    });
 
     // ✨ ALTERAÇÃO: Usar dados do banco e cálculos iguais aos outros arquivos
 
@@ -144,7 +203,7 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       todayData?.map(record => [record.user_id, record]) || []
     );
 
-    // Filtrar apenas funcionários (não admins) e processar status (sem alteração)
+    // Filtrar apenas funcionários (não admins) e processar status
     const employeeStatuses: EmployeeStatus[] = employees
       .filter(emp => emp.role === 'user')
       .map(employee => {
@@ -168,55 +227,22 @@ const OptimizedAdminDashboard: React.FC<AdminDashboardProps> = ({ employees }) =
       totalEarnings: grandTotalEarnings,
       employeeStatuses
     };
-  }, [employees]); // Dependência 'employees' é importante aqui
+  }, [employees, getEmployeeStatus]); // ✅ CORREÇÃO 6: Adicionar getEmployeeStatus nas dependências
 
-  // Query otimizada com cache inteligente (sem alteração)
+  // ✅ CORREÇÃO 7: Query otimizada CORRIGIDA
   const {
     data: dashboardData,
     isLoading,
     error
   } = useQuery({
-    queryKey: ['dashboard-data', employees.length],
+    queryKey: ['dashboard-data', employees.length, getTodayLocalDate()], // ✅ Inclui data
     queryFn: fetchDashboardData,
-    staleTime: 15 * 60 * 1000, // Aumentado para 15 minutos
-    refetchInterval: false, // Removido refetch automático
-    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // ✅ Reduzido para 5 minutos
+    refetchInterval: 2 * 60 * 1000, // ✅ Refetch a cada 2 minutos
+    refetchOnWindowFocus: true, // ✅ Refetch no foco
     enabled: employees.length > 0,
     retry: 1
   });
-
-  // Função memoizada para status (sem alteração)
-  const getEmployeeStatus = useCallback((record: any): { status: string; label: string; color: string } => {
-    if (!record?.clock_in) {
-      return {
-        status: 'not_working',
-        label: 'Não iniciou',
-        color: 'red'
-      };
-    }
-
-    if (record.clock_out) {
-      return {
-        status: 'day_finished',
-        label: 'Finalizou',
-        color: 'blue'
-      };
-    }
-
-    if (record.lunch_start && !record.lunch_end) {
-      return {
-        status: 'lunch_break',
-        label: 'Almoço',
-        color: 'yellow'
-      };
-    }
-
-    return {
-      status: 'working',
-      label: 'Trabalhando',
-      color: 'green'
-    };
-  }, []);
 
   // Funções memoizadas para classes CSS (sem alteração)
   const getStatusColorClasses = useCallback((color: string) => {
