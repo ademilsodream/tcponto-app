@@ -683,7 +683,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   }, [expandedData, percentageConfig, allowedLocations]);
 
 
-  // ✅ CORREÇÃO 5: locationGroupedData atualizado
+  // ✅ CORREÇÃO 5: locationGroupedData - APENAS localizações com dados
   const locationGroupedData = useMemo(() => {
     const grouped = new Map<string, Array<{
       employeeName: string;
@@ -691,10 +691,8 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       totalValue: number;
     }>>();
 
-    // Inicializar com todas as allowed_locations
-    allowedLocations.forEach(location => {
-      grouped.set(location.name, []);
-    });
+    // ✨ ALTERAÇÃO: NÃO inicializar com allowed_locations vazias
+    // Apenas adicionar localizações que realmente têm dados
 
     // Adicionar dados reais
     expandedData.forEach(row => {
@@ -715,7 +713,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     return grouped;
-  }, [expandedData, allowedLocations]);
+  }, [expandedData]); // ✨ REMOVIDO: allowedLocations da dependência
 
 
   // ✨ NOVO: Aplicar porcentagem
@@ -1092,57 +1090,40 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      {/* ✅ CORREÇÃO 6: Renderização atualizada para mostrar localizações sem dados */}
+                      {/* ✅ CORREÇÃO 6: Renderização APENAS de localizações com dados */}
                       {Array.from(locationGroupedData.entries())
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([locationName, employees]) => {
                           const locationTotal = locationSummary.find(s => s.locationName === locationName);
                           const percentage = percentageConfig[locationName] || 0;
                           const finalValue = locationTotal ? locationTotal.totalValueWithPercentage : 0;
-                          const hasData = employees.length > 0;
                           
                           return (
-                            <div key={locationName} className={`border rounded-lg p-4 ${hasData ? 'bg-gray-50' : 'bg-gray-25 border-dashed'}`}>
-                              <h3 className={`font-bold text-lg mb-3 border-b border-gray-300 pb-2 ${hasData ? 'text-gray-800' : 'text-gray-500'}`}>
+                            <div key={locationName} className="border rounded-lg p-4 bg-gray-50">
+                              <h3 className="font-bold text-lg mb-3 border-b border-gray-300 pb-2 text-gray-800">
                                 {locationName}
-                                {!hasData && <span className="text-sm font-normal text-gray-400 ml-2">(sem dados no período)</span>}
                               </h3>
                               
-                              {hasData ? (
-                                <>
-                                  {/* ✨ ESPECÍFICO: Arredondamento para cima APENAS no Total por Localização */}
-                                  <div className="space-y-1 mb-3">
-                                    {employees.map((employee, index) => (
-                                      <div key={`${employee.employeeName}-${index}`} className="text-sm">
-                                        <span className="font-medium">{employee.employeeName}</span>
-                                        <span className="text-gray-600"> - {roundHoursUp(employee.totalHours)}h</span>
-                                      </div>
-                                    ))}
+                              {/* ✨ ESPECÍFICO: Arredondamento para cima APENAS no Total por Localização */}
+                              <div className="space-y-1 mb-3">
+                                {employees.map((employee, index) => (
+                                  <div key={`${employee.employeeName}-${index}`} className="text-sm">
+                                    <span className="font-medium">{employee.employeeName}</span>
+                                    <span className="text-gray-600"> - {roundHoursUp(employee.totalHours)}h</span>
                                   </div>
-                                  
-                                  <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
-                                    <div className="text-lg font-bold text-blue-600">
-                                      Total = {formatCurrency(finalValue)}
-                                    </div>
-                                    {percentage > 0 && (
-                                      <div className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                        +{percentage}% aplicado
-                                      </div>
-                                    )}
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="text-center py-4">
-                                  <p className="text-sm text-gray-500">
-                                    Nenhum registro de ponto encontrado para esta localização no período selecionado.
-                                  </p>
-                                  {percentage > 0 && (
-                                    <div className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full mt-2 inline-block">
-                                      +{percentage}% configurado
-                                    </div>
-                                  )}
+                                ))}
+                              </div>
+                              
+                              <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
+                                <div className="text-lg font-bold text-blue-600">
+                                  Total = {formatCurrency(finalValue)}
                                 </div>
-                              )}
+                                {percentage > 0 && (
+                                  <div className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                    +{percentage}% aplicado
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
