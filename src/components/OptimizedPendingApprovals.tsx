@@ -524,38 +524,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
             if (retryError) {
               console.error('❌ TENTATIVA 2 falhou:', retryError);
-              
-              if (retryError.message.includes('hour_bank_transactions')) {
-                console.log('🔄 TENTATIVA 3: Usar função RPC para forçar inserção...');
-                
-                // TENTATIVA 3: Usar RPC se disponível ou inserção via SQL direto
-                try {
-                  const { data: rpcResult, error: rpcError } = await supabase
-                    .rpc('force_insert_time_record', {
-                      p_user_id: group.employeeId,
-                      p_date: group.date,
-                      p_clock_in: updateData.clock_in,
-                      p_lunch_start: updateData.lunch_start,
-                      p_lunch_end: updateData.lunch_end,
-                      p_clock_out: updateData.clock_out,
-                      p_locations: updateData.locations
-                    });
-
-                  if (rpcError) {
-                    console.error('❌ RPC falhou:', rpcError);
-                    throw retryError; // Usar erro da tentativa 2
-                  }
-
-                  console.log('✅ RPC inserção bem-sucedida:', rpcResult);
-                  newRecord = { id: rpcResult };
-                  insertError = null;
-                } catch (rpcFinalError) {
-                  console.error('❌ RPC não disponível, falhando com erro original');
-                  throw retryError;
-                }
-              } else {
-                throw retryError;
-              }
+              console.error('💀 TODAS AS TENTATIVAS FALHARAM');
+              throw retryError;
             } else {
               console.log('✅ TENTATIVA 2 bem-sucedida:', retryRecord);
               newRecord = retryRecord;
