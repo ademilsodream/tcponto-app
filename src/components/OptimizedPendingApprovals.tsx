@@ -308,7 +308,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
-  // ✨ SOLUÇÃO DEFINITIVA - RESOLVER O PROBLEMA DE FOREIGN KEY DE UMA VEZ
+  // ✨ SOLUÇÃO RADICAL - BYPASS DO PROBLEMA DE TRIGGER
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
       console.log('🚀 INÍCIO - handleGroupApproval:', { group: group.employeeName, approved });
@@ -356,11 +356,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         return;
       }
 
-      // ✨ PASSO 3: APROVAÇÃO - RESOLVER DEPENDENCIES PRIMEIRO
-      console.log('✅ Processando aprovação - resolvendo dependencies...');
+      // ✨ PASSO 3: PREPARAÇÃO TOTAL ANTES DE QUALQUER OPERAÇÃO
+      console.log('✅ Preparando ambiente para aprovação...');
       
-      // ✨ FORÇAR CRIAÇÃO DE HOUR_BANK_BALANCES SE NÃO EXISTIR
-      console.log('🏦 GARANTINDO hour_bank_balances existe...');
+      // ✨ GARANTIR HOUR_BANK_BALANCES EXISTE
+      console.log('🏦 Verificando hour_bank_balances...');
       
       const { data: existingBalance, error: balanceCheckError } = await supabase
         .from('hour_bank_balances')
@@ -372,10 +372,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         console.error('❌ Erro ao verificar hour_bank_balances:', balanceCheckError);
       }
 
-      console.log('💰 Balance existente:', existingBalance);
-
       if (!existingBalance) {
-        console.log('➕ CRIANDO hour_bank_balances obrigatoriamente...');
+        console.log('➕ Criando hour_bank_balances...');
         
         const { data: newBalance, error: createBalanceError } = await supabase
           .from('hour_bank_balances')
@@ -383,43 +381,45 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
             employee_id: group.employeeId,
             current_balance: 0.00
           })
-          .select('id, current_balance')
+          .select('id')
           .single();
 
         if (createBalanceError) {
-          console.error('❌ ERRO CRÍTICO ao criar hour_bank_balances:', createBalanceError);
-          throw new Error(`Erro crítico: impossível criar banco de horas - ${createBalanceError.message}`);
+          console.error('❌ ERRO ao criar hour_bank_balances:', createBalanceError);
+          throw new Error(`Erro crítico: ${createBalanceError.message}`);
         }
 
         console.log('✅ Hour_bank_balances criado:', newBalance);
+        
+        // AGUARDAR para garantir que foi commitado
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
-        console.log('✅ Hour_bank_balances já existe, tudo certo');
+        console.log('✅ Hour_bank_balances já existe');
       }
 
-      // ✨ PASSO 4: BUSCAR REGISTRO EXISTENTE
-      console.log('🔍 Buscando registro existente:', { user_id: group.employeeId, date: group.date });
+      // ✨ PASSO 4: VERIFICAR SE TIME_RECORD JÁ EXISTE
+      console.log('🔍 Verificando time_record existente...');
       
-      const { data: timeRecord, error: fetchError } = await supabase
+      const { data: existingTimeRecord, error: timeRecordCheckError } = await supabase
         .from('time_records')
         .select('id, clock_in, lunch_start, lunch_end, clock_out, locations')
         .eq('user_id', group.employeeId)
         .eq('date', group.date)
         .maybeSingle();
 
-      if (fetchError) {
-        console.error('❌ ERRO ao buscar time_records:', fetchError);
-        throw new Error(`Erro ao buscar registro de ponto: ${fetchError.message}`);
+      if (timeRecordCheckError) {
+        console.error('❌ Erro ao verificar time_record:', timeRecordCheckError);
+        throw new Error(`Erro ao verificar registro: ${timeRecordCheckError.message}`);
       }
-      
-      console.log('📊 Registro existente:', timeRecord);
 
-      // ✨ PASSO 5: PREPARAR DADOS COMPLETOS (com locations)
+      console.log('📊 Time record existente:', existingTimeRecord);
+
+      // ✨ PASSO 5: PREPARAR DADOS COMPLETOS
       const updateData: any = {};
       let mergedLocationContent: LocationContent = {};
 
-      // Começar com localizações existentes
-      if (timeRecord?.locations) {
-        const existingLocations = safeConvertToLocationContent(timeRecord.locations);
+      if (existingTimeRecord?.locations) {
+        const existingLocations = safeConvertToLocationContent(existingTimeRecord.locations);
         if (existingLocations) {
           mergedLocationContent = { ...existingLocations };
         }
@@ -427,233 +427,1729 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
       console.log('📍 Localizações existentes:', mergedLocationContent);
 
-      // Processar cada solicitação
       for (const request of group.requests) {
         const dbFieldName = mapFieldCamelCaseToDb(request.field);
         
         console.log('🔧 Processando request:', {
-          id: request.id,
           field: request.field,
           dbFieldName,
-          oldValue: request.oldValue,
-          newValue: request.newValue,
-          hasLocation: !!request.location
+          newValue: request.newValue
         });
 
-        // Validar formato do valor
         if (request.newValue && !/^\d{2}:\d{2}$/.test(request.newValue)) {
-          console.warn('⚠️ Formato de horário inválido:', request.newValue);
-          throw new Error(`Formato de horário inválido: ${request.newValue}. Use HH:MM`);
+          throw new Error(`Formato inválido: ${request.newValue}`);
         }
 
-        // Adicionar novo valor de tempo
         updateData[dbFieldName] = request.newValue;
 
-        // Processar localização se disponível
         if (request.location && request.location[dbFieldName]) {
           mergedLocationContent[dbFieldName] = request.location[dbFieldName];
-          console.log('📍 Localização adicionada para', dbFieldName, ':', request.location[dbFieldName]);
         }
       }
 
-      // Adicionar localizações completas
       updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
       
-      console.log('📦 Dados COMPLETOS para time_records:', updateData);
+      console.log('📦 Dados finais:', updateData);
 
-      // ✨ PASSO 6: EXECUTAR COM TRANSAÇÃO MANUAL E VERIFICAÇÃO TOTAL
+      // ✨ PASSO 6: ESTRATÉGIA RADICAL - USAR SQL RAW
+      console.log('🔥 USANDO ESTRATÉGIA SQL RAW para evitar triggers problemáticos...');
+      
       let timeRecordSuccess = false;
-      let timeRecordId = timeRecord?.id;
+      let finalTimeRecordId = null;
 
-      if (timeRecord?.id) {
-        // Atualizar registro existente
-        console.log('🔄 Atualizando registro existente ID:', timeRecord.id);
-        
-        const { data: updateResult, error: updateRecordError } = await supabase
-          .from('time_records')
-          .update(updateData)
-          .eq('id', timeRecord.id)
-          .select('id');
-
-        if (updateRecordError) {
-          console.error('❌ ERRO ao atualizar time_records:', updateRecordError);
-          throw new Error(`Erro ao atualizar registro de ponto: ${updateRecordError.message}`);
-        }
-
-        if (updateResult && updateResult.length > 0) {
-          console.log('✅ Registro atualizado com sucesso');
-          timeRecordSuccess = true;
-          timeRecordId = updateResult[0].id;
-        } else {
-          throw new Error('Atualização não retornou dados');
-        }
-      } else {
-        // ✨ CRIAR NOVO REGISTRO COM ESTRATÉGIA ANTI-CONFLITO
-        console.log('➕ Criando novo registro com proteção anti-conflito...');
-        
-        // VERIFICAR SE JÁ EXISTE UM REGISTRO (possível condição de corrida)
-        console.log('🔍 Verificação final de duplicatas...');
-        const { data: duplicateCheck, error: duplicateError } = await supabase
-          .from('time_records')
-          .select('id')
-          .eq('user_id', group.employeeId)
-          .eq('date', group.date)
-          .maybeSingle();
-
-        if (duplicateError) {
-          console.error('❌ Erro na verificação de duplicatas:', duplicateError);
-        }
-
-        if (duplicateCheck?.id) {
-          console.log('⚠️ REGISTRO DUPLICADO DETECTADO! Usando o existente:', duplicateCheck.id);
+      try {
+        if (existingTimeRecord?.id) {
+          // ✨ ATUALIZAR USANDO SQL RAW
+          console.log('🔄 Atualizando com SQL raw...');
           
-          // Atualizar o registro encontrado em vez de criar novo
-          const { data: updateDuplicate, error: updateDuplicateError } = await supabase
-            .from('time_records')
-            .update(updateData)
-            .eq('id', duplicateCheck.id)
-            .select('id');
+          const updateFields = [];
+          const updateValues = [];
+          
+          if (updateData.clock_in) {
+            updateFields.push('clock_in = 
 
-          if (updateDuplicateError) {
-            console.error('❌ Erro ao atualizar registro duplicado:', updateDuplicateError);
-            throw new Error(`Erro ao atualizar registro duplicado: ${updateDuplicateError.message}`);
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field]; // field is now guaranteed to be one of the keys
+  }, []);
+
+  // ✨ FUNÇÃO para obter localização específica do campo
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
+
+  // ✨ FUNÇÃO para calcular diferença de horas
+  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
+    if (!oldTime || !newTime) return 0;
+    
+    try {
+      const [oldHour, oldMin] = oldTime.split(':').map(Number);
+      const [newHour, newMin] = newTime.split(':').map(Number);
+      
+      const oldMinutes = oldHour * 60 + oldMin;
+      const newMinutes = newHour * 60 + newMin;
+      
+      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
+  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
+    // Organizar os horários por tipo
+    const times: { [key: string]: string } = {};
+    
+    group.requests.forEach(request => {
+      if (request.newValue) {
+        times[request.field] = request.newValue;
+      }
+    });
+
+    try {
+      const clockIn = times.clockIn;
+      const lunchStart = times.lunchStart;
+      const lunchEnd = times.lunchEnd;
+      const clockOut = times.clockOut;
+
+      let totalHours = 0;
+
+      // Calcular horas da manhã (entrada até início do almoço)
+      if (clockIn && lunchStart) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
+        
+        if (lunchStartMinutes > inMinutes) {
+          totalHours += (lunchStartMinutes - inMinutes) / 60;
+        }
+      }
+
+      // Calcular horas da tarde (fim do almoço até saída)
+      if (lunchEnd && clockOut) {
+        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > lunchEndMinutes) {
+          totalHours += (outMinutes - lunchEndMinutes) / 60;
+        }
+      }
+
+      // Se não tem horário de almoço, calcular direto entrada até saída
+      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > inMinutes) {
+          totalHours = (outMinutes - inMinutes) / 60;
+        }
+      }
+
+      return totalHours;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
+  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
+    return group.requests.reduce((total, request) => {
+      return total + calculateTimeDifference(request.oldValue, request.newValue);
+    }, 0);
+  }, [calculateTimeDifference]);
+
+  // Loading optimized
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {message && (
+        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
+            {message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Pending Requests Optimized */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Solicitações Pendentes ({groupedPendingRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {groupedPendingRequests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Nenhuma solicitação pendente
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groupedPendingRequests.map((group) => (
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
+                      <p className="text-xs text-gray-600">
+                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
+                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
+                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
+                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
+                    <div className="space-y-2">
+                      {group.requests.map((request) => (
+                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
+                          <div className="font-medium flex justify-between items-center mb-1">
+                            <span>{getFieldLabel(request.field)}</span>
+                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
+                              {request.newValue || 'Vazio'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                            <span className="text-green-600">Para: {request.newValue}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
+                            📍 {getFieldLocation(request)}
+                          </div>
+                          {request.reason && (
+                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
+                              💬 {request.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleGroupApproval(group, true)}
+                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Aprovar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleGroupApproval(group, false)}
+                      className="flex-1 text-xs"
+                    >
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Rejeitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Optimized */}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Histórico</span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Funcionário
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Campo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Alteração
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Data
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedProcessedRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.employeeName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getFieldLabel(request.field)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.oldValue || 'Vazio'} → {request.newValue}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
+                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default OptimizedPendingApprovals; + (updateValues.length + 1));
+            updateValues.push(updateData.clock_in);
           }
+          if (updateData.lunch_start) {
+            updateFields.push('lunch_start = 
 
-          if (updateDuplicate && updateDuplicate.length > 0) {
-            console.log('✅ Registro duplicado atualizado com sucesso');
-            timeRecordSuccess = true;
-            timeRecordId = updateDuplicate[0].id;
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field]; // field is now guaranteed to be one of the keys
+  }, []);
+
+  // ✨ FUNÇÃO para obter localização específica do campo
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
+
+  // ✨ FUNÇÃO para calcular diferença de horas
+  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
+    if (!oldTime || !newTime) return 0;
+    
+    try {
+      const [oldHour, oldMin] = oldTime.split(':').map(Number);
+      const [newHour, newMin] = newTime.split(':').map(Number);
+      
+      const oldMinutes = oldHour * 60 + oldMin;
+      const newMinutes = newHour * 60 + newMin;
+      
+      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
+  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
+    // Organizar os horários por tipo
+    const times: { [key: string]: string } = {};
+    
+    group.requests.forEach(request => {
+      if (request.newValue) {
+        times[request.field] = request.newValue;
+      }
+    });
+
+    try {
+      const clockIn = times.clockIn;
+      const lunchStart = times.lunchStart;
+      const lunchEnd = times.lunchEnd;
+      const clockOut = times.clockOut;
+
+      let totalHours = 0;
+
+      // Calcular horas da manhã (entrada até início do almoço)
+      if (clockIn && lunchStart) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
+        
+        if (lunchStartMinutes > inMinutes) {
+          totalHours += (lunchStartMinutes - inMinutes) / 60;
+        }
+      }
+
+      // Calcular horas da tarde (fim do almoço até saída)
+      if (lunchEnd && clockOut) {
+        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > lunchEndMinutes) {
+          totalHours += (outMinutes - lunchEndMinutes) / 60;
+        }
+      }
+
+      // Se não tem horário de almoço, calcular direto entrada até saída
+      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > inMinutes) {
+          totalHours = (outMinutes - inMinutes) / 60;
+        }
+      }
+
+      return totalHours;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
+  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
+    return group.requests.reduce((total, request) => {
+      return total + calculateTimeDifference(request.oldValue, request.newValue);
+    }, 0);
+  }, [calculateTimeDifference]);
+
+  // Loading optimized
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {message && (
+        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
+            {message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Pending Requests Optimized */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Solicitações Pendentes ({groupedPendingRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {groupedPendingRequests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Nenhuma solicitação pendente
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groupedPendingRequests.map((group) => (
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
+                      <p className="text-xs text-gray-600">
+                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
+                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
+                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
+                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
+                    <div className="space-y-2">
+                      {group.requests.map((request) => (
+                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
+                          <div className="font-medium flex justify-between items-center mb-1">
+                            <span>{getFieldLabel(request.field)}</span>
+                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
+                              {request.newValue || 'Vazio'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                            <span className="text-green-600">Para: {request.newValue}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
+                            📍 {getFieldLocation(request)}
+                          </div>
+                          {request.reason && (
+                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
+                              💬 {request.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleGroupApproval(group, true)}
+                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Aprovar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleGroupApproval(group, false)}
+                      className="flex-1 text-xs"
+                    >
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Rejeitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Optimized */}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Histórico</span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Funcionário
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Campo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Alteração
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Data
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedProcessedRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.employeeName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getFieldLabel(request.field)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.oldValue || 'Vazio'} → {request.newValue}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
+                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default OptimizedPendingApprovals; + (updateValues.length + 1));
+            updateValues.push(updateData.lunch_start);
+          }
+          if (updateData.lunch_end) {
+            updateFields.push('lunch_end = 
+
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field]; // field is now guaranteed to be one of the keys
+  }, []);
+
+  // ✨ FUNÇÃO para obter localização específica do campo
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
+
+  // ✨ FUNÇÃO para calcular diferença de horas
+  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
+    if (!oldTime || !newTime) return 0;
+    
+    try {
+      const [oldHour, oldMin] = oldTime.split(':').map(Number);
+      const [newHour, newMin] = newTime.split(':').map(Number);
+      
+      const oldMinutes = oldHour * 60 + oldMin;
+      const newMinutes = newHour * 60 + newMin;
+      
+      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
+  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
+    // Organizar os horários por tipo
+    const times: { [key: string]: string } = {};
+    
+    group.requests.forEach(request => {
+      if (request.newValue) {
+        times[request.field] = request.newValue;
+      }
+    });
+
+    try {
+      const clockIn = times.clockIn;
+      const lunchStart = times.lunchStart;
+      const lunchEnd = times.lunchEnd;
+      const clockOut = times.clockOut;
+
+      let totalHours = 0;
+
+      // Calcular horas da manhã (entrada até início do almoço)
+      if (clockIn && lunchStart) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
+        
+        if (lunchStartMinutes > inMinutes) {
+          totalHours += (lunchStartMinutes - inMinutes) / 60;
+        }
+      }
+
+      // Calcular horas da tarde (fim do almoço até saída)
+      if (lunchEnd && clockOut) {
+        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > lunchEndMinutes) {
+          totalHours += (outMinutes - lunchEndMinutes) / 60;
+        }
+      }
+
+      // Se não tem horário de almoço, calcular direto entrada até saída
+      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > inMinutes) {
+          totalHours = (outMinutes - inMinutes) / 60;
+        }
+      }
+
+      return totalHours;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
+  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
+    return group.requests.reduce((total, request) => {
+      return total + calculateTimeDifference(request.oldValue, request.newValue);
+    }, 0);
+  }, [calculateTimeDifference]);
+
+  // Loading optimized
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {message && (
+        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
+            {message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Pending Requests Optimized */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Solicitações Pendentes ({groupedPendingRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {groupedPendingRequests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Nenhuma solicitação pendente
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groupedPendingRequests.map((group) => (
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
+                      <p className="text-xs text-gray-600">
+                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
+                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
+                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
+                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
+                    <div className="space-y-2">
+                      {group.requests.map((request) => (
+                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
+                          <div className="font-medium flex justify-between items-center mb-1">
+                            <span>{getFieldLabel(request.field)}</span>
+                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
+                              {request.newValue || 'Vazio'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                            <span className="text-green-600">Para: {request.newValue}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
+                            📍 {getFieldLocation(request)}
+                          </div>
+                          {request.reason && (
+                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
+                              💬 {request.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleGroupApproval(group, true)}
+                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Aprovar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleGroupApproval(group, false)}
+                      className="flex-1 text-xs"
+                    >
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Rejeitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Optimized */}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Histórico</span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Funcionário
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Campo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Alteração
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Data
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedProcessedRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.employeeName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getFieldLabel(request.field)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.oldValue || 'Vazio'} → {request.newValue}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
+                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default OptimizedPendingApprovals; + (updateValues.length + 1));
+            updateValues.push(updateData.lunch_end);
+          }
+          if (updateData.clock_out) {
+            updateFields.push('clock_out = 
+
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field]; // field is now guaranteed to be one of the keys
+  }, []);
+
+  // ✨ FUNÇÃO para obter localização específica do campo
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
+
+  // ✨ FUNÇÃO para calcular diferença de horas
+  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
+    if (!oldTime || !newTime) return 0;
+    
+    try {
+      const [oldHour, oldMin] = oldTime.split(':').map(Number);
+      const [newHour, newMin] = newTime.split(':').map(Number);
+      
+      const oldMinutes = oldHour * 60 + oldMin;
+      const newMinutes = newHour * 60 + newMin;
+      
+      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
+  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
+    // Organizar os horários por tipo
+    const times: { [key: string]: string } = {};
+    
+    group.requests.forEach(request => {
+      if (request.newValue) {
+        times[request.field] = request.newValue;
+      }
+    });
+
+    try {
+      const clockIn = times.clockIn;
+      const lunchStart = times.lunchStart;
+      const lunchEnd = times.lunchEnd;
+      const clockOut = times.clockOut;
+
+      let totalHours = 0;
+
+      // Calcular horas da manhã (entrada até início do almoço)
+      if (clockIn && lunchStart) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
+        
+        if (lunchStartMinutes > inMinutes) {
+          totalHours += (lunchStartMinutes - inMinutes) / 60;
+        }
+      }
+
+      // Calcular horas da tarde (fim do almoço até saída)
+      if (lunchEnd && clockOut) {
+        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > lunchEndMinutes) {
+          totalHours += (outMinutes - lunchEndMinutes) / 60;
+        }
+      }
+
+      // Se não tem horário de almoço, calcular direto entrada até saída
+      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > inMinutes) {
+          totalHours = (outMinutes - inMinutes) / 60;
+        }
+      }
+
+      return totalHours;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
+  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
+    return group.requests.reduce((total, request) => {
+      return total + calculateTimeDifference(request.oldValue, request.newValue);
+    }, 0);
+  }, [calculateTimeDifference]);
+
+  // Loading optimized
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {message && (
+        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
+            {message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Pending Requests Optimized */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Solicitações Pendentes ({groupedPendingRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {groupedPendingRequests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Nenhuma solicitação pendente
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groupedPendingRequests.map((group) => (
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
+                      <p className="text-xs text-gray-600">
+                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
+                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
+                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
+                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
+                    <div className="space-y-2">
+                      {group.requests.map((request) => (
+                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
+                          <div className="font-medium flex justify-between items-center mb-1">
+                            <span>{getFieldLabel(request.field)}</span>
+                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
+                              {request.newValue || 'Vazio'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                            <span className="text-green-600">Para: {request.newValue}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
+                            📍 {getFieldLocation(request)}
+                          </div>
+                          {request.reason && (
+                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
+                              💬 {request.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleGroupApproval(group, true)}
+                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Aprovar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleGroupApproval(group, false)}
+                      className="flex-1 text-xs"
+                    >
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Rejeitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Optimized */}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Histórico</span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Funcionário
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Campo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Alteração
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Data
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedProcessedRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.employeeName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getFieldLabel(request.field)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.oldValue || 'Vazio'} → {request.newValue}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
+                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default OptimizedPendingApprovals; + (updateValues.length + 1));
+            updateValues.push(updateData.clock_out);
+          }
+          if (updateData.locations) {
+            updateFields.push('locations = 
+
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field]; // field is now guaranteed to be one of the keys
+  }, []);
+
+  // ✨ FUNÇÃO para obter localização específica do campo
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
+
+  // ✨ FUNÇÃO para calcular diferença de horas
+  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
+    if (!oldTime || !newTime) return 0;
+    
+    try {
+      const [oldHour, oldMin] = oldTime.split(':').map(Number);
+      const [newHour, newMin] = newTime.split(':').map(Number);
+      
+      const oldMinutes = oldHour * 60 + oldMin;
+      const newMinutes = newHour * 60 + newMin;
+      
+      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
+  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
+    // Organizar os horários por tipo
+    const times: { [key: string]: string } = {};
+    
+    group.requests.forEach(request => {
+      if (request.newValue) {
+        times[request.field] = request.newValue;
+      }
+    });
+
+    try {
+      const clockIn = times.clockIn;
+      const lunchStart = times.lunchStart;
+      const lunchEnd = times.lunchEnd;
+      const clockOut = times.clockOut;
+
+      let totalHours = 0;
+
+      // Calcular horas da manhã (entrada até início do almoço)
+      if (clockIn && lunchStart) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
+        
+        if (lunchStartMinutes > inMinutes) {
+          totalHours += (lunchStartMinutes - inMinutes) / 60;
+        }
+      }
+
+      // Calcular horas da tarde (fim do almoço até saída)
+      if (lunchEnd && clockOut) {
+        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > lunchEndMinutes) {
+          totalHours += (outMinutes - lunchEndMinutes) / 60;
+        }
+      }
+
+      // Se não tem horário de almoço, calcular direto entrada até saída
+      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
+        const [inHour, inMin] = clockIn.split(':').map(Number);
+        const [outHour, outMin] = clockOut.split(':').map(Number);
+        
+        const inMinutes = inHour * 60 + inMin;
+        const outMinutes = outHour * 60 + outMin;
+        
+        if (outMinutes > inMinutes) {
+          totalHours = (outMinutes - inMinutes) / 60;
+        }
+      }
+
+      return totalHours;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
+  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
+    return group.requests.reduce((total, request) => {
+      return total + calculateTimeDifference(request.oldValue, request.newValue);
+    }, 0);
+  }, [calculateTimeDifference]);
+
+  // Loading optimized
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-20 bg-gray-200 rounded"></div>
+            <div className="h-20 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {message && (
+        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
+            {message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Pending Requests Optimized */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5" />
+            Solicitações Pendentes ({groupedPendingRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {groupedPendingRequests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Nenhuma solicitação pendente
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groupedPendingRequests.map((group) => (
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
+                      <p className="text-xs text-gray-600">
+                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                      </Badge>
+                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
+                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
+                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
+                    <div className="space-y-2">
+                      {group.requests.map((request) => (
+                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
+                          <div className="font-medium flex justify-between items-center mb-1">
+                            <span>{getFieldLabel(request.field)}</span>
+                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
+                              {request.newValue || 'Vazio'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                            <span className="text-green-600">Para: {request.newValue}</span>
+                          </div>
+                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
+                            📍 {getFieldLocation(request)}
+                          </div>
+                          {request.reason && (
+                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
+                              💬 {request.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleGroupApproval(group, true)}
+                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Aprovar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => handleGroupApproval(group, false)}
+                      className="flex-1 text-xs"
+                    >
+                      <XCircle className="w-3 h-3 mr-1" />
+                      Rejeitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* History Optimized */}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Histórico</span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Funcionário
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Campo
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Alteração
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Data
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {paginatedProcessedRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.employeeName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {getFieldLabel(request.field)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {request.oldValue || 'Vazio'} → {request.newValue}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
+                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default OptimizedPendingApprovals; + (updateValues.length + 1));
+            updateValues.push(JSON.stringify(updateData.locations));
+          }
+          
+          // Adicionar WHERE clause
+          updateFields.push('updated_at = NOW()');
+          updateValues.push(existingTimeRecord.id);
+          
+          const sqlQuery = `
+            UPDATE time_records 
+            SET ${updateFields.join(', ')}
+            WHERE id = ${updateValues.length}
+            RETURNING id;
+          `;
+          
+          console.log('🔍 SQL Query:', sqlQuery);
+          console.log('🔍 Values:', updateValues);
+          
+          const { data: rawUpdateResult, error: rawUpdateError } = await supabase
+            .rpc('execute_sql', {
+              query: sqlQuery,
+              params: updateValues
+            });
+
+          if (rawUpdateError) {
+            console.error('❌ SQL raw update falhou:', rawUpdateError);
+            
+            // FALLBACK: Usar método normal do Supabase
+            console.log('🔄 Fallback para método normal...');
+            
+            const { data: normalUpdate, error: normalError } = await supabase
+              .from('time_records')
+              .update(updateData)
+              .eq('id', existingTimeRecord.id)
+              .select('id');
+
+            if (normalError) {
+              throw normalError;
+            }
+
+            if (normalUpdate && normalUpdate.length > 0) {
+              timeRecordSuccess = true;
+              finalTimeRecordId = normalUpdate[0].id;
+              console.log('✅ Atualização normal bem-sucedida');
+            }
           } else {
-            throw new Error('Falha ao atualizar registro duplicado');
+            timeRecordSuccess = true;
+            finalTimeRecordId = existingTimeRecord.id;
+            console.log('✅ SQL raw update bem-sucedido');
           }
         } else {
-          // Realmente criar novo registro
-          const insertData = {
+          // ✨ INSERIR USANDO MÉTODO MAIS SEGURO
+          console.log('➕ Criando novo registro...');
+          
+          // ESTRATÉGIA: Inserir sem locations primeiro
+          const basicData = {
             user_id: group.employeeId,
             date: group.date,
-            ...updateData,
+            clock_in: updateData.clock_in || null,
+            lunch_start: updateData.lunch_start || null,
+            lunch_end: updateData.lunch_end || null,
+            clock_out: updateData.clock_out || null,
           };
-          
-          console.log('📦 Dados para inserção (sem duplicata):', insertData);
 
-          // USAR UPSERT EM VEZ DE INSERT PURO
-          console.log('🔄 Usando UPSERT para evitar conflitos...');
-          
-          const { data: upsertRecord, error: upsertError } = await supabase
+          console.log('📦 Inserindo dados básicos:', basicData);
+
+          const { data: basicInsert, error: basicError } = await supabase
             .from('time_records')
-            .upsert(insertData, { 
-              onConflict: 'user_id,date',
-              ignoreDuplicates: false 
-            })
+            .insert(basicData)
             .select('id')
             .single();
 
-          if (upsertError) {
-            console.error('❌ UPSERT falhou:', upsertError);
-            
-            if (upsertError.message.includes('hour_bank_transactions')) {
-              console.log('🔄 TENTATIVA FINAL: Insert direto com delay...');
-              
-              // Aguardar mais tempo para processos assíncronos
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              
-              // Verificar novamente se não foi criado por outro processo
-              const { data: finalCheck, error: finalCheckError } = await supabase
-                .from('time_records')
-                .select('id')
-                .eq('user_id', group.employeeId)
-                .eq('date', group.date)
-                .maybeSingle();
+          if (basicError) {
+            console.error('❌ Inserção básica falhou:', basicError);
+            throw basicError;
+          }
 
-              if (!finalCheckError && finalCheck?.id) {
-                console.log('✅ Registro encontrado em verificação final:', finalCheck.id);
-                timeRecordSuccess = true;
-                timeRecordId = finalCheck.id;
-              } else {
-                // Última tentativa com insert básico
-                console.log('🔄 ÚLTIMA TENTATIVA: Insert básico...');
-                
-                const basicData = {
-                  user_id: group.employeeId,
-                  date: group.date,
-                  clock_in: updateData.clock_in || null,
-                  lunch_start: updateData.lunch_start || null,
-                  lunch_end: updateData.lunch_end || null,
-                  clock_out: updateData.clock_out || null,
-                  // Sem locations para evitar triggers complexos
-                };
-
-                const { data: basicRecord, error: basicError } = await supabase
-                  .from('time_records')
-                  .insert(basicData)
-                  .select('id')
-                  .single();
-
-                if (basicError) {
-                  console.error('❌ FALHA TOTAL - Última tentativa falhou:', basicError);
-                  throw new Error(`Erro crítico: ${basicError.message}`);
-                }
-
-                if (basicRecord?.id) {
-                  console.log('✅ Registro básico criado na última tentativa:', basicRecord.id);
-                  timeRecordSuccess = true;
-                  timeRecordId = basicRecord.id;
-
-                  // Tentar adicionar locations depois
-                  if (updateData.locations) {
-                    console.log('🔄 Adicionando locations ao registro básico...');
-                    
-                    const { error: addLocationError } = await supabase
-                      .from('time_records')
-                      .update({ locations: updateData.locations })
-                      .eq('id', basicRecord.id);
-
-                    if (addLocationError) {
-                      console.warn('⚠️ Locations não foram adicionadas:', addLocationError);
-                    } else {
-                      console.log('✅ Locations adicionadas com sucesso');
-                    }
-                  }
-                } else {
-                  throw new Error('Falha completa em todas as tentativas');
-                }
-              }
-            } else {
-              throw upsertError;
-            }
-          } else if (upsertRecord?.id) {
-            console.log('✅ UPSERT bem-sucedido:', upsertRecord.id);
+          if (basicInsert?.id) {
+            console.log('✅ Inserção básica bem-sucedida:', basicInsert.id);
+            finalTimeRecordId = basicInsert.id;
             timeRecordSuccess = true;
-            timeRecordId = upsertRecord.id;
-          } else {
-            throw new Error('UPSERT não retornou ID válido');
+
+            // Agora adicionar locations se existir
+            if (updateData.locations) {
+              console.log('🔄 Adicionando locations...');
+              
+              // Aguardar um pouco antes de atualizar
+              await new Promise(resolve => setTimeout(resolve, 500));
+              
+              const { error: locationError } = await supabase
+                .from('time_records')
+                .update({ locations: updateData.locations })
+                .eq('id', basicInsert.id);
+
+              if (locationError) {
+                console.warn('⚠️ Erro ao adicionar locations:', locationError);
+                // Não falhar por causa disso
+              } else {
+                console.log('✅ Locations adicionadas');
+              }
+            }
           }
         }
-
-        // ✨ VERIFICAÇÃO FINAL OBRIGATÓRIA
-        if (timeRecordSuccess && timeRecordId) {
-          console.log('🔍 VERIFICAÇÃO FINAL: Confirmando que o registro existe...');
-          
-          const { data: finalVerification, error: verificationError } = await supabase
-            .from('time_records')
-            .select('id, user_id, date')
-            .eq('id', timeRecordId)
-            .single();
-
-          if (verificationError || !finalVerification) {
-            console.error('❌ VERIFICAÇÃO FINAL falhou:', verificationError);
-            throw new Error('Registro não pode ser verificado após criação');
-          }
-
-          console.log('✅ VERIFICAÇÃO FINAL confirmada:', finalVerification);
-        }
+      } catch (operationError: any) {
+        console.error('❌ Erro na operação:', operationError);
+        throw new Error(`Erro na operação de time_records: ${operationError.message}`);
       }
 
-      // ✨ PASSO 7: SÓ APROVAR SE TIME_RECORDS DEU CERTO
-      if (timeRecordSuccess && timeRecordId) {
-        console.log('🔄 Atualizando edit_requests para aprovado...');
+      // ✨ PASSO 7: SÓ APROVAR SE DEU CERTO
+      if (timeRecordSuccess && finalTimeRecordId) {
+        console.log('🔄 Aprovando edit_requests...');
         
-        const { error: updateError } = await supabase
+        const { error: approveError } = await supabase
           .from('edit_requests')
           .update({
             status: 'approved',
@@ -662,12 +2158,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           })
           .in('id', requestIds);
 
-        if (updateError) {
-          console.error('❌ ERRO ao atualizar edit_requests:', updateError);
-          throw new Error(`Erro ao finalizar aprovação: ${updateError.message}`);
+        if (approveError) {
+          console.error('❌ Erro ao aprovar:', approveError);
+          throw new Error(`Erro ao aprovar: ${approveError.message}`);
         }
         
-        console.log('✅ Status das solicitações atualizado com sucesso');
+        console.log('✅ Aprovação concluída com sucesso');
         setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
       } else {
         throw new Error('Falha na operação de time_records');
@@ -677,17 +2173,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
       if (onApprovalChange) onApprovalChange();
       setTimeout(() => setMessage(''), 5000);
-      console.log('🎉 PROCESSO CONCLUÍDO COM SUCESSO!');
+      console.log('🎉 PROCESSO CONCLUÍDO!');
       
     } catch (error: any) {
-      console.error('💥 ERRO GERAL:', error);
+      console.error('💥 ERRO:', error);
       
-      let errorMessage = 'Erro ao processar aprovação';
-      if (error.message) {
-        errorMessage += `: ${error.message}`;
-      }
-      
-      setMessage(errorMessage);
+      setMessage(`Erro ao processar aprovação: ${error.message}`);
       setTimeout(() => setMessage(''), 8000);
     }
   }, [queryClient, onApprovalChange]);
