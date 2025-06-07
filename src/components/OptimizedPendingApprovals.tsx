@@ -310,30 +310,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     return 'N/A';
   }, []);
 
-  // Helper function to calculate working hours - DECLARADA APENAS UMA VEZ
-  const calculateWorkingHours = useCallback((timeRecord: any): string => {
-    if (!timeRecord.clock_in || !timeRecord.clock_out) {
-      return 'Incompleto';
-    }
-    
-    const clockIn = new Date(`${timeRecord.date}T${timeRecord.clock_in}`);
-    const clockOut = new Date(`${timeRecord.date}T${timeRecord.clock_out}`);
-    
-    let totalMinutes = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60);
-    
-    // Subtract lunch break if both lunch times are present
-    if (timeRecord.lunch_start && timeRecord.lunch_end) {
-      const lunchStart = new Date(`${timeRecord.date}T${timeRecord.lunch_start}`);
-      const lunchEnd = new Date(`${timeRecord.date}T${timeRecord.lunch_end}`);
-      const lunchMinutes = (lunchEnd.getTime() - lunchStart.getTime()) / (1000 * 60);
-      totalMinutes -= lunchMinutes;
-    }
-    
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = Math.round(totalMinutes % 60);
-    
-    return `${hours}h ${minutes}m`;
-  }, []);
+
 
   // Handler optimized with callback
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
@@ -522,23 +499,23 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
                   <div className="mb-3">
                     <h5 className="font-medium mb-2">Ajustes:</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                       {group.requests.map((request) => (
                         <div key={request.id} className="text-sm border rounded p-2 bg-white">
-                          <div className="font-medium">{getFieldLabel(request.field)}</div>
-                          <div className="flex justify-between text-xs mt-1">
+                          <div className="font-medium text-xs">{getFieldLabel(request.field)}</div>
+                          <div className="flex flex-col text-xs mt-1 space-y-1">
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
                           {/* Display location if available in the request */}
                           {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
                               <div className="text-xs text-gray-600 mt-1">
-                                Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
+                                📍 {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
                               </div>
                           )}
                           {request.reason && (
                             <div className="text-xs text-gray-600 mt-1">
-                              Motivo: {request.reason}
+                              💬 {request.reason}
                             </div>
                           )}
                         </div>
