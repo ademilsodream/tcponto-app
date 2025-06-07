@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, User, CalendarDays, Tag, Text, MapPin } from 'lucide-react'; // Added icons for details
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Json } from '@/types/supabase'; // Ensure this path and type are correct
+
 
 // Interface for the JSON location object saved within a field key (e.g., "clock_in": {...})
 interface LocationDetailsForEdit {
@@ -18,6 +19,7 @@ interface LocationDetailsForEdit {
   locationName: string;
 }
 
+
 // Interface for the expected structure *inside* the JSON column (whether it's named 'location' or 'locations')
 // Ex: { "clock_in": { ...LocationDetailsForEdit... } }
 interface LocationContent {
@@ -27,6 +29,7 @@ interface LocationContent {
   clock_out?: LocationDetailsForEdit;
   [key: string]: LocationDetailsForEdit | undefined; // Allow dynamic access
 }
+
 
 // Interface for the raw data directly from the Supabase 'edit_requests' table
 interface RawEditRequestData {
@@ -46,6 +49,7 @@ interface RawEditRequestData {
   location: Json | null; // Database column is named 'location', type is Json/JSONB
 }
 
+
 // Keep the EditRequest interface for mapped data used within the component
 // This uses camelCase and the desired union type for the 'field' value
 interface EditRequest {
@@ -63,6 +67,7 @@ interface EditRequest {
   location?: LocationContent | null;
 }
 
+
 // Interface for the raw data directly from the Supabase 'time_records' table
 interface RawTimeRecordData {
     id: string;
@@ -77,6 +82,7 @@ interface RawTimeRecordData {
     // Add other time_records columns as needed (e.g., created_at, updated_at, etc.)
 }
 
+
 interface GroupedRequest {
   employeeId: string;
   employeeName: string;
@@ -84,6 +90,7 @@ interface GroupedRequest {
   requests: EditRequest[];
   timestamp: string;
 }
+
 
 interface PendingApprovalsProps {
   employees: Array<{
@@ -97,7 +104,9 @@ interface PendingApprovalsProps {
   onApprovalChange?: () => void;
 }
 
+
 const ITEMS_PER_PAGE = 10;
+
 
 // Helper function to map database field names (snake_case strings) to camelCase used in the component
 const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut' => {
@@ -113,6 +122,7 @@ const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lun
   }
 };
 
+
 // Helper function to map camelCase field names used in the component to database snake_case
 const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut'): string => {
     switch (camelCaseField) {
@@ -124,10 +134,12 @@ const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunch
     }
 };
 
+
 const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprovalChange }) => {
   const [message, setMessage] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
+
 
   // Query fetching raw data and mapping it to the component's interface
   const {
@@ -145,10 +157,13 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         .limit(50); // Consider pagination for fetching if there are many requests
 
 
+
+
       if (error) {
           console.error('Error fetching edit requests:', error);
           throw error;
       }
+
 
       // Map raw database data (RawEditRequestData[]) to the component's EditRequest interface (EditRequest[])
       // Cast data to unknown first to bypass strictness before casting to RawEditRequestData[]
@@ -173,9 +188,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     retry: 1
   });
 
+
   // Real-time optimized with throttling
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
+
 
     const subscription = supabase
       .channel('edit_requests_throttled')
@@ -195,11 +212,13 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       )
       .subscribe();
 
+
     return () => {
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, [queryClient]);
+
 
   // Memoized calculations with optimized dependencies
   const { pendingRequests, processedRequests, groupedPendingRequests } = useMemo(() => {
@@ -207,12 +226,15 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     const pending = editRequests.filter(r => r.status === 'pending');
     const processed = editRequests.filter(r => r.status !== 'pending');
 
+
     // Group pending requests more efficiently
     const groupsMap = new Map<string, GroupedRequest>();
+
 
     // This loop iterates over `pending`, which is correctly typed as EditRequest[]
     for (const request of pending) {
       const key = `${request.employeeId}-${request.date}`;
+
 
       if (!groupsMap.has(key)) {
         groupsMap.set(key, {
@@ -224,8 +246,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         });
       }
 
+
       groupsMap.get(key)!.requests.push(request);
     }
+
 
     return {
       pendingRequests: pending,
@@ -234,20 +258,25 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     };
   }, [editRequests]); // Dependency is the correctly typed editRequests array
 
+
   // Pagination optimized
   const paginatedProcessedRequests = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return processedRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [processedRequests, currentPage]);
 
+
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
+
 
   // Handler optimized with callback
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
       console.log('🚀 Processando:', group.employeeName, 'Aprovação:', approved);
 
+
       const requestIds = group.requests.map(r => r.id);
+
 
       // Obter usuário logado para registrar quem revisou
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -256,9 +285,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       }
       const reviewerId = user.id;
 
+
       // --- Lógica para Aprovação ---
       if (approved) {
         console.log('✅ Aprovando solicitações para:', group.employeeName, group.date);
+
 
         // 1. Buscar o registro existente em time_records para esta data e funcionário
         const { data: existingTimeRecord, error: fetchTimeRecordError } = await supabase
@@ -268,12 +299,15 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           .eq('date', group.date)
           .maybeSingle<RawTimeRecordData>();
 
+
         if (fetchTimeRecordError) {
           console.error('Erro ao buscar registro existente:', fetchTimeRecordError);
           throw new Error(`Erro ao buscar registro de ponto: ${fetchTimeRecordError.message}`);
         }
 
+
         console.log('🔍 DEBUG: Registro existente encontrado:', existingTimeRecord);
+
 
         // 2. Preparar os dados para atualizar/inserir em time_records
         const timeRecordDataToSave: any = {
@@ -288,12 +322,15 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           locations: (existingTimeRecord?.locations as unknown as LocationContent) || {},
         };
 
+
         console.log('🔍 DEBUG: Dados iniciais para salvar:', timeRecordDataToSave);
+
 
         // Merge approved request values and locations into the data object
         for (const request of group.requests) {
           const dbFieldName = mapFieldCamelCaseToDb(request.field);
           timeRecordDataToSave[dbFieldName] = request.newValue; // Update time value
+
 
           // If the request has location data for this field, merge it
           if (request.location && request.location[dbFieldName]) {
@@ -304,15 +341,19 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           }
         }
 
+
         // Ensure locations is null if it's an empty object after merging
         if (Object.keys(timeRecordDataToSave.locations).length === 0) {
           timeRecordDataToSave.locations = null;
         }
 
+
         console.log('🔍 DEBUG: Dados finais para salvar em time_records:', timeRecordDataToSave);
+
 
         // 3. Inserir ou Atualizar o registro em time_records
         let timeRecordOperationError = null;
+
 
         if (existingTimeRecord) {
           // Update existing record
@@ -324,6 +365,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           timeRecordOperationError = error;
           console.log('🔍 DEBUG: Resultado do update:', { error });
 
+
         } else {
           // Create new record
           console.log('🔍 DEBUG: Criando novo registro');
@@ -334,6 +376,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           console.log('🔍 DEBUG: Resultado do insert:', { error });
         }
 
+
         // Check for errors *after* the time_records operation
         if (timeRecordOperationError) {
           console.error('❌ Erro na operação time_records:', timeRecordOperationError);
@@ -341,7 +384,9 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           throw new Error(`Erro ao salvar registro de ponto: ${timeRecordOperationError.message}`);
         }
 
+
         console.log('✅ Operação time_records bem-sucedida.');
+
 
         // 4. Se time_records foi bem-sucedido, atualizar o status das edit_requests
         console.log('🔍 DEBUG: Atualizando status das edit_requests para approved');
@@ -354,14 +399,17 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           })
           .in('id', requestIds);
 
+
         if (updateRequestsError) {
           console.error('❌ Erro ao atualizar status das edit_requests:', updateRequestsError);
           // Even if this fails, the time_record was updated, but we should still report the error
           throw new Error(`Erro ao finalizar solicitações de edição: ${updateRequestsError.message}`);
         }
 
+
         console.log('✅ Status das edit_requests atualizado para approved.');
         setMessage(`✅ Solicitações de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} aprovadas com sucesso.`);
+
 
       } else {
         // --- Lógica para Rejeição ---
@@ -375,14 +423,17 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           })
           .in('id', requestIds);
 
+
         if (rejectError) {
           console.error('Erro ao rejeitar solicitações:', rejectError);
           throw new Error(`❌ Erro ao rejeitar solicitações: ${rejectError.message}`);
         }
 
+
         console.log('✅ Solicitações rejeitadas com sucesso.');
         setMessage(`✅ Solicitações de ${group.employeeName} para ${new Date(group.date).toLocaleDateString('pt-BR')} rejeitadas com sucesso.`);
       }
+
 
       // Invalidate cache to refetch updated data regardless of approval/rejection
       queryClient.invalidateQueries({ queryKey: ['edit-requests'] });
@@ -390,12 +441,15 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       queryClient.invalidateQueries({ queryKey: ['time-records'] }); // Assuming a time-records query key
       queryClient.invalidateQueries({ queryKey: ['hour-bank'] }); // Assuming an hour-bank query key
 
+
       if (onApprovalChange) {
         onApprovalChange();
       }
 
+
       // Auto-clear message after a delay
       setTimeout(() => setMessage(''), 5000); // Increased delay for message visibility
+
 
     } catch (error: any) {
       console.error('Erro no processo de aprovação/rejeição:', error);
@@ -404,6 +458,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       // setTimeout(() => setMessage(''), 5000);
     }
   }, [queryClient, onApprovalChange]); // Added onApprovalChange as dependency
+
 
   // Memoized field label function
   const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
@@ -415,6 +470,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     };
     return labels[field]; // field is now guaranteed to be one of the keys
   }, []); // No dependencies needed as labels are static
+
 
   // Loading optimized
   if (isLoading) {
@@ -431,6 +487,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     );
   }
 
+
   return (
     <div className="space-y-6">
       {message && (
@@ -442,54 +499,60 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         </Alert>
       )}
 
-      {/* Pending Requests Optimized */}
+
+      {/* Pending Requests - Compact Card Layout */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="pb-3"> {/* Reduced padding */}
+          <CardTitle className="flex items-center gap-2 text-lg"> {/* Reduced title size */}
             <Clock className="w-5 h-5" />
             Solicitações Pendentes ({groupedPendingRequests.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0"> {/* Reduced padding */}
           {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
+            <p className="text-gray-500 text-center py-6 text-sm"> {/* Reduced padding and text size */}
               Nenhuma solicitação pendente
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3"> {/* Reduced space */}
               {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-3">
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-md p-3 bg-yellow-50 border-yellow-200 text-sm"> {/* Reduced padding, border radius, and text size */}
+                  <div className="flex justify-between items-center mb-2"> {/* Reduced margin */}
                     <div>
-                      <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
-                      <p className="text-sm text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
+                      <h4 className="font-medium text-gray-900 flex items-center gap-1"> {/* Added flex and gap */}
+                        <User className="w-3 h-3" /> {group.employeeName}
+                      </h4>
+                      <p className="text-xs text-gray-600 flex items-center gap-1"> {/* Reduced text size, added flex and gap */}
+                        <CalendarDays className="w-3 h-3" /> {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
                     </div>
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="text-xs"> {/* Reduced badge text size */}
                       {new Date(group.timestamp).toLocaleDateString('pt-BR')}
                     </Badge>
                   </div>
 
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2">Ajustes:</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+                  <div className="mb-2"> {/* Reduced margin */}
+                    <h5 className="font-medium mb-1 text-xs">Ajustes:</h5> {/* Reduced text size and margin */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2"> {/* Reduced gap, adjusted grid for smaller screens */}
                       {group.requests.map((request) => (
-                        <div key={request.id} className="text-sm border rounded p-2 bg-white">
-                          <div className="font-medium">{getFieldLabel(request.field)}</div> {/* Use getFieldLabel */}
-                          <div className="flex justify-between text-xs mt-1">
+                        <div key={request.id} className="text-xs border rounded p-2 bg-white space-y-0.5"> {/* Reduced padding, border radius, text size, and space */}
+                          <div className="font-medium flex items-center gap-1"><Tag className="w-3 h-3" /> {getFieldLabel(request.field)}</div> {/* Use getFieldLabel, added icon */}
+                          <div className="flex justify-between text-xs"> {/* Reduced text size */}
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
                           {/* Display location if available in the request */}
                           {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
-                              <div className="text-xs text-gray-600 mt-1">
-                                Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
+                              <div className="text-xs text-gray-600 flex items-start gap-1"> {/* Reduced text size, added flex */}
+                                <MapPin className="w-3 h-3 mt-0.5" />
+                                <span className="flex-1">Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}</span>
                               </div>
                           )}
                           {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              Motivo: {request.reason}
+                            <div className="text-xs text-gray-600 flex items-start gap-1"> {/* Reduced text size, added flex */}
+                              <Text className="w-3 h-3 mt-0.5" />
+                              <span className="flex-1">Motivo: {request.reason}</span>
                             </div>
                           )}
                         </div>
@@ -497,21 +560,23 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     </div>
                   </div>
 
+
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 text-xs h-7 px-2" // Reduced size and padding
                     >
-                      <CheckCircle className="w-4 h-4 mr-1" />
+                      <CheckCircle className="w-3 h-3 mr-1" /> {/* Reduced icon size */}
                       Aprovar
                     </Button>
                     <Button
                       size="sm"
                       variant="destructive"
                       onClick={() => handleGroupApproval(group, false)}
+                      className="text-xs h-7 px-2" // Reduced size and padding
                     >
-                      <XCircle className="w-4 h-4 mr-1" />
+                      <XCircle className="w-3 h-3 mr-1" /> {/* Reduced icon size */}
                       Rejeitar
                     </Button>
                   </div>
@@ -522,11 +587,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         </CardContent>
       </Card>
 
-      {/* History Optimized */}
+
+      {/* History - Compact Card Layout */}
       {processedRequests.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+          <CardHeader className="pb-3"> {/* Reduced padding */}
+            <CardTitle className="flex items-center justify-between text-lg"> {/* Reduced title size */}
               <span>Histórico</span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
@@ -535,10 +601,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
+                    className="h-7 px-2" // Reduced button size
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-3 h-3" /> {/* Reduced icon size */}
                   </Button>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-xs text-gray-600"> {/* Reduced text size */}
                     {currentPage}/{totalPages}
                   </span>
                   <Button
@@ -546,65 +613,96 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     size="sm"
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
+                    className="h-7 px-2" // Reduced button size
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3 h-3" /> {/* Reduced icon size */}
                   </Button>
                 </div>
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)} {/* Use getFieldLabel */}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <CardContent className="pt-0"> {/* Reduced padding */}
+            <div className="space-y-3"> {/* Reduced space */}
+              {paginatedProcessedRequests.map((request) => (
+                <div key={request.id} className="border rounded-md p-3 bg-gray-50 border-gray-200 text-sm"> {/* Compact card styling */}
+                  <div className="flex justify-between items-center mb-2"> {/* Reduced margin */}
+                    <div>
+                      <h4 className="font-medium text-gray-900 flex items-center gap-1"> {/* Added flex and gap */}
+                        <User className="w-3 h-3" /> {request.employeeName}
+                      </h4>
+                      <p className="text-xs text-gray-600 flex items-center gap-1"> {/* Reduced text size, added flex and gap */}
+                        <CalendarDays className="w-3 h-3" /> {new Date(request.date).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={request.status === 'approved' ? 'default' : 'destructive'}
+                      className="text-xs flex items-center gap-1" // Reduced text size, added flex and gap
+                    >
+                      {request.status === 'approved' ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                      {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                    </Badge>
+                  </div>
+
+
+                  <div className="text-xs space-y-0.5"> {/* Reduced text size and space */}
+                    <div className="flex items-center gap-1 font-medium text-gray-800"> {/* Added flex and gap */}
+                      <Tag className="w-3 h-3" /> Campo: {getFieldLabel(request.field)}
+                    </div>
+                    <div className="flex justify-between text-xs"> {/* Reduced text size */}
+                      <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
+                      <span className="text-green-600">Para: {request.newValue}</span>
+                    </div>
+                    {/* Display location if available in the request */}
+                    {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
+                        <div className="text-xs text-gray-600 flex items-start gap-1"> {/* Reduced text size, added flex */}
+                          <MapPin className="w-3 h-3 mt-0.5" />
+                          <span className="flex-1">Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}</span>
+                        </div>
+                    )}
+                    {request.reason && (
+                        <div className="text-xs text-gray-600 flex items-start gap-1"> {/* Reduced text size, added flex */}
+                          <Text className="w-3 h-3 mt-0.5" />
+                          <span className="flex-1">Motivo: {request.reason}</span>
+                        </div>
+                    )}
+                  </div>
+                  <p className="text-right text-xs text-gray-500 mt-2"> {/* Reduced text size and margin */}
+                    Solicitado em: {new Date(request.timestamp).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+              ))}
             </div>
           </CardContent>
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-2 pb-4"> {/* Added padding */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="h-7 px-2" // Reduced button size
+              >
+                <ChevronLeft className="w-3 h-3" /> {/* Reduced icon size */}
+              </Button>
+              <span className="text-xs text-gray-600"> {/* Reduced text size */}
+                Página {currentPage} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="h-7 px-2" // Reduced button size
+              >
+                <ChevronRight className="w-3 h-3" /> {/* Reduced icon size */}
+              </Button>
+            </div>
+          )}
         </Card>
       )}
     </div>
   );
 };
+
 
 export default OptimizedPendingApprovals;
