@@ -141,8 +141,6 @@ const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunch
     }
 };
 
-// Função removida - não precisamos exibir email
-
 // ✨ FUNÇÃO HELPER para conversão segura (versão melhorada)
 const safeConvertToLocationContent = (jsonData: Json | null): LocationContent | null => {
   // Retorna null se não há dados
@@ -310,136 +308,193 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
-  // Handler optimized with callback
+  // ✨ VERSÃO MELHORADA com tratamento de erros detalhado
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
+      console.log('🚀 INÍCIO - handleGroupApproval:', { group: group.employeeName, approved });
+      
       const requestIds = group.requests.map(r => r.id);
+      console.log('📋 Request IDs:', requestIds);
 
-      // Get the current user's ID
+      // ✨ PASSO 1: Verificar usuário autenticado
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      const reviewerId = user?.id || null; // Use null if user or id is undefined
+      if (userError) {
+        console.error('❌ ERRO ao obter usuário:', userError);
+        throw new Error(`Erro de autenticação: ${userError.message}`);
+      }
+      
+      if (!user) {
+        console.error('❌ Usuário não autenticado');
+        throw new Error('Usuário não autenticado');
+      }
 
-      // Batch update edit_requests status
-      // This update uses database column names (snake_case)
+      console.log('✅ Usuário autenticado:', user.id);
+      const reviewerId = user.id;
+
+      // ✨ PASSO 2: Atualizar status das solicitações
+      console.log('🔄 Atualizando status das solicitações...');
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
           status: approved ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: reviewerId // Pass the user ID (string | null)
+          reviewed_by: reviewerId
         })
-        .in('id', requestIds); // Filter rows by ID
+        .in('id', requestIds);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('❌ ERRO ao atualizar edit_requests:', updateError);
+        throw new Error(`Erro ao atualizar solicitações: ${updateError.message}`);
+      }
+      
+      console.log('✅ Status das solicitações atualizado com sucesso');
 
+      // ✨ PASSO 3: Se aprovado, processar time_records
       if (approved) {
-        console.log('🔍 DEBUG: Aprovando solicitações para', group.employeeName, 'data:', group.date);
+        console.log('✅ Processando aprovação para time_records...');
         
-        // Fetch existing time record efficiently, including current locations
+        // ✨ PASSO 3.1: Buscar registro existente
+        console.log('🔍 Buscando registro existente:', { user_id: group.employeeId, date: group.date });
+        
         const { data: timeRecord, error: fetchError } = await supabase
           .from('time_records')
-          .select('id, locations')
+          .select('id, clock_in, lunch_start, lunch_end, clock_out, locations')
           .eq('user_id', group.employeeId)
           .eq('date', group.date)
-          .maybeSingle<RawTimeRecordData>();
+          .maybeSingle();
 
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+          console.error('❌ ERRO ao buscar time_records:', fetchError);
+          throw new Error(`Erro ao buscar registro de ponto: ${fetchError.message}`);
+        }
         
-        console.log('🔍 DEBUG: Registro existente:', timeRecord);
+        console.log('📊 Registro existente encontrado:', timeRecord);
 
-        // Prepare update data for time_records
+        // ✨ PASSO 3.2: Preparar dados de atualização
         const updateData: any = {};
-        // ✨ CORRIGIDO: Usar conversão segura para LocationContent
-        let mergedLocationContent: LocationContent = safeConvertToLocationContent(timeRecord?.locations) || {};
-        
-        console.log('🔍 DEBUG: Localizações existentes:', mergedLocationContent);
+        let mergedLocationContent: LocationContent = {};
 
-        for (const request of group.requests) {
-          const dbFieldName = mapFieldCamelCaseToDb(request.field);
-          
-          console.log('🔍 DEBUG: Processando request OptimizedPendingApprovals:', {
-            field: request.field,
-            dbFieldName,
-            location: request.location,
-            newValue: request.newValue,
-            locationForField: request.location?.[dbFieldName]
-          });
-
-          // Add the new time value
-          updateData[dbFieldName] = request.newValue;
-
-          // Se a solicitação tem dados de localização, extraia o valor correto
-          if (request.location && request.location[dbFieldName]) {
-            mergedLocationContent[dbFieldName] = request.location[dbFieldName];
-            console.log('🔍 DEBUG: Adicionando localização para', dbFieldName, ':', request.location[dbFieldName]);
-          } else {
-            console.log('⚠️ DEBUG: Nenhuma localização encontrada para', dbFieldName);
+        // Começar com localizações existentes
+        if (timeRecord?.locations) {
+          const existingLocations = safeConvertToLocationContent(timeRecord.locations);
+          if (existingLocations) {
+            mergedLocationContent = { ...existingLocations };
           }
         }
 
-        console.log('🔍 DEBUG: Localizações mescladas finais:', mergedLocationContent);
-        
-        // Add the merged location content object to the update data
+        console.log('📍 Localizações existentes:', mergedLocationContent);
+
+        // ✨ PASSO 3.3: Processar cada solicitação
+        for (const request of group.requests) {
+          const dbFieldName = mapFieldCamelCaseToDb(request.field);
+          
+          console.log('🔧 Processando request:', {
+            id: request.id,
+            field: request.field,
+            dbFieldName,
+            oldValue: request.oldValue,
+            newValue: request.newValue,
+            hasLocation: !!request.location
+          });
+
+          // ✨ Validar formato do valor
+          if (request.newValue && !/^\d{2}:\d{2}$/.test(request.newValue)) {
+            console.warn('⚠️ Formato de horário inválido:', request.newValue);
+            throw new Error(`Formato de horário inválido: ${request.newValue}. Use HH:MM`);
+          }
+
+          // Adicionar novo valor de tempo
+          updateData[dbFieldName] = request.newValue;
+
+          // Processar localização se disponível
+          if (request.location && request.location[dbFieldName]) {
+            mergedLocationContent[dbFieldName] = request.location[dbFieldName];
+            console.log('📍 Localização adicionada para', dbFieldName, ':', request.location[dbFieldName]);
+          } else {
+            console.log('⚠️ Nenhuma localização para', dbFieldName);
+          }
+        }
+
+        // ✨ PASSO 3.4: Adicionar localizações aos dados de atualização
         updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
         
-        console.log('🔍 DEBUG: Dados finais do update:', updateData);
+        console.log('📦 Dados finais para atualização:', updateData);
 
-        if (timeRecord) {
-          // Update existing record
-          console.log('🔍 DEBUG: Atualizando registro existente ID:', timeRecord.id);
+        // ✨ PASSO 3.5: Executar atualização ou inserção
+        if (timeRecord?.id) {
+          // Atualizar registro existente
+          console.log('🔄 Atualizando registro existente ID:', timeRecord.id);
+          
           const { error: updateRecordError } = await supabase
             .from('time_records')
             .update(updateData)
             .eq('id', timeRecord.id);
 
           if (updateRecordError) {
-            console.error('❌ DEBUG: Erro ao atualizar registro:', updateRecordError);
-            throw updateRecordError;
+            console.error('❌ ERRO ao atualizar time_records:', updateRecordError);
+            throw new Error(`Erro ao atualizar registro de ponto: ${updateRecordError.message}`);
           }
-          console.log('✅ DEBUG: Registro atualizado com sucesso');
+          
+          console.log('✅ Registro atualizado com sucesso');
         } else {
-          // Create new record
-          console.log('🔍 DEBUG: Criando novo registro');
+          // Criar novo registro
+          console.log('➕ Criando novo registro');
+          
+          const insertData = {
+            user_id: group.employeeId,
+            date: group.date,
+            ...updateData,
+          };
+          
+          console.log('📦 Dados para inserção:', insertData);
+          
           const { error: insertError } = await supabase
             .from('time_records')
-            .insert({
-              user_id: group.employeeId,
-              date: group.date,
-              ...updateData,
-            });
+            .insert(insertData);
 
           if (insertError) {
-            console.error('❌ DEBUG: Erro ao inserir registro:', insertError);
-            throw insertError;
+            console.error('❌ ERRO ao inserir time_records:', insertError);
+            throw new Error(`Erro ao criar registro de ponto: ${insertError.message}`);
           }
-          console.log('✅ DEBUG: Novo registro criado com sucesso');
+          
+          console.log('✅ Novo registro criado com sucesso');
         }
 
-        setMessage(`Edições aprovadas para ${group.employeeName}`);
+        setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
       } else {
-        setMessage(`Edições rejeitadas para ${group.employeeName}`);
+        setMessage(`❌ Edições rejeitadas para ${group.employeeName}`);
       }
 
-      // Invalidate cache to refetch updated data
+      // ✨ PASSO 4: Atualizar cache
+      console.log('🔄 Invalidando cache...');
       queryClient.invalidateQueries({
         queryKey: ['edit-requests'],
         exact: true
       });
 
-      // Call callback if provided
+      // ✨ PASSO 5: Callback opcional
       if (onApprovalChange) {
         onApprovalChange();
       }
 
-      // Auto-clear message after a delay
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Error handling group approval:', error);
-      setMessage('Erro ao processar aprovação');
-      setTimeout(() => setMessage(''), 3000);
+      // Auto-clear message
+      setTimeout(() => setMessage(''), 5000);
+      
+      console.log('🎉 handleGroupApproval concluído com sucesso!');
+      
+    } catch (error: any) {
+      console.error('💥 ERRO GERAL em handleGroupApproval:', error);
+      
+      // Mensagem de erro mais específica
+      let errorMessage = 'Erro ao processar aprovação';
+      if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      setMessage(errorMessage);
+      setTimeout(() => setMessage(''), 8000);
     }
-  }, [queryClient, onApprovalChange]); // Added onApprovalChange as dependency
+  }, [queryClient, onApprovalChange]);
 
   // Memoized field label function
   const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
@@ -568,9 +623,9 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
   return (
     <div className="space-y-6">
       {message && (
-        <Alert className="border-accent-200 bg-accent-50">
+        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="text-accent-800">
+          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
             {message}
           </AlertDescription>
         </Alert>
