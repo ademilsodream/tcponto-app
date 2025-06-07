@@ -111,20 +111,13 @@ const ITEMS_PER_PAGE = 10;
 
 // Helper function to map database field names (snake_case strings) to camelCase used in the component
 const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut' => {
-  // ✨ MELHORADO: Se já estiver em camelCase, retorna diretamente
-  const camelCaseFields = ['clockIn', 'lunchStart', 'lunchEnd', 'clockOut'];
-  if (camelCaseFields.includes(dbField)) {
-    return dbField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
-  }
-  
-  // Se estiver em snake_case, converte para camelCase
   switch (dbField) {
     case 'clock_in': return 'clockIn';
     case 'lunch_start': return 'lunchStart';
     case 'lunch_end': return 'lunchEnd';
     case 'clock_out': return 'clockOut';
     default:
-      console.error(`Campo inesperado do DB: ${dbField}`);
+      console.error(`Unexpected field value from DB: ${dbField}`);
       // Fallback or handle error appropriately
       return 'clockIn'; // ✨ CORRIGIDO: retorna valor válido em vez de any
   }
@@ -140,8 +133,6 @@ const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunch
         // No default needed here as input type is a strict union
     }
 };
-
-// Função removida - não precisamos exibir email
 
 // ✨ FUNÇÃO HELPER para conversão segura (versão melhorada)
 const safeConvertToLocationContent = (jsonData: Json | null): LocationContent | null => {
@@ -210,30 +201,20 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
       // Map raw database data (RawEditRequestData[]) to the component's EditRequest interface (EditRequest[])
       // ✨ Cast data to unknown first to bypass strictness before casting to RawEditRequestData[]
-      return (data as unknown as RawEditRequestData[]).map(request => {
-        // ✨ DEBUG: Log para verificar dados do banco
-        console.log('🔍 DEBUG - OptimizedPendingApprovals:', {
-          field_original: request.field,
-          field_mapeado: mapFieldDbToCamelCase(request.field),
-          employee_name: request.employee_name,
-          location: request.location
-        });
-
-        return {
-          id: request.id,
-          employeeId: request.employee_id,
-          employeeName: request.employee_name,
-          date: request.date,
-          field: mapFieldDbToCamelCase(request.field), // Use mapping function for field value conversion
-          oldValue: request.old_value || '',
-          newValue: request.new_value,
-          reason: request.reason,
-          timestamp: request.created_at,
-          status: request.status,
-          // ✨ CORRIGIDO: Usar função de conversão segura
-          location: safeConvertToLocationContent(request.location),
-        };
-      });
+      return (data as unknown as RawEditRequestData[]).map(request => ({
+        id: request.id,
+        employeeId: request.employee_id,
+        employeeName: request.employee_name,
+        date: request.date,
+        field: mapFieldDbToCamelCase(request.field), // Use mapping function for field value conversion
+        oldValue: request.old_value || '',
+        newValue: request.new_value,
+        reason: request.reason,
+        timestamp: request.created_at,
+        status: request.status,
+        // ✨ CORRIGIDO: Usar função de conversão segura
+        location: safeConvertToLocationContent(request.location),
+      }));
     },
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
@@ -310,6 +291,50 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
+  // Memoized field label function
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field]; // field is now guaranteed to be one of the keys
+  }, []);
+
+  // Helper function to get location information - DECLARADA APENAS UMA VEZ
+  const getFieldLocation = useCallback((request: EditRequest, fieldDbName: string): string => {
+    if (request.location && request.location[fieldDbName]) {
+      return request.location[fieldDbName]?.locationName || 'N/A';
+    }
+    return 'N/A';
+  }, []);
+
+  // Helper function to calculate working hours - DECLARADA APENAS UMA VEZ
+  const calculateWorkingHours = useCallback((timeRecord: any): string => {
+    if (!timeRecord.clock_in || !timeRecord.clock_out) {
+      return 'Incompleto';
+    }
+    
+    const clockIn = new Date(`${timeRecord.date}T${timeRecord.clock_in}`);
+    const clockOut = new Date(`${timeRecord.date}T${timeRecord.clock_out}`);
+    
+    let totalMinutes = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60);
+    
+    // Subtract lunch break if both lunch times are present
+    if (timeRecord.lunch_start && timeRecord.lunch_end) {
+      const lunchStart = new Date(`${timeRecord.date}T${timeRecord.lunch_start}`);
+      const lunchEnd = new Date(`${timeRecord.date}T${timeRecord.lunch_end}`);
+      const lunchMinutes = (lunchEnd.getTime() - lunchStart.getTime()) / (1000 * 60);
+      totalMinutes -= lunchMinutes;
+    }
+    
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = Math.round(totalMinutes % 60);
+    
+    return `${hours}h ${minutes}m`;
+  }, []);
+
   // Handler optimized with callback
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
@@ -358,12 +383,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         for (const request of group.requests) {
           const dbFieldName = mapFieldCamelCaseToDb(request.field);
           
-          console.log('🔍 DEBUG: Processando request OptimizedPendingApprovals:', {
+          console.log('🔍 DEBUG: Processando request:', {
             field: request.field,
             dbFieldName,
             location: request.location,
-            newValue: request.newValue,
-            locationForField: request.location?.[dbFieldName]
+            newValue: request.newValue
           });
 
           // Add the new time value
@@ -441,165 +465,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     }
   }, [queryClient, onApprovalChange]); // Added onApprovalChange as dependency
 
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
   // Loading optimized
   if (isLoading) {
     return (
@@ -640,48 +505,40 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
               Nenhuma solicitação pendente
             </p>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="space-y-4">
               {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
-                      <p className="text-xs text-gray-600">
+                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h4 className="font-medium text-gray-900">{group.employeeName}</h4>
+                      <p className="text-sm text-gray-600">
                         {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                      </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
-                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
-                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
-                      </div>
-                    </div>
+                    <Badge variant="secondary">
+                      {new Date(group.timestamp).toLocaleDateString('pt-BR')}
+                    </Badge>
                   </div>
 
                   <div className="mb-3">
-                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
-                    <div className="space-y-2">
+                    <h5 className="font-medium mb-2">Ajustes:</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
-                          <div className="font-medium flex justify-between items-center mb-1">
-                            <span>{getFieldLabel(request.field)}</span>
-                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
-                              {request.newValue || 'Vazio'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs mb-1">
+                        <div key={request.id} className="text-sm border rounded p-2 bg-white">
+                          <div className="font-medium">{getFieldLabel(request.field)}</div>
+                          <div className="flex justify-between text-xs mt-1">
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
-                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
-                            📍 {getFieldLocation(request)}
-                          </div>
+                          {/* Display location if available in the request */}
+                          {request.location && request.location[mapFieldCamelCaseToDb(request.field)] && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                Localização: {request.location[mapFieldCamelCaseToDb(request.field)]?.locationName || 'N/A'}
+                              </div>
+                          )}
                           {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
-                              💬 {request.reason}
+                            <div className="text-xs text-gray-600 mt-1">
+                              Motivo: {request.reason}
                             </div>
                           )}
                         </div>
@@ -693,18 +550,17 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     <Button
                       size="sm"
                       onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
+                      className="bg-green-600 hover:bg-green-700"
                     >
-                      <CheckCircle className="w-3 h-3 mr-1" />
+                      <CheckCircle className="w-4 h-4 mr-1" />
                       Aprovar
                     </Button>
                     <Button
                       size="sm"
                       variant="destructive"
                       onClick={() => handleGroupApproval(group, false)}
-                      className="flex-1 text-xs"
                     >
-                      <XCircle className="w-3 h-3 mr-1" />
+                      <XCircle className="w-4 h-4 mr-1" />
                       Rejeitar
                     </Button>
                   </div>
