@@ -17,7 +17,7 @@ import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
 const AppContent = React.memo(() => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -28,7 +28,8 @@ const AppContent = React.memo(() => {
   }
 
   // Determinar qual interface usar baseado no role do usuário
-  const isAdmin = user?.role === 'admin';
+  // CORREÇÃO: Usar profile.role ao invés de user.role
+  const isAdmin = profile?.role === 'admin';
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
