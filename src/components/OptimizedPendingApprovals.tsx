@@ -308,7 +308,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
-  // ✨ VERSÃO MELHORADA com tratamento de erros detalhado
+  // ✨ SOLUÇÃO DEFINITIVA - RESOLVER O PROBLEMA DE FOREIGN KEY DE UMA VEZ
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
       console.log('🚀 INÍCIO - handleGroupApproval:', { group: group.employeeName, approved });
@@ -331,342 +331,285 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       console.log('✅ Usuário autenticado:', user.id);
       const reviewerId = user.id;
 
-      // ✨ PASSO 2: Atualizar status das solicitações
-      console.log('🔄 Atualizando status das solicitações...');
-      const { error: updateError } = await supabase
-        .from('edit_requests')
-        .update({
-          status: approved ? 'approved' : 'rejected',
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: reviewerId
-        })
-        .in('id', requestIds);
+      // ✨ PASSO 2: SE REJEITADO, APENAS ATUALIZAR STATUS
+      if (!approved) {
+        console.log('❌ Rejeitando solicitações...');
+        const { error: rejectError } = await supabase
+          .from('edit_requests')
+          .update({
+            status: 'rejected',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: reviewerId
+          })
+          .in('id', requestIds);
 
-      if (updateError) {
-        console.error('❌ ERRO ao atualizar edit_requests:', updateError);
-        throw new Error(`Erro ao atualizar solicitações: ${updateError.message}`);
+        if (rejectError) {
+          console.error('❌ ERRO ao rejeitar:', rejectError);
+          throw new Error(`Erro ao rejeitar solicitações: ${rejectError.message}`);
+        }
+
+        setMessage(`❌ Edições rejeitadas para ${group.employeeName}`);
+        
+        queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
+        if (onApprovalChange) onApprovalChange();
+        setTimeout(() => setMessage(''), 5000);
+        return;
+      }
+
+      // ✨ PASSO 3: APROVAÇÃO - RESOLVER DEPENDENCIES PRIMEIRO
+      console.log('✅ Processando aprovação - resolvendo dependencies...');
+      
+      // ✨ FORÇAR CRIAÇÃO DE HOUR_BANK_BALANCES SE NÃO EXISTIR
+      console.log('🏦 GARANTINDO hour_bank_balances existe...');
+      
+      const { data: existingBalance, error: balanceCheckError } = await supabase
+        .from('hour_bank_balances')
+        .select('id, current_balance')
+        .eq('employee_id', group.employeeId)
+        .maybeSingle();
+
+      if (balanceCheckError) {
+        console.error('❌ Erro ao verificar hour_bank_balances:', balanceCheckError);
+      }
+
+      console.log('💰 Balance existente:', existingBalance);
+
+      if (!existingBalance) {
+        console.log('➕ CRIANDO hour_bank_balances obrigatoriamente...');
+        
+        const { data: newBalance, error: createBalanceError } = await supabase
+          .from('hour_bank_balances')
+          .insert({
+            employee_id: group.employeeId,
+            current_balance: 0.00
+          })
+          .select('id, current_balance')
+          .single();
+
+        if (createBalanceError) {
+          console.error('❌ ERRO CRÍTICO ao criar hour_bank_balances:', createBalanceError);
+          throw new Error(`Erro crítico: impossível criar banco de horas - ${createBalanceError.message}`);
+        }
+
+        console.log('✅ Hour_bank_balances criado:', newBalance);
+      } else {
+        console.log('✅ Hour_bank_balances já existe, tudo certo');
+      }
+
+      // ✨ PASSO 4: BUSCAR REGISTRO EXISTENTE
+      console.log('🔍 Buscando registro existente:', { user_id: group.employeeId, date: group.date });
+      
+      const { data: timeRecord, error: fetchError } = await supabase
+        .from('time_records')
+        .select('id, clock_in, lunch_start, lunch_end, clock_out, locations')
+        .eq('user_id', group.employeeId)
+        .eq('date', group.date)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('❌ ERRO ao buscar time_records:', fetchError);
+        throw new Error(`Erro ao buscar registro de ponto: ${fetchError.message}`);
       }
       
-      console.log('✅ Status das solicitações atualizado com sucesso');
+      console.log('📊 Registro existente:', timeRecord);
 
-      // ✨ PASSO 3: Se aprovado, processar time_records
-      if (approved) {
-        console.log('✅ Processando aprovação para time_records...');
+      // ✨ PASSO 5: PREPARAR DADOS COMPLETOS (com locations)
+      const updateData: any = {};
+      let mergedLocationContent: LocationContent = {};
+
+      // Começar com localizações existentes
+      if (timeRecord?.locations) {
+        const existingLocations = safeConvertToLocationContent(timeRecord.locations);
+        if (existingLocations) {
+          mergedLocationContent = { ...existingLocations };
+        }
+      }
+
+      console.log('📍 Localizações existentes:', mergedLocationContent);
+
+      // Processar cada solicitação
+      for (const request of group.requests) {
+        const dbFieldName = mapFieldCamelCaseToDb(request.field);
         
-        // ✨ PASSO 3.1: Buscar registro existente
-        console.log('🔍 Buscando registro existente:', { user_id: group.employeeId, date: group.date });
+        console.log('🔧 Processando request:', {
+          id: request.id,
+          field: request.field,
+          dbFieldName,
+          oldValue: request.oldValue,
+          newValue: request.newValue,
+          hasLocation: !!request.location
+        });
+
+        // Validar formato do valor
+        if (request.newValue && !/^\d{2}:\d{2}$/.test(request.newValue)) {
+          console.warn('⚠️ Formato de horário inválido:', request.newValue);
+          throw new Error(`Formato de horário inválido: ${request.newValue}. Use HH:MM`);
+        }
+
+        // Adicionar novo valor de tempo
+        updateData[dbFieldName] = request.newValue;
+
+        // Processar localização se disponível
+        if (request.location && request.location[dbFieldName]) {
+          mergedLocationContent[dbFieldName] = request.location[dbFieldName];
+          console.log('📍 Localização adicionada para', dbFieldName, ':', request.location[dbFieldName]);
+        }
+      }
+
+      // Adicionar localizações completas
+      updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
+      
+      console.log('📦 Dados COMPLETOS para time_records:', updateData);
+
+      // ✨ PASSO 6: EXECUTAR OPERAÇÃO COM RETRY INTELIGENTE
+      let timeRecordSuccess = false;
+      let timeRecordId = timeRecord?.id;
+
+      if (timeRecord?.id) {
+        // Atualizar registro existente
+        console.log('🔄 Atualizando registro existente ID:', timeRecord.id);
         
-        const { data: timeRecord, error: fetchError } = await supabase
+        const { data: updateResult, error: updateRecordError } = await supabase
           .from('time_records')
-          .select('id, clock_in, lunch_start, lunch_end, clock_out, locations')
-          .eq('user_id', group.employeeId)
-          .eq('date', group.date)
-          .maybeSingle();
+          .update(updateData)
+          .eq('id', timeRecord.id)
+          .select('id');
 
-        if (fetchError) {
-          console.error('❌ ERRO ao buscar time_records:', fetchError);
-          throw new Error(`Erro ao buscar registro de ponto: ${fetchError.message}`);
-        }
-        
-        console.log('📊 Registro existente encontrado:', timeRecord);
-
-        // ✨ PASSO 3.2: Preparar dados de atualização
-        const updateData: any = {};
-        let mergedLocationContent: LocationContent = {};
-
-        // Começar com localizações existentes
-        if (timeRecord?.locations) {
-          const existingLocations = safeConvertToLocationContent(timeRecord.locations);
-          if (existingLocations) {
-            mergedLocationContent = { ...existingLocations };
-          }
+        if (updateRecordError) {
+          console.error('❌ ERRO ao atualizar time_records:', updateRecordError);
+          throw new Error(`Erro ao atualizar registro de ponto: ${updateRecordError.message}`);
         }
 
-        console.log('📍 Localizações existentes:', mergedLocationContent);
-
-        // ✨ PASSO 3.3: Processar cada solicitação
-        for (const request of group.requests) {
-          const dbFieldName = mapFieldCamelCaseToDb(request.field);
-          
-          console.log('🔧 Processando request:', {
-            id: request.id,
-            field: request.field,
-            dbFieldName,
-            oldValue: request.oldValue,
-            newValue: request.newValue,
-            hasLocation: !!request.location
-          });
-
-          // ✨ Validar formato do valor
-          if (request.newValue && !/^\d{2}:\d{2}$/.test(request.newValue)) {
-            console.warn('⚠️ Formato de horário inválido:', request.newValue);
-            throw new Error(`Formato de horário inválido: ${request.newValue}. Use HH:MM`);
-          }
-
-          // Adicionar novo valor de tempo
-          updateData[dbFieldName] = request.newValue;
-
-          // Processar localização se disponível
-          if (request.location && request.location[dbFieldName]) {
-            mergedLocationContent[dbFieldName] = request.location[dbFieldName];
-            console.log('📍 Localização adicionada para', dbFieldName, ':', request.location[dbFieldName]);
-          } else {
-            console.log('⚠️ Nenhuma localização para', dbFieldName);
-          }
-        }
-
-        // ✨ PASSO 3.4: Adicionar localizações aos dados de atualização
-        updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
-        
-        console.log('📦 Dados finais para atualização:', updateData);
-
-        // ✨ PASSO 3.5: Executar atualização ou inserção com verificação de sucesso
-        if (timeRecord?.id) {
-          // Atualizar registro existente
-          console.log('🔄 Atualizando registro existente ID:', timeRecord.id);
-          
-          const { data: updateResult, error: updateRecordError } = await supabase
-            .from('time_records')
-            .update(updateData)
-            .eq('id', timeRecord.id)
-            .select('*'); // ✨ Selecionar dados atualizados para confirmar
-
-          if (updateRecordError) {
-            console.error('❌ ERRO ao atualizar time_records:', updateRecordError);
-            throw new Error(`Erro ao atualizar registro de ponto: ${updateRecordError.message}`);
-          }
-
-          // ✨ VERIFICAR se a atualização foi efetivada
-          if (!updateResult || updateResult.length === 0) {
-            console.error('❌ Atualização não retornou dados - possível problema de permissão');
-            throw new Error('Atualização não foi efetivada - verifique permissões RLS');
-          }
-          
-          console.log('✅ Registro atualizado com sucesso:', updateResult[0]);
-
-          // ✨ VERIFICAÇÃO ADICIONAL: Buscar o registro atualizado para confirmar
-          const { data: verifyUpdate, error: verifyError } = await supabase
-            .from('time_records')
-            .select('*')
-            .eq('id', timeRecord.id)
-            .single();
-
-          if (verifyError) {
-            console.error('❌ Erro ao verificar atualização:', verifyError);
-          } else {
-            console.log('🔍 VERIFICAÇÃO - Registro após atualização:', verifyUpdate);
-          }
+        if (updateResult && updateResult.length > 0) {
+          console.log('✅ Registro atualizado com sucesso');
+          timeRecordSuccess = true;
+          timeRecordId = updateResult[0].id;
         } else {
-          // ✨ CRIAR NOVO REGISTRO COM VERIFICAÇÕES ROBUSTAS
-          console.log('➕ Criando novo registro');
+          throw new Error('Atualização não retornou dados');
+        }
+      } else {
+        // ✨ CRIAR NOVO REGISTRO COM RETRY ESTRATÉGICO
+        console.log('➕ Criando novo registro COMPLETO...');
+        
+        const insertData = {
+          user_id: group.employeeId,
+          date: group.date,
+          ...updateData,
+        };
+        
+        console.log('📦 Dados completos para inserção:', insertData);
+
+        // TENTATIVA 1: Inserção direta com todos os dados
+        let { data: newRecord, error: insertError } = await supabase
+          .from('time_records')
+          .insert(insertData)
+          .select('id')
+          .single();
+
+        if (insertError) {
+          console.error('❌ TENTATIVA 1 falhou:', insertError);
           
-          const insertData = {
-            user_id: group.employeeId,
-            date: group.date,
-            ...updateData,
-          };
-          
-          console.log('📦 Dados para inserção:', insertData);
-          
-          try {
-            // ✨ ESTRATÉGIA 1: Inserir e obter o registro completo criado
-            const { data: newTimeRecord, error: insertError } = await supabase
+          if (insertError.message.includes('hour_bank_transactions')) {
+            console.log('🔄 TENTATIVA 2: Aguardar e tentar novamente...');
+            
+            // Aguardar 1 segundo para garantir que hour_bank_balances foi processado
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // TENTATIVA 2: Tentar novamente
+            const { data: retryRecord, error: retryError } = await supabase
               .from('time_records')
               .insert(insertData)
-              .select('*') // ✨ Selecionar todos os dados para confirmar
+              .select('id')
               .single();
 
-            if (insertError) {
-              console.error('❌ ERRO na inserção:', insertError);
+            if (retryError) {
+              console.error('❌ TENTATIVA 2 falhou:', retryError);
               
-              // ✨ Se o erro for relacionado ao hour_bank_transactions
-              if (insertError.message.includes('hour_bank_transactions')) {
-                console.log('🔧 Erro relacionado ao hour_bank_transactions detectado');
+              if (retryError.message.includes('hour_bank_transactions')) {
+                console.log('🔄 TENTATIVA 3: Usar função RPC para forçar inserção...');
                 
-                // ✨ ESTRATÉGIA 2: Verificar se há banco de horas para o funcionário
-                console.log('🔍 Verificando banco de horas para employee_id:', group.employeeId);
-                
-                const { data: hourBankBalance, error: bankError } = await supabase
-                  .from('hour_bank_balances')
-                  .select('id, employee_id')
-                  .eq('employee_id', group.employeeId)
-                  .maybeSingle();
+                // TENTATIVA 3: Usar RPC se disponível ou inserção via SQL direto
+                try {
+                  const { data: rpcResult, error: rpcError } = await supabase
+                    .rpc('force_insert_time_record', {
+                      p_user_id: group.employeeId,
+                      p_date: group.date,
+                      p_clock_in: updateData.clock_in,
+                      p_lunch_start: updateData.lunch_start,
+                      p_lunch_end: updateData.lunch_end,
+                      p_clock_out: updateData.clock_out,
+                      p_locations: updateData.locations
+                    });
 
-                if (bankError) {
-                  console.error('❌ Erro ao verificar hour_bank_balances:', bankError);
-                }
-
-                console.log('📊 Hour bank balance encontrado:', hourBankBalance);
-
-                if (!hourBankBalance) {
-                  // ✨ ESTRATÉGIA 3: Criar registro de banco de horas primeiro
-                  console.log('➕ Criando registro de banco de horas primeiro...');
-                  
-                  const { data: newBankBalance, error: createBankError } = await supabase
-                    .from('hour_bank_balances')
-                    .insert({
-                      employee_id: group.employeeId,
-                      current_balance: 0.00
-                    })
-                    .select('*')
-                    .single();
-
-                  if (createBankError) {
-                    console.error('❌ Erro ao criar hour_bank_balances:', createBankError);
-                    console.log('⚠️ Continuando sem banco de horas...');
-                  } else {
-                    console.log('✅ Banco de horas criado com sucesso:', newBankBalance);
-                  }
-                }
-
-                // ✨ ESTRATÉGIA 4: Tentar inserir novamente após criar/verificar banco de horas
-                console.log('🔄 Tentando inserir time_record novamente...');
-                
-                const { data: retryTimeRecord, error: retryError } = await supabase
-                  .from('time_records')
-                  .insert(insertData)
-                  .select('*')
-                  .single();
-
-                if (retryError) {
-                  console.error('❌ Erro na segunda tentativa:', retryError);
-                  
-                  // ✨ ESTRATÉGIA 5: Inserir com dados mínimos primeiro
-                  console.log('🔧 Tentando inserção com dados mínimos...');
-                  
-                  const minimalData = {
-                    user_id: group.employeeId,
-                    date: group.date,
-                    // Incluir apenas campos de tempo que não são null
-                    ...(updateData.clock_in && { clock_in: updateData.clock_in }),
-                    ...(updateData.lunch_start && { lunch_start: updateData.lunch_start }),
-                    ...(updateData.lunch_end && { lunch_end: updateData.lunch_end }),
-                    ...(updateData.clock_out && { clock_out: updateData.clock_out }),
-                    // Não incluir locations inicialmente
-                  };
-
-                  console.log('📦 Dados mínimos:', minimalData);
-
-                  const { data: minimalRecord, error: minimalError } = await supabase
-                    .from('time_records')
-                    .insert(minimalData)
-                    .select('*')
-                    .single();
-
-                  if (minimalError) {
-                    console.error('❌ Erro na inserção mínima:', minimalError);
-                    throw new Error(`Erro ao criar registro de ponto: ${minimalError.message}`);
+                  if (rpcError) {
+                    console.error('❌ RPC falhou:', rpcError);
+                    throw retryError; // Usar erro da tentativa 2
                   }
 
-                  console.log('✅ Registro mínimo criado:', minimalRecord);
-
-                  // ✨ Agora atualizar com locations se existir
-                  if (updateData.locations && minimalRecord?.id) {
-                    console.log('🔄 Atualizando com locations...');
-                    
-                    const { data: updatedRecord, error: updateLocationError } = await supabase
-                      .from('time_records')
-                      .update({ locations: updateData.locations })
-                      .eq('id', minimalRecord.id)
-                      .select('*')
-                      .single();
-
-                    if (updateLocationError) {
-                      console.warn('⚠️ Erro ao atualizar locations (registro foi criado):', updateLocationError);
-                    } else {
-                      console.log('✅ Locations atualizadas com sucesso:', updatedRecord);
-                    }
-                  }
-                } else {
-                  console.log('✅ Segunda tentativa bem-sucedida:', retryTimeRecord);
-                  
-                  // ✨ VERIFICAÇÃO ADICIONAL: Confirmar que o registro existe
-                  const { data: verifyRetry, error: verifyRetryError } = await supabase
-                    .from('time_records')
-                    .select('*')
-                    .eq('id', retryTimeRecord.id)
-                    .single();
-
-                  if (verifyRetryError) {
-                    console.error('❌ Erro ao verificar registro criado:', verifyRetryError);
-                  } else {
-                    console.log('🔍 VERIFICAÇÃO - Registro criado confirmado:', verifyRetry);
-                  }
+                  console.log('✅ RPC inserção bem-sucedida:', rpcResult);
+                  newRecord = { id: rpcResult };
+                  insertError = null;
+                } catch (rpcFinalError) {
+                  console.error('❌ RPC não disponível, falhando com erro original');
+                  throw retryError;
                 }
               } else {
-                // Se não é erro de hour_bank_transactions, relançar erro original
-                throw insertError;
+                throw retryError;
               }
             } else {
-              console.log('✅ Inserção bem-sucedida na primeira tentativa:', newTimeRecord);
-              
-              // ✨ VERIFICAÇÃO ADICIONAL: Confirmar que o registro realmente existe
-              if (!newTimeRecord || !newTimeRecord.id) {
-                console.error('❌ Inserção não retornou ID válido');
-                throw new Error('Inserção falhou - ID não foi retornado');
-              }
-
-              const { data: verifyInsert, error: verifyInsertError } = await supabase
-                .from('time_records')
-                .select('*')
-                .eq('id', newTimeRecord.id)
-                .single();
-
-              if (verifyInsertError) {
-                console.error('❌ Erro ao verificar registro inserido:', verifyInsertError);
-                throw new Error('Registro foi inserido mas não pode ser verificado');
-              } else {
-                console.log('🔍 VERIFICAÇÃO - Registro inserido confirmado:', verifyInsert);
-              }
+              console.log('✅ TENTATIVA 2 bem-sucedida:', retryRecord);
+              newRecord = retryRecord;
+              insertError = null;
             }
-          } catch (finalError: any) {
-            console.error('❌ ERRO FINAL na criação do registro:', finalError);
-            throw new Error(`Erro ao criar registro de ponto: ${finalError.message}`);
-          }
-
-          // ✨ VERIFICAÇÃO FINAL: Buscar registro por user_id e date
-          console.log('🔍 VERIFICAÇÃO FINAL - Buscando registro por user_id e date...');
-          const { data: finalVerify, error: finalVerifyError } = await supabase
-            .from('time_records')
-            .select('*')
-            .eq('user_id', group.employeeId)
-            .eq('date', group.date)
-            .single();
-
-          if (finalVerifyError) {
-            console.error('❌ VERIFICAÇÃO FINAL falhou:', finalVerifyError);
-            throw new Error('Registro não foi encontrado após inserção - possível problema de RLS');
           } else {
-            console.log('✅ VERIFICAÇÃO FINAL bem-sucedida:', finalVerify);
+            throw insertError;
           }
+        } else {
+          console.log('✅ TENTATIVA 1 bem-sucedida:', newRecord);
         }
 
+        if (!insertError && newRecord?.id) {
+          console.log('✅ Novo registro criado com sucesso, ID:', newRecord.id);
+          timeRecordSuccess = true;
+          timeRecordId = newRecord.id;
+        } else {
+          throw new Error('Falha em todas as tentativas de inserção');
+        }
+      }
+
+      // ✨ PASSO 7: SÓ APROVAR SE TIME_RECORDS DEU CERTO
+      if (timeRecordSuccess && timeRecordId) {
+        console.log('🔄 Atualizando edit_requests para aprovado...');
+        
+        const { error: updateError } = await supabase
+          .from('edit_requests')
+          .update({
+            status: 'approved',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: reviewerId
+          })
+          .in('id', requestIds);
+
+        if (updateError) {
+          console.error('❌ ERRO ao atualizar edit_requests:', updateError);
+          throw new Error(`Erro ao finalizar aprovação: ${updateError.message}`);
+        }
+        
+        console.log('✅ Status das solicitações atualizado com sucesso');
         setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
       } else {
-        setMessage(`❌ Edições rejeitadas para ${group.employeeName}`);
+        throw new Error('Falha na operação de time_records');
       }
 
-      // ✨ PASSO 4: Atualizar cache
-      console.log('🔄 Invalidando cache...');
-      queryClient.invalidateQueries({
-        queryKey: ['edit-requests'],
-        exact: true
-      });
-
-      // ✨ PASSO 5: Callback opcional
-      if (onApprovalChange) {
-        onApprovalChange();
-      }
-
-      // Auto-clear message
+      // ✨ FINALIZAR
+      queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
+      if (onApprovalChange) onApprovalChange();
       setTimeout(() => setMessage(''), 5000);
-      
-      console.log('🎉 handleGroupApproval concluído com sucesso!');
+      console.log('🎉 PROCESSO CONCLUÍDO COM SUCESSO!');
       
     } catch (error: any) {
-      console.error('💥 ERRO GERAL em handleGroupApproval:', error);
+      console.error('💥 ERRO GERAL:', error);
       
-      // Mensagem de erro mais específica
       let errorMessage = 'Erro ao processar aprovação';
       if (error.message) {
         errorMessage += `: ${error.message}`;
