@@ -536,23 +536,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     return locationData?.locationName || 'N/A';
   }, []);
 
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
   // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
   const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
     // Organizar os horários por tipo
@@ -616,13 +599,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       return 0;
     }
   }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
 
   // Loading optimized
   if (isLoading) {
