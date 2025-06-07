@@ -649,6 +649,9 @@ const LocationReport: React.FC<LocationReportProps> = ({ employees, onBack }) =>
                   <p className="text-sm">
                     Selecione as datas de início e fim, depois clique em "Pesquisar" para visualizar os registros de localização dos funcionários.
                   </p>
+                  <div className="mt-4 text-xs text-gray-400">
+                     📍 Este relatório exibe as localizações de cada registro do funcionário.
+                  </div>
                 </div>
               </CardContent>
             </Card>
