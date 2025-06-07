@@ -248,10 +248,10 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     return labels[field];
   }, []);
 
-  // SOLUÇÃO SIMPLES E DIRETA
+  // SOLUÇÃO HÍBRIDA: Simples + Resolve o problema de hour_bank_transactions
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
-      console.log('🚀 Processando aprovação:', group.employeeName, approved);
+      console.log('🚀 Processando:', group.employeeName, approved);
       
       const requestIds = group.requests.map(r => r.id);
 
@@ -277,11 +277,11 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         setMessage(`❌ Edições rejeitadas para ${group.employeeName}`);
         queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
         if (onApprovalChange) onApprovalChange();
-        setTimeout(() => setMessage(''), 5000);
+        setTimeout(() => setMessage(''), 3000);
         return;
       }
 
-      // ESTRATÉGIA SIMPLES: Garantir hour_bank_balances existe PRIMEIRO
+      // ✅ ÚNICA DIFERENÇA: Garantir hour_bank_balances existe ANTES
       console.log('🏦 Verificando hour_bank_balances...');
       
       const { data: balance } = await supabase
@@ -302,123 +302,122 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         if (balanceError) {
           throw new Error(`Erro ao criar banco de horas: ${balanceError.message}`);
         }
-
-        // Aguardar para garantir commit
+        
+        // Aguardar commit
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // Buscar time_record existente
+      console.log('🔍 DEBUG: Aprovando solicitações para', group.employeeName, 'data:', group.date);
+      
+      // Fetch existing time record efficiently, including current locations
       const { data: timeRecord, error: fetchError } = await supabase
         .from('time_records')
-        .select('id, clock_in, lunch_start, lunch_end, clock_out, locations')
+        .select('id, locations')
         .eq('user_id', group.employeeId)
         .eq('date', group.date)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
+      
+      console.log('🔍 DEBUG: Registro existente:', timeRecord);
 
-      // Preparar dados
+      // Prepare update data for time_records
       const updateData: any = {};
-      let mergedLocations: LocationContent = {};
+      let mergedLocationContent: LocationContent = (timeRecord?.locations as unknown as LocationContent) || {};
+      
+      console.log('🔍 DEBUG: Localizações existentes:', mergedLocationContent);
 
-      if (timeRecord?.locations) {
-        const existing = safeConvertToLocationContent(timeRecord.locations);
-        if (existing) mergedLocations = { ...existing };
-      }
-
-      // Processar cada request
       for (const request of group.requests) {
-        const dbField = mapFieldCamelCaseToDb(request.field);
+        const dbFieldName = mapFieldCamelCaseToDb(request.field);
         
-        if (request.newValue && !/^\d{2}:\d{2}$/.test(request.newValue)) {
-          throw new Error(`Formato inválido: ${request.newValue}`);
-        }
+        console.log('🔍 DEBUG: Processando request:', {
+          field: request.field,
+          dbFieldName,
+          location: request.location,
+          newValue: request.newValue
+        });
 
-        updateData[dbField] = request.newValue;
+        // Add the new time value
+        updateData[dbFieldName] = request.newValue;
 
-        if (request.location && request.location[dbField]) {
-          mergedLocations[dbField] = request.location[dbField];
+        // Se a solicitação tem dados de localização, extraia o valor correto
+        if (request.location && request.location[dbFieldName]) {
+          mergedLocationContent[dbFieldName] = request.location[dbFieldName];
+          console.log('🔍 DEBUG: Adicionando localização para', dbFieldName, ':', request.location[dbFieldName]);
+        } else {
+          console.log('⚠️ DEBUG: Nenhuma localização encontrada para', dbFieldName);
         }
       }
 
-      updateData.locations = Object.keys(mergedLocations).length > 0 ? mergedLocations : null;
+      console.log('🔍 DEBUG: Localizações mescladas finais:', mergedLocationContent);
+      
+      // Add the merged location content object to the update data
+      updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
+      
+      console.log('🔍 DEBUG: Dados finais do update:', updateData);
 
-      // Executar operação
-      let success = false;
-
-      if (timeRecord?.id) {
-        // Atualizar existente
-        console.log('🔄 Atualizando registro existente...');
-        const { error: updateError } = await supabase
+      if (timeRecord) {
+        // Update existing record
+        console.log('🔍 DEBUG: Atualizando registro existente ID:', timeRecord.id);
+        const { error: updateRecordError } = await supabase
           .from('time_records')
           .update(updateData)
           .eq('id', timeRecord.id);
 
-        if (updateError) throw updateError;
-        success = true;
-      } else {
-        // Criar novo - ESTRATÉGIA SIMPLES
-        console.log('➕ Criando novo registro...');
-        
-        // Primeiro: apenas horários
-        const basicData = {
-          user_id: group.employeeId,
-          date: group.date,
-          clock_in: updateData.clock_in || null,
-          lunch_start: updateData.lunch_start || null,
-          lunch_end: updateData.lunch_end || null,
-          clock_out: updateData.clock_out || null,
-        };
-
-        const { data: newRecord, error: insertError } = await supabase
-          .from('time_records')
-          .insert(basicData)
-          .select('id')
-          .single();
-
-        if (insertError) throw insertError;
-
-        success = true;
-
-        // Depois: adicionar locations se existir
-        if (updateData.locations && newRecord?.id) {
-          console.log('📍 Adicionando locations...');
-          
-          const { error: locationError } = await supabase
-            .from('time_records')
-            .update({ locations: updateData.locations })
-            .eq('id', newRecord.id);
-
-          if (locationError) {
-            console.warn('Erro ao adicionar locations:', locationError);
-          }
+        if (updateRecordError) {
+          console.error('❌ DEBUG: Erro ao atualizar registro:', updateRecordError);
+          throw updateRecordError;
         }
+        console.log('✅ DEBUG: Registro atualizado com sucesso');
+      } else {
+        // Create new record
+        console.log('🔍 DEBUG: Criando novo registro');
+        const { error: insertError } = await supabase
+          .from('time_records')
+          .insert({
+            user_id: group.employeeId,
+            date: group.date,
+            ...updateData,
+          });
+
+        if (insertError) {
+          console.error('❌ DEBUG: Erro ao inserir registro:', insertError);
+          throw insertError;
+        }
+        console.log('✅ DEBUG: Novo registro criado com sucesso');
       }
 
-      // Só aprovar se time_records deu certo
-      if (success) {
-        const { error: approveError } = await supabase
-          .from('edit_requests')
-          .update({
-            status: 'approved',
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: user.id
-          })
-          .in('id', requestIds);
+      // ✅ ATUALIZAR EDIT_REQUESTS DEPOIS QUE TIME_RECORDS DEU CERTO
+      const { error: updateError } = await supabase
+        .from('edit_requests')
+        .update({
+          status: 'approved',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: user.id
+        })
+        .in('id', requestIds);
 
-        if (approveError) throw approveError;
+      if (updateError) throw updateError;
 
-        setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
+      setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
+
+      // Invalidate cache to refetch updated data
+      queryClient.invalidateQueries({
+        queryKey: ['edit-requests'],
+        exact: true
+      });
+
+      // Call callback if provided
+      if (onApprovalChange) {
+        onApprovalChange();
       }
 
-      queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
-      if (onApprovalChange) onApprovalChange();
-      setTimeout(() => setMessage(''), 5000);
-      
-    } catch (error: any) {
-      console.error('💥 Erro:', error);
-      setMessage(`Erro: ${error.message}`);
-      setTimeout(() => setMessage(''), 8000);
+      // Auto-clear message after a delay
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error handling group approval:', error);
+      setMessage(`Erro ao processar aprovação: ${error.message}`);
+      setTimeout(() => setMessage(''), 3000);
     }
   }, [queryClient, onApprovalChange]);
 
