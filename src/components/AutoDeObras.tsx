@@ -79,8 +79,11 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   const [endDate, setEndDate] = useState<Date>();
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [employeeAutoObrasData, setEmployeeAutoObrasData] = useState<EmployeeAutoObrasData[]>([]);
-  const [loading, setLoading] = useState(false); // ✨ MUDANÇA: Inicia como false
-  const [hasSearched, setHasSearched] = useState(false); // ✨ NOVO: Controle se já pesquisou
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  
+  // ✅ CORREÇÃO 1: Adicionar estado para allowed_locations
+  const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   
   // ✨ NOVOS: Estados para porcentagem e somatório
   const [percentageConfig, setPercentageConfig] = useState<PercentageConfig>({});
@@ -90,6 +93,32 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   
   const { formatCurrency, currency } = useCurrency();
   const { toast } = useToast();
+
+  // ✅ CORREÇÃO 2: Buscar allowed_locations no início
+  useEffect(() => {
+    const loadAllowedLocations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('allowed_locations')
+          .select('id, name, latitude, longitude, range_meters, address')
+          .eq('is_active', true)
+          .order('name');
+
+        if (error) {
+          console.error('❌ Erro ao carregar allowed_locations:', error);
+          return;
+        }
+
+        console.log(`📍 Allowed locations carregadas: ${data?.length || 0}`);
+        data?.forEach(loc => console.log(` - ${loc.name}`));
+        setAllowedLocations(data || []);
+      } catch (error) {
+        console.error('💥 Erro inesperado ao carregar locations:', error);
+      }
+    };
+
+    loadAllowedLocations();
+  }, []);
 
 
   // ✨ NOVA: Função para formatar horas no padrão HH:MM
@@ -573,10 +602,47 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
   }, [filteredData]);
 
 
-  // ✨ NOVO: Calcular somatório por localização
+  // ✅ CORREÇÃO 3: uniqueLocations COMBINADO (dados + allowed_locations)
+  const uniqueLocations = useMemo(() => {
+    const locationsFromData = new Set<string>();
+    const locationsFromAllowed = new Set<string>();
+    
+    // Localizações dos dados processados
+    expandedData.forEach(row => locationsFromData.add(row.locationName));
+    
+    // Localizações permitidas (allowed_locations)
+    allowedLocations.forEach(loc => locationsFromAllowed.add(loc.name));
+    
+    // Combinar ambas
+    const allLocations = new Set([
+      ...Array.from(locationsFromData),
+      ...Array.from(locationsFromAllowed)
+    ]);
+    
+    console.log('📍 Localizações dos dados:', Array.from(locationsFromData));
+    console.log('📍 Localizações permitidas:', Array.from(locationsFromAllowed));
+    console.log('📍 Localizações combinadas:', Array.from(allLocations));
+    
+    return Array.from(allLocations).sort();
+  }, [expandedData, allowedLocations]);
+
+
+  // ✅ CORREÇÃO 4: locationSummary atualizado para incluir allowed_locations
   const locationSummary = useMemo(() => {
     const summaryMap = new Map<string, LocationSummary>();
 
+    // Primeiro, adicionar todas as allowed_locations (mesmo sem dados)
+    allowedLocations.forEach(location => {
+      summaryMap.set(location.name, {
+        locationName: location.name,
+        totalDays: 0,
+        totalValue: 0,
+        totalValueWithPercentage: 0,
+        percentage: percentageConfig[location.name] || 0
+      });
+    });
+
+    // Depois, somar os dados reais dos expandedData
     expandedData.forEach(row => {
       if (!summaryMap.has(row.locationName)) {
         summaryMap.set(row.locationName, {
@@ -600,9 +666,10 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
 
     return Array.from(summaryMap.values())
       .sort((a, b) => a.locationName.localeCompare(b.locationName));
-  }, [expandedData, percentageConfig]);
+  }, [expandedData, percentageConfig, allowedLocations]);
 
-  // ✨ NOVO: Agrupar funcionários por localização para o novo formato
+
+  // ✅ CORREÇÃO 5: locationGroupedData atualizado
   const locationGroupedData = useMemo(() => {
     const grouped = new Map<string, Array<{
       employeeName: string;
@@ -610,6 +677,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
       totalValue: number;
     }>>();
 
+    // Inicializar com todas as allowed_locations
+    allowedLocations.forEach(location => {
+      grouped.set(location.name, []);
+    });
+
+    // Adicionar dados reais
     expandedData.forEach(row => {
       if (!grouped.has(row.locationName)) {
         grouped.set(row.locationName, []);
@@ -628,15 +701,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     }
 
     return grouped;
-  }, [expandedData]);
-
-
-  // ✨ NOVO: Obter todas as localizações únicas
-  const uniqueLocations = useMemo(() => {
-    const locations = new Set<string>();
-    expandedData.forEach(row => locations.add(row.locationName));
-    return Array.from(locations).sort();
-  }, [expandedData]);
+  }, [expandedData, allowedLocations]);
 
 
   // ✨ NOVO: Aplicar porcentagem
@@ -959,26 +1024,31 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                               />
                             </div>
                             
+                            {/* ✅ CORREÇÃO 7: Dialog de porcentagem mostrando TODAS as localizações */}
                             <div className="space-y-2">
                               <Label>Selecionar Localizações</Label>
                               <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
-                                {uniqueLocations.map(location => (
-                                  <div key={location} className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`location-${location}`}
-                                      checked={selectedLocations.includes(location)}
-                                      onCheckedChange={() => toggleLocationSelection(location)}
-                                    />
-                                    <Label htmlFor={`location-${location}`} className="text-sm">
-                                      {location}
-                                      {percentageConfig[location] && (
-                                        <span className="text-blue-600 ml-1">
-                                          ({percentageConfig[location]}%)
-                                        </span>
-                                      )}
-                                    </Label>
-                                  </div>
-                                ))}
+                                {uniqueLocations.map(location => {
+                                  const hasData = expandedData.some(row => row.locationName === location);
+                                  return (
+                                    <div key={location} className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id={`location-${location}`}
+                                        checked={selectedLocations.includes(location)}
+                                        onCheckedChange={() => toggleLocationSelection(location)}
+                                      />
+                                      <Label htmlFor={`location-${location}`} className="text-sm flex-1">
+                                        {location}
+                                        {!hasData && <span className="text-gray-400 text-xs ml-1">(sem dados)</span>}
+                                        {percentageConfig[location] && (
+                                          <span className="text-blue-600 ml-1">
+                                            ({percentageConfig[location]}%)
+                                          </span>
+                                        )}
+                                      </Label>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
 
@@ -1008,38 +1078,56 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
+                      {/* ✅ CORREÇÃO 6: Renderização atualizada para mostrar localizações sem dados */}
                       {Array.from(locationGroupedData.entries())
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([locationName, employees]) => {
                           const locationTotal = locationSummary.find(s => s.locationName === locationName);
                           const percentage = percentageConfig[locationName] || 0;
                           const finalValue = locationTotal ? locationTotal.totalValueWithPercentage : 0;
+                          const hasData = employees.length > 0;
                           
                           return (
-                            <div key={locationName} className="border rounded-lg p-4 bg-gray-50">
-                              <h3 className="font-bold text-lg mb-3 text-gray-800 border-b border-gray-300 pb-2">
+                            <div key={locationName} className={`border rounded-lg p-4 ${hasData ? 'bg-gray-50' : 'bg-gray-25 border-dashed'}`}>
+                              <h3 className={`font-bold text-lg mb-3 border-b border-gray-300 pb-2 ${hasData ? 'text-gray-800' : 'text-gray-500'}`}>
                                 {locationName}
+                                {!hasData && <span className="text-sm font-normal text-gray-400 ml-2">(sem dados no período)</span>}
                               </h3>
                               
-                              <div className="space-y-1 mb-3">
-                                {employees.map((employee, index) => (
-                                  <div key={`${employee.employeeName}-${index}`} className="text-sm">
-                                    <span className="font-medium">{employee.employeeName}</span>
-                                    <span className="text-gray-600"> - {Math.round(employee.totalHours)}h</span>
+                              {hasData ? (
+                                <>
+                                  <div className="space-y-1 mb-3">
+                                    {employees.map((employee, index) => (
+                                      <div key={`${employee.employeeName}-${index}`} className="text-sm">
+                                        <span className="font-medium">{employee.employeeName}</span>
+                                        <span className="text-gray-600"> - {Math.round(employee.totalHours)}h</span>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                              
-                              <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
-                                <div className="text-lg font-bold text-blue-600">
-                                  Total = {formatCurrency(finalValue)}
+                                  
+                                  <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
+                                    <div className="text-lg font-bold text-blue-600">
+                                      Total = {formatCurrency(finalValue)}
+                                    </div>
+                                    {percentage > 0 && (
+                                      <div className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                        +{percentage}% aplicado
+                                      </div>
+                                    )}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-center py-4">
+                                  <p className="text-sm text-gray-500">
+                                    Nenhum registro de ponto encontrado para esta localização no período selecionado.
+                                  </p>
+                                  {percentage > 0 && (
+                                    <div className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full mt-2 inline-block">
+                                      +{percentage}% configurado
+                                    </div>
+                                  )}
                                 </div>
-                                {percentage > 0 && (
-                                  <div className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                                    +{percentage}% aplicado
-                                  </div>
-                                )}
-                              </div>
+                              )}
                             </div>
                           );
                         })}
