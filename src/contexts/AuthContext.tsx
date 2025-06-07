@@ -8,7 +8,10 @@ interface AuthContextType {
   user: User | null;
   profile: any;
   isLoading: boolean;
+  loading: boolean; // Alias para compatibilidade
   signOut: () => Promise<void>;
+  logout: () => Promise<void>; // Alias para compatibilidade
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -64,6 +67,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const login = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Erro no login:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        setUser(data.user);
+        const profileData = await fetchProfile(data.user.id);
+        setProfile(profileData);
+        
+        // Inicializar push notifications
+        const pushService = PushNotificationService.getInstance();
+        await pushService.initialize(data.user.id);
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Erro no login:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   const signOut = async () => {
     try {
       // Remover token de push notification antes de fazer logout
@@ -79,6 +111,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Erro ao fazer logout:', error);
     }
   };
+
+  // Alias para compatibilidade
+  const logout = signOut;
 
   useEffect(() => {
     // Configurar cliente Supabase para persistir sessão por mais tempo
@@ -147,7 +182,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     profile,
     isLoading,
+    loading: isLoading, // Alias para compatibilidade
     signOut,
+    logout, // Alias para compatibilidade
+    login,
     refreshProfile,
   };
 

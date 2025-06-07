@@ -1,17 +1,15 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Clock, Calendar } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-
 interface EmployeeLayoutProps {
   children: React.ReactNode;
 }
 
-
 const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
-  const { user, logout } = useAuth();
-
+  const { user, profile, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -20,7 +18,6 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
       console.error('Erro ao fazer logout:', error);
     }
   };
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
@@ -45,7 +42,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
             {/* Informações do usuário e botão de logout à direita */}
             <div className="flex items-center justify-end space-x-2">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                <p className="text-sm font-medium text-gray-900">{profile?.name || user?.email}</p>
                 <p className="text-xs text-gray-600">Funcionário</p>
               </div>
               <Button
@@ -67,6 +64,5 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
     </div>
   );
 };
-
 
 export default EmployeeLayout;

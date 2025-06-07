@@ -47,16 +47,16 @@ const Dashboard = () => {
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [employeeActiveScreen, setEmployeeActiveScreen] = useState('timeRegistration');
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user?.role === 'admin') {
+    if (profile?.role === 'admin') {
       loadEmployees();
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [profile]);
 
   const loadEmployees = async () => {
     try {
@@ -92,8 +92,8 @@ const Dashboard = () => {
     navigate('/login');
   };
 
-  const isAdmin = user?.role === 'admin';
-  const userName = user?.name || user?.email || 'Usuário';
+  const isAdmin = profile?.role === 'admin';
+  const userName = profile?.name || user?.email || 'Usuário';
 
   const renderTabContent = () => {
     if (loading) {

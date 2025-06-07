@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,7 @@ interface AdminLayoutProps {
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -68,7 +67,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
                     <User className="w-4 h-4 mr-2" />
-                    {user?.name}
+                    {profile?.name || user?.email}
                   </MenubarTrigger>
                   <MenubarContent>
                     <MenubarItem onClick={handleLogout} className="cursor-pointer">
