@@ -132,6 +132,20 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
     return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
   };
 
+  // ✨ NOVA: Função para arredondar horas para cima (APENAS para Total por Localização)
+  // Exemplos: 31.0 → 31h | 31.05 → 32h | 31.13 → 32h | 31.95 → 32h
+  const roundHoursUp = (hours: number) => {
+    if (!hours || hours === 0) return 0;
+    
+    // Se for um valor exato (sem decimais), manter o valor
+    if (hours === Math.floor(hours)) {
+      return Math.floor(hours);
+    }
+    
+    // Se tiver qualquer decimal, arredondar para cima
+    return Math.ceil(hours);
+  };
+
 
   // Função CORRIGIDA para extrair locationName
   const extractLocationName = (locations: any): string | null => {
@@ -970,7 +984,7 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                               <TableCell className="font-medium">{row.employeeName}</TableCell>
                               <TableCell>{row.locationName}</TableCell>
                               <TableCell className="text-center">
-                                {/* ✨ ALTERADO: Usar formatHoursAsTime */}
+                                {/* ✨ MANTÉM: Formatação detalhada HH:MM no Painel de Alocação */}
                                 {formatHoursAsTime(row.totalHours)}
                               </TableCell>
                               <TableCell className="text-center">
@@ -1096,11 +1110,12 @@ const AutoDeObras: React.FC<AutoDeObrasProps> = ({ employees, onBack }) => {
                               
                               {hasData ? (
                                 <>
+                                  {/* ✨ ESPECÍFICO: Arredondamento para cima APENAS no Total por Localização */}
                                   <div className="space-y-1 mb-3">
                                     {employees.map((employee, index) => (
                                       <div key={`${employee.employeeName}-${index}`} className="text-sm">
                                         <span className="font-medium">{employee.employeeName}</span>
-                                        <span className="text-gray-600"> - {Math.round(employee.totalHours)}h</span>
+                                        <span className="text-gray-600"> - {roundHoursUp(employee.totalHours)}h</span>
                                       </div>
                                     ))}
                                   </div>
