@@ -570,11 +570,6 @@ const DetailedTimeReport: React.FC<DetailedTimeReportProps> = ({ employees, onBa
                 <p className="text-sm text-gray-600">Relatório detalhado de registros de ponto por funcionário</p>
               </div>
             </div>
-             {onBack && (
-                <Button variant="outline" onClick={onBack}>
-                    Voltar
-                </Button>
-             )}
           </div>
         </div>
       </header>
