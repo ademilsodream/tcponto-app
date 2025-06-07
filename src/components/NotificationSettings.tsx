@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Bell, Mail, Clock, AlertTriangle } from 'lucide-react';
+import { Loader2, Bell, Mail, Clock, AlertTriangle, Smartphone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,12 @@ interface NotificationSetting {
   notification_type: string;
   is_enabled: boolean;
   frequency: string;
+  push_enabled: boolean;
+  push_reminder_entry: boolean;
+  push_reminder_lunch_start: boolean;
+  push_reminder_lunch_end: boolean;
+  push_reminder_exit: boolean;
+  push_incomplete_records: boolean;
 }
 
 const NotificationSettings: React.FC = () => {
@@ -126,15 +132,15 @@ const NotificationSettings: React.FC = () => {
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Configurações de Notificação</h2>
         <p className="text-gray-600">
-          Gerencie como e quando você deseja receber notificações por email.
+          Gerencie como e quando você deseja receber notificações por email e push notifications.
         </p>
       </div>
 
       <Alert>
-        <Bell className="h-4 w-4" />
+        <Smartphone className="h-4 w-4" />
         <AlertDescription>
-          As notificações são enviadas para o email cadastrado no seu perfil. 
-          Certifique-se de que seu email está atualizado.
+          As notificações push mobile funcionam apenas no aplicativo instalado no celular.
+          Certifique-se de permitir notificações quando solicitado.
         </AlertDescription>
       </Alert>
 
@@ -152,50 +158,174 @@ const NotificationSettings: React.FC = () => {
                 {getNotificationDescription(setting.notification_type)}
               </p>
               
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id={`enable-${setting.id}`}
-                    checked={setting.is_enabled}
-                    onCheckedChange={(checked) => {
-                      updateSettingMutation.mutate({
-                        id: setting.id,
-                        updates: { is_enabled: checked }
-                      });
-                    }}
-                    disabled={updateSettingMutation.isPending}
-                  />
-                  <Label htmlFor={`enable-${setting.id}`}>
-                    {setting.is_enabled ? 'Ativado' : 'Desativado'}
-                  </Label>
-                </div>
-
-                {setting.is_enabled && (
+              {/* Configurações de Email */}
+              <div className="border rounded-lg p-4 space-y-4">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Notificações por Email
+                </h4>
+                
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Label htmlFor={`frequency-${setting.id}`} className="text-sm">
-                      Frequência:
-                    </Label>
-                    <Select
-                      value={setting.frequency}
-                      onValueChange={(value) => {
+                    <Switch
+                      id={`email-${setting.id}`}
+                      checked={setting.is_enabled}
+                      onCheckedChange={(checked) => {
                         updateSettingMutation.mutate({
                           id: setting.id,
-                          updates: { frequency: value }
+                          updates: { is_enabled: checked }
                         });
                       }}
                       disabled={updateSettingMutation.isPending}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="immediate">Imediato</SelectItem>
-                        <SelectItem value="daily">Diário</SelectItem>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    />
+                    <Label htmlFor={`email-${setting.id}`}>
+                      {setting.is_enabled ? 'Ativado' : 'Desativado'}
+                    </Label>
                   </div>
-                )}
+
+                  {setting.is_enabled && (
+                    <div className="flex items-center space-x-2">
+                      <Label htmlFor={`frequency-${setting.id}`} className="text-sm">
+                        Frequência:
+                      </Label>
+                      <Select
+                        value={setting.frequency}
+                        onValueChange={(value) => {
+                          updateSettingMutation.mutate({
+                            id: setting.id,
+                            updates: { frequency: value }
+                          });
+                        }}
+                        disabled={updateSettingMutation.isPending}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="immediate">Imediato</SelectItem>
+                          <SelectItem value="daily">Diário</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Configurações de Push Notification */}
+              <div className="border rounded-lg p-4 space-y-4">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  Notificações Push (Mobile)
+                </h4>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor={`push-enabled-${setting.id}`} className="text-sm">
+                      Ativar Push Notifications
+                    </Label>
+                    <Switch
+                      id={`push-enabled-${setting.id}`}
+                      checked={setting.push_enabled || false}
+                      onCheckedChange={(checked) => {
+                        updateSettingMutation.mutate({
+                          id: setting.id,
+                          updates: { push_enabled: checked }
+                        });
+                      }}
+                      disabled={updateSettingMutation.isPending}
+                    />
+                  </div>
+
+                  {setting.push_enabled && (
+                    <div className="space-y-3 pl-4 border-l-2 border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`push-entry-${setting.id}`} className="text-sm">
+                          Lembrete de Entrada (08:00)
+                        </Label>
+                        <Switch
+                          id={`push-entry-${setting.id}`}
+                          checked={setting.push_reminder_entry || false}
+                          onCheckedChange={(checked) => {
+                            updateSettingMutation.mutate({
+                              id: setting.id,
+                              updates: { push_reminder_entry: checked }
+                            });
+                          }}
+                          disabled={updateSettingMutation.isPending}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`push-lunch-start-${setting.id}`} className="text-sm">
+                          Lembrete Início Almoço (12:00)
+                        </Label>
+                        <Switch
+                          id={`push-lunch-start-${setting.id}`}
+                          checked={setting.push_reminder_lunch_start || false}
+                          onCheckedChange={(checked) => {
+                            updateSettingMutation.mutate({
+                              id: setting.id,
+                              updates: { push_reminder_lunch_start: checked }
+                            });
+                          }}
+                          disabled={updateSettingMutation.isPending}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`push-lunch-end-${setting.id}`} className="text-sm">
+                          Lembrete Volta Almoço (13:00)
+                        </Label>
+                        <Switch
+                          id={`push-lunch-end-${setting.id}`}
+                          checked={setting.push_reminder_lunch_end || false}
+                          onCheckedChange={(checked) => {
+                            updateSettingMutation.mutate({
+                              id: setting.id,
+                              updates: { push_reminder_lunch_end: checked }
+                            });
+                          }}
+                          disabled={updateSettingMutation.isPending}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`push-exit-${setting.id}`} className="text-sm">
+                          Lembrete de Saída (17:00)
+                        </Label>
+                        <Switch
+                          id={`push-exit-${setting.id}`}
+                          checked={setting.push_reminder_exit || false}
+                          onCheckedChange={(checked) => {
+                            updateSettingMutation.mutate({
+                              id: setting.id,
+                              updates: { push_reminder_exit: checked }
+                            });
+                          }}
+                          disabled={updateSettingMutation.isPending}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`push-incomplete-${setting.id}`} className="text-sm">
+                          Registros Incompletos (20:00)
+                        </Label>
+                        <Switch
+                          id={`push-incomplete-${setting.id}`}
+                          checked={setting.push_incomplete_records || false}
+                          onCheckedChange={(checked) => {
+                            updateSettingMutation.mutate({
+                              id: setting.id,
+                              updates: { push_incomplete_records: checked }
+                            });
+                          }}
+                          disabled={updateSettingMutation.isPending}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -40,40 +40,18 @@ const handler = async (req: Request): Promise<Response> => {
     for (const notification of pendingNotifications || []) {
       try {
         const metadata = notification.metadata;
-        let emailResponse;
+        let response;
 
-        switch (notification.notification_type) {
-          case 'incomplete_records':
-            emailResponse = await supabase.functions.invoke('send-incomplete-records-notification', {
-              body: {
-                employee_name: metadata.employee_name,
-                employee_email: metadata.employee_email,
-                missing_records: metadata.missing_records,
-                date: metadata.date,
-                records_count: metadata.records_count
-              }
-            });
-            break;
-
-          case 'overtime_alert':
-            emailResponse = await supabase.functions.invoke('send-overtime-alert', {
-              body: {
-                employee_name: metadata.employee_name,
-                employee_email: metadata.employee_email,
-                date: metadata.date,
-                overtime_hours: metadata.overtime_hours,
-                total_hours: metadata.total_hours
-              }
-            });
-            break;
-
-          default:
-            console.log(`Unknown notification type: ${notification.notification_type}`);
-            continue;
+        // Verificar se é notificação push
+        if (notification.notification_type.startsWith('push_')) {
+          response = await processPushNotification(notification);
+        } else {
+          // Processar notificação por email (lógica existente)
+          response = await processEmailNotification(notification);
         }
 
-        if (emailResponse.error) {
-          throw new Error(emailResponse.error.message);
+        if (response && response.error) {
+          throw new Error(response.error.message);
         }
 
         // Marcar como enviada
@@ -127,5 +105,68 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+async function processPushNotification(notification: any) {
+  const metadata = notification.metadata;
+  
+  if (!metadata.push_token) {
+    throw new Error("Push token não encontrado nos metadados");
+  }
+
+  // Chamar a função de envio de push notification
+  const pushResponse = await supabase.functions.invoke('send-push-notification', {
+    body: {
+      tokens: [{
+        token: metadata.push_token,
+        platform: metadata.platform
+      }],
+      title: metadata.title,
+      body: metadata.body,
+      data: {
+        notification_type: notification.notification_type,
+        employee_id: notification.employee_id
+      }
+    }
+  });
+
+  return pushResponse;
+}
+
+async function processEmailNotification(notification: any) {
+  const metadata = notification.metadata;
+  let emailResponse;
+
+  switch (notification.notification_type) {
+    case 'incomplete_records':
+      emailResponse = await supabase.functions.invoke('send-incomplete-records-notification', {
+        body: {
+          employee_name: metadata.employee_name,
+          employee_email: metadata.employee_email,
+          missing_records: metadata.missing_records,
+          date: metadata.date,
+          records_count: metadata.records_count
+        }
+      });
+      break;
+
+    case 'overtime_alert':
+      emailResponse = await supabase.functions.invoke('send-overtime-alert', {
+        body: {
+          employee_name: metadata.employee_name,
+          employee_email: metadata.employee_email,
+          date: metadata.date,
+          overtime_hours: metadata.overtime_hours,
+          total_hours: metadata.total_hours
+        }
+      });
+      break;
+
+    default:
+      console.log(`Unknown email notification type: ${notification.notification_type}`);
+      return { success: true };
+  }
+
+  return emailResponse;
+}
 
 serve(handler);

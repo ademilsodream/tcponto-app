@@ -180,6 +180,7 @@ export type Database = {
           field: string
           id: string
           location: Json | null
+          location_name: string | null
           new_value: string
           old_value: string | null
           reason: string
@@ -195,6 +196,7 @@ export type Database = {
           field: string
           id?: string
           location?: Json | null
+          location_name?: string | null
           new_value: string
           old_value?: string | null
           reason: string
@@ -210,6 +212,7 @@ export type Database = {
           field?: string
           id?: string
           location?: Json | null
+          location_name?: string | null
           new_value?: string
           old_value?: string | null
           reason?: string
@@ -490,6 +493,12 @@ export type Database = {
           id: string
           is_enabled: boolean | null
           notification_type: string
+          push_enabled: boolean | null
+          push_incomplete_records: boolean | null
+          push_reminder_entry: boolean | null
+          push_reminder_exit: boolean | null
+          push_reminder_lunch_end: boolean | null
+          push_reminder_lunch_start: boolean | null
           updated_at: string | null
         }
         Insert: {
@@ -499,6 +508,12 @@ export type Database = {
           id?: string
           is_enabled?: boolean | null
           notification_type: string
+          push_enabled?: boolean | null
+          push_incomplete_records?: boolean | null
+          push_reminder_entry?: boolean | null
+          push_reminder_exit?: boolean | null
+          push_reminder_lunch_end?: boolean | null
+          push_reminder_lunch_start?: boolean | null
           updated_at?: string | null
         }
         Update: {
@@ -508,6 +523,12 @@ export type Database = {
           id?: string
           is_enabled?: boolean | null
           notification_type?: string
+          push_enabled?: boolean | null
+          push_incomplete_records?: boolean | null
+          push_reminder_entry?: boolean | null
+          push_reminder_exit?: boolean | null
+          push_reminder_lunch_end?: boolean | null
+          push_reminder_lunch_start?: boolean | null
           updated_at?: string | null
         }
         Relationships: [
@@ -579,6 +600,47 @@ export type Database = {
             columns: ["job_function_id"]
             isOneToOne: false
             referencedRelation: "job_functions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_tokens: {
+        Row: {
+          created_at: string | null
+          device_info: Json | null
+          employee_id: string
+          id: string
+          is_active: boolean | null
+          platform: string
+          token: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_info?: Json | null
+          employee_id: string
+          id?: string
+          is_active?: boolean | null
+          platform: string
+          token: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_info?: Json | null
+          employee_id?: string
+          id?: string
+          is_active?: boolean | null
+          platform?: string
+          token?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -834,6 +896,10 @@ export type Database = {
           p_worked_hours: number
           p_work_date: string
         }
+        Returns: undefined
+      }
+      send_scheduled_push_notifications: {
+        Args: { notification_type: string; check_time: string }
         Returns: undefined
       }
     }
