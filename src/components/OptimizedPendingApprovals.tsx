@@ -302,16 +302,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     return labels[field]; // field is now guaranteed to be one of the keys
   }, []);
 
-  // Helper function to get location information - DECLARADA APENAS UMA VEZ
-  const getFieldLocation = useCallback((request: EditRequest, fieldDbName: string): string => {
-    if (request.location && request.location[fieldDbName]) {
-      return request.location[fieldDbName]?.locationName || 'N/A';
-    }
-    return 'N/A';
-  }, []);
-
-
-
   // Handler optimized with callback
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
@@ -468,7 +458,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         </Alert>
       )}
 
-      {/* Pending Requests Optimized */}
+      {/* Pending Requests Optimized - 3 CARDS POR LINHA */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -482,7 +472,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
               Nenhuma solicitação pendente
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {groupedPendingRequests.map((group) => (
                 <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
                   <div className="flex justify-between items-start mb-3">
@@ -492,14 +482,14 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                         {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
                       </p>
                     </div>
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="text-xs">
                       {new Date(group.timestamp).toLocaleDateString('pt-BR')}
                     </Badge>
                   </div>
 
                   <div className="mb-3">
-                    <h5 className="font-medium mb-2">Ajustes:</h5>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
+                    <div className="space-y-2">
                       {group.requests.map((request) => (
                         <div key={request.id} className="text-sm border rounded p-2 bg-white">
                           <div className="font-medium text-xs">{getFieldLabel(request.field)}</div>
@@ -527,7 +517,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                     <Button
                       size="sm"
                       onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 flex-1"
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
                       Aprovar
@@ -536,6 +526,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
                       size="sm"
                       variant="destructive"
                       onClick={() => handleGroupApproval(group, false)}
+                      className="flex-1"
                     >
                       <XCircle className="w-4 h-4 mr-1" />
                       Rejeitar
