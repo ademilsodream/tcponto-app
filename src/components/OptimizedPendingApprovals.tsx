@@ -7,7 +7,6 @@ import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } f
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-// ✨ DEFINIR TIPO Json LOCALMENTE (versão melhorada)
 type Json = 
   | string 
   | number 
@@ -16,75 +15,51 @@ type Json =
   | { [key: string]: Json } 
   | Json[];
 
-// Interface for the JSON location object saved within a field key (e.g., "clock_in": {...})
 interface LocationDetailsForEdit {
   address: string | null;
-  distance: number | null; // Can be null for manual edits
+  distance: number | null;
   latitude: number | null;
   longitude: number | null;
-  timestamp: string; // Timestamp of the edit request
+  timestamp: string;
   locationName: string;
 }
 
-// Interface for the expected structure *inside* the JSON column (whether it's named 'location' or 'locations')
-// Ex: { "clock_in": { ...LocationDetailsForEdit... } }
 interface LocationContent {
   clock_in?: LocationDetailsForEdit;
   lunch_start?: LocationDetailsForEdit;
   lunch_end?: LocationDetailsForEdit;
   clock_out?: LocationDetailsForEdit;
-  [key: string]: LocationDetailsForEdit | undefined; // Allow dynamic access
+  [key: string]: LocationDetailsForEdit | undefined;
 }
 
-// ✨ Interface for the raw data directly from the Supabase 'edit_requests' table
-// Matches the database column names and types for this specific table.
 interface RawEditRequestData {
   id: string;
   employee_id: string;
   employee_name: string;
   date: string;
-  field: string; // Database stores 'clock_in', 'lunch_start', etc. as strings
+  field: string;
   old_value: string | null;
   new_value: string;
   reason: string;
-  created_at: string; // Database timestamp
+  created_at: string;
   status: 'pending' | 'approved' | 'rejected';
   reviewed_at: string | null;
   reviewed_by: string | null;
-  // ✨ Column name is 'location' in the 'edit_requests' table
-  location: Json | null; // Database column is named 'location', type is Json/JSONB
+  location: Json | null;
 }
 
-// Keep the EditRequest interface for mapped data used within the component
-// This uses camelCase and the desired union type for the 'field' value
 interface EditRequest {
   id: string;
-  employeeId: string; // Mapped from employee_id
-  employeeName: string; // Mapped from employee_name
+  employeeId: string;
+  employeeName: string;
   date: string;
-  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut'; // Mapped VALUE from DB field string
-  oldValue: string; // Mapped from old_value
-  newValue: string; // Mapped from new_value
+  field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
+  oldValue: string;
+  newValue: string;
   reason: string;
-  timestamp: string; // Mapped from created_at
+  timestamp: string;
   status: 'pending' | 'approved' | 'rejected';
-  // ✨ Property name is 'location' in the mapped data, but its content type is LocationContent
   location?: LocationContent | null;
-}
-
-// ✨ Interface for the raw data directly from the Supabase 'time_records' table
-// Matches the database column names and types for this specific table.
-interface RawTimeRecordData {
-    id: string;
-    user_id: string;
-    date: string;
-    clock_in: string | null;
-    lunch_start: string | null;
-    lunch_end: string | null;
-    clock_out: string | null;
-    // ✨ Column name is 'locations' in the 'time_records' table
-    locations: Json | null; // Database column is named 'locations', type is Json/JSONB
-    // Add other time_records columns as needed (e.g., created_at, updated_at, etc.)
 }
 
 interface GroupedRequest {
@@ -109,74 +84,51 @@ interface PendingApprovalsProps {
 
 const ITEMS_PER_PAGE = 10;
 
-// Helper function to map database field names (snake_case strings) to camelCase used in the component
 const mapFieldDbToCamelCase = (dbField: string): 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut' => {
-  // ✨ MELHORADO: Se já estiver em camelCase, retorna diretamente
   const camelCaseFields = ['clockIn', 'lunchStart', 'lunchEnd', 'clockOut'];
   if (camelCaseFields.includes(dbField)) {
     return dbField as 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut';
   }
   
-  // Se estiver em snake_case, converte para camelCase
   switch (dbField) {
     case 'clock_in': return 'clockIn';
     case 'lunch_start': return 'lunchStart';
     case 'lunch_end': return 'lunchEnd';
     case 'clock_out': return 'clockOut';
     default:
-      console.error(`Campo inesperado do DB: ${dbField}`);
-      // Fallback or handle error appropriately
-      return 'clockIn'; // ✨ CORRIGIDO: retorna valor válido em vez de any
+      console.error(`Campo inesperado: ${dbField}`);
+      return 'clockIn';
   }
 };
 
-// Helper function to map camelCase field names used in the component to database snake_case
 const mapFieldCamelCaseToDb = (camelCaseField: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut'): string => {
     switch (camelCaseField) {
         case 'clockIn': return 'clock_in';
         case 'lunchStart': return 'lunch_start';
         case 'lunchEnd': return 'lunch_end';
         case 'clockOut': return 'clock_out';
-        // No default needed here as input type is a strict union
     }
 };
 
-// ✨ FUNÇÃO HELPER para conversão segura (versão melhorada)
 const safeConvertToLocationContent = (jsonData: Json | null): LocationContent | null => {
-  // Retorna null se não há dados
-  if (!jsonData) {
-    return null;
-  }
-  
-  // Retorna null se não é um objeto válido
-  if (typeof jsonData !== 'object' || Array.isArray(jsonData)) {
-    return null;
-  }
+  if (!jsonData) return null;
+  if (typeof jsonData !== 'object' || Array.isArray(jsonData)) return null;
   
   try {
-    // Conversão via unknown para evitar erros TypeScript
     const obj = jsonData as unknown as { [key: string]: any };
     const result: LocationContent = {};
-    
     const validFields = ['clock_in', 'lunch_start', 'lunch_end', 'clock_out'];
     
     for (const field of validFields) {
       const fieldData = obj[field];
-      
-      // Verificar se o campo existe e é um objeto válido
-      if (fieldData && 
-          typeof fieldData === 'object' && 
-          !Array.isArray(fieldData) &&
-          fieldData !== null) {
-        
-        // Conversão mais segura via unknown
+      if (fieldData && typeof fieldData === 'object' && !Array.isArray(fieldData) && fieldData !== null) {
         result[field] = fieldData as unknown as LocationDetailsForEdit;
       }
     }
     
     return Object.keys(result).length > 0 ? result : null;
   } catch (error) {
-    console.error('Erro ao converter Json para LocationContent:', error);
+    console.error('Erro ao converter Json:', error);
     return null;
   }
 };
@@ -186,17 +138,15 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
   const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
 
-  // Query fetching raw data and mapping it to the component's interface
   const {
-    data: editRequests = [], // Initialize with empty array
+    data: editRequests = [],
     isLoading,
     refetch
-  } = useQuery<EditRequest[]>({ // Type the hook result as EditRequest[]
+  } = useQuery<EditRequest[]>({
     queryKey: ['edit-requests'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('edit_requests')
-        // ✨ Select 'location' from edit_requests table
         .select('id, employee_id, employee_name, date, field, old_value, new_value, reason, created_at, status, reviewed_at, reviewed_by, location')
         .order('created_at', { ascending: false })
         .limit(50);
@@ -206,32 +156,19 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           throw error;
       }
 
-      // Map raw database data (RawEditRequestData[]) to the component's EditRequest interface (EditRequest[])
-      // ✨ Cast data to unknown first to bypass strictness before casting to RawEditRequestData[]
-      return (data as unknown as RawEditRequestData[]).map(request => {
-        // ✨ DEBUG: Log para verificar dados do banco
-        console.log('🔍 DEBUG - OptimizedPendingApprovals:', {
-          field_original: request.field,
-          field_mapeado: mapFieldDbToCamelCase(request.field),
-          employee_name: request.employee_name,
-          location: request.location
-        });
-
-        return {
-          id: request.id,
-          employeeId: request.employee_id,
-          employeeName: request.employee_name,
-          date: request.date,
-          field: mapFieldDbToCamelCase(request.field), // Use mapping function for field value conversion
-          oldValue: request.old_value || '',
-          newValue: request.new_value,
-          reason: request.reason,
-          timestamp: request.created_at,
-          status: request.status,
-          // ✨ CORRIGIDO: Usar função de conversão segura
-          location: safeConvertToLocationContent(request.location),
-        };
-      });
+      return (data as unknown as RawEditRequestData[]).map(request => ({
+        id: request.id,
+        employeeId: request.employee_id,
+        employeeName: request.employee_name,
+        date: request.date,
+        field: mapFieldDbToCamelCase(request.field),
+        oldValue: request.old_value || '',
+        newValue: request.new_value,
+        reason: request.reason,
+        timestamp: request.created_at,
+        status: request.status,
+        location: safeConvertToLocationContent(request.location),
+      }));
     },
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
@@ -239,7 +176,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     retry: 1
   });
 
-  // Real-time optimized with throttling
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -252,7 +188,6 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           table: 'edit_requests'
         },
         () => {
-          // Throttling of 2 seconds
           clearTimeout(timeoutId);
           timeoutId = setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: ['edit-requests'] });
@@ -267,16 +202,12 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
     };
   }, [queryClient]);
 
-  // Memoized calculations with optimized dependencies
   const { pendingRequests, processedRequests, groupedPendingRequests } = useMemo(() => {
-    // editRequests is now correctly typed as EditRequest[]
     const pending = editRequests.filter(r => r.status === 'pending');
     const processed = editRequests.filter(r => r.status !== 'pending');
 
-    // Group pending requests more efficiently
     const groupsMap = new Map<string, GroupedRequest>();
 
-    // This loop iterates over `pending`, which is correctly typed as EditRequest[]
     for (const request of pending) {
       const key = `${request.employeeId}-${request.date}`;
 
@@ -298,9 +229,8 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       processedRequests: processed,
       groupedPendingRequests: Array.from(groupsMap.values())
     };
-  }, [editRequests]); // Dependency is the correctly typed editRequests array
+  }, [editRequests]);
 
-  // Pagination optimized
   const paginatedProcessedRequests = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     return processedRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -308,1922 +238,191 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
 
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
-  // ✨ SOLUÇÃO RADICAL - BYPASS DO PROBLEMA DE TRIGGER
+  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
+    const labels = {
+      clockIn: 'Entrada',
+      lunchStart: 'Início do Almoço',
+      lunchEnd: 'Fim do Almoço',
+      clockOut: 'Saída'
+    };
+    return labels[field];
+  }, []);
+
+  // SOLUÇÃO SIMPLES E DIRETA
   const handleGroupApproval = useCallback(async (group: GroupedRequest, approved: boolean) => {
     try {
-      console.log('🚀 INÍCIO - handleGroupApproval:', { group: group.employeeName, approved });
+      console.log('🚀 Processando aprovação:', group.employeeName, approved);
       
       const requestIds = group.requests.map(r => r.id);
-      console.log('📋 Request IDs:', requestIds);
 
-      // ✨ PASSO 1: Verificar usuário autenticado
+      // Obter usuário
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('❌ ERRO ao obter usuário:', userError);
-        throw new Error(`Erro de autenticação: ${userError.message}`);
-      }
-      
-      if (!user) {
-        console.error('❌ Usuário não autenticado');
+      if (userError || !user) {
         throw new Error('Usuário não autenticado');
       }
 
-      console.log('✅ Usuário autenticado:', user.id);
-      const reviewerId = user.id;
-
-      // ✨ PASSO 2: SE REJEITADO, APENAS ATUALIZAR STATUS
+      // Se rejeitado, apenas atualizar status
       if (!approved) {
-        console.log('❌ Rejeitando solicitações...');
         const { error: rejectError } = await supabase
           .from('edit_requests')
           .update({
             status: 'rejected',
             reviewed_at: new Date().toISOString(),
-            reviewed_by: reviewerId
+            reviewed_by: user.id
           })
           .in('id', requestIds);
 
-        if (rejectError) {
-          console.error('❌ ERRO ao rejeitar:', rejectError);
-          throw new Error(`Erro ao rejeitar solicitações: ${rejectError.message}`);
-        }
+        if (rejectError) throw rejectError;
 
         setMessage(`❌ Edições rejeitadas para ${group.employeeName}`);
-        
         queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
         if (onApprovalChange) onApprovalChange();
         setTimeout(() => setMessage(''), 5000);
         return;
       }
 
-      // ✨ PASSO 3: PREPARAÇÃO TOTAL ANTES DE QUALQUER OPERAÇÃO
-      console.log('✅ Preparando ambiente para aprovação...');
-      
-      // ✨ GARANTIR HOUR_BANK_BALANCES EXISTE
+      // ESTRATÉGIA SIMPLES: Garantir hour_bank_balances existe PRIMEIRO
       console.log('🏦 Verificando hour_bank_balances...');
       
-      const { data: existingBalance, error: balanceCheckError } = await supabase
+      const { data: balance } = await supabase
         .from('hour_bank_balances')
-        .select('id, current_balance')
+        .select('id')
         .eq('employee_id', group.employeeId)
         .maybeSingle();
 
-      if (balanceCheckError) {
-        console.error('❌ Erro ao verificar hour_bank_balances:', balanceCheckError);
-      }
-
-      if (!existingBalance) {
+      if (!balance) {
         console.log('➕ Criando hour_bank_balances...');
-        
-        const { data: newBalance, error: createBalanceError } = await supabase
+        const { error: balanceError } = await supabase
           .from('hour_bank_balances')
           .insert({
             employee_id: group.employeeId,
             current_balance: 0.00
-          })
-          .select('id')
-          .single();
+          });
 
-        if (createBalanceError) {
-          console.error('❌ ERRO ao criar hour_bank_balances:', createBalanceError);
-          throw new Error(`Erro crítico: ${createBalanceError.message}`);
+        if (balanceError) {
+          throw new Error(`Erro ao criar banco de horas: ${balanceError.message}`);
         }
 
-        console.log('✅ Hour_bank_balances criado:', newBalance);
-        
-        // AGUARDAR para garantir que foi commitado
+        // Aguardar para garantir commit
         await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
-        console.log('✅ Hour_bank_balances já existe');
       }
 
-      // ✨ PASSO 4: VERIFICAR SE TIME_RECORD JÁ EXISTE
-      console.log('🔍 Verificando time_record existente...');
-      
-      const { data: existingTimeRecord, error: timeRecordCheckError } = await supabase
+      // Buscar time_record existente
+      const { data: timeRecord, error: fetchError } = await supabase
         .from('time_records')
         .select('id, clock_in, lunch_start, lunch_end, clock_out, locations')
         .eq('user_id', group.employeeId)
         .eq('date', group.date)
         .maybeSingle();
 
-      if (timeRecordCheckError) {
-        console.error('❌ Erro ao verificar time_record:', timeRecordCheckError);
-        throw new Error(`Erro ao verificar registro: ${timeRecordCheckError.message}`);
-      }
+      if (fetchError) throw fetchError;
 
-      console.log('📊 Time record existente:', existingTimeRecord);
-
-      // ✨ PASSO 5: PREPARAR DADOS COMPLETOS
+      // Preparar dados
       const updateData: any = {};
-      let mergedLocationContent: LocationContent = {};
+      let mergedLocations: LocationContent = {};
 
-      if (existingTimeRecord?.locations) {
-        const existingLocations = safeConvertToLocationContent(existingTimeRecord.locations);
-        if (existingLocations) {
-          mergedLocationContent = { ...existingLocations };
-        }
+      if (timeRecord?.locations) {
+        const existing = safeConvertToLocationContent(timeRecord.locations);
+        if (existing) mergedLocations = { ...existing };
       }
 
-      console.log('📍 Localizações existentes:', mergedLocationContent);
-
+      // Processar cada request
       for (const request of group.requests) {
-        const dbFieldName = mapFieldCamelCaseToDb(request.field);
+        const dbField = mapFieldCamelCaseToDb(request.field);
         
-        console.log('🔧 Processando request:', {
-          field: request.field,
-          dbFieldName,
-          newValue: request.newValue
-        });
-
         if (request.newValue && !/^\d{2}:\d{2}$/.test(request.newValue)) {
           throw new Error(`Formato inválido: ${request.newValue}`);
         }
 
-        updateData[dbFieldName] = request.newValue;
+        updateData[dbField] = request.newValue;
 
-        if (request.location && request.location[dbFieldName]) {
-          mergedLocationContent[dbFieldName] = request.location[dbFieldName];
+        if (request.location && request.location[dbField]) {
+          mergedLocations[dbField] = request.location[dbField];
         }
       }
 
-      updateData.locations = Object.keys(mergedLocationContent).length > 0 ? mergedLocationContent : null;
-      
-      console.log('📦 Dados finais:', updateData);
+      updateData.locations = Object.keys(mergedLocations).length > 0 ? mergedLocations : null;
 
-      // ✨ PASSO 6: ESTRATÉGIA RADICAL - USAR SQL RAW
-      console.log('🔥 USANDO ESTRATÉGIA SQL RAW para evitar triggers problemáticos...');
-      
-      let timeRecordSuccess = false;
-      let finalTimeRecordId = null;
+      // Executar operação
+      let success = false;
 
-      try {
-        if (existingTimeRecord?.id) {
-          // ✨ ATUALIZAR USANDO SQL RAW
-          console.log('🔄 Atualizando com SQL raw...');
+      if (timeRecord?.id) {
+        // Atualizar existente
+        console.log('🔄 Atualizando registro existente...');
+        const { error: updateError } = await supabase
+          .from('time_records')
+          .update(updateData)
+          .eq('id', timeRecord.id);
+
+        if (updateError) throw updateError;
+        success = true;
+      } else {
+        // Criar novo - ESTRATÉGIA SIMPLES
+        console.log('➕ Criando novo registro...');
+        
+        // Primeiro: apenas horários
+        const basicData = {
+          user_id: group.employeeId,
+          date: group.date,
+          clock_in: updateData.clock_in || null,
+          lunch_start: updateData.lunch_start || null,
+          lunch_end: updateData.lunch_end || null,
+          clock_out: updateData.clock_out || null,
+        };
+
+        const { data: newRecord, error: insertError } = await supabase
+          .from('time_records')
+          .insert(basicData)
+          .select('id')
+          .single();
+
+        if (insertError) throw insertError;
+
+        success = true;
+
+        // Depois: adicionar locations se existir
+        if (updateData.locations && newRecord?.id) {
+          console.log('📍 Adicionando locations...');
           
-          const updateFields = [];
-          const updateValues = [];
-          
-          if (updateData.clock_in) {
-            updateFields.push('clock_in = 
-
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
-
-  // Loading optimized
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-200 rounded"></div>
-            <div className="h-20 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {message && (
-        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
-            {message}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Pending Requests Optimized */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
-                      <p className="text-xs text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                      </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
-                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
-                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
-                    <div className="space-y-2">
-                      {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
-                          <div className="font-medium flex justify-between items-center mb-1">
-                            <span>{getFieldLabel(request.field)}</span>
-                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
-                              {request.newValue || 'Vazio'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
-                            <span className="text-green-600">Para: {request.newValue}</span>
-                          </div>
-                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
-                            📍 {getFieldLocation(request)}
-                          </div>
-                          {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
-                              💬 {request.reason}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Aprovar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleGroupApproval(group, false)}
-                      className="flex-1 text-xs"
-                    >
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Rejeitar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History Optimized */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Histórico</span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600">
-                    {currentPage}/{totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
-
-export default OptimizedPendingApprovals; + (updateValues.length + 1));
-            updateValues.push(updateData.clock_in);
-          }
-          if (updateData.lunch_start) {
-            updateFields.push('lunch_start = 
-
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
-
-  // Loading optimized
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-200 rounded"></div>
-            <div className="h-20 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {message && (
-        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
-            {message}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Pending Requests Optimized */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
-                      <p className="text-xs text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                      </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
-                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
-                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
-                    <div className="space-y-2">
-                      {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
-                          <div className="font-medium flex justify-between items-center mb-1">
-                            <span>{getFieldLabel(request.field)}</span>
-                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
-                              {request.newValue || 'Vazio'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
-                            <span className="text-green-600">Para: {request.newValue}</span>
-                          </div>
-                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
-                            📍 {getFieldLocation(request)}
-                          </div>
-                          {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
-                              💬 {request.reason}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Aprovar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleGroupApproval(group, false)}
-                      className="flex-1 text-xs"
-                    >
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Rejeitar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History Optimized */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Histórico</span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600">
-                    {currentPage}/{totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
-
-export default OptimizedPendingApprovals; + (updateValues.length + 1));
-            updateValues.push(updateData.lunch_start);
-          }
-          if (updateData.lunch_end) {
-            updateFields.push('lunch_end = 
-
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
-
-  // Loading optimized
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-200 rounded"></div>
-            <div className="h-20 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {message && (
-        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
-            {message}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Pending Requests Optimized */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
-                      <p className="text-xs text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                      </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
-                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
-                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
-                    <div className="space-y-2">
-                      {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
-                          <div className="font-medium flex justify-between items-center mb-1">
-                            <span>{getFieldLabel(request.field)}</span>
-                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
-                              {request.newValue || 'Vazio'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
-                            <span className="text-green-600">Para: {request.newValue}</span>
-                          </div>
-                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
-                            📍 {getFieldLocation(request)}
-                          </div>
-                          {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
-                              💬 {request.reason}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Aprovar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleGroupApproval(group, false)}
-                      className="flex-1 text-xs"
-                    >
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Rejeitar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History Optimized */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Histórico</span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600">
-                    {currentPage}/{totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
-
-export default OptimizedPendingApprovals; + (updateValues.length + 1));
-            updateValues.push(updateData.lunch_end);
-          }
-          if (updateData.clock_out) {
-            updateFields.push('clock_out = 
-
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
-
-  // Loading optimized
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-200 rounded"></div>
-            <div className="h-20 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {message && (
-        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
-            {message}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Pending Requests Optimized */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
-                      <p className="text-xs text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                      </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
-                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
-                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
-                    <div className="space-y-2">
-                      {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
-                          <div className="font-medium flex justify-between items-center mb-1">
-                            <span>{getFieldLabel(request.field)}</span>
-                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
-                              {request.newValue || 'Vazio'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
-                            <span className="text-green-600">Para: {request.newValue}</span>
-                          </div>
-                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
-                            📍 {getFieldLocation(request)}
-                          </div>
-                          {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
-                              💬 {request.reason}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Aprovar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleGroupApproval(group, false)}
-                      className="flex-1 text-xs"
-                    >
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Rejeitar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History Optimized */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Histórico</span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600">
-                    {currentPage}/{totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
-
-export default OptimizedPendingApprovals; + (updateValues.length + 1));
-            updateValues.push(updateData.clock_out);
-          }
-          if (updateData.locations) {
-            updateFields.push('locations = 
-
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
-  const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
-    const times: { [key: string]: string } = {};
-    
-    group.requests.forEach(request => {
-      if (request.newValue) {
-        times[request.field] = request.newValue;
-      }
-    });
-
-    try {
-      const clockIn = times.clockIn;
-      const lunchStart = times.lunchStart;
-      const lunchEnd = times.lunchEnd;
-      const clockOut = times.clockOut;
-
-      let totalHours = 0;
-
-      // Calcular horas da manhã (entrada até início do almoço)
-      if (clockIn && lunchStart) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMin;
-        
-        if (lunchStartMinutes > inMinutes) {
-          totalHours += (lunchStartMinutes - inMinutes) / 60;
-        }
-      }
-
-      // Calcular horas da tarde (fim do almoço até saída)
-      if (lunchEnd && clockOut) {
-        const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > lunchEndMinutes) {
-          totalHours += (outMinutes - lunchEndMinutes) / 60;
-        }
-      }
-
-      // Se não tem horário de almoço, calcular direto entrada até saída
-      if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
-        const [inHour, inMin] = clockIn.split(':').map(Number);
-        const [outHour, outMin] = clockOut.split(':').map(Number);
-        
-        const inMinutes = inHour * 60 + inMin;
-        const outMinutes = outHour * 60 + outMin;
-        
-        if (outMinutes > inMinutes) {
-          totalHours = (outMinutes - inMinutes) / 60;
-        }
-      }
-
-      return totalHours;
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
-
-  // Loading optimized
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-20 bg-gray-200 rounded"></div>
-            <div className="h-20 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {message && (
-        <Alert className={`border-2 ${message.includes('✅') ? 'border-green-200 bg-green-50' : message.includes('❌') ? 'border-red-200 bg-red-50' : 'border-accent-200 bg-accent-50'}`}>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className={message.includes('✅') ? 'text-green-800' : message.includes('❌') ? 'text-red-800' : 'text-accent-800'}>
-            {message}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Pending Requests Optimized */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
-            Solicitações Pendentes ({groupedPendingRequests.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {groupedPendingRequests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              Nenhuma solicitação pendente
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {groupedPendingRequests.map((group) => (
-                <div key={`${group.employeeId}-${group.date}`} className="border rounded-lg p-3 bg-yellow-50 border-yellow-200">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-gray-900 text-sm truncate">{group.employeeName}</h4>
-                      <p className="text-xs text-gray-600">
-                        {new Date(group.date).toLocaleDateString('pt-BR')} - {group.requests.length} ajuste(s)
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(group.timestamp).toLocaleDateString('pt-BR')}
-                      </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
-                      <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
-                        ⏱️ {calculateWorkingHours(group).toFixed(1)}h
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <h5 className="font-medium mb-2 text-sm">Ajustes:</h5>
-                    <div className="space-y-2">
-                      {group.requests.map((request) => (
-                        <div key={request.id} className="text-xs border rounded p-2 bg-white">
-                          <div className="font-medium flex justify-between items-center mb-1">
-                            <span>{getFieldLabel(request.field)}</span>
-                            <span className="text-xs text-green-600 bg-green-50 px-1 py-0.5 rounded font-semibold">
-                              {request.newValue || 'Vazio'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
-                            <span className="text-green-600">Para: {request.newValue}</span>
-                          </div>
-                          <div className="text-xs text-gray-600 truncate" title={getFieldLocation(request)}>
-                            📍 {getFieldLocation(request)}
-                          </div>
-                          {request.reason && (
-                            <div className="text-xs text-gray-600 mt-1 truncate" title={request.reason}>
-                              💬 {request.reason}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleGroupApproval(group, true)}
-                      className="bg-green-600 hover:bg-green-700 flex-1 text-xs"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Aprovar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleGroupApproval(group, false)}
-                      className="flex-1 text-xs"
-                    >
-                      <XCircle className="w-3 h-3 mr-1" />
-                      Rejeitar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History Optimized */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Histórico</span>
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm text-gray-600">
-                    {currentPage}/{totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Funcionário
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Campo
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Alteração
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Data
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {paginatedProcessedRequests.map((request) => (
-                    <tr key={request.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.employeeName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {getFieldLabel(request.field)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {request.oldValue || 'Vazio'} → {request.newValue}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(request.timestamp).toLocaleDateString('pt-BR')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-};
-
-export default OptimizedPendingApprovals; + (updateValues.length + 1));
-            updateValues.push(JSON.stringify(updateData.locations));
-          }
-          
-          // Adicionar WHERE clause
-          updateFields.push('updated_at = NOW()');
-          updateValues.push(existingTimeRecord.id);
-          
-          const sqlQuery = `
-            UPDATE time_records 
-            SET ${updateFields.join(', ')}
-            WHERE id = ${updateValues.length}
-            RETURNING id;
-          `;
-          
-          console.log('🔍 SQL Query:', sqlQuery);
-          console.log('🔍 Values:', updateValues);
-          
-          const { data: rawUpdateResult, error: rawUpdateError } = await supabase
-            .rpc('execute_sql', {
-              query: sqlQuery,
-              params: updateValues
-            });
-
-          if (rawUpdateError) {
-            console.error('❌ SQL raw update falhou:', rawUpdateError);
-            
-            // FALLBACK: Usar método normal do Supabase
-            console.log('🔄 Fallback para método normal...');
-            
-            const { data: normalUpdate, error: normalError } = await supabase
-              .from('time_records')
-              .update(updateData)
-              .eq('id', existingTimeRecord.id)
-              .select('id');
-
-            if (normalError) {
-              throw normalError;
-            }
-
-            if (normalUpdate && normalUpdate.length > 0) {
-              timeRecordSuccess = true;
-              finalTimeRecordId = normalUpdate[0].id;
-              console.log('✅ Atualização normal bem-sucedida');
-            }
-          } else {
-            timeRecordSuccess = true;
-            finalTimeRecordId = existingTimeRecord.id;
-            console.log('✅ SQL raw update bem-sucedido');
-          }
-        } else {
-          // ✨ INSERIR USANDO MÉTODO MAIS SEGURO
-          console.log('➕ Criando novo registro...');
-          
-          // ESTRATÉGIA: Inserir sem locations primeiro
-          const basicData = {
-            user_id: group.employeeId,
-            date: group.date,
-            clock_in: updateData.clock_in || null,
-            lunch_start: updateData.lunch_start || null,
-            lunch_end: updateData.lunch_end || null,
-            clock_out: updateData.clock_out || null,
-          };
-
-          console.log('📦 Inserindo dados básicos:', basicData);
-
-          const { data: basicInsert, error: basicError } = await supabase
+          const { error: locationError } = await supabase
             .from('time_records')
-            .insert(basicData)
-            .select('id')
-            .single();
+            .update({ locations: updateData.locations })
+            .eq('id', newRecord.id);
 
-          if (basicError) {
-            console.error('❌ Inserção básica falhou:', basicError);
-            throw basicError;
-          }
-
-          if (basicInsert?.id) {
-            console.log('✅ Inserção básica bem-sucedida:', basicInsert.id);
-            finalTimeRecordId = basicInsert.id;
-            timeRecordSuccess = true;
-
-            // Agora adicionar locations se existir
-            if (updateData.locations) {
-              console.log('🔄 Adicionando locations...');
-              
-              // Aguardar um pouco antes de atualizar
-              await new Promise(resolve => setTimeout(resolve, 500));
-              
-              const { error: locationError } = await supabase
-                .from('time_records')
-                .update({ locations: updateData.locations })
-                .eq('id', basicInsert.id);
-
-              if (locationError) {
-                console.warn('⚠️ Erro ao adicionar locations:', locationError);
-                // Não falhar por causa disso
-              } else {
-                console.log('✅ Locations adicionadas');
-              }
-            }
+          if (locationError) {
+            console.warn('Erro ao adicionar locations:', locationError);
           }
         }
-      } catch (operationError: any) {
-        console.error('❌ Erro na operação:', operationError);
-        throw new Error(`Erro na operação de time_records: ${operationError.message}`);
       }
 
-      // ✨ PASSO 7: SÓ APROVAR SE DEU CERTO
-      if (timeRecordSuccess && finalTimeRecordId) {
-        console.log('🔄 Aprovando edit_requests...');
-        
+      // Só aprovar se time_records deu certo
+      if (success) {
         const { error: approveError } = await supabase
           .from('edit_requests')
           .update({
             status: 'approved',
             reviewed_at: new Date().toISOString(),
-            reviewed_by: reviewerId
+            reviewed_by: user.id
           })
           .in('id', requestIds);
 
-        if (approveError) {
-          console.error('❌ Erro ao aprovar:', approveError);
-          throw new Error(`Erro ao aprovar: ${approveError.message}`);
-        }
-        
-        console.log('✅ Aprovação concluída com sucesso');
+        if (approveError) throw approveError;
+
         setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
-      } else {
-        throw new Error('Falha na operação de time_records');
       }
 
-      // ✨ FINALIZAR
       queryClient.invalidateQueries({ queryKey: ['edit-requests'], exact: true });
       if (onApprovalChange) onApprovalChange();
       setTimeout(() => setMessage(''), 5000);
-      console.log('🎉 PROCESSO CONCLUÍDO!');
       
     } catch (error: any) {
-      console.error('💥 ERRO:', error);
-      
-      setMessage(`Erro ao processar aprovação: ${error.message}`);
+      console.error('💥 Erro:', error);
+      setMessage(`Erro: ${error.message}`);
       setTimeout(() => setMessage(''), 8000);
     }
   }, [queryClient, onApprovalChange]);
 
-  // Memoized field label function
-  const getFieldLabel = useCallback((field: 'clockIn' | 'lunchStart' | 'lunchEnd' | 'clockOut') => {
-    const labels = {
-      clockIn: 'Entrada',
-      lunchStart: 'Início do Almoço',
-      lunchEnd: 'Fim do Almoço',
-      clockOut: 'Saída'
-    };
-    return labels[field]; // field is now guaranteed to be one of the keys
-  }, []);
-
-  // ✨ FUNÇÃO para obter localização específica do campo
-  const getFieldLocation = useCallback((request: EditRequest): string => {
-    if (!request.location) return 'N/A';
-    
-    const dbFieldName = mapFieldCamelCaseToDb(request.field);
-    const locationData = request.location[dbFieldName];
-    
-    return locationData?.locationName || 'N/A';
-  }, []);
-
-  // ✨ FUNÇÃO para calcular diferença de horas
-  const calculateTimeDifference = useCallback((oldTime: string, newTime: string): number => {
-    if (!oldTime || !newTime) return 0;
-    
-    try {
-      const [oldHour, oldMin] = oldTime.split(':').map(Number);
-      const [newHour, newMin] = newTime.split(':').map(Number);
-      
-      const oldMinutes = oldHour * 60 + oldMin;
-      const newMinutes = newHour * 60 + newMin;
-      
-      return Math.abs(newMinutes - oldMinutes) / 60; // Retorna em horas
-    } catch {
-      return 0;
-    }
-  }, []);
-
-  // ✨ FUNÇÃO para calcular total de horas trabalhadas dos novos horários
   const calculateWorkingHours = useCallback((group: GroupedRequest): number => {
-    // Organizar os horários por tipo
     const times: { [key: string]: string } = {};
     
     group.requests.forEach(request => {
@@ -2240,7 +439,6 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
 
       let totalHours = 0;
 
-      // Calcular horas da manhã (entrada até início do almoço)
       if (clockIn && lunchStart) {
         const [inHour, inMin] = clockIn.split(':').map(Number);
         const [lunchStartHour, lunchStartMin] = lunchStart.split(':').map(Number);
@@ -2253,7 +451,6 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
         }
       }
 
-      // Calcular horas da tarde (fim do almoço até saída)
       if (lunchEnd && clockOut) {
         const [lunchEndHour, lunchEndMin] = lunchEnd.split(':').map(Number);
         const [outHour, outMin] = clockOut.split(':').map(Number);
@@ -2266,7 +463,6 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
         }
       }
 
-      // Se não tem horário de almoço, calcular direto entrada até saída
       if (clockIn && clockOut && (!lunchStart || !lunchEnd)) {
         const [inHour, inMin] = clockIn.split(':').map(Number);
         const [outHour, outMin] = clockOut.split(':').map(Number);
@@ -2285,14 +481,15 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
     }
   }, []);
 
-  // ✨ FUNÇÃO para calcular total de horas ajustadas de um grupo (mantida para diferenças individuais)
-  const calculateGroupTotalHours = useCallback((group: GroupedRequest): number => {
-    return group.requests.reduce((total, request) => {
-      return total + calculateTimeDifference(request.oldValue, request.newValue);
-    }, 0);
-  }, [calculateTimeDifference]);
+  const getFieldLocation = useCallback((request: EditRequest): string => {
+    if (!request.location) return 'N/A';
+    
+    const dbFieldName = mapFieldCamelCaseToDb(request.field);
+    const locationData = request.location[dbFieldName];
+    
+    return locationData?.locationName || 'N/A';
+  }, []);
 
-  // Loading optimized
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -2318,7 +515,6 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
         </Alert>
       )}
 
-      {/* Pending Requests Optimized */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -2346,7 +542,6 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
                       <Badge variant="secondary" className="text-xs">
                         {new Date(group.timestamp).toLocaleDateString('pt-BR')}
                       </Badge>
-                      {/* ✨ Total de horas trabalhadas dos novos horários - mais compacto */}
                       <div className="bg-blue-100 px-2 py-1 rounded text-xs text-blue-800 font-semibold">
                         ⏱️ {calculateWorkingHours(group).toFixed(1)}h
                       </div>
@@ -2407,7 +602,6 @@ export default OptimizedPendingApprovals; + (updateValues.length + 1));
         </CardContent>
       </Card>
 
-      {/* History Optimized */}
       {processedRequests.length > 0 && (
         <Card>
           <CardHeader>
