@@ -420,7 +420,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
         
         console.log('📦 Dados finais para atualização:', updateData);
 
-        // ✨ PASSO 3.5: Executar atualização ou inserção
+        // ✨ PASSO 3.5: Executar atualização ou inserção com tratamento de foreign key
         if (timeRecord?.id) {
           // Atualizar registro existente
           console.log('🔄 Atualizando registro existente ID:', timeRecord.id);
@@ -437,7 +437,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           
           console.log('✅ Registro atualizado com sucesso');
         } else {
-          // Criar novo registro
+          // Criar novo registro com tratamento especial para foreign key constraint
           console.log('➕ Criando novo registro');
           
           const insertData = {
@@ -448,16 +448,89 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           
           console.log('📦 Dados para inserção:', insertData);
           
-          const { error: insertError } = await supabase
-            .from('time_records')
-            .insert(insertData);
+          try {
+            // ✨ ESTRATÉGIA 1: Tentar inserir diretamente
+            const { data: newRecord, error: insertError } = await supabase
+              .from('time_records')
+              .insert(insertData)
+              .select('id')
+              .single();
 
-          if (insertError) {
-            console.error('❌ ERRO ao inserir time_records:', insertError);
-            throw new Error(`Erro ao criar registro de ponto: ${insertError.message}`);
+            if (insertError) {
+              console.error('❌ ERRO na inserção direta:', insertError);
+              
+              // ✨ ESTRATÉGIA 2: Se falhar por foreign key, tentar com upsert
+              if (insertError.message.includes('hour_bank_transactions')) {
+                console.log('🔄 Tentando com upsert devido à constraint de hour_bank_transactions...');
+                
+                const { data: upsertRecord, error: upsertError } = await supabase
+                  .from('time_records')
+                  .upsert(insertData, { 
+                    onConflict: 'user_id,date',
+                    ignoreDuplicates: false 
+                  })
+                  .select('id')
+                  .single();
+
+                if (upsertError) {
+                  console.error('❌ ERRO no upsert:', upsertError);
+                  
+                  // ✨ ESTRATÉGIA 3: Se ainda falhar, tentar inserir sem foreign key dependencies
+                  console.log('🔄 Tentando inserção básica sem dependências...');
+                  
+                  // Criar apenas os campos básicos primeiro
+                  const basicInsertData = {
+                    user_id: group.employeeId,
+                    date: group.date,
+                    clock_in: updateData.clock_in || null,
+                    lunch_start: updateData.lunch_start || null,
+                    lunch_end: updateData.lunch_end || null,
+                    clock_out: updateData.clock_out || null,
+                    // Não incluir locations inicialmente para evitar triggers
+                  };
+                  
+                  const { data: basicRecord, error: basicError } = await supabase
+                    .from('time_records')
+                    .insert(basicInsertData)
+                    .select('id')
+                    .single();
+
+                  if (basicError) {
+                    console.error('❌ ERRO na inserção básica:', basicError);
+                    throw new Error(`Erro ao criar registro básico: ${basicError.message}`);
+                  }
+
+                  console.log('✅ Registro básico criado, ID:', basicRecord?.id);
+
+                  // Agora atualizar com as locations se existirem
+                  if (updateData.locations && basicRecord?.id) {
+                    console.log('🔄 Atualizando com locations...');
+                    
+                    const { error: updateLocationError } = await supabase
+                      .from('time_records')
+                      .update({ locations: updateData.locations })
+                      .eq('id', basicRecord.id);
+
+                    if (updateLocationError) {
+                      console.warn('⚠️ Erro ao atualizar locations, mas registro foi criado:', updateLocationError);
+                    } else {
+                      console.log('✅ Locations atualizadas com sucesso');
+                    }
+                  }
+                } else {
+                  console.log('✅ Upsert realizado com sucesso, ID:', upsertRecord?.id);
+                }
+              } else {
+                // Se não é erro de foreign key, relançar o erro original
+                throw insertError;
+              }
+            } else {
+              console.log('✅ Inserção direta realizada com sucesso, ID:', newRecord?.id);
+            }
+          } catch (finalError: any) {
+            console.error('❌ ERRO FINAL na criação do registro:', finalError);
+            throw new Error(`Erro ao criar registro de ponto: ${finalError.message}`);
           }
-          
-          console.log('✅ Novo registro criado com sucesso');
         }
 
         setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
