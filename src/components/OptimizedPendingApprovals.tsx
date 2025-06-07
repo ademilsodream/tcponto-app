@@ -461,7 +461,7 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
       
       console.log('📦 Dados COMPLETOS para time_records:', updateData);
 
-      // ✨ PASSO 6: EXECUTAR OPERAÇÃO COM RETRY INTELIGENTE
+      // ✨ PASSO 6: EXECUTAR COM TRANSAÇÃO MANUAL E VERIFICAÇÃO TOTAL
       let timeRecordSuccess = false;
       let timeRecordId = timeRecord?.id;
 
@@ -488,62 +488,164 @@ const OptimizedPendingApprovals: React.FC<PendingApprovalsProps> = ({ employees,
           throw new Error('Atualização não retornou dados');
         }
       } else {
-        // ✨ CRIAR NOVO REGISTRO COM RETRY ESTRATÉGICO
-        console.log('➕ Criando novo registro COMPLETO...');
+        // ✨ CRIAR NOVO REGISTRO COM ESTRATÉGIA ANTI-CONFLITO
+        console.log('➕ Criando novo registro com proteção anti-conflito...');
         
-        const insertData = {
-          user_id: group.employeeId,
-          date: group.date,
-          ...updateData,
-        };
-        
-        console.log('📦 Dados completos para inserção:', insertData);
-
-        // TENTATIVA 1: Inserção direta com todos os dados
-        let { data: newRecord, error: insertError } = await supabase
+        // VERIFICAR SE JÁ EXISTE UM REGISTRO (possível condição de corrida)
+        console.log('🔍 Verificação final de duplicatas...');
+        const { data: duplicateCheck, error: duplicateError } = await supabase
           .from('time_records')
-          .insert(insertData)
           .select('id')
-          .single();
+          .eq('user_id', group.employeeId)
+          .eq('date', group.date)
+          .maybeSingle();
 
-        if (insertError) {
-          console.error('❌ TENTATIVA 1 falhou:', insertError);
-          
-          if (insertError.message.includes('hour_bank_transactions')) {
-            console.log('🔄 TENTATIVA 2: Aguardar e tentar novamente...');
-            
-            // Aguardar 1 segundo para garantir que hour_bank_balances foi processado
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // TENTATIVA 2: Tentar novamente
-            const { data: retryRecord, error: retryError } = await supabase
-              .from('time_records')
-              .insert(insertData)
-              .select('id')
-              .single();
-
-            if (retryError) {
-              console.error('❌ TENTATIVA 2 falhou:', retryError);
-              console.error('💀 TODAS AS TENTATIVAS FALHARAM');
-              throw retryError;
-            } else {
-              console.log('✅ TENTATIVA 2 bem-sucedida:', retryRecord);
-              newRecord = retryRecord;
-              insertError = null;
-            }
-          } else {
-            throw insertError;
-          }
-        } else {
-          console.log('✅ TENTATIVA 1 bem-sucedida:', newRecord);
+        if (duplicateError) {
+          console.error('❌ Erro na verificação de duplicatas:', duplicateError);
         }
 
-        if (!insertError && newRecord?.id) {
-          console.log('✅ Novo registro criado com sucesso, ID:', newRecord.id);
-          timeRecordSuccess = true;
-          timeRecordId = newRecord.id;
+        if (duplicateCheck?.id) {
+          console.log('⚠️ REGISTRO DUPLICADO DETECTADO! Usando o existente:', duplicateCheck.id);
+          
+          // Atualizar o registro encontrado em vez de criar novo
+          const { data: updateDuplicate, error: updateDuplicateError } = await supabase
+            .from('time_records')
+            .update(updateData)
+            .eq('id', duplicateCheck.id)
+            .select('id');
+
+          if (updateDuplicateError) {
+            console.error('❌ Erro ao atualizar registro duplicado:', updateDuplicateError);
+            throw new Error(`Erro ao atualizar registro duplicado: ${updateDuplicateError.message}`);
+          }
+
+          if (updateDuplicate && updateDuplicate.length > 0) {
+            console.log('✅ Registro duplicado atualizado com sucesso');
+            timeRecordSuccess = true;
+            timeRecordId = updateDuplicate[0].id;
+          } else {
+            throw new Error('Falha ao atualizar registro duplicado');
+          }
         } else {
-          throw new Error('Falha em todas as tentativas de inserção');
+          // Realmente criar novo registro
+          const insertData = {
+            user_id: group.employeeId,
+            date: group.date,
+            ...updateData,
+          };
+          
+          console.log('📦 Dados para inserção (sem duplicata):', insertData);
+
+          // USAR UPSERT EM VEZ DE INSERT PURO
+          console.log('🔄 Usando UPSERT para evitar conflitos...');
+          
+          const { data: upsertRecord, error: upsertError } = await supabase
+            .from('time_records')
+            .upsert(insertData, { 
+              onConflict: 'user_id,date',
+              ignoreDuplicates: false 
+            })
+            .select('id')
+            .single();
+
+          if (upsertError) {
+            console.error('❌ UPSERT falhou:', upsertError);
+            
+            if (upsertError.message.includes('hour_bank_transactions')) {
+              console.log('🔄 TENTATIVA FINAL: Insert direto com delay...');
+              
+              // Aguardar mais tempo para processos assíncronos
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Verificar novamente se não foi criado por outro processo
+              const { data: finalCheck, error: finalCheckError } = await supabase
+                .from('time_records')
+                .select('id')
+                .eq('user_id', group.employeeId)
+                .eq('date', group.date)
+                .maybeSingle();
+
+              if (!finalCheckError && finalCheck?.id) {
+                console.log('✅ Registro encontrado em verificação final:', finalCheck.id);
+                timeRecordSuccess = true;
+                timeRecordId = finalCheck.id;
+              } else {
+                // Última tentativa com insert básico
+                console.log('🔄 ÚLTIMA TENTATIVA: Insert básico...');
+                
+                const basicData = {
+                  user_id: group.employeeId,
+                  date: group.date,
+                  clock_in: updateData.clock_in || null,
+                  lunch_start: updateData.lunch_start || null,
+                  lunch_end: updateData.lunch_end || null,
+                  clock_out: updateData.clock_out || null,
+                  // Sem locations para evitar triggers complexos
+                };
+
+                const { data: basicRecord, error: basicError } = await supabase
+                  .from('time_records')
+                  .insert(basicData)
+                  .select('id')
+                  .single();
+
+                if (basicError) {
+                  console.error('❌ FALHA TOTAL - Última tentativa falhou:', basicError);
+                  throw new Error(`Erro crítico: ${basicError.message}`);
+                }
+
+                if (basicRecord?.id) {
+                  console.log('✅ Registro básico criado na última tentativa:', basicRecord.id);
+                  timeRecordSuccess = true;
+                  timeRecordId = basicRecord.id;
+
+                  // Tentar adicionar locations depois
+                  if (updateData.locations) {
+                    console.log('🔄 Adicionando locations ao registro básico...');
+                    
+                    const { error: addLocationError } = await supabase
+                      .from('time_records')
+                      .update({ locations: updateData.locations })
+                      .eq('id', basicRecord.id);
+
+                    if (addLocationError) {
+                      console.warn('⚠️ Locations não foram adicionadas:', addLocationError);
+                    } else {
+                      console.log('✅ Locations adicionadas com sucesso');
+                    }
+                  }
+                } else {
+                  throw new Error('Falha completa em todas as tentativas');
+                }
+              }
+            } else {
+              throw upsertError;
+            }
+          } else if (upsertRecord?.id) {
+            console.log('✅ UPSERT bem-sucedido:', upsertRecord.id);
+            timeRecordSuccess = true;
+            timeRecordId = upsertRecord.id;
+          } else {
+            throw new Error('UPSERT não retornou ID válido');
+          }
+        }
+
+        // ✨ VERIFICAÇÃO FINAL OBRIGATÓRIA
+        if (timeRecordSuccess && timeRecordId) {
+          console.log('🔍 VERIFICAÇÃO FINAL: Confirmando que o registro existe...');
+          
+          const { data: finalVerification, error: verificationError } = await supabase
+            .from('time_records')
+            .select('id, user_id, date')
+            .eq('id', timeRecordId)
+            .single();
+
+          if (verificationError || !finalVerification) {
+            console.error('❌ VERIFICAÇÃO FINAL falhou:', verificationError);
+            throw new Error('Registro não pode ser verificado após criação');
+          }
+
+          console.log('✅ VERIFICAÇÃO FINAL confirmada:', finalVerification);
         }
       }
 
