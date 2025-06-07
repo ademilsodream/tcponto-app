@@ -1,16 +1,19 @@
-
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import { PushNotificationService } from '@/services/PushNotificationService';
+
+// Cache para perfis de usuário
+const profileCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 interface AuthContextType {
   user: User | null;
   profile: any;
   isLoading: boolean;
-  loading: boolean; // Alias para compatibilidade
+  loading: boolean;
   signOut: () => Promise<void>;
-  logout: () => Promise<void>; // Alias para compatibilidade
+  logout: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   refreshProfile: () => Promise<void>;
 }
@@ -30,8 +33,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
+      // Verificar cache
+      const cachedProfile = profileCache.get(userId);
+      if (cachedProfile && Date.now() - cachedProfile.timestamp < CACHE_DURATION) {
+        return cachedProfile.data;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -53,21 +62,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return null;
       }
 
+      // Atualizar cache
+      profileCache.set(userId, { data, timestamp: Date.now() });
       return data;
     } catch (error) {
       console.error('Erro ao buscar perfil:', error);
       return null;
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user?.id) {
       const profileData = await fetchProfile(user.id);
       setProfile(profileData);
     }
-  };
+  }, [user?.id, fetchProfile]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -84,7 +95,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const profileData = await fetchProfile(data.user.id);
         setProfile(profileData);
         
-        // Inicializar push notifications
         const pushService = PushNotificationService.getInstance();
         await pushService.initialize(data.user.id);
       }
@@ -94,14 +104,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Erro no login:', error);
       return { success: false, error: error.message };
     }
-  };
+  }, [fetchProfile]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
-      // Remover token de push notification antes de fazer logout
       if (user?.id) {
         const pushService = PushNotificationService.getInstance();
         await pushService.removeToken(user.id);
+        profileCache.delete(user.id); // Limpar cache ao fazer logout
       }
 
       await supabase.auth.signOut();
@@ -110,81 +120,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
-  };
+  }, [user?.id]);
 
-  // Alias para compatibilidade
   const logout = signOut;
 
   useEffect(() => {
-    // Configurar cliente Supabase para persistir sessão por mais tempo
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        fetchProfile(session.user.id).then(setProfile);
-        
-        // Inicializar push notifications para usuários logados
-        const pushService = PushNotificationService.getInstance();
-        pushService.initialize(session.user.id);
-      }
-      setIsLoading(false);
-    });
+    let mounted = true;
 
-    // Listener para mudanças de autenticação
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          if (session?.user) {
+            setUser(session.user);
+            const profileData = await fetchProfile(session.user.id);
+            if (mounted) {
+              setProfile(profileData);
+            }
+            
+            const pushService = PushNotificationService.getInstance();
+            await pushService.initialize(session.user.id);
+          }
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Erro ao inicializar auth:', error);
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔐 Auth event:', event);
-        
+        if (!mounted) return;
+
         if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user);
           const profileData = await fetchProfile(session.user.id);
-          setProfile(profileData);
+          if (mounted) {
+            setProfile(profileData);
+          }
           
-          // Inicializar push notifications
           const pushService = PushNotificationService.getInstance();
           await pushService.initialize(session.user.id);
-          
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
+          profileCache.clear(); // Limpar todo o cache ao fazer logout
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // Manter usuário logado quando token é renovado
           setUser(session.user);
           if (!profile) {
             const profileData = await fetchProfile(session.user.id);
-            setProfile(profileData);
+            if (mounted) {
+              setProfile(profileData);
+            }
           }
         }
         
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     );
 
-    // Configurar refresh automático mais robusto
+    // Refresh token a cada 30 minutos (aumentado de 15 para 30)
     const refreshInterval = setInterval(async () => {
       try {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
-          // Sessão ainda válida, renovar token se necessário
           await supabase.auth.refreshSession();
         }
       } catch (error) {
-        console.log('Erro ao renovar sessão:', error);
+        console.error('Erro ao renovar sessão:', error);
       }
-    }, 15 * 60 * 1000); // A cada 15 minutos
+    }, 30 * 60 * 1000);
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
       clearInterval(refreshInterval);
     };
-  }, []);
+  }, [fetchProfile]);
 
   const value = {
     user,
     profile,
     isLoading,
-    loading: isLoading, // Alias para compatibilidade
+    loading: isLoading,
     signOut,
-    logout, // Alias para compatibilidade
+    logout,
     login,
     refreshProfile,
   };
