@@ -6,7 +6,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Json } from '@/types/supabase'; // Ensure this path and type are correct
+// Type for JSON data from Supabase
+type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 // Interface for the JSON location object saved within a field key (e.g., "clock_in": {...})
 interface LocationDetailsForEdit {
