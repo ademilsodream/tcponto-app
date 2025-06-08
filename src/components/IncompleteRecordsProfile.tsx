@@ -1,150 +1,30 @@
-return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Registros Incompletos
-          </CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {incompleteRecords.length === 0 ? (
-          <div className="text-center py-8">
-            <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
-            <p className="text-lg text-green-600 font-medium">
-              Parabéns! Todos os registros estão completos até ontem.
-            </p>
-            <p className="text-sm text-gray-600 mt-2">
-              Você tem todos os 4 registros diários preenchidos nos dias úteis até o dia anterior.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-amber-800">
-                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos até ontem
-                {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
-              </AlertDescription>
-            </Alert>
-
-            {/* Registros de dias úteis */}
-            {workingDayRecords.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Dias Úteis Incompletos:</h4>
-                {workingDayRecords.map((record) => (
-                  <div 
-                    key={record.date}
-                    className="border rounded-lg p-4 bg-red-50"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-medium text-gray-900">
-                        {formatDate(record.date)}
-                      </h5>
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                          <Clock className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            {record.completedCount}/4 registros
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditRecord(record.date)}
-                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Editar
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {record.missingFields.map((field) => (
-                          <span 
-                            key={field}
-                            className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded"
-                          >
-                            {field}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <p className="text-xs text-gray-500 mt-2">
-                      💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Registros de fins de semana */}
-            {weekendRecords.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Fins de Semana com Registros Incompletos:</h4>
-                {weekendRecords.map((record) => (
-                  <div 
-                    key={record.date}
-                    className="border rounded-lg p-4 bg-blue-50"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-medium text-gray-900">
-                        {formatDate(record.date)} <span className="text-sm text-blue-600">(Fim de semana)</span>
-                      </h5>
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                          <Clock className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            {record.completedCount}/4 registros
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditRecord(record.date)}
-                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Editar
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {record.missingFields.map((field) => (
-                          <span 
-                            key={field}
-                            className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
-                          >
-                            {field}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-
-      {/* Modal de Edição */import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, ArrowLeft, Edit3 } from 'lucide-react';
+import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, Edit3, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getWorkingDaysInMonth, isWorkingDay } from '@/utils/workingDays';
-import EditRecordModal from './EditRecordModal'; // Importar o modal de edição
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface IncompleteRecord {
   date: string;
@@ -157,13 +37,91 @@ interface IncompleteRecordsProfileProps {
   onBack?: () => void;
 }
 
+interface TimeRecord {
+  id: string;
+  date: string;
+  clock_in: string | null;
+  lunch_start: string | null;
+  lunch_end: string | null;
+  clock_out: string | null;
+  total_hours: number;
+  has_been_edited: boolean;
+}
+
+interface EditForm {
+  clock_in: string;
+  lunch_start: string;
+  lunch_end: string;
+  clock_out: string;
+  reason: string;
+  locationName: string;
+}
+
+interface AllowedLocation {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  range_meters: number | null;
+  is_active: boolean;
+}
+
+interface LocationDetailsForEdit {
+  address: string | null;
+  distance: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  timestamp: string;
+  locationName: string;
+}
+
+// Função helper para obter nome do usuário de forma segura
+const getUserName = (user: any): string => {
+  const possibleNames = [
+    user?.user_metadata?.name,
+    user?.user_metadata?.full_name,
+    user?.user_metadata?.display_name,
+    user?.user_metadata?.user_name,
+    user?.user_metadata?.firstName,
+    user?.user_metadata?.first_name,
+    user?.name,
+    user?.display_name,
+    user?.email?.split('@')[0]?.replace(/[^a-zA-Z0-9]/g, ' ').trim(),
+  ];
+
+  for (const name of possibleNames) {
+    if (name && typeof name === 'string' && name.trim().length > 0) {
+      return name.trim();
+    }
+  }
+
+  return 'Nome Não Informado';
+};
+
 const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onBack }) => {
   const [incompleteRecords, setIncompleteRecords] = useState<IncompleteRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEditDate, setSelectedEditDate] = useState<string | null>(null);
+  
+  // Estados do modal de edição
+  const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({
+    clock_in: '',
+    lunch_start: '',
+    lunch_end: '',
+    clock_out: '',
+    reason: '',
+    locationName: ''
+  });
+  const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
+  const [loadingModal, setLoadingModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  
   const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     console.log('IncompleteRecordsProfile: useEffect triggered, user:', user?.id);
@@ -174,6 +132,28 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       setLoading(false);
     }
   }, [user]);
+
+  // Carregar dados quando o modal abrir
+  useEffect(() => {
+    if (showEditModal && selectedEditDate && user) {
+      loadTimeRecord();
+      loadAllowedLocations();
+    }
+  }, [showEditModal, selectedEditDate, user]);
+
+  // Atualizar formulário quando timeRecord mudar
+  useEffect(() => {
+    if (timeRecord) {
+      setEditForm({
+        clock_in: timeRecord.clock_in || '',
+        lunch_start: timeRecord.lunch_start || '',
+        lunch_end: timeRecord.lunch_end || '',
+        clock_out: timeRecord.clock_out || '',
+        reason: '',
+        locationName: ''
+      });
+    }
+  }, [timeRecord]);
 
   const loadIncompleteRecords = async () => {
     if (!user) {
@@ -308,6 +288,79 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
     }
   };
 
+  const loadTimeRecord = async () => {
+    if (!selectedEditDate) return;
+    
+    try {
+      setLoadingModal(true);
+
+      const { data: record, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('date', selectedEditDate)
+        .eq('status', 'active')
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (record) {
+        setTimeRecord({
+          id: record.id,
+          date: record.date,
+          clock_in: record.clock_in,
+          lunch_start: record.lunch_start,
+          lunch_end: record.lunch_end,
+          clock_out: record.clock_out,
+          total_hours: record.total_hours || 0,
+          has_been_edited: false
+        });
+      } else {
+        setTimeRecord({
+          id: '',
+          date: selectedEditDate,
+          clock_in: null,
+          lunch_start: null,
+          lunch_end: null,
+          clock_out: null,
+          total_hours: 0,
+          has_been_edited: false
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar registro:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar o registro do dia selecionado.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingModal(false);
+    }
+  };
+
+  const loadAllowedLocations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('allowed_locations')
+        .select('id, name, address, latitude, longitude, range_meters, is_active')
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      setAllowedLocations(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar localizações permitidas:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as localizações.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleEditRecord = (date: string) => {
     setSelectedEditDate(date);
     setShowEditModal(true);
@@ -316,8 +369,182 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const handleCloseEditModal = () => {
     setShowEditModal(false);
     setSelectedEditDate(null);
+    setTimeRecord(null);
+    setEditForm({
+      clock_in: '',
+      lunch_start: '',
+      lunch_end: '',
+      clock_out: '',
+      reason: '',
+      locationName: ''
+    });
     // Recarregar os registros para atualizar a lista
     loadIncompleteRecords();
+  };
+
+  const handleInputChange = (field: keyof EditForm, value: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!timeRecord || !user || !selectedEditDate) {
+      toast({
+        title: "Erro Interno",
+        description: "Dados essenciais para a submissão estão faltando.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editForm.reason.trim()) {
+      toast({
+        title: "Erro",
+        description: "O motivo da alteração é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editForm.locationName) {
+      toast({
+        title: "Erro",
+        description: "Selecione a localização para a solicitação.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const selectedLocationDetails = allowedLocations.find(loc => loc.name === editForm.locationName);
+
+      if (!selectedLocationDetails) {
+        toast({
+          title: "Erro Interno",
+          description: "Detalhes da localização selecionada não encontrados.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      const locationDetailsForEdit: LocationDetailsForEdit = {
+        address: selectedLocationDetails.address,
+        distance: null,
+        latitude: selectedLocationDetails.latitude,
+        longitude: selectedLocationDetails.longitude,
+        timestamp: new Date().toISOString(),
+        locationName: selectedLocationDetails.name,
+      };
+
+      const requests = [];
+      const fieldColumnMapping = {
+        clock_in: 'clockIn',
+        lunch_start: 'lunchStart',
+        lunch_end: 'lunchEnd',
+        clock_out: 'clockOut',
+      };
+
+      const baseRequest = {
+        employee_id: user.id,
+        employee_name: getUserName(user),
+        date: selectedEditDate,
+        reason: editForm.reason.trim(),
+        status: 'pending',
+      };
+
+      // Verificar alterações e criar solicitações
+      if (editForm.clock_in !== (timeRecord.clock_in || '')) {
+        requests.push({
+          ...baseRequest,
+          field: fieldColumnMapping.clock_in,
+          old_value: timeRecord.clock_in || null,
+          new_value: editForm.clock_in,
+          location: { clock_in: locationDetailsForEdit },
+        });
+      }
+
+      if (editForm.lunch_start !== (timeRecord.lunch_start || '')) {
+        requests.push({
+          ...baseRequest,
+          field: fieldColumnMapping.lunch_start,
+          old_value: timeRecord.lunch_start || null,
+          new_value: editForm.lunch_start,
+          location: { lunch_start: locationDetailsForEdit },
+        });
+      }
+
+      if (editForm.lunch_end !== (timeRecord.lunch_end || '')) {
+        requests.push({
+          ...baseRequest,
+          field: fieldColumnMapping.lunch_end,
+          old_value: timeRecord.lunch_end || null,
+          new_value: editForm.lunch_end,
+          location: { lunch_end: locationDetailsForEdit },
+        });
+      }
+
+      if (editForm.clock_out !== (timeRecord.clock_out || '')) {
+        requests.push({
+          ...baseRequest,
+          field: fieldColumnMapping.clock_out,
+          old_value: timeRecord.clock_out || null,
+          new_value: editForm.clock_out,
+          location: { clock_out: locationDetailsForEdit },
+        });
+      }
+
+      if (requests.length === 0) {
+        toast({
+          title: "Aviso",
+          description: "Nenhuma alteração válida foi detectada nos horários para enviar.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      console.log('📤 Estrutura das solicitações a serem enviadas:', JSON.stringify(requests, null, 2));
+
+      const { data, error } = await supabase
+        .from('edit_requests')
+        .insert(requests)
+        .select();
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: `${requests.length} solicitação(ões) de edição enviada(s) para aprovação.`,
+      });
+
+      handleCloseEditModal();
+
+    } catch (error: any) {
+      let errorMessage = 'Não foi possível enviar a solicitação de edição.';
+
+      if (error.code === '23505') {
+        errorMessage = 'Já existe uma solicitação para este dia. Aguarde a aprovação.';
+      } else if (error.code === '42501') {
+        errorMessage = 'Sem permissão para criar solicitação. Contate o administrador.';
+      } else if (error.message) {
+        errorMessage = `Erro: ${error.message}`;
+      }
+
+      toast({
+        title: "Erro",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -327,6 +554,10 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const formatDateTitle = (dateString: string) => {
+    return format(new Date(dateString + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR });
   };
 
   const getProgressColor = (completedCount: number) => {
@@ -339,16 +570,12 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
     }
   };
 
-      {/* Modal de Edição */}
-      {selectedEditDate && (
-        <EditRecordModal
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          date={selectedEditDate}
-        />
-      )}
-    </Card>
-  );
+  const hasAnyTimeChanged = timeRecord ? (
+    editForm.clock_in !== (timeRecord.clock_in || '') ||
+    editForm.lunch_start !== (timeRecord.lunch_start || '') ||
+    editForm.lunch_end !== (timeRecord.lunch_end || '') ||
+    editForm.clock_out !== (timeRecord.clock_out || '')
+  ) : false;
 
   if (loading) {
     return (
@@ -394,143 +621,309 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const weekendRecords = incompleteRecords.filter(record => record.isWeekend);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5" />
-            Registros Incompletos
-          </CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {incompleteRecords.length === 0 ? (
-          <div className="text-center py-8">
-            <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
-            <p className="text-lg text-green-600 font-medium">
-              Parabéns! Todos os registros estão completos até ontem.
-            </p>
-            <p className="text-sm text-gray-600 mt-2">
-              Você tem todos os 4 registros diários preenchidos nos dias úteis até o dia anterior.
-            </p>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Registros Incompletos
+            </CardTitle>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-amber-800">
-                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos até ontem
-                {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
-              </AlertDescription>
-            </Alert>
+        </CardHeader>
+        <CardContent>
+          {incompleteRecords.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
+              <p className="text-lg text-green-600 font-medium">
+                Parabéns! Todos os registros estão completos até ontem.
+              </p>
+              <p className="text-sm text-gray-600 mt-2">
+                Você tem todos os 4 registros diários preenchidos nos dias úteis até o dia anterior.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-amber-800">
+                  Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos até ontem
+                  {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
+                </AlertDescription>
+              </Alert>
 
-            {/* Registros de dias úteis */}
-            {workingDayRecords.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Dias Úteis Incompletos:</h4>
-                {workingDayRecords.map((record) => (
-                  <div 
-                    key={record.date}
-                    className="border rounded-lg p-4 bg-red-50"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-medium text-gray-900">
-                        {formatDate(record.date)}
-                      </h5>
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                          <Clock className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            {record.completedCount}/4 registros
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditRecord(record.date)}
-                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Editar
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {record.missingFields.map((field) => (
-                          <span 
-                            key={field}
-                            className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded"
+              {/* Registros de dias úteis */}
+              {workingDayRecords.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Dias Úteis Incompletos:</h4>
+                  {workingDayRecords.map((record) => (
+                    <div 
+                      key={record.date}
+                      className="border rounded-lg p-4 bg-red-50"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-medium text-gray-900">
+                          {formatDate(record.date)}
+                        </h5>
+                        <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
+                            <Clock className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              {record.completedCount}/4 registros
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditRecord(record.date)}
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
-                            {field}
-                          </span>
-                        ))}
+                            <Edit3 className="w-4 h-4 mr-1" />
+                            Editar
+                          </Button>
+                        </div>
                       </div>
+                      
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {record.missingFields.map((field) => (
+                            <span 
+                              key={field}
+                              className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded"
+                            >
+                              {field}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-gray-500 mt-2">
+                        💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
+                      </p>
                     </div>
-                    
-                    <p className="text-xs text-gray-500 mt-2">
-                      💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {/* Registros de fins de semana */}
-            {weekendRecords.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium text-gray-900">Fins de Semana com Registros Incompletos:</h4>
-                {weekendRecords.map((record) => (
-                  <div 
-                    key={record.date}
-                    className="border rounded-lg p-4 bg-blue-50"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h5 className="font-medium text-gray-900">
-                        {formatDate(record.date)} <span className="text-sm text-blue-600">(Fim de semana)</span>
-                      </h5>
-                      <div className="flex items-center gap-2">
-                        <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                          <Clock className="w-4 h-4" />
-                          <span className="text-sm font-medium">
-                            {record.completedCount}/4 registros
-                          </span>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditRecord(record.date)}
-                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                          <Edit3 className="w-4 h-4 mr-1" />
-                          Editar
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {record.missingFields.map((field) => (
-                          <span 
-                            key={field}
-                            className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+              {/* Registros de fins de semana */}
+              {weekendRecords.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-900">Fins de Semana com Registros Incompletos:</h4>
+                  {weekendRecords.map((record) => (
+                    <div 
+                      key={record.date}
+                      className="border rounded-lg p-4 bg-blue-50"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="font-medium text-gray-900">
+                          {formatDate(record.date)} <span className="text-sm text-blue-600">(Fim de semana)</span>
+                        </h5>
+                        <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
+                            <Clock className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              {record.completedCount}/4 registros
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditRecord(record.date)}
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
                           >
-                            {field}
-                          </span>
-                        ))}
+                            <Edit3 className="w-4 h-4 mr-1" />
+                            Editar
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {record.missingFields.map((field) => (
+                            <span 
+                              key={field}
+                              className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+                            >
+                              {field}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal de Edição */}
+      <Dialog open={showEditModal} onOpenChange={handleCloseEditModal}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5" />
+              Editar Registro - {selectedEditDate && formatDateTitle(selectedEditDate)}
+            </DialogTitle>
+          </DialogHeader>
+
+          {loadingModal ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="text-amber-800 text-sm">
+                  A solicitação será enviada para aprovação do administrador.
+                  Selecione a localização referente ao ajuste.
+                </AlertDescription>
+              </Alert>
+
+              <div>
+                <Label htmlFor="location">Localização *</Label>
+                {allowedLocations.length > 0 ? (
+                  <Select
+                    value={editForm.locationName}
+                    onValueChange={(value) => handleInputChange('locationName', value)}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger id="location">
+                      <SelectValue placeholder="Selecione a localização" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allowedLocations.map((location) => (
+                        <SelectItem key={location.id} value={location.name}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-red-500">Nenhuma localização ativa disponível.</p>
+                )}
               </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="clock_in">Entrada</Label>
+                  <Input
+                    id="clock_in"
+                    type="time"
+                    value={editForm.clock_in}
+                    onChange={(e) => handleInputChange('clock_in', e.target.value)}
+                    disabled={submitting}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Atual: {timeRecord?.clock_in || 'Não registrado'}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="lunch_start">Início Almoço</Label>
+                  <Input
+                    id="lunch_start"
+                    type="time"
+                    value={editForm.lunch_start}
+                    onChange={(e) => handleInputChange('lunch_start', e.target.value)}
+                    disabled={submitting}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Atual: {timeRecord?.lunch_start || 'Não registrado'}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="lunch_end">Fim Almoço</Label>
+                  <Input
+                    id="lunch_end"
+                    type="time"
+                    value={editForm.lunch_end}
+                    onChange={(e) => handleInputChange('lunch_end', e.target.value)}
+                    disabled={submitting}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Atual: {timeRecord?.lunch_end || 'Não registrado'}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="clock_out">Saída</Label>
+                  <Input
+                    id="clock_out"
+                    type="time"
+                    value={editForm.clock_out}
+                    onChange={(e) => handleInputChange('clock_out', e.target.value)}
+                    disabled={submitting}
+                  />
+                  <div className="text-xs text-gray-500 mt-1">
+                    Atual: {timeRecord?.clock_out || 'Não registrado'}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="reason">Motivo da Alteração *</Label>
+                <Textarea
+                  id="reason"
+                  value={editForm.reason}
+                  onChange={(e) => handleInputChange('reason', e.target.value)}
+                  placeholder="Descreva o motivo da solicitação de alteração..."
+                  required
+                  disabled={submitting}
+                  className="min-h-[60px] resize-none"
+                />
+              </div>
+
+              {allowedLocations.length === 0 && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={handleCloseEditModal}
+                  disabled={submitting}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmitEdit}
+                  disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
+                  className="flex-1"
+                >
+                  {submitting ? (
+                    <>
+                      <Clock className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Enviar
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <p className="text-xs text-gray-500 text-center">
+                * A solicitação será enviada para aprovação do administrador.
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
