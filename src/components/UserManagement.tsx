@@ -562,23 +562,25 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
 
               <div className="space-y-2">
                 <Label htmlFor="shift">Turno (Opcional)</Label>
-                <Select
+                <select
                   value={formData.shiftId}
-                  onValueChange={(value) => setFormData({ ...formData, shiftId: value })}
+                  onChange={(e) => setFormData({ ...formData, shiftId: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={submitting}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o turno (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Sem turno</SelectItem>
-                    {workShifts.map((shift) => (
-                      <SelectItem key={shift.id} value={shift.id}>
+                  <option value="">Sem turno</option>
+                  {workShifts && workShifts.length > 0 ? (
+                    workShifts.map((shift) => (
+                      <option key={shift.id} value={shift.id}>
                         {shift.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      Nenhum turno cadastrado
+                    </option>
+                  )}
+                </select>
               </div>
 
               {!editingUser && (
