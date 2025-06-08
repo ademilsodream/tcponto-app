@@ -549,7 +549,7 @@ const Settings = () => {
           </TabsTrigger>
           <TabsTrigger value="auto-obras" className="flex items-center gap-2">
             <Briefcase className="w-4 h-4" />
-            Painel de Alocação
+            Valores de Alocação
           </TabsTrigger>
         </TabsList>
   
