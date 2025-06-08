@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -110,7 +109,10 @@ const OptimizedTimeRegistration = () => {
       }
 
       // Preparar dados de localização de forma segura
-      const existingLocations = existingRecord?.locations || {};
+      const existingLocations = (existingRecord?.locations && typeof existingRecord.locations === 'object') 
+        ? existingRecord.locations 
+        : {};
+      
       const newLocationData = {
         latitude: location.latitude,
         longitude: location.longitude,
