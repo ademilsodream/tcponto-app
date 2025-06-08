@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, ArrowLeft, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getWorkingDaysInMonth, isWorkingDay } from '@/utils/workingDays';
+import AdjustPreviousDays from './AdjustPreviousDays'; // Importar o componente de edição
 
 interface IncompleteRecord {
   date: string;
@@ -22,6 +23,8 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const [incompleteRecords, setIncompleteRecords] = useState<IncompleteRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditComponent, setShowEditComponent] = useState(false);
+  const [selectedEditDate, setSelectedEditDate] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -167,6 +170,18 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
     }
   };
 
+  const handleEditRecord = (date: string) => {
+    setSelectedEditDate(date);
+    setShowEditComponent(true);
+  };
+
+  const handleBackFromEdit = () => {
+    setShowEditComponent(false);
+    setSelectedEditDate(null);
+    // Recarregar os registros para atualizar a lista
+    loadIncompleteRecords();
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString + 'T00:00:00').toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -185,6 +200,11 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       default: return 'text-green-600';
     }
   };
+
+  // Se o componente de edição está sendo exibido, renderizar apenas ele
+  if (showEditComponent) {
+    return <AdjustPreviousDays onBack={handleBackFromEdit} />;
+  }
 
   if (loading) {
     return (
@@ -273,11 +293,22 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                       <h5 className="font-medium text-gray-900">
                         {formatDate(record.date)}
                       </h5>
-                      <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                        <Clock className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {record.completedCount}/4 registros
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
+                          <Clock className="w-4 h-4" />
+                          <span className="text-sm font-medium">
+                            {record.completedCount}/4 registros
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditRecord(record.date)}
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          <Edit3 className="w-4 h-4 mr-1" />
+                          Editar
+                        </Button>
                       </div>
                     </div>
                     
@@ -316,11 +347,22 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                       <h5 className="font-medium text-gray-900">
                         {formatDate(record.date)} <span className="text-sm text-blue-600">(Fim de semana)</span>
                       </h5>
-                      <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                        <Clock className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {record.completedCount}/4 registros
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
+                          <Clock className="w-4 h-4" />
+                          <span className="text-sm font-medium">
+                            {record.completedCount}/4 registros
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditRecord(record.date)}
+                          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                        >
+                          <Edit3 className="w-4 h-4 mr-1" />
+                          Editar
+                        </Button>
                       </div>
                     </div>
                     
