@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,13 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Plus, Edit, Trash2, Clock } from 'lucide-react';
+import { Loader2, Plus, Edit, Trash2, Clock, AlertCircle } from 'lucide-react';
 
 interface WorkShift {
   id: string;
   name: string;
   description: string;
   is_active: boolean;
+  early_tolerance_minutes?: number;
+  late_tolerance_minutes?: number;
+  break_tolerance_minutes?: number;
   schedules: WorkShiftSchedule[];
 }
 
@@ -24,6 +26,8 @@ interface WorkShiftSchedule {
   day_of_week: number;
   start_time: string;
   end_time: string;
+  break_start_time?: string;
+  break_end_time?: string;
   is_active: boolean;
 }
 
@@ -45,14 +49,18 @@ const WorkShiftsManagement = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   
-  // Estados do formulário
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    early_tolerance_minutes: 15,
+    late_tolerance_minutes: 15,
+    break_tolerance_minutes: 5,
     schedules: DAYS_OF_WEEK.map(day => ({
       day_of_week: day.value,
       start_time: '08:00',
       end_time: '17:00',
+      break_start_time: '12:00',
+      break_end_time: '13:00',
       is_active: false
     }))
   });
@@ -105,10 +113,15 @@ const WorkShiftsManagement = () => {
     setFormData({
       name: '',
       description: '',
+      early_tolerance_minutes: 15,
+      late_tolerance_minutes: 15,
+      break_tolerance_minutes: 5,
       schedules: DAYS_OF_WEEK.map(day => ({
         day_of_week: day.value,
         start_time: '08:00',
         end_time: '17:00',
+        break_start_time: '12:00',
+        break_end_time: '13:00',
         is_active: false
       }))
     });
@@ -120,16 +133,23 @@ const WorkShiftsManagement = () => {
     setFormData({
       name: shift.name,
       description: shift.description || '',
+      early_tolerance_minutes: shift.early_tolerance_minutes || 15,
+      late_tolerance_minutes: shift.late_tolerance_minutes || 15,
+      break_tolerance_minutes: shift.break_tolerance_minutes || 5,
       schedules: DAYS_OF_WEEK.map(day => {
         const existingSchedule = shift.schedules.find(s => s.day_of_week === day.value);
         return existingSchedule ? {
           ...existingSchedule,
-          start_time: existingSchedule.start_time.substring(0, 5), // Remove seconds
-          end_time: existingSchedule.end_time.substring(0, 5)
+          start_time: existingSchedule.start_time.substring(0, 5),
+          end_time: existingSchedule.end_time.substring(0, 5),
+          break_start_time: existingSchedule.break_start_time?.substring(0, 5) || '12:00',
+          break_end_time: existingSchedule.break_end_time?.substring(0, 5) || '13:00'
         } : {
           day_of_week: day.value,
           start_time: '08:00',
           end_time: '17:00',
+          break_start_time: '12:00',
+          break_end_time: '13:00',
           is_active: false
         };
       })
@@ -157,81 +177,54 @@ const WorkShiftsManagement = () => {
       return;
     }
 
+    // Validação das tolerâncias
+    if (formData.early_tolerance_minutes < 0 || formData.late_tolerance_minutes < 0 || formData.break_tolerance_minutes < 0) {
+      toast({
+        title: "Erro",
+        description: "As tolerâncias não podem ser negativas",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setSaving(true);
+      console.log('💾 Iniciando salvamento do turno...');
 
-      if (editingShift) {
-        // Atualizar turno existente
-        const { error: shiftError } = await supabase
-          .from('work_shifts')
-          .update({
-            name: formData.name.trim(),
-            description: formData.description.trim()
-          })
-          .eq('id', editingShift.id);
-
-        if (shiftError) throw shiftError;
-
-        // Deletar horários existentes
-        const { error: deleteError } = await supabase
-          .from('work_shift_schedules')
-          .delete()
-          .eq('shift_id', editingShift.id);
-
-        if (deleteError) throw deleteError;
-
-        // Inserir novos horários
-        const schedulesToInsert = activeSchedules.map(schedule => ({
-          shift_id: editingShift.id,
+      // Usar uma transação para garantir consistência
+      const { data: transactionData, error: transactionError } = await supabase.rpc('handle_work_shift_save', {
+        p_shift_id: editingShift?.id || null,
+        p_name: formData.name.trim(),
+        p_description: formData.description.trim(),
+        p_early_tolerance: formData.early_tolerance_minutes,
+        p_late_tolerance: formData.late_tolerance_minutes,
+        p_break_tolerance: formData.break_tolerance_minutes,
+        p_schedules: JSON.stringify(activeSchedules.map(schedule => ({
           day_of_week: schedule.day_of_week,
           start_time: schedule.start_time,
           end_time: schedule.end_time,
+          break_start_time: schedule.break_start_time,
+          break_end_time: schedule.break_end_time,
           is_active: true
-        }));
+        })))
+      });
 
-        const { error: insertError } = await supabase
-          .from('work_shift_schedules')
-          .insert(schedulesToInsert);
-
-        if (insertError) throw insertError;
-
-        toast({
-          title: "Sucesso",
-          description: "Turno atualizado com sucesso"
-        });
-      } else {
-        // Criar novo turno
-        const { data: newShift, error: shiftError } = await supabase
-          .from('work_shifts')
-          .insert({
-            name: formData.name.trim(),
-            description: formData.description.trim()
-          })
-          .select()
-          .single();
-
-        if (shiftError) throw shiftError;
-
-        // Inserir horários
-        const schedulesToInsert = activeSchedules.map(schedule => ({
-          shift_id: newShift.id,
-          day_of_week: schedule.day_of_week,
-          start_time: schedule.start_time,
-          end_time: schedule.end_time,
-          is_active: true
-        }));
-
-        const { error: insertError } = await supabase
-          .from('work_shift_schedules')
-          .insert(schedulesToInsert);
-
-        if (insertError) throw insertError;
-
-        toast({
-          title: "Sucesso",
-          description: "Turno criado com sucesso"
-        });
+      // Se a função RPC não existir, usar o método tradicional
+      if (transactionError && transactionError.code === '42883') {
+        console.log('🔄 Função RPC não encontrada, usando método tradicional...');
+        await handleSaveTraditional();
+        return;
       }
+
+      if (transactionError) {
+        throw transactionError;
+      }
+
+      console.log('✅ Turno salvo com sucesso via RPC');
+      toast({
+        title: "Sucesso",
+        description: editingShift ? "Turno atualizado com sucesso" : "Turno criado com sucesso"
+      });
 
       setIsDialogOpen(false);
       await loadShifts();
@@ -239,11 +232,114 @@ const WorkShiftsManagement = () => {
       console.error('💥 Erro ao salvar turno:', error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao salvar turno",
+        description: getErrorMessage(error),
         variant: "destructive"
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveTraditional = async () => {
+    const activeSchedules = formData.schedules.filter(s => s.is_active);
+    
+    const shiftData = {
+      name: formData.name.trim(),
+      description: formData.description.trim(),
+      early_tolerance_minutes: formData.early_tolerance_minutes,
+      late_tolerance_minutes: formData.late_tolerance_minutes,
+      break_tolerance_minutes: formData.break_tolerance_minutes,
+      is_active: true
+    };
+
+    if (editingShift) {
+      console.log('📝 Atualizando turno existente:', editingShift.id);
+      
+      // Atualizar turno existente
+      const { error: shiftError } = await supabase
+        .from('work_shifts')
+        .update(shiftData)
+        .eq('id', editingShift.id);
+
+      if (shiftError) {
+        console.error('❌ Erro ao atualizar turno:', shiftError);
+        throw shiftError;
+      }
+
+      // Deletar horários existentes
+      const { error: deleteError } = await supabase
+        .from('work_shift_schedules')
+        .delete()
+        .eq('shift_id', editingShift.id);
+
+      if (deleteError) {
+        console.error('❌ Erro ao deletar horários:', deleteError);
+        throw deleteError;
+      }
+
+      // Inserir novos horários
+      if (activeSchedules.length > 0) {
+        const schedulesToInsert = activeSchedules.map(schedule => ({
+          shift_id: editingShift.id,
+          day_of_week: schedule.day_of_week,
+          start_time: schedule.start_time,
+          end_time: schedule.end_time,
+          break_start_time: schedule.break_start_time || null,
+          break_end_time: schedule.break_end_time || null,
+          is_active: true
+        }));
+
+        const { error: insertError } = await supabase
+          .from('work_shift_schedules')
+          .insert(schedulesToInsert);
+
+        if (insertError) {
+          console.error('❌ Erro ao inserir novos horários:', insertError);
+          throw insertError;
+        }
+      }
+
+      console.log('✅ Turno atualizado com sucesso');
+    } else {
+      console.log('➕ Criando novo turno...');
+      
+      // Criar novo turno
+      const { data: newShift, error: shiftError } = await supabase
+        .from('work_shifts')
+        .insert(shiftData)
+        .select()
+        .single();
+
+      if (shiftError) {
+        console.error('❌ Erro ao criar turno:', shiftError);
+        throw shiftError;
+      }
+
+      console.log('✅ Novo turno criado:', newShift.id);
+
+      // Inserir horários
+      if (activeSchedules.length > 0) {
+        const schedulesToInsert = activeSchedules.map(schedule => ({
+          shift_id: newShift.id,
+          day_of_week: schedule.day_of_week,
+          start_time: schedule.start_time,
+          end_time: schedule.end_time,
+          break_start_time: schedule.break_start_time || null,
+          break_end_time: schedule.break_end_time || null,
+          is_active: true
+        }));
+
+        const { error: insertError } = await supabase
+          .from('work_shift_schedules')
+          .insert(schedulesToInsert);
+
+        if (insertError) {
+          console.error('❌ Erro ao inserir horários do novo turno:', insertError);
+          throw insertError;
+        }
+      }
+
+      console.log('✅ Horários do novo turno inseridos com sucesso');
     }
   };
 
@@ -254,14 +350,19 @@ const WorkShiftsManagement = () => {
 
     try {
       setDeleting(shift.id);
+      console.log('🗑️ Excluindo turno:', shift.id);
 
       const { error } = await supabase
         .from('work_shifts')
         .delete()
         .eq('id', shift.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao excluir turno:', error);
+        throw error;
+      }
 
+      console.log('✅ Turno excluído com sucesso');
       toast({
         title: "Sucesso",
         description: "Turno excluído com sucesso"
@@ -272,7 +373,7 @@ const WorkShiftsManagement = () => {
       console.error('💥 Erro ao excluir turno:', error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao excluir turno",
+        description: getErrorMessage(error),
         variant: "destructive"
       });
     } finally {
@@ -297,6 +398,36 @@ const WorkShiftsManagement = () => {
       const day = DAYS_OF_WEEK.find(d => d.value === schedule.day_of_week);
       return `${day?.label}: ${schedule.start_time.substring(0, 5)} - ${schedule.end_time.substring(0, 5)}`;
     }).join(', ');
+  };
+
+  const formatToleranceDisplay = (shift: WorkShift) => {
+    const tolerances = [];
+    if (shift.early_tolerance_minutes) tolerances.push(`Antecipada: ${shift.early_tolerance_minutes}min`);
+    if (shift.late_tolerance_minutes) tolerances.push(`Atraso: ${shift.late_tolerance_minutes}min`);
+    if (shift.break_tolerance_minutes) tolerances.push(`Intervalo: ${shift.break_tolerance_minutes}min`);
+    return tolerances.length > 0 ? tolerances.join(' | ') : 'Sem tolerância';
+  };
+
+  const getErrorMessage = (error: any): string => {
+    if (error?.message) {
+      // Traduzir mensagens de erro comuns
+      const translations: { [key: string]: string } = {
+        'duplicate key value violates unique constraint': 'Já existe um turno com este nome',
+        'column does not exist': 'Estrutura do banco de dados incompatível. Verifique se as colunas de tolerância foram adicionadas.',
+        'permission denied': 'Permissão negada para esta operação',
+        'connection refused': 'Erro de conexão com o banco de dados'
+      };
+
+      for (const [key, translation] of Object.entries(translations)) {
+        if (error.message.toLowerCase().includes(key)) {
+          return translation;
+        }
+      }
+
+      return error.message;
+    }
+    
+    return 'Erro desconhecido ao processar solicitação';
   };
 
   return (
@@ -337,6 +468,10 @@ const WorkShiftsManagement = () => {
                     <p className="text-xs text-muted-foreground">
                       {formatScheduleDisplay(shift.schedules)}
                     </p>
+                    <div className="flex items-center gap-1 text-xs text-orange-600">
+                      <AlertCircle className="w-3 h-3" />
+                      <span>Tolerâncias: {formatToleranceDisplay(shift)}</span>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2 ml-4">
@@ -371,7 +506,7 @@ const WorkShiftsManagement = () => {
 
         {/* Dialog para criar/editar turno */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingShift ? 'Editar Turno' : 'Novo Turno'}
@@ -403,6 +538,68 @@ const WorkShiftsManagement = () => {
                 </div>
               </div>
 
+              {/* Seção de Configurações de Tolerância */}
+              <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Configurações de Tolerância para Ponto
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="early-tolerance">Tolerância Entrada Antecipada (min)</Label>
+                    <Input
+                      id="early-tolerance"
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={formData.early_tolerance_minutes}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        early_tolerance_minutes: parseInt(e.target.value) || 0 
+                      }))}
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="late-tolerance">Tolerância Atraso Entrada (min)</Label>
+                    <Input
+                      id="late-tolerance"
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={formData.late_tolerance_minutes}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        late_tolerance_minutes: parseInt(e.target.value) || 0 
+                      }))}
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="break-tolerance">Tolerância Intervalo (min)</Label>
+                    <Input
+                      id="break-tolerance"
+                      type="number"
+                      min="0"
+                      max="30"
+                      value={formData.break_tolerance_minutes}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        break_tolerance_minutes: parseInt(e.target.value) || 0 
+                      }))}
+                      disabled={saving}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  As tolerâncias permitem flexibilidade no registro de ponto. 
+                  Entrada antecipada: tempo permitido antes do horário oficial. 
+                  Atraso: tempo permitido após o horário sem penalização.
+                </p>
+              </div>
+
               <div className="space-y-4">
                 <Label className="text-base font-medium">Horários por Dia da Semana</Label>
                 <div className="space-y-3">
@@ -423,22 +620,42 @@ const WorkShiftsManagement = () => {
                       </div>
 
                       {formData.schedules[index].is_active && (
-                        <div className="flex items-center gap-2 flex-1">
-                          <Input
-                            type="time"
-                            value={formData.schedules[index].start_time}
-                            onChange={(e) => updateSchedule(index, 'start_time', e.target.value)}
-                            disabled={saving}
-                            className="w-32"
-                          />
-                          <span className="text-muted-foreground">até</span>
-                          <Input
-                            type="time"
-                            value={formData.schedules[index].end_time}
-                            onChange={(e) => updateSchedule(index, 'end_time', e.target.value)}
-                            disabled={saving}
-                            className="w-32"
-                          />
+                        <div className="flex items-center gap-2 flex-1 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={formData.schedules[index].start_time}
+                              onChange={(e) => updateSchedule(index, 'start_time', e.target.value)}
+                              disabled={saving}
+                              className="w-24"
+                            />
+                            <span className="text-xs text-muted-foreground">às</span>
+                            <Input
+                              type="time"
+                              value={formData.schedules[index].end_time}
+                              onChange={(e) => updateSchedule(index, 'end_time', e.target.value)}
+                              disabled={saving}
+                              className="w-24"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Intervalo:</span>
+                            <Input
+                              type="time"
+                              value={formData.schedules[index].break_start_time}
+                              onChange={(e) => updateSchedule(index, 'break_start_time', e.target.value)}
+                              disabled={saving}
+                              className="w-24"
+                            />
+                            <span className="text-xs text-muted-foreground">às</span>
+                            <Input
+                              type="time"
+                              value={formData.schedules[index].break_end_time}
+                              onChange={(e) => updateSchedule(index, 'break_end_time', e.target.value)}
+                              disabled={saving}
+                              className="w-24"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
