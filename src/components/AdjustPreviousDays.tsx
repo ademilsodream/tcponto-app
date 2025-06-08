@@ -538,12 +538,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           </div>
         </CardHeader>
         <CardContent>
-          <Alert className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Você pode solicitar ajustes para dias do mês atual.
-            </AlertDescription>
-          </Alert>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
