@@ -109,15 +109,19 @@ const OptimizedTimeRegistration = () => {
         }
       }
 
+      // Preparar dados de localização de forma segura
+      const existingLocations = existingRecord?.locations || {};
+      const newLocationData = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: new Date().toISOString(),
+      };
+
       const updateData = {
         [registrationType]: currentTime,
         locations: {
-          ...existingRecord?.locations,
-          [registrationType]: {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            timestamp: new Date().toISOString(),
-          }
+          ...existingLocations,
+          [registrationType]: newLocationData
         }
       };
 
@@ -143,8 +147,11 @@ const OptimizedTimeRegistration = () => {
       // Tentar enviar notificação push (opcional)
       try {
         const pushService = PushNotificationService.getInstance();
-        // Note: Removido o método sendNotification que não existe
-        console.log('Push notification would be sent here');
+        await pushService.sendNotification({
+          userId: user.id,
+          title: 'Ponto Registrado',
+          body: `Ponto registrado com sucesso às ${new Date().toLocaleTimeString('pt-BR')}`
+        });
       } catch (pushError) {
         console.warn('Erro ao enviar notificação push:', pushError);
         // Não interromper o fluxo por erro de push notification
