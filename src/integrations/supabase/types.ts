@@ -553,6 +553,7 @@ export type Database = {
           name: string
           overtime_rate: number | null
           role: string
+          shift_id: string | null
           status: Database["public"]["Enums"]["employee_status"] | null
           termination_date: string | null
           updated_at: string
@@ -568,6 +569,7 @@ export type Database = {
           name: string
           overtime_rate?: number | null
           role?: string
+          shift_id?: string | null
           status?: Database["public"]["Enums"]["employee_status"] | null
           termination_date?: string | null
           updated_at?: string
@@ -583,6 +585,7 @@ export type Database = {
           name?: string
           overtime_rate?: number | null
           role?: string
+          shift_id?: string | null
           status?: Database["public"]["Enums"]["employee_status"] | null
           termination_date?: string | null
           updated_at?: string
@@ -600,6 +603,13 @@ export type Database = {
             columns: ["job_function_id"]
             isOneToOne: false
             referencedRelation: "job_functions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "work_shifts"
             referencedColumns: ["id"]
           },
         ]
@@ -819,6 +829,74 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      work_shift_schedules: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          is_active: boolean
+          shift_id: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_active?: boolean
+          shift_id: string
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          shift_id?: string
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_shift_schedules_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "work_shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_shifts: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
