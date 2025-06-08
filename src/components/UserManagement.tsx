@@ -23,8 +23,10 @@ interface User {
   terminationDate?: string;
   departmentId?: string;
   jobFunctionId?: string;
+  shiftId?: string;
   department?: { name: string };
   jobFunction?: { name: string };
+  shift?: { name: string };
 }
 
 
@@ -36,6 +38,13 @@ interface Department {
 
 
 interface JobFunction {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
+
+
+interface WorkShift {
   id: string;
   name: string;
   is_active: boolean;
@@ -66,6 +75,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobFunctions, setJobFunctions] = useState<JobFunction[]>([]);
+  const [workShifts, setWorkShifts] = useState<WorkShift[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTerminationDialogOpen, setIsTerminationDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -82,16 +92,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     overtimeRate: '75',
     employeeCode: '',
     departmentId: '',
-    jobFunctionId: ''
+    jobFunctionId: '',
+    shiftId: ''
   });
   const { formatCurrency } = useCurrency();
   const { toast } = useToast();
 
   useEffect(() => {
     loadUsers();
-    loadDepartmentsAndJobFunctions();
-    // ❌ REMOVIDO: Não há recarregamento automático neste useEffect
-  }, []); // Dependências vazias significam que roda apenas no mount
+    loadDepartmentsJobFunctionsAndShifts();
+  }, []);
 
   const loadUsers = async () => {
     try {
@@ -102,7 +112,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         .select(`
           *,
           departments(name),
-          job_functions(name)
+          job_functions(name),
+          work_shifts(name)
         `)
         .order('name');
 
@@ -127,8 +138,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         terminationDate: profile.termination_date || undefined,
         departmentId: profile.department_id || '',
         jobFunctionId: profile.job_function_id || '',
+        shiftId: profile.shift_id || '',
         department: profile.departments,
-        jobFunction: profile.job_functions
+        jobFunction: profile.job_functions,
+        shift: profile.work_shifts
       })) || [];
 
       setUsers(formattedUsers);
@@ -145,24 +158,26 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
   };
 
 
-  // ❌ REMOVIDO: Não há recarregamento automático nesta função
-  const loadDepartmentsAndJobFunctions = async () => {
+  const loadDepartmentsJobFunctionsAndShifts = async () => {
     try {
-      const [deptResult, jobResult] = await Promise.all([
+      const [deptResult, jobResult, shiftResult] = await Promise.all([
         supabase.from('departments').select('id, name, is_active').eq('is_active', true).order('name'),
-        supabase.from('job_functions').select('id, name, is_active').eq('is_active', true).order('name')
+        supabase.from('job_functions').select('id, name, is_active').eq('is_active', true).order('name'),
+        supabase.from('work_shifts').select('id, name, is_active').eq('is_active', true).order('name')
       ]);
 
       if (deptResult.error) throw deptResult.error;
       if (jobResult.error) throw jobResult.error;
+      if (shiftResult.error) throw shiftResult.error;
 
       setDepartments(deptResult.data || []);
       setJobFunctions(jobResult.data || []);
+      setWorkShifts(shiftResult.data || []);
     } catch (error) {
-      console.error('Erro ao carregar departamentos e funções:', error);
+      console.error('Erro ao carregar departamentos, funções e turnos:', error);
       toast({
         title: "Erro",
-        description: "Erro ao carregar departamentos e funções",
+        description: "Erro ao carregar departamentos, funções e turnos",
         variant: "destructive"
       });
     }
@@ -179,7 +194,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       overtimeRate: '75',
       employeeCode: '',
       departmentId: '',
-      jobFunctionId: ''
+      jobFunctionId: '',
+      shiftId: ''
     });
     setEditingUser(null);
   };
@@ -216,6 +232,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             employee_code: formData.employeeCode || null,
             department_id: formData.departmentId,
             job_function_id: formData.jobFunctionId,
+            shift_id: formData.shiftId || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingUser.id);
@@ -240,7 +257,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             overtimeRate: overtimeRate,
             employeeCode: formData.employeeCode,
             departmentId: formData.departmentId,
-            jobFunctionId: formData.jobFunctionId
+            jobFunctionId: formData.jobFunctionId,
+            shiftId: formData.shiftId || null
           }
         });
 
@@ -255,7 +273,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
+      onUserChange?.();
       setIsDialogOpen(false);
       resetForm();
     } catch (error: any) {
@@ -282,7 +300,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       overtimeRate: user.overtimeRate.toString(),
       employeeCode: user.employeeCode || '',
       departmentId: user.departmentId || '',
-      jobFunctionId: user.jobFunctionId || ''
+      jobFunctionId: user.jobFunctionId || '',
+      shiftId: user.shiftId || ''
     });
     setIsDialogOpen(true);
   };
@@ -294,7 +313,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
 
     try {
-      setSubmitting(true); // Pode adicionar um estado de loading/submitting específico para ações de linha
+      setSubmitting(true);
 
       const { error } = await supabase
         .from('profiles')
@@ -306,7 +325,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
+      onUserChange?.();
 
       toast({
         title: "Sucesso",
@@ -320,14 +339,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         variant: "destructive"
       });
     } finally {
-       setSubmitting(false); // Finaliza o estado de loading/submitting
+       setSubmitting(false);
     }
   };
 
 
   const handleTerminate = (user: User) => {
     setTerminatingUser(user);
-    setTerminationDate(new Date().toISOString().split('T')[0]); // Data atual por padrão
+    setTerminationDate(new Date().toISOString().split('T')[0]);
     setIsTerminationDialogOpen(true);
   };
 
@@ -359,7 +378,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
+      onUserChange?.();
       setIsTerminationDialogOpen(false);
       setTerminatingUser(null);
       setTerminationDate('');
@@ -393,7 +412,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         .from('profiles')
         .update({
           status: 'active',
-          termination_date: null, // Remove a data de demissão
+          termination_date: null,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
@@ -403,7 +422,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       }
 
       await loadUsers();
-      onUserChange?.(); // Notifica o componente pai para refetch (se aplicável)
+      onUserChange?.();
 
       toast({
         title: "Sucesso",
@@ -476,7 +495,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    disabled={submitting || !!editingUser} // Email não editável após criação
+                    disabled={submitting || !!editingUser}
                   />
                 </div>
 
@@ -525,6 +544,27 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                       {jobFunctions.map((job) => (
                         <SelectItem key={job.id} value={job.id}>
                           {job.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="shift">Turno (Opcional)</Label>
+                  <Select
+                    value={formData.shiftId}
+                    onValueChange={(value) => setFormData({ ...formData, shiftId: value })}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o turno (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sem turno</SelectItem>
+                      {workShifts.map((shift) => (
+                        <SelectItem key={shift.id} value={shift.id}>
+                          {shift.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -669,7 +709,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200"> {/* Added min-w-full */}
+              <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -683,6 +723,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Função
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Turno
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -704,19 +747,22 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
                     <tr key={user.id} className={`hover:bg-gray-50 ${user.status === 'inactive' ? 'bg-red-50' : ''}`}>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
                         {user.name}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         {user.email}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         {user.employeeCode || '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         {user.jobFunction?.name || '-'}
                       </td>
-                      <td className="px-6 py-4"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {user.shift?.name || '-'}
+                      </td>
+                      <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           user.status === 'active'
                             ? 'bg-green-100 text-green-800'
@@ -725,7 +771,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                           {user.status === 'active' ? 'Ativo' : `Demitido em ${user.terminationDate ? new Date(user.terminationDate).toLocaleDateString('pt-BR') : ''}`}
                         </span>
                       </td>
-                      <td className="px-6 py-4"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           user.role === 'admin'
                             ? 'bg-purple-100 text-purple-800'
@@ -734,13 +780,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
                           {user.role === 'admin' ? 'Administrador' : 'Funcionário'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-900">
                         {formatCurrency(user.hourlyRate)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-900">
                         {formatCurrency(user.overtimeRate)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500"> {/* ❌ REMOVIDO: whitespace-nowrap */}
+                      <td className="px-6 py-4 text-sm text-gray-500">
                         <div className="flex space-x-2">
                           <Button
                             variant="outline"
