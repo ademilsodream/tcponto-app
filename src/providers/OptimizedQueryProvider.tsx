@@ -3,24 +3,23 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-// Configuração super otimizada do QueryClient
+// ✨ Configuração otimizada e simplificada do QueryClient
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Cache inteligente baseado no tipo de dados
-      staleTime: 30 * 60 * 1000, // 30 minutos padrão
-      gcTime: 60 * 60 * 1000, // 60 minutos no garbage collector
+      // ✨ Cache balanceado
+      staleTime: 5 * 60 * 1000, // 5 minutos (reduzido de 30)
+      gcTime: 15 * 60 * 1000, // 15 minutos no garbage collector
       
-      // Configurações de refetch desabilitadas
+      // ✨ Configurações de refetch otimizadas
       refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
+      refetchOnReconnect: true, // ✨ Habilitado para reconexão
+      refetchOnMount: true, // ✨ Habilitado para mount
       refetchInterval: false,
       
-      // Retry otimizado com menos tentativas
+      // ✨ Retry simplificado
       retry: (failureCount, error) => {
-        // Máximo 1 retry para evitar spam
-        if (failureCount >= 1) return false;
+        if (failureCount >= 2) return false;
         
         const errorMessage = error?.message?.toLowerCase() || '';
         
@@ -29,25 +28,21 @@ const queryClient = new QueryClient({
             errorMessage.includes('unauthorized') || 
             errorMessage.includes('invalid_token') ||
             errorMessage.includes('session_not_found')) {
-          console.log('OptimizedQueryProvider: Erro de auth, invalidando cache...');
-          queryClient.invalidateQueries();
+          console.log('QueryProvider: Erro de auth detectado');
           return false;
         }
         
-        // Retry apenas para erros de rede
+        // Retry para erros de rede
         return errorMessage.includes('network') || 
                errorMessage.includes('fetch') ||
                errorMessage.includes('timeout');
       },
       
-      // Delay menor entre retries
-      retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(1.5, attemptIndex), 3000),
+      // ✨ Delay otimizado
+      retryDelay: (attemptIndex) => Math.min(1000 * Math.pow(2, attemptIndex), 5000),
     },
     mutations: {
-      // Retry apenas 1 vez para mutations
       retry: 1,
-      
-      // Error handling otimizado
       onError: (error) => {
         console.error('Mutation error:', error);
         
@@ -55,93 +50,51 @@ const queryClient = new QueryClient({
         if (errorMessage.includes('jwt') || 
             errorMessage.includes('unauthorized') || 
             errorMessage.includes('invalid_token')) {
-          console.log('OptimizedQueryProvider: Erro de auth em mutation, invalidando cache...');
-          queryClient.invalidateQueries();
+          console.log('QueryProvider: Erro de auth em mutation');
         }
       },
     },
   },
 });
 
-// Rate limiting para evitar spam de queries
-const queryRateLimiter = new Map<string, number>();
-const RATE_LIMIT_WINDOW = 1000; // 1 segundo
-
-// Interceptar queries para rate limiting
-const originalFetchQuery = queryClient.fetchQuery.bind(queryClient);
-queryClient.fetchQuery = function(options: any) {
-  const queryKey = JSON.stringify(options.queryKey);
-  const now = Date.now();
-  const lastCall = queryRateLimiter.get(queryKey) || 0;
-  
-  // Se chamou muito recentemente, retornar dados em cache
-  if (now - lastCall < RATE_LIMIT_WINDOW) {
-    const cachedData = queryClient.getQueryData(options.queryKey);
-    if (cachedData) {
-      console.log('Rate limited query, returning cache:', queryKey);
-      return Promise.resolve(cachedData);
-    }
-  }
-  
-  queryRateLimiter.set(queryKey, now);
-  return originalFetchQuery.call(this, options);
-};
-
-// Listener otimizado para auth state - apenas uma vez
+// ✨ Listener simplificado para auth state
 let authStateListenerSetup = false;
 
-const setupOptimizedAuthListener = () => {
+const setupAuthListener = () => {
   if (authStateListenerSetup) return;
   
-  console.log('OptimizedQueryProvider: Configurando listener de auth otimizado...');
-  
-  // Debounce para evitar múltiplas invalidações
-  let authChangeTimeout: NodeJS.Timeout;
+  console.log('QueryProvider: Configurando listener de auth...');
   
   supabase.auth.onAuthStateChange((event, session) => {
-    console.log('OptimizedQueryProvider: Auth event:', event);
+    console.log('QueryProvider: Auth event:', event);
     
-    // Debounce para evitar invalidações em cascata
-    clearTimeout(authChangeTimeout);
-    authChangeTimeout = setTimeout(() => {
-      if (event === 'SIGNED_OUT') {
-        console.log('OptimizedQueryProvider: Limpando cache após logout...');
-        queryClient.clear();
-        queryRateLimiter.clear();
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log('OptimizedQueryProvider: Token renovado, invalidando queries críticas...');
-        // Invalidar apenas queries críticas de auth
-        queryClient.invalidateQueries({ 
-          predicate: (query) => {
-            const key = query.queryKey[0] as string;
-            return key.includes('profile') || key.includes('user');
-          }
-        });
-      } else if (event === 'SIGNED_IN') {
-        console.log('OptimizedQueryProvider: Login detectado, limpando cache...');
-        queryClient.clear();
-        queryRateLimiter.clear();
-      }
-    }, 300); // 300ms de debounce
+    if (event === 'SIGNED_OUT') {
+      console.log('QueryProvider: Limpando cache após logout...');
+      queryClient.clear();
+    } else if (event === 'SIGNED_IN') {
+      console.log('QueryProvider: Login detectado, limpando cache...');
+      queryClient.clear();
+    } else if (event === 'TOKEN_REFRESHED') {
+      console.log('QueryProvider: Token renovado');
+      // Não invalidar tudo, apenas queries de auth se necessário
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key?.includes('profile') || key?.includes('user');
+        }
+      });
+    }
   });
   
   authStateListenerSetup = true;
 };
 
-// Cleanup automático de cache antigo
+// ✨ Cleanup simplificado
 const setupCacheCleanup = () => {
   const cleanupInterval = setInterval(() => {
-    // Limpar rate limiter cache antigo
-    const now = Date.now();
-    for (const [key, timestamp] of queryRateLimiter.entries()) {
-      if (now - timestamp > 5 * 60 * 1000) { // 5 minutos
-        queryRateLimiter.delete(key);
-      }
-    }
-    
-    // Garbage collect queries antigas
+    console.log('QueryProvider: Executando limpeza de cache...');
     queryClient.getQueryCache().clear();
-  }, 30 * 60 * 1000); // A cada 30 minutos
+  }, 60 * 60 * 1000); // A cada 60 minutos (reduzido de 30)
   
   return () => clearInterval(cleanupInterval);
 };
@@ -152,7 +105,7 @@ interface OptimizedQueryProviderProps {
 
 export const OptimizedQueryProvider: React.FC<OptimizedQueryProviderProps> = ({ children }) => {
   React.useEffect(() => {
-    setupOptimizedAuthListener();
+    setupAuthListener();
     const cleanupCache = setupCacheCleanup();
     
     return () => {

@@ -14,20 +14,19 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
   const {
     queryKey,
     queryFn,
-    staleTime = 30 * 60 * 1000, // 30 minutos por padrão
-    refetchInterval = false, // Sempre desabilitado
+    staleTime = 5 * 60 * 1000, // ✨ Reduzido para 5 minutos
+    refetchInterval = false,
     enableRealtime = false,
     ...otherOptions
   } = options;
 
-  // QueryFn otimizada com error handling aprimorado
+  // ✨ QueryFn simplificada
   const optimizedQueryFn = useCallback(async () => {
     try {
       return await queryFn();
     } catch (error: any) {
       console.error('Query error:', error);
       
-      // Se for erro de autenticação, não tentar novamente
       const errorMessage = error?.message?.toLowerCase() || '';
       if (errorMessage.includes('jwt') || 
           errorMessage.includes('unauthorized') || 
@@ -44,17 +43,15 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
     queryKey,
     queryFn: optimizedQueryFn,
     staleTime,
-    refetchInterval: false, // Sempre desabilitado
-    refetchOnWindowFocus: false, // Desabilitado
-    refetchOnReconnect: false, // Desabilitado
-    refetchOnMount: false, // Desabilitado
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true, // ✨ Habilitado para reconexão
+    refetchOnMount: true, // ✨ Habilitado para mount
     retry: (failureCount, error: any) => {
-      // Retry logic inteligente com foco em auth
-      if (failureCount >= 2) return false;
+      if (failureCount >= 1) return false; // ✨ Apenas 1 retry
       
       const errorMessage = error?.message?.toLowerCase() || '';
       
-      // Não retry para erros de autenticação
       if (errorMessage.includes('jwt') || 
           errorMessage.includes('unauthorized') || 
           errorMessage.includes('invalid_token') ||
@@ -62,35 +59,30 @@ export function useOptimizedQuery<T>(options: OptimizedQueryOptions<T>) {
         return false;
       }
       
-      // Retry para erros de rede
-      if (errorMessage.includes('network') || 
-          errorMessage.includes('fetch') ||
-          errorMessage.includes('timeout')) {
-        return true;
-      }
-      
-      return false;
+      return errorMessage.includes('network') || 
+             errorMessage.includes('fetch') ||
+             errorMessage.includes('timeout');
     },
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 3000), // ✨ Delay reduzido
     ...otherOptions
   });
 }
 
-// Hook para queries que precisam de real-time updates
+// ✨ Hook simplificado para queries que precisam de real-time updates
 export function useRealtimeQuery<T>(options: OptimizedQueryOptions<T>) {
   return useOptimizedQuery({
     ...options,
-    staleTime: 30 * 60 * 1000, // 30 minutos
-    refetchInterval: false, // Desabilitado
-    enableRealtime: false // Desabilitado
+    staleTime: 2 * 60 * 1000, // 2 minutos para realtime
+    refetchInterval: false,
+    enableRealtime: false
   });
 }
 
-// Hook para queries estáticas (raramente mudam)
+// ✨ Hook para queries estáticas (raramente mudam)
 export function useStaticQuery<T>(options: OptimizedQueryOptions<T>) {
   return useOptimizedQuery({
     ...options,
-    staleTime: 60 * 60 * 1000, // 60 minutos
+    staleTime: 15 * 60 * 1000, // 15 minutos para dados estáticos
     refetchInterval: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

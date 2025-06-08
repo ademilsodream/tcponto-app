@@ -16,7 +16,7 @@ type Json =
   | Json[];
 
 // Interface para o objeto JSON de localização que será salvo DENTRO da chave do campo (ex: "clock_in": {...})
-interface LocationDetailsForEdit {
+interface LocationDetails {
   address: string | null;
   distance: number | null; // Pode ser nulo para edições manuais
   latitude: number | null;
@@ -28,11 +28,11 @@ interface LocationDetailsForEdit {
 // Interface para a estrutura esperada na coluna location do edit_requests
 // Ex: { "clock_in": { ...LocationDetailsForEdit... } }
 interface EditRequestLocation {
-  clock_in?: LocationDetailsForEdit;
-  lunch_start?: LocationDetailsForEdit;
-  lunch_end?: LocationDetailsForEdit;
-  clock_out?: LocationDetailsForEdit;
-  [key: string]: LocationDetailsForEdit | undefined; // Para permitir acesso dinâmico
+  clock_in?: LocationDetails;
+  lunch_start?: LocationDetails;
+  lunch_end?: LocationDetails;
+  clock_out?: LocationDetails;
+  [key: string]: LocationDetails | undefined; // Para permitir acesso dinâmico
 }
 
 interface EditRequest {
@@ -98,7 +98,7 @@ const safeConvertToEditRequestLocation = (jsonData: Json | null): EditRequestLoc
           fieldData !== null) {
         
         // Conversão mais segura via unknown
-        result[field] = fieldData as unknown as LocationDetailsForEdit;
+        result[field] = fieldData as unknown as LocationDetails;
       }
     }
     
@@ -120,9 +120,11 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
 
   const loadEditRequests = async () => {
     try {
+      console.log('🔄 Carregando solicitações de edição...');
+      
       const { data, error } = await supabase
         .from('edit_requests')
-        .select('*') // Busca todas as colunas, incluindo 'location'
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -138,13 +140,13 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
         reason: request.reason,
         timestamp: request.created_at,
         status: request.status as 'pending' | 'approved' | 'rejected',
-        // ✨ CORRIGIDO: Usar função de conversão segura em vez de casting direto
         location: safeConvertToEditRequestLocation(request.location),
       })) || [];
 
+      console.log(`✅ ${formattedRequests.length} solicitações carregadas`);
       setEditRequests(formattedRequests);
     } catch (error) {
-      console.error('Error loading edit requests:', error);
+      console.error('❌ Erro ao carregar solicitações:', error);
     } finally {
       setLoading(false);
     }
@@ -152,8 +154,11 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
 
   const handleGroupApproval = async (group: GroupedRequest, approved: boolean) => {
     try {
+      console.log(`🔄 ${approved ? 'Aprovando' : 'Rejeitando'} solicitações do grupo:`, group);
+      
       const requestIds = group.requests.map(r => r.id);
 
+      // ✨ Atualizar status das solicitações
       const { error: updateError } = await supabase
         .from('edit_requests')
         .update({
@@ -166,17 +171,19 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
       if (updateError) throw updateError;
 
       if (approved) {
-        // ✨ CORRIGIDO: Buscar a coluna 'locations' da tabela 'time_records'
+        console.log('✅ Aprovando e aplicando mudanças aos registros de tempo...');
+        
+        // ✨ Buscar registro existente
         const { data: timeRecord, error: fetchError } = await supabase
           .from('time_records')
-          .select('id, locations') // ✨ Usar 'locations' (plural)
+          .select('id, locations')
           .eq('user_id', group.employeeId)
           .eq('date', group.date)
           .maybeSingle();
 
         if (fetchError) throw fetchError;
 
-        // Preparar dados de atualização para time_records
+        // ✨ Preparar dados de atualização
         const updateData: any = {};
         const fieldMap = {
           clockIn: 'clock_in',
@@ -185,32 +192,42 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
           clockOut: 'clock_out'
         };
 
-        // Lógica para mesclar localizações
-        // ✨ CORRIGIDO: Inicia com a localização existente da coluna 'locations'
-        let mergedLocations: any = timeRecord?.locations || {}; // ✨ Usar 'locations' (plural)
+        // ✨ Estrutura de localização corrigida
+        let mergedLocations: any = {};
+        
+        // Se já existe um registro, usar suas localizações como base
+        if (timeRecord?.locations && typeof timeRecord.locations === 'object') {
+          mergedLocations = { ...timeRecord.locations };
+        }
 
+        // Aplicar mudanças de horário e localização
         for (const request of group.requests) {
-          const dbFieldName = fieldMap[request.field] as keyof EditRequestLocation; // Nome do campo no DB (snake_case)
-          updateData[dbFieldName] = request.newValue; // Adiciona o novo valor do horário
+          const dbFieldName = fieldMap[request.field];
+          updateData[dbFieldName] = request.newValue;
 
-          // Se a solicitação de edição tiver dados de localização para este campo, mesclar
-          // A solicitação de edição tem a coluna 'location' (singular) com a estrutura JSON interna
+          // ✨ Mesclar dados de localização se disponíveis
           if (request.location && request.location[dbFieldName]) {
-             mergedLocations[dbFieldName] = request.location[dbFieldName];
+            mergedLocations[dbFieldName] = request.location[dbFieldName];
           }
         }
 
-        // ✨ CORRIGIDO: Adicionar o objeto de localização mesclada à coluna 'locations'
-        updateData.locations = mergedLocations; // ✨ Usar 'locations' (plural)
+        // ✨ Adicionar localizações mescladas
+        updateData.locations = mergedLocations;
+
+        console.log('📍 Dados de atualização preparados:', {
+          timeFields: Object.keys(updateData).filter(k => k !== 'locations'),
+          locationFields: Object.keys(mergedLocations)
+        });
 
         if (timeRecord) {
           // Atualizar registro existente
           const { error: updateRecordError } = await supabase
             .from('time_records')
-            .update(updateData) // ✨ updateData agora inclui locations mesclada
+            .update(updateData)
             .eq('id', timeRecord.id);
 
           if (updateRecordError) throw updateRecordError;
+          console.log('✅ Registro de tempo atualizado');
         } else {
           // Criar novo registro
           const { error: insertError } = await supabase
@@ -218,28 +235,28 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
             .insert({
               user_id: group.employeeId,
               date: group.date,
-              ...updateData, // ✨ updateData agora inclui locations mesclada
+              ...updateData,
             });
 
           if (insertError) throw insertError;
+          console.log('✅ Novo registro de tempo criado');
         }
 
-        setMessage(`Edições aprovadas para ${group.employeeName}`);
+        setMessage(`✅ Edições aprovadas para ${group.employeeName}`);
       } else {
-        setMessage(`Edições rejeitadas para ${group.employeeName}`);
+        setMessage(`❌ Edições rejeitadas para ${group.employeeName}`);
       }
 
       await loadEditRequests();
 
-      // Chamar callback se fornecido
       if (onApprovalChange) {
         onApprovalChange();
       }
 
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
-      console.error('Error handling group approval:', error);
-      setMessage('Erro ao processar aprovação');
+      console.error('❌ Erro ao processar aprovação:', error);
+      setMessage('❌ Erro ao processar aprovação');
       setTimeout(() => setMessage(''), 3000);
     }
   };
@@ -336,7 +353,6 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ employees, onApprov
                             <span className="text-red-600">De: {request.oldValue || 'Vazio'}</span>
                             <span className="text-green-600">Para: {request.newValue}</span>
                           </div>
-                          {/* Exibir localização se disponível na solicitação */}
                           {request.location && Object.keys(request.location).length > 0 && (
                               <div className="text-xs text-gray-600 mt-1">
                                 Localização: {Object.values(request.location)[0]?.locationName || 'N/A'}

@@ -17,7 +17,11 @@ import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
 const AppContent = React.memo(() => {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, profileLoading } = useAuth();
+
+  // ✨ Loading otimizado - aguardar tanto auth quanto perfil
+  const isFullyLoaded = !loading && !profileLoading;
+  const hasProfile = profile !== null;
 
   if (loading) {
     return (
@@ -27,9 +31,27 @@ const AppContent = React.memo(() => {
     );
   }
 
-  // Determinar qual interface usar baseado no role do usuário
-  // CORREÇÃO: Usar profile.role ao invés de user.role
-  const isAdmin = profile?.role === 'admin';
+  // ✨ Se usuário logado mas perfil ainda carregando, mostrar loading específico
+  if (user && profileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center w-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-sm text-gray-600">Carregando perfil...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✨ Verificação de admin aprimorada - só após profile estar carregado
+  const isAdmin = user && hasProfile && profile?.role === 'admin';
+  
+  console.log('🔍 Verificação de role:', {
+    user: !!user,
+    hasProfile,
+    profileRole: profile?.role,
+    isAdmin
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
@@ -43,18 +65,29 @@ const AppContent = React.memo(() => {
           path="/" 
           element={
             user ? (
-              isAdmin ? (
-                <AdminLayout>
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                </AdminLayout>
+              // ✨ Só renderizar interface após ter perfil carregado
+              hasProfile ? (
+                isAdmin ? (
+                  <AdminLayout>
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  </AdminLayout>
+                ) : (
+                  <EmployeeLayout>
+                    <ProtectedRoute>
+                      <OptimizedEmployeeDashboard />
+                    </ProtectedRoute>
+                  </EmployeeLayout>
+                )
               ) : (
-                <EmployeeLayout>
-                  <ProtectedRoute>
-                    <OptimizedEmployeeDashboard />
-                  </ProtectedRoute>
-                </EmployeeLayout>
+                // Aguardando carregamento do perfil
+                <div className="min-h-screen flex items-center justify-center w-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-600">Verificando permissões...</p>
+                  </div>
+                </div>
               )
             ) : (
               <Navigate to="/login" replace />
