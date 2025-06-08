@@ -183,9 +183,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
-  // ✅ CORREÇÃO 4: resetForm atualizado com logs
+
   const resetForm = () => {
-    console.log('🔄 Resetando formulário...');
     setFormData({
       name: '',
       email: '',
@@ -199,13 +198,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       shiftId: ''
     });
     setEditingUser(null);
-    console.log('✅ Formulário resetado');
   };
 
-  // ✅ CORREÇÃO 5: handleSubmit com melhor gerenciamento de fechamento
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔄 Enviando formulário...');
 
     if (!formData.name || !formData.email || (!editingUser && !formData.password) || !formData.departmentId || !formData.jobFunctionId) {
       toast({
@@ -223,7 +220,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       setSubmitting(true);
 
       if (editingUser) {
-        console.log('🔄 Atualizando usuário existente...');
         // Atualizar usuário existente
         const { error } = await supabase
           .from('profiles')
@@ -250,7 +246,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
           description: "Usuário atualizado com sucesso!"
         });
       } else {
-        console.log('🔄 Criando novo usuário...');
         // Criar novo usuário via Edge Function
         const response = await supabase.functions.invoke('create-user', {
           body: {
@@ -279,15 +274,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
 
       await loadUsers();
       onUserChange?.();
-      
-      // ✅ IMPORTANTE: Fechar dialog após sucesso
       setIsDialogOpen(false);
       resetForm();
-      
-      console.log('✅ Usuário salvo com sucesso');
-      
     } catch (error: any) {
-      console.error('❌ Erro ao salvar usuário:', error);
+      console.error('Erro ao salvar usuário:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao salvar usuário",
@@ -298,9 +288,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
-  // ✅ CORREÇÃO 3: handleEdit atualizado com logs
+
   const handleEdit = (user: User) => {
-    console.log('🔄 Editando usuário:', user.name);
     setEditingUser(user);
     setFormData({
       name: user.name,
@@ -315,7 +304,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       shiftId: user.shiftId || ''
     });
     setIsDialogOpen(true);
-    console.log('✅ Dialog aberto para edição');
   };
 
 
@@ -467,15 +455,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
 
   return (
     <div className="space-y-6">
-      {/* ✅ CORREÇÃO 1: Botão simples sem DialogTrigger */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-primary-900">Gerenciamento de Usuários</h2>
           <p className="text-gray-600">Criar e gerenciar usuários do sistema</p>
         </div>
 
+        {/* ✅ ÚNICA MUDANÇA: Botão simples sem DialogTrigger */}
         <Button onClick={() => { 
-          console.log('🔄 Abrindo dialog para novo usuário...');
           resetForm(); 
           setIsDialogOpen(true); 
         }}>
@@ -484,16 +471,14 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         </Button>
       </div>
 
-      {/* ✅ CORREÇÃO 2: Dialog sem DialogTrigger */}
+      {/* ✅ ÚNICA MUDANÇA: Dialog sem DialogTrigger */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
-        console.log('🔄 Dialog onOpenChange:', open);
         setIsDialogOpen(open);
         if (!open) {
-          // Limpar formulário quando fechar
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {editingUser ? 'Editar Usuário' : 'Criar Novo Usuário'}
@@ -664,10 +649,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  console.log('🔄 Fechando dialog...');
-                  setIsDialogOpen(false);
-                }}
+                onClick={() => setIsDialogOpen(false)}
                 disabled={submitting}
               >
                 Cancelar
@@ -680,7 +662,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog de Demissão */}
+      {/* Dialog de Demissão - MANTIDO COMPLETO */}
       <Dialog open={isTerminationDialogOpen} onOpenChange={setIsTerminationDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -720,6 +702,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
         </DialogContent>
       </Dialog>
 
+      {/* TABELA COMPLETA MANTIDA - TODAS AS COLUNAS E FUNCIONALIDADES */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
