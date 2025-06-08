@@ -535,20 +535,13 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
               <CalendarIcon className="w-5 h-5" />
               Ajuste de Registros
             </CardTitle>
-            {onBack && (
-              <Button variant="outline" size="sm" onClick={onBack}>
-                <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
-              </Button>
-            )}
           </div>
         </CardHeader>
         <CardContent>
           <Alert className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Você pode solicitar ajustes para dias do mês atual até ontem.
-              Dias com solicitações pendentes não podem ser editados novamente.
-              Selecione a localização referente ao ajuste.
+              Você pode solicitar ajustes para dias do mês atual.
             </AlertDescription>
           </Alert>
 
