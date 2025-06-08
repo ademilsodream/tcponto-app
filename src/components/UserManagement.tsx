@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Users, Plus, Edit, UserX, UserCheck } from 'lucide-react';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -183,8 +183,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
-
+  // ✅ CORREÇÃO 4: resetForm atualizado com logs
   const resetForm = () => {
+    console.log('🔄 Resetando formulário...');
     setFormData({
       name: '',
       email: '',
@@ -198,11 +199,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       shiftId: ''
     });
     setEditingUser(null);
+    console.log('✅ Formulário resetado');
   };
 
-
+  // ✅ CORREÇÃO 5: handleSubmit com melhor gerenciamento de fechamento
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔄 Enviando formulário...');
 
     if (!formData.name || !formData.email || (!editingUser && !formData.password) || !formData.departmentId || !formData.jobFunctionId) {
       toast({
@@ -220,6 +223,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       setSubmitting(true);
 
       if (editingUser) {
+        console.log('🔄 Atualizando usuário existente...');
         // Atualizar usuário existente
         const { error } = await supabase
           .from('profiles')
@@ -246,6 +250,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
           description: "Usuário atualizado com sucesso!"
         });
       } else {
+        console.log('🔄 Criando novo usuário...');
         // Criar novo usuário via Edge Function
         const response = await supabase.functions.invoke('create-user', {
           body: {
@@ -274,10 +279,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
 
       await loadUsers();
       onUserChange?.();
+      
+      // ✅ IMPORTANTE: Fechar dialog após sucesso
       setIsDialogOpen(false);
       resetForm();
+      
+      console.log('✅ Usuário salvo com sucesso');
+      
     } catch (error: any) {
-      console.error('Erro ao salvar usuário:', error);
+      console.error('❌ Erro ao salvar usuário:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao salvar usuário",
@@ -288,8 +298,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
     }
   };
 
-
+  // ✅ CORREÇÃO 3: handleEdit atualizado com logs
   const handleEdit = (user: User) => {
+    console.log('🔄 Editando usuário:', user.name);
     setEditingUser(user);
     setFormData({
       name: user.name,
@@ -304,6 +315,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
       shiftId: user.shiftId || ''
     });
     setIsDialogOpen(true);
+    console.log('✅ Dialog aberto para edição');
   };
 
 
@@ -455,203 +467,218 @@ const UserManagement: React.FC<UserManagementProps> = ({ onUserChange }) => {
 
   return (
     <div className="space-y-6">
+      {/* ✅ CORREÇÃO 1: Botão simples sem DialogTrigger */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-primary-900">Gerenciamento de Usuários</h2>
           <p className="text-gray-600">Criar e gerenciar usuários do sistema</p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => { resetForm(); setIsDialogOpen(true); }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Usuário
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                {editingUser ? 'Editar Usuário' : 'Criar Novo Usuário'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
+        <Button onClick={() => { 
+          console.log('🔄 Abrindo dialog para novo usuário...');
+          resetForm(); 
+          setIsDialogOpen(true); 
+        }}>
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Usuário
+        </Button>
+      </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    disabled={submitting || !!editingUser}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="employeeCode">Código do Funcionário</Label>
-                  <Input
-                    id="employeeCode"
-                    value={formData.employeeCode}
-                    onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
-                    placeholder="Ex: EMP001"
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="department">Departamento *</Label>
-                  <Select
-                    value={formData.departmentId}
-                    onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o departamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="jobFunction">Função *</Label>
-                  <Select
-                    value={formData.jobFunctionId}
-                    onValueChange={(value) => setFormData({ ...formData, jobFunctionId: value })}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a função" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobFunctions.map((job) => (
-                        <SelectItem key={job.id} value={job.id}>
-                          {job.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="shift">Turno (Opcional)</Label>
-                  <Select
-                    value={formData.shiftId}
-                    onValueChange={(value) => setFormData({ ...formData, shiftId: value })}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o turno (opcional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Sem turno</SelectItem>
-                      {workShifts.map((shift) => (
-                        <SelectItem key={shift.id} value={shift.id}>
-                          {shift.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {!editingUser && (
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha * (mínimo 6 caracteres)</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      required
-                      minLength={6}
-                      disabled={submitting}
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">Nível *</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user">Funcionário</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="hourlyRate">Valor por Hora *</Label>
-                  <Input
-                    id="hourlyRate"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.hourlyRate}
-                    onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
-                    required
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="overtimeRate">Valor Hora Extra * (Campo Livre)</Label>
-                  <Input
-                    id="overtimeRate"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.overtimeRate}
-                    onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
-                    required
-                    disabled={submitting}
-                  />
-                  <p className="text-sm text-gray-600">
-                    Valor livre para hora extra (não calculado automaticamente)
-                  </p>
-                </div>
+      {/* ✅ CORREÇÃO 2: Dialog sem DialogTrigger */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        console.log('🔄 Dialog onOpenChange:', open);
+        setIsDialogOpen(open);
+        if (!open) {
+          // Limpar formulário quando fechar
+          resetForm();
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingUser ? 'Editar Usuário' : 'Criar Novo Usuário'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  disabled={submitting}
+                />
               </div>
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  disabled={submitting || !!editingUser}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employeeCode">Código do Funcionário</Label>
+                <Input
+                  id="employeeCode"
+                  value={formData.employeeCode}
+                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
+                  placeholder="Ex: EMP001"
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="department">Departamento *</Label>
+                <Select
+                  value={formData.departmentId}
+                  onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
                   disabled={submitting}
                 >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Salvando...' : (editingUser ? 'Salvar' : 'Criar')}
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o departamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="jobFunction">Função *</Label>
+                <Select
+                  value={formData.jobFunctionId}
+                  onValueChange={(value) => setFormData({ ...formData, jobFunctionId: value })}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a função" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobFunctions.map((job) => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="shift">Turno (Opcional)</Label>
+                <Select
+                  value={formData.shiftId}
+                  onValueChange={(value) => setFormData({ ...formData, shiftId: value })}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o turno (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Sem turno</SelectItem>
+                    {workShifts.map((shift) => (
+                      <SelectItem key={shift.id} value={shift.id}>
+                        {shift.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!editingUser && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha * (mínimo 6 caracteres)</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
+                    minLength={6}
+                    disabled={submitting}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Nível *</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value: 'admin' | 'user') => setFormData({ ...formData, role: value })}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Funcionário</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="hourlyRate">Valor por Hora *</Label>
+                <Input
+                  id="hourlyRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.hourlyRate}
+                  onChange={(e) => setFormData({ ...formData, hourlyRate: e.target.value })}
+                  required
+                  disabled={submitting}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="overtimeRate">Valor Hora Extra * (Campo Livre)</Label>
+                <Input
+                  id="overtimeRate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.overtimeRate}
+                  onChange={(e) => setFormData({ ...formData, overtimeRate: e.target.value })}
+                  required
+                  disabled={submitting}
+                />
+                <p className="text-sm text-gray-600">
+                  Valor livre para hora extra (não calculado automaticamente)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  console.log('🔄 Fechando dialog...');
+                  setIsDialogOpen(false);
+                }}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Salvando...' : (editingUser ? 'Salvar' : 'Criar')}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de Demissão */}
       <Dialog open={isTerminationDialogOpen} onOpenChange={setIsTerminationDialogOpen}>
