@@ -564,11 +564,9 @@ const Settings = () => {
               </Button>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* O formulário de adição inline foi removido daqui */}
-  
-              {/* Lista de localizações existentes (mantida) */}
+              {/* Lista de localizações existentes */}
               <div className="space-y-4">
-                <h3 className="font-medium sr-only">Localizações Cadastradas</h3> {/* Escondido visualmente, mas bom para acessibilidade */}
+                <h3 className="font-medium sr-only">Localizações Cadastradas</h3>
                 {loading ? (
                   <div className="flex items-center justify-center p-8">
                     <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -587,46 +585,49 @@ const Settings = () => {
                             <h4 className="font-medium">{location.name}</h4>
                             <p className="text-sm text-muted-foreground">{location.address}</p>
                             <p className="text-xs text-muted-foreground">
-                              Coordenadas: {location.latitude}, {location.longitude} • 
+                              Coordenadas: {location.latitude}, {location.longitude} • 
                               Raio: {location.range_meters}m
                             </p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <div className={`w-2 h-2 rounded-full ${location.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
-                              <span className="text-xs text-muted-foreground">
-                                {location.is_active ? 'Ativa' : 'Inativa'}
-                              </span>
-                            </div>
-                            {/* Botões de ação (mantidos) */}
-                            <div className="flex items-center gap-2 ml-4">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEditLocation(location)}
-                                disabled={deletingLocation === location.id}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDeleteLocation(location)}
-                                disabled={deletingLocation === location.id}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                {deletingLocation === location.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                              <Button
-                                variant={location.is_active ? "destructive" : "default"}
-                                size="sm"
-                                onClick={() => toggleLocationStatus(location.id, location.is_active)}
-                                disabled={deletingLocation === location.id}
-                              >
-                                {location.is_active ? 'Desativar' : 'Ativar'}
-                              </Button>
+                            {/* Status e botões na mesma linha */}
+                            <div className="flex items-center justify-between mt-2">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${location.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-xs text-muted-foreground">
+                                  {location.is_active ? 'Ativa' : 'Inativa'}
+                                </span>
+                              </div>
+                              {/* Botões de ação na mesma linha do status */}
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditLocation(location)}
+                                  disabled={deletingLocation === location.id}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteLocation(location)}
+                                  disabled={deletingLocation === location.id}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  {deletingLocation === location.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant={location.is_active ? "destructive" : "default"}
+                                  size="sm"
+                                  onClick={() => toggleLocationStatus(location.id, location.is_active)}
+                                  disabled={deletingLocation === location.id}
+                                >
+                                  {location.is_active ? 'Desativar' : 'Ativar'}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -705,14 +706,14 @@ const Settings = () => {
         </TabsContent>
       </Tabs>
   
-      {/* ✨ NOVO: Dialog para Adicionar Localização */}
+      {/* Dialog para Adicionar Localização */}
       <Dialog open={isAddLocationDialogOpen} onOpenChange={closeAddLocationDialogAndResetForm}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Adicionar Nova Localização</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4"> {/* Adicionado py-4 para espaçamento */}
-            <div className="space-y-2 md:col-span-2"> {/* Nome e Endereço em linha inteira em telas menores */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="new-name">Nome da Localização *</Label>
               <Input
                 id="new-name"
@@ -723,7 +724,7 @@ const Settings = () => {
               />
             </div>
   
-            <div className="space-y-2 md:col-span-2"> {/* Nome e Endereço em linha inteira em telas menores */}
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="new-address">Endereço *</Label>
               <Input
                 id="new-address"
@@ -766,7 +767,7 @@ const Settings = () => {
               </div>
             </div>
   
-            <div className="space-y-2 md:col-span-2"> {/* Raio em linha inteira em telas menores */}
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="new-range">Raio Permitido (metros) *</Label>
               <Input
                 id="new-range"
@@ -785,7 +786,6 @@ const Settings = () => {
             </div>
           </div>
   
-          {/* ✨ NOVO: Botões no rodapé do modal */}
           <DialogFooter>
             <Button variant="outline" onClick={closeAddLocationDialogAndResetForm} disabled={addingLocation}>
               Cancelar
@@ -804,14 +804,14 @@ const Settings = () => {
         </DialogContent>
       </Dialog>
   
-      {/* Dialog de Edição (mantido) */}
+      {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Editar Localização</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4"> {/* Adicionado py-4 para espaçamento */}
-            <div className="space-y-2 md:col-span-2"> {/* Nome e Endereço em linha inteira em telas menores */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="edit-name">Nome da Localização *</Label>
               <Input
                 id="edit-name"
@@ -822,7 +822,7 @@ const Settings = () => {
               />
             </div>
   
-            <div className="space-y-2 md:col-span-2"> {/* Nome e Endereço em linha inteira em telas menores */}
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="edit-address">Endereço *</Label>
               <Input
                 id="edit-address"
@@ -859,7 +859,7 @@ const Settings = () => {
               />
             </div>
   
-            <div className="space-y-2 md:col-span-2"> {/* Raio em linha inteira em telas menores */}
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="edit-range">Raio Permitido (metros) *</Label>
               <Input
                 id="edit-range"
