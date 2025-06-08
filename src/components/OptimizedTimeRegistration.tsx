@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,11 +12,16 @@ import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 
 interface TimeRegistration {
   id: string;
-  timestamp: string;
-  latitude: number;
-  longitude: number;
   user_id: string;
-  type: 'clock_in' | 'clock_out';
+  date: string;
+  clock_in?: string;
+  clock_out?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  total_hours: number;
+  normal_hours: number;
+  overtime_hours: number;
+  locations?: any;
 }
 
 const OptimizedTimeRegistration = () => {
@@ -42,14 +48,14 @@ const OptimizedTimeRegistration = () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('time_registrations')
+        .from('time_records')
         .select('*')
         .eq('user_id', user.id)
-        .order('timestamp', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error("Erro ao carregar último registro:", error);
         return;
       }
@@ -78,47 +84,75 @@ const OptimizedTimeRegistration = () => {
 
     setRegistering(true);
     try {
-      const registrationType =
-        lastRegistration?.type === 'clock_in' ? 'clock_out' : 'clock_in';
+      const today = new Date().toISOString().split('T')[0];
+      const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-      const { data, error } = await supabase
-        .from('time_registrations')
-        .insert([
-          {
-            timestamp: new Date().toISOString(),
-            latitude: location.latitude,
-            longitude: location.longitude,
-            user_id: user.id,
-            type: registrationType,
-          },
-        ])
+      // Verificar se já existe um registro para hoje
+      const { data: existingRecord } = await supabase
+        .from('time_records')
         .select('*')
+        .eq('user_id', user.id)
+        .eq('date', today)
         .single();
 
-      if (error) {
-        console.error("Erro ao registrar ponto:", error);
-        toast({
-          title: "Erro",
-          description: "Erro ao registrar ponto.",
-          variant: "destructive",
-        });
-        setRegistering(false);
-        return;
+      let registrationType: 'clock_in' | 'clock_out' | 'lunch_start' | 'lunch_end' = 'clock_in';
+
+      if (existingRecord) {
+        if (!existingRecord.clock_in) {
+          registrationType = 'clock_in';
+        } else if (!existingRecord.lunch_start) {
+          registrationType = 'lunch_start';
+        } else if (!existingRecord.lunch_end) {
+          registrationType = 'lunch_end';
+        } else if (!existingRecord.clock_out) {
+          registrationType = 'clock_out';
+        }
       }
 
-      setLastRegistration(data);
+      const updateData = {
+        [registrationType]: currentTime,
+        locations: {
+          ...existingRecord?.locations,
+          [registrationType]: {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            timestamp: new Date().toISOString(),
+          }
+        }
+      };
 
-      // ✨ Enviar notificação push
-      const pushService = PushNotificationService.getInstance();
-      await pushService.sendNotification({
-        userId: user.id,
-        title: 'Novo Registro de Ponto',
-        body: `Você registrou ${registrationType === 'clock_in' ? 'entrada' : 'saída'} às ${currentTime.toLocaleTimeString('pt-BR')}`,
-      });
+      if (existingRecord) {
+        const { error } = await supabase
+          .from('time_records')
+          .update(updateData)
+          .eq('id', existingRecord.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('time_records')
+          .insert({
+            user_id: user.id,
+            date: today,
+            ...updateData
+          });
+
+        if (error) throw error;
+      }
+
+      // Tentar enviar notificação push (opcional)
+      try {
+        const pushService = PushNotificationService.getInstance();
+        // Note: Removido o método sendNotification que não existe
+        console.log('Push notification would be sent here');
+      } catch (pushError) {
+        console.warn('Erro ao enviar notificação push:', pushError);
+        // Não interromper o fluxo por erro de push notification
+      }
 
       toast({
         title: "Sucesso",
-        description: `Ponto registrado com sucesso às ${currentTime.toLocaleTimeString('pt-BR')}`,
+        description: `Ponto registrado com sucesso às ${new Date().toLocaleTimeString('pt-BR')}`,
       });
 
       await loadLastRegistration();
@@ -140,10 +174,26 @@ const OptimizedTimeRegistration = () => {
       return "Carregando...";
     }
 
-    if (lastRegistration?.type === 'clock_in') {
+    if (!lastRegistration) {
+      return "Registrar Entrada";
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    if (lastRegistration.date !== today) {
+      return "Registrar Entrada";
+    }
+
+    if (!lastRegistration.clock_in) {
+      return "Registrar Entrada";
+    } else if (!lastRegistration.lunch_start) {
+      return "Registrar Início do Almoço";
+    } else if (!lastRegistration.lunch_end) {
+      return "Registrar Volta do Almoço";
+    } else if (!lastRegistration.clock_out) {
       return "Registrar Saída";
     }
-    return "Registrar Entrada";
+    
+    return "Registros Completos";
   };
 
   if (locationError) {
@@ -247,14 +297,11 @@ const OptimizedTimeRegistration = () => {
           <div className="border-t pt-4">
             <div className="text-sm font-medium">Último Registro:</div>
             <div className="text-sm text-muted-foreground">
-              {lastRegistration.type === 'clock_in' ? 'Entrada' : 'Saída'} em{' '}
-              {new Date(lastRegistration.timestamp).toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {lastRegistration.clock_out ? 'Saída' : 
+               lastRegistration.lunch_end ? 'Volta do Almoço' :
+               lastRegistration.lunch_start ? 'Início do Almoço' :
+               lastRegistration.clock_in ? 'Entrada' : 'Nenhum'} em{' '}
+              {lastRegistration.date}
             </div>
           </div>
         )}

@@ -1,4 +1,3 @@
-
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
 import { Capacitor } from '@capacitor/core';
@@ -41,6 +40,20 @@ export class PushNotificationService {
 
     } catch (error) {
       console.error('Erro ao inicializar push notifications:', error);
+    }
+  }
+
+  async sendNotification(notification: {
+    userId: string;
+    title: string;
+    body: string;
+  }): Promise<void> {
+    try {
+      console.log('Sending push notification:', notification);
+      // Esta é uma implementação básica - em produção você conectaria com um serviço real
+      // Por enquanto, apenas logamos a notificação
+    } catch (error) {
+      console.error('Erro ao enviar notificação:', error);
     }
   }
 
