@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -11,7 +10,6 @@ import { Loader2, Settings } from 'lucide-react';
 
 const WorkShiftSettings = () => {
   const [enableWorkShifts, setEnableWorkShifts] = useState(false);
-  const [toleranceMinutes, setToleranceMinutes] = useState(15);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -28,20 +26,16 @@ const WorkShiftSettings = () => {
       const { data, error } = await supabase
         .from('system_settings')
         .select('setting_key, setting_value')
-        .in('setting_key', ['enable_work_shifts', 'shift_tolerance_minutes']);
+        .eq('setting_key', 'enable_work_shifts');
 
       if (error) {
         console.error('❌ Erro ao carregar configurações:', error);
         throw error;
       }
 
-      data?.forEach(setting => {
-        if (setting.setting_key === 'enable_work_shifts') {
-          setEnableWorkShifts(setting.setting_value === 'true');
-        } else if (setting.setting_key === 'shift_tolerance_minutes') {
-          setToleranceMinutes(parseInt(setting.setting_value) || 15);
-        }
-      });
+      if (data && data.length > 0) {
+        setEnableWorkShifts(data[0].setting_value === 'true');
+      }
 
       console.log('✅ Configurações carregadas');
     } catch (error) {
@@ -61,26 +55,15 @@ const WorkShiftSettings = () => {
       setSaving(true);
       console.log('💾 Salvando configurações de turnos...');
 
-      const settings = [
-        {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({
           setting_key: 'enable_work_shifts',
           setting_value: enableWorkShifts.toString(),
           description: 'Habilitar turnos de trabalho personalizados'
-        },
-        {
-          setting_key: 'shift_tolerance_minutes',
-          setting_value: toleranceMinutes.toString(),
-          description: 'Minutos de tolerância antes e depois do horário de entrada para registro de ponto'
-        }
-      ];
+        });
 
-      for (const setting of settings) {
-        const { error } = await supabase
-          .from('system_settings')
-          .upsert(setting);
-
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       console.log('✅ Configurações salvas com sucesso');
       toast({
@@ -136,30 +119,6 @@ const WorkShiftSettings = () => {
               disabled={saving}
             />
           </div>
-
-          {enableWorkShifts && (
-            <div className="space-y-2 pl-4 border-l-2 border-primary/20">
-              <Label htmlFor="tolerance-minutes" className="text-base font-medium">
-                Minutos de tolerância antes e depois do horário de entrada para registro de ponto
-              </Label>
-              <div className="flex items-center gap-4">
-                <Input
-                  id="tolerance-minutes"
-                  type="number"
-                  min="0"
-                  max="60"
-                  value={toleranceMinutes}
-                  onChange={(e) => setToleranceMinutes(parseInt(e.target.value) || 15)}
-                  className="max-w-32"
-                  disabled={saving}
-                />
-                <span className="text-sm text-muted-foreground">minutos</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Define o tempo em que o botão de registro ficará habilitado antes e depois do horário previsto
-              </div>
-            </div>
-          )}
         </div>
 
         <Button onClick={handleSaveSettings} disabled={saving}>

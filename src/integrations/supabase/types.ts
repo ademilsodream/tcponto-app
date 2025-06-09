@@ -289,6 +289,7 @@ export type Database = {
           employee_id: string
           id: string
           is_active: boolean
+          shift_id: string | null
           updated_at: string
           weekly_hours: number | null
         }
@@ -298,6 +299,7 @@ export type Database = {
           employee_id: string
           id?: string
           is_active?: boolean
+          shift_id?: string | null
           updated_at?: string
           weekly_hours?: number | null
         }
@@ -307,6 +309,7 @@ export type Database = {
           employee_id?: string
           id?: string
           is_active?: boolean
+          shift_id?: string | null
           updated_at?: string
           weekly_hours?: number | null
         }
@@ -316,6 +319,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_work_schedules_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "work_shifts"
             referencedColumns: ["id"]
           },
         ]
@@ -832,6 +842,8 @@ export type Database = {
       }
       work_shift_schedules: {
         Row: {
+          break_end_time: string | null
+          break_start_time: string | null
           created_at: string
           day_of_week: number
           end_time: string
@@ -842,6 +854,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          break_end_time?: string | null
+          break_start_time?: string | null
           created_at?: string
           day_of_week: number
           end_time: string
@@ -852,6 +866,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          break_end_time?: string | null
+          break_start_time?: string | null
           created_at?: string
           day_of_week?: number
           end_time?: string
@@ -873,26 +889,35 @@ export type Database = {
       }
       work_shifts: {
         Row: {
+          break_tolerance_minutes: number | null
           created_at: string
           description: string | null
+          early_tolerance_minutes: number | null
           id: string
           is_active: boolean
+          late_tolerance_minutes: number | null
           name: string
           updated_at: string
         }
         Insert: {
+          break_tolerance_minutes?: number | null
           created_at?: string
           description?: string | null
+          early_tolerance_minutes?: number | null
           id?: string
           is_active?: boolean
+          late_tolerance_minutes?: number | null
           name: string
           updated_at?: string
         }
         Update: {
+          break_tolerance_minutes?: number | null
           created_at?: string
           description?: string | null
+          early_tolerance_minutes?: number | null
           id?: string
           is_active?: boolean
+          late_tolerance_minutes?: number | null
           name?: string
           updated_at?: string
         }

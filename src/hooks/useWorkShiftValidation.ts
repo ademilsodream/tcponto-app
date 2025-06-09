@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,27 +20,37 @@ export const useWorkShiftValidation = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    checkShiftValidation();
-    // Verificar a cada minuto
-    const interval = setInterval(checkShiftValidation, 60000);
-    return () => clearInterval(interval);
-  }, [profile]);
-
-  const checkShiftValidation = async () => {
+  const checkShiftValidation = useCallback(async () => {
     if (!profile) return;
 
     try {
       setLoading(true);
 
-      // Verificar se turnos estão habilitados
-      const { data: settingsData } = await supabase
-        .from('system_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', ['enable_work_shifts', 'shift_tolerance_minutes']);
+      // Verificar se turnos estão habilitados - otimização: cache por 5 minutos
+      const cacheKey = 'work_shifts_settings';
+      const cached = sessionStorage.getItem(cacheKey);
+      const cacheExpiry = sessionStorage.getItem(`${cacheKey}_expiry`);
+      
+      let enableWorkShifts = false;
+      let toleranceMinutes = 15;
 
-      const enableWorkShifts = settingsData?.find(s => s.setting_key === 'enable_work_shifts')?.setting_value === 'true';
-      const toleranceMinutes = parseInt(settingsData?.find(s => s.setting_key === 'shift_tolerance_minutes')?.setting_value || '15');
+      if (cached && cacheExpiry && new Date().getTime() < parseInt(cacheExpiry)) {
+        const cachedData = JSON.parse(cached);
+        enableWorkShifts = cachedData.enableWorkShifts;
+        toleranceMinutes = cachedData.toleranceMinutes;
+      } else {
+        const { data: settingsData } = await supabase
+          .from('system_settings')
+          .select('setting_key, setting_value')
+          .in('setting_key', ['enable_work_shifts'])
+          .limit(1);
+
+        enableWorkShifts = settingsData?.find(s => s.setting_key === 'enable_work_shifts')?.setting_value === 'true';
+        
+        // Cache por 5 minutos
+        sessionStorage.setItem(cacheKey, JSON.stringify({ enableWorkShifts, toleranceMinutes }));
+        sessionStorage.setItem(`${cacheKey}_expiry`, (new Date().getTime() + 5 * 60 * 1000).toString());
+      }
 
       // Se turnos não estão habilitados, liberar registro
       if (!enableWorkShifts) {
@@ -70,7 +80,7 @@ export const useWorkShiftValidation = () => {
 
       const { data: scheduleData } = await supabase
         .from('work_shift_schedules')
-        .select('*')
+        .select('*, work_shifts!inner(early_tolerance_minutes, late_tolerance_minutes)')
         .eq('shift_id', profile.shift_id)
         .eq('day_of_week', dayOfWeek)
         .eq('is_active', true)
@@ -87,13 +97,18 @@ export const useWorkShiftValidation = () => {
         return;
       }
 
+      // Usar tolerâncias do turno específico
+      const shiftTolerances = scheduleData.work_shifts;
+      const earlyTolerance = shiftTolerances?.early_tolerance_minutes || 15;
+      const lateTolerance = shiftTolerances?.late_tolerance_minutes || 15;
+
       // Calcular horários com tolerância
       const startTime = new Date(now);
       const [startHour, startMinute] = scheduleData.start_time.split(':').map(Number);
-      startTime.setHours(startHour, startMinute - toleranceMinutes, 0, 0);
+      startTime.setHours(startHour, startMinute - earlyTolerance, 0, 0);
 
       const endTime = new Date(now);
-      endTime.setHours(startHour, startMinute + toleranceMinutes, 0, 0);
+      endTime.setHours(startHour, startMinute + lateTolerance, 0, 0);
 
       const isWithinTime = now >= startTime && now <= endTime;
 
@@ -102,7 +117,7 @@ export const useWorkShiftValidation = () => {
         canRegisterPoint: isWithinTime,
         nextAllowedTime: isWithinTime ? null : startTime,
         currentShiftMessage: isWithinTime 
-          ? `Horário de entrada: ${scheduleData.start_time.substring(0, 5)} (tolerância: ±${toleranceMinutes}min)`
+          ? `Horário de entrada: ${scheduleData.start_time.substring(0, 5)} (tolerância: -${earlyTolerance}/+${lateTolerance}min)`
           : `Fora do horário permitido. Registro liberado às ${startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
       });
 
@@ -118,7 +133,14 @@ export const useWorkShiftValidation = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile]);
+
+  useEffect(() => {
+    checkShiftValidation();
+    // Verificar a cada 2 minutos para melhorar performance
+    const interval = setInterval(checkShiftValidation, 120000);
+    return () => clearInterval(interval);
+  }, [checkShiftValidation]);
 
   return {
     ...validation,

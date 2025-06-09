@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -191,43 +192,8 @@ const WorkShiftsManagement = () => {
       setSaving(true);
       console.log('💾 Iniciando salvamento do turno...');
 
-      // Usar uma transação para garantir consistência
-      const { data: transactionData, error: transactionError } = await supabase.rpc('handle_work_shift_save', {
-        p_shift_id: editingShift?.id || null,
-        p_name: formData.name.trim(),
-        p_description: formData.description.trim(),
-        p_early_tolerance: formData.early_tolerance_minutes,
-        p_late_tolerance: formData.late_tolerance_minutes,
-        p_break_tolerance: formData.break_tolerance_minutes,
-        p_schedules: JSON.stringify(activeSchedules.map(schedule => ({
-          day_of_week: schedule.day_of_week,
-          start_time: schedule.start_time,
-          end_time: schedule.end_time,
-          break_start_time: schedule.break_start_time,
-          break_end_time: schedule.break_end_time,
-          is_active: true
-        })))
-      });
-
-      // Se a função RPC não existir, usar o método tradicional
-      if (transactionError && transactionError.code === '42883') {
-        console.log('🔄 Função RPC não encontrada, usando método tradicional...');
-        await handleSaveTraditional();
-        return;
-      }
-
-      if (transactionError) {
-        throw transactionError;
-      }
-
-      console.log('✅ Turno salvo com sucesso via RPC');
-      toast({
-        title: "Sucesso",
-        description: editingShift ? "Turno atualizado com sucesso" : "Turno criado com sucesso"
-      });
-
-      setIsDialogOpen(false);
-      await loadShifts();
+      // Usar método tradicional direto
+      await handleSaveTraditional();
     } catch (error: any) {
       console.error('💥 Erro ao salvar turno:', error);
       toast({
@@ -341,6 +307,14 @@ const WorkShiftsManagement = () => {
 
       console.log('✅ Horários do novo turno inseridos com sucesso');
     }
+
+    toast({
+      title: "Sucesso",
+      description: editingShift ? "Turno atualizado com sucesso" : "Turno criado com sucesso"
+    });
+
+    setIsDialogOpen(false);
+    await loadShifts();
   };
 
   const handleDelete = async (shift: WorkShift) => {
@@ -378,6 +352,38 @@ const WorkShiftsManagement = () => {
       });
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const toggleShiftStatus = async (shift: WorkShift) => {
+    try {
+      console.log(`🔄 Alterando status do turno ${shift.id} de ${shift.is_active} para ${!shift.is_active}`);
+      
+      const { error } = await supabase
+        .from('work_shifts')
+        .update({ is_active: !shift.is_active })
+        .eq('id', shift.id);
+      
+      if (error) {
+        console.error('❌ Erro ao atualizar status do turno:', error);
+        throw error;
+      }
+      
+      console.log('✅ Status do turno atualizado com sucesso');
+      
+      toast({
+        title: "Sucesso",
+        description: `Turno ${!shift.is_active ? 'ativado' : 'desativado'} com sucesso`
+      });
+      
+      await loadShifts();
+    } catch (error) {
+      console.error('💥 Erro crítico ao atualizar status do turno:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar status do turno",
+        variant: "destructive"
+      });
     }
   };
 
@@ -461,6 +467,9 @@ const WorkShiftsManagement = () => {
                     <div className="flex items-center gap-2">
                       <h4 className="font-medium">{shift.name}</h4>
                       <div className={`w-2 h-2 rounded-full ${shift.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <span className="text-xs text-muted-foreground">
+                        {shift.is_active ? 'Ativo' : 'Inativo'}
+                      </span>
                     </div>
                     {shift.description && (
                       <p className="text-sm text-muted-foreground">{shift.description}</p>
@@ -496,6 +505,15 @@ const WorkShiftsManagement = () => {
                       ) : (
                         <Trash2 className="w-4 h-4" />
                       )}
+                    </Button>
+
+                    <Button
+                      variant={shift.is_active ? "destructive" : "default"}
+                      size="sm"
+                      onClick={() => toggleShiftStatus(shift)}
+                      disabled={deleting === shift.id}
+                    >
+                      {shift.is_active ? 'Desativar' : 'Ativar'}
                     </Button>
                   </div>
                 </div>
@@ -538,15 +556,15 @@ const WorkShiftsManagement = () => {
                 </div>
               </div>
 
-              {/* Seção de Configurações de Tolerância */}
+              {/* Seção de Configurações de Tolerância para o Botão */}
               <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
                 <Label className="text-base font-medium flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" />
-                  Configurações de Tolerância para Ponto
+                  Tolerância para Habilitação do Botão de Ponto
                 </Label>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="early-tolerance">Tolerância Entrada Antecipada (min)</Label>
+                    <Label htmlFor="early-tolerance">Antes do Horário (min)</Label>
                     <Input
                       id="early-tolerance"
                       type="number"
@@ -562,7 +580,7 @@ const WorkShiftsManagement = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="late-tolerance">Tolerância Atraso Entrada (min)</Label>
+                    <Label htmlFor="late-tolerance">Depois do Horário (min)</Label>
                     <Input
                       id="late-tolerance"
                       type="number"
@@ -594,14 +612,12 @@ const WorkShiftsManagement = () => {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  As tolerâncias permitem flexibilidade no registro de ponto. 
-                  Entrada antecipada: tempo permitido antes do horário oficial. 
-                  Atraso: tempo permitido após o horário sem penalização.
+                  Define quando o botão de registro fica habilitado antes e depois do horário previsto.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <Label className="text-base font-medium">Horários por Dia da Semana</Label>
+                <Label className="text-base font-medium">Jornada por Dia da Semana</Label>
                 <div className="space-y-3">
                   {DAYS_OF_WEEK.map((day, index) => (
                     <div key={day.value} className="flex items-center gap-4 p-3 border rounded-lg">
@@ -621,7 +637,8 @@ const WorkShiftsManagement = () => {
 
                       {formData.schedules[index].is_active && (
                         <div className="flex items-center gap-2 flex-1 flex-wrap">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Entrada:</span>
                             <Input
                               type="time"
                               value={formData.schedules[index].start_time}
@@ -629,17 +646,9 @@ const WorkShiftsManagement = () => {
                               disabled={saving}
                               className="w-24"
                             />
-                            <span className="text-xs text-muted-foreground">às</span>
-                            <Input
-                              type="time"
-                              value={formData.schedules[index].end_time}
-                              onChange={(e) => updateSchedule(index, 'end_time', e.target.value)}
-                              disabled={saving}
-                              className="w-24"
-                            />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">Intervalo:</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Início Almoço:</span>
                             <Input
                               type="time"
                               value={formData.schedules[index].break_start_time}
@@ -647,11 +656,23 @@ const WorkShiftsManagement = () => {
                               disabled={saving}
                               className="w-24"
                             />
-                            <span className="text-xs text-muted-foreground">às</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Saída Almoço:</span>
                             <Input
                               type="time"
                               value={formData.schedules[index].break_end_time}
                               onChange={(e) => updateSchedule(index, 'break_end_time', e.target.value)}
+                              disabled={saving}
+                              className="w-24"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">Saída:</span>
+                            <Input
+                              type="time"
+                              value={formData.schedules[index].end_time}
+                              onChange={(e) => updateSchedule(index, 'end_time', e.target.value)}
                               disabled={saving}
                               className="w-24"
                             />
