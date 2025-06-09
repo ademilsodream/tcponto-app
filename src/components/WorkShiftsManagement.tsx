@@ -4,21 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Plus, Edit, Trash2, Clock, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Edit, Trash2, Clock } from 'lucide-react';
 
 interface WorkShift {
   id: string;
   name: string;
   description: string;
   is_active: boolean;
-  early_tolerance_minutes?: number;
-  late_tolerance_minutes?: number;
-  break_tolerance_minutes?: number;
   schedules: WorkShiftSchedule[];
 }
 
@@ -53,9 +49,6 @@ const WorkShiftsManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    early_tolerance_minutes: 15,
-    late_tolerance_minutes: 15,
-    break_tolerance_minutes: 5,
     schedules: DAYS_OF_WEEK.map(day => ({
       day_of_week: day.value,
       start_time: '08:00',
@@ -114,9 +107,6 @@ const WorkShiftsManagement = () => {
     setFormData({
       name: '',
       description: '',
-      early_tolerance_minutes: 15,
-      late_tolerance_minutes: 15,
-      break_tolerance_minutes: 5,
       schedules: DAYS_OF_WEEK.map(day => ({
         day_of_week: day.value,
         start_time: '08:00',
@@ -134,9 +124,6 @@ const WorkShiftsManagement = () => {
     setFormData({
       name: shift.name,
       description: shift.description || '',
-      early_tolerance_minutes: shift.early_tolerance_minutes || 15,
-      late_tolerance_minutes: shift.late_tolerance_minutes || 15,
-      break_tolerance_minutes: shift.break_tolerance_minutes || 5,
       schedules: DAYS_OF_WEEK.map(day => {
         const existingSchedule = shift.schedules.find(s => s.day_of_week === day.value);
         return existingSchedule ? {
@@ -178,21 +165,10 @@ const WorkShiftsManagement = () => {
       return;
     }
 
-    // Validação das tolerâncias
-    if (formData.early_tolerance_minutes < 0 || formData.late_tolerance_minutes < 0 || formData.break_tolerance_minutes < 0) {
-      toast({
-        title: "Erro",
-        description: "As tolerâncias não podem ser negativas",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       setSaving(true);
       console.log('💾 Iniciando salvamento do turno...');
 
-      // Usar método tradicional direto
       await handleSaveTraditional();
     } catch (error: any) {
       console.error('💥 Erro ao salvar turno:', error);
@@ -212,16 +188,12 @@ const WorkShiftsManagement = () => {
     const shiftData = {
       name: formData.name.trim(),
       description: formData.description.trim(),
-      early_tolerance_minutes: formData.early_tolerance_minutes,
-      late_tolerance_minutes: formData.late_tolerance_minutes,
-      break_tolerance_minutes: formData.break_tolerance_minutes,
       is_active: true
     };
 
     if (editingShift) {
       console.log('📝 Atualizando turno existente:', editingShift.id);
       
-      // Atualizar turno existente
       const { error: shiftError } = await supabase
         .from('work_shifts')
         .update(shiftData)
@@ -232,7 +204,6 @@ const WorkShiftsManagement = () => {
         throw shiftError;
       }
 
-      // Deletar horários existentes
       const { error: deleteError } = await supabase
         .from('work_shift_schedules')
         .delete()
@@ -243,7 +214,6 @@ const WorkShiftsManagement = () => {
         throw deleteError;
       }
 
-      // Inserir novos horários
       if (activeSchedules.length > 0) {
         const schedulesToInsert = activeSchedules.map(schedule => ({
           shift_id: editingShift.id,
@@ -269,7 +239,6 @@ const WorkShiftsManagement = () => {
     } else {
       console.log('➕ Criando novo turno...');
       
-      // Criar novo turno
       const { data: newShift, error: shiftError } = await supabase
         .from('work_shifts')
         .insert(shiftData)
@@ -283,7 +252,6 @@ const WorkShiftsManagement = () => {
 
       console.log('✅ Novo turno criado:', newShift.id);
 
-      // Inserir horários
       if (activeSchedules.length > 0) {
         const schedulesToInsert = activeSchedules.map(schedule => ({
           shift_id: newShift.id,
@@ -406,20 +374,11 @@ const WorkShiftsManagement = () => {
     }).join(', ');
   };
 
-  const formatToleranceDisplay = (shift: WorkShift) => {
-    const tolerances = [];
-    if (shift.early_tolerance_minutes) tolerances.push(`Antecipada: ${shift.early_tolerance_minutes}min`);
-    if (shift.late_tolerance_minutes) tolerances.push(`Atraso: ${shift.late_tolerance_minutes}min`);
-    if (shift.break_tolerance_minutes) tolerances.push(`Intervalo: ${shift.break_tolerance_minutes}min`);
-    return tolerances.length > 0 ? tolerances.join(' | ') : 'Sem tolerância';
-  };
-
   const getErrorMessage = (error: any): string => {
     if (error?.message) {
-      // Traduzir mensagens de erro comuns
       const translations: { [key: string]: string } = {
         'duplicate key value violates unique constraint': 'Já existe um turno com este nome',
-        'column does not exist': 'Estrutura do banco de dados incompatível. Verifique se as colunas de tolerância foram adicionadas.',
+        'column does not exist': 'Estrutura do banco de dados incompatível.',
         'permission denied': 'Permissão negada para esta operação',
         'connection refused': 'Erro de conexão com o banco de dados'
       };
@@ -477,10 +436,6 @@ const WorkShiftsManagement = () => {
                     <p className="text-xs text-muted-foreground">
                       {formatScheduleDisplay(shift.schedules)}
                     </p>
-                    <div className="flex items-center gap-1 text-xs text-orange-600">
-                      <AlertCircle className="w-3 h-3" />
-                      <span>Tolerâncias: {formatToleranceDisplay(shift)}</span>
-                    </div>
                   </div>
                   
                   <div className="flex items-center gap-2 ml-4">
@@ -522,7 +477,6 @@ const WorkShiftsManagement = () => {
           </div>
         )}
 
-        {/* Dialog para criar/editar turno */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -554,66 +508,6 @@ const WorkShiftsManagement = () => {
                     disabled={saving}
                   />
                 </div>
-              </div>
-
-              {/* Seção de Configurações de Tolerância para o Botão */}
-              <div className="space-y-4 p-4 border rounded-lg bg-orange-50">
-                <Label className="text-base font-medium flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  Tolerância para Habilitação do Botão de Ponto
-                </Label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="early-tolerance">Antes do Horário (min)</Label>
-                    <Input
-                      id="early-tolerance"
-                      type="number"
-                      min="0"
-                      max="60"
-                      value={formData.early_tolerance_minutes}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        early_tolerance_minutes: parseInt(e.target.value) || 0 
-                      }))}
-                      disabled={saving}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="late-tolerance">Depois do Horário (min)</Label>
-                    <Input
-                      id="late-tolerance"
-                      type="number"
-                      min="0"
-                      max="60"
-                      value={formData.late_tolerance_minutes}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        late_tolerance_minutes: parseInt(e.target.value) || 0 
-                      }))}
-                      disabled={saving}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="break-tolerance">Tolerância Intervalo (min)</Label>
-                    <Input
-                      id="break-tolerance"
-                      type="number"
-                      min="0"
-                      max="30"
-                      value={formData.break_tolerance_minutes}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        break_tolerance_minutes: parseInt(e.target.value) || 0 
-                      }))}
-                      disabled={saving}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Define quando o botão de registro fica habilitado antes e depois do horário previsto.
-                </p>
               </div>
 
               <div className="space-y-4">

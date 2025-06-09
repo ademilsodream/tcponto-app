@@ -42,10 +42,10 @@ export const useWorkShiftValidation = () => {
         const { data: settingsData } = await supabase
           .from('system_settings')
           .select('setting_key, setting_value')
-          .in('setting_key', ['enable_work_shifts'])
-          .limit(1);
+          .in('setting_key', ['enable_work_shifts', 'work_shift_tolerance_minutes']);
 
         enableWorkShifts = settingsData?.find(s => s.setting_key === 'enable_work_shifts')?.setting_value === 'true';
+        toleranceMinutes = parseInt(settingsData?.find(s => s.setting_key === 'work_shift_tolerance_minutes')?.setting_value || '15');
         
         // Cache por 5 minutos
         sessionStorage.setItem(cacheKey, JSON.stringify({ enableWorkShifts, toleranceMinutes }));
@@ -80,7 +80,7 @@ export const useWorkShiftValidation = () => {
 
       const { data: scheduleData } = await supabase
         .from('work_shift_schedules')
-        .select('*, work_shifts!inner(early_tolerance_minutes, late_tolerance_minutes)')
+        .select('*')
         .eq('shift_id', profile.shift_id)
         .eq('day_of_week', dayOfWeek)
         .eq('is_active', true)
@@ -97,18 +97,13 @@ export const useWorkShiftValidation = () => {
         return;
       }
 
-      // Usar tolerâncias do turno específico
-      const shiftTolerances = scheduleData.work_shifts;
-      const earlyTolerance = shiftTolerances?.early_tolerance_minutes || 15;
-      const lateTolerance = shiftTolerances?.late_tolerance_minutes || 15;
-
       // Calcular horários com tolerância
       const startTime = new Date(now);
       const [startHour, startMinute] = scheduleData.start_time.split(':').map(Number);
-      startTime.setHours(startHour, startMinute - earlyTolerance, 0, 0);
+      startTime.setHours(startHour, startMinute - toleranceMinutes, 0, 0);
 
       const endTime = new Date(now);
-      endTime.setHours(startHour, startMinute + lateTolerance, 0, 0);
+      endTime.setHours(startHour, startMinute + toleranceMinutes, 0, 0);
 
       const isWithinTime = now >= startTime && now <= endTime;
 
@@ -117,7 +112,7 @@ export const useWorkShiftValidation = () => {
         canRegisterPoint: isWithinTime,
         nextAllowedTime: isWithinTime ? null : startTime,
         currentShiftMessage: isWithinTime 
-          ? `Horário de entrada: ${scheduleData.start_time.substring(0, 5)} (tolerância: -${earlyTolerance}/+${lateTolerance}min)`
+          ? `Horário de entrada: ${scheduleData.start_time.substring(0, 5)} (tolerância: ±${toleranceMinutes}min)`
           : `Fora do horário permitido. Registro liberado às ${startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
       });
 
