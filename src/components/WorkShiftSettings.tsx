@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Settings } from 'lucide-react';
 
@@ -35,15 +35,20 @@ const WorkShiftSettings = () => {
         throw error;
       }
 
+      console.log('📊 Dados carregados:', data);
+
       if (data && data.length > 0) {
         const enableSetting = data.find(s => s.setting_key === 'enable_work_shifts');
         const toleranceSetting = data.find(s => s.setting_key === 'work_shift_tolerance_minutes');
+        
+        console.log('🔧 Enable setting:', enableSetting);
+        console.log('⏱️ Tolerance setting:', toleranceSetting);
         
         setEnableWorkShifts(enableSetting?.setting_value === 'true');
         setToleranceMinutes(toleranceSetting ? parseInt(toleranceSetting.setting_value) : 15);
       }
 
-      console.log('✅ Configurações carregadas');
+      console.log('✅ Configurações carregadas com sucesso');
     } catch (error) {
       console.error('💥 Erro crítico ao carregar configurações:', error);
       toast({
@@ -59,7 +64,8 @@ const WorkShiftSettings = () => {
   const handleSaveSettings = async () => {
     try {
       setSaving(true);
-      console.log('💾 Salvando configurações de turnos...');
+      console.log('💾 Iniciando salvamento das configurações...');
+      console.log('📝 Valores a salvar:', { enableWorkShifts, toleranceMinutes });
 
       // Preparar configurações para salvar
       const settingsToUpsert = [
@@ -79,22 +85,43 @@ const WorkShiftSettings = () => {
         });
       }
 
-      const { error } = await supabase
+      console.log('📋 Configurações preparadas para upsert:', settingsToUpsert);
+
+      const { data, error } = await supabase
         .from('system_settings')
-        .upsert(settingsToUpsert);
+        .upsert(settingsToUpsert, {
+          onConflict: 'setting_key'
+        });
 
-      if (error) throw error;
+      console.log('📤 Resposta do upsert:', { data, error });
 
-      console.log('✅ Configurações salvas com sucesso');
+      if (error) {
+        console.error('❌ Erro no upsert:', error);
+        throw error;
+      }
+
+      console.log('✅ Configurações salvas com sucesso no banco');
       toast({
         title: "Sucesso",
         description: "Configurações de turnos atualizadas com sucesso"
       });
+
+      // Limpar cache para forçar nova busca
+      sessionStorage.removeItem('work_shifts_settings');
+      sessionStorage.removeItem('work_shifts_settings_expiry');
+
     } catch (error) {
       console.error('💥 Erro ao salvar configurações:', error);
+      console.error('🔍 Detalhes do erro:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      
       toast({
         title: "Erro",
-        description: "Erro ao atualizar configurações de turnos",
+        description: `Erro ao atualizar configurações: ${error.message}`,
         variant: "destructive"
       });
     } finally {
