@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 // ✨ Importando ícones para mostrar/ocultar senha
 import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
-
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -18,19 +19,16 @@ const Login = () => {
   // ✨ Novo estado para controlar a visibilidade da senha
   const [showPassword, setShowPassword] = useState(false);
 
-
-  const { login, user, loading } = useAuth();
+  const { user, isLoading: authLoading } = useOptimizedAuth();
   const navigate = useNavigate();
-
 
   useEffect(() => {
     console.log('Login: Verificando se usuário já está logado...');
-    if (!loading && user) {
+    if (!authLoading && user) {
       console.log('Login: Usuário já logado, redirecionando...');
       navigate('/', { replace: true });
     }
-  }, [user, loading, navigate]);
-
+  }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,28 +40,35 @@ const Login = () => {
       return;
     }
 
-
     setIsLoading(true);
-    const result = await login(email, password);
     
-    if (!result.success) {
-      console.error('Login: Falha no login:', result.error);
-      setError(result.error || 'Erro ao fazer login');
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Login: Falha no login:', error);
+        setError(error.message || 'Erro ao fazer login');
+      } else {
+        console.log('Login: Login realizado com sucesso, redirecionando...');
+        navigate('/', { replace: true });
+      }
+    } catch (error: any) {
+      console.error('Login: Erro inesperado:', error);
+      setError('Erro inesperado ao fazer login');
+    } finally {
       setIsLoading(false);
-    } else {
-      console.log('Login: Login realizado com sucesso, redirecionando...');
-      navigate('/', { replace: true });
     }
   };
-
 
   // ✨ Função para alternar a visibilidade da senha
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center">
         <div className="text-center">
@@ -73,7 +78,6 @@ const Login = () => {
       </div>
     );
   }
-
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
@@ -89,7 +93,6 @@ const Login = () => {
           <h1 className="text-3xl font-bold text-white mb-2">TCPonto</h1>
           <p className="text-primary-100">Sistema de Controle de Ponto</p>
         </div>
-
 
         <Card className="shadow-2xl border-0">
           <CardHeader className="text-center">
@@ -151,13 +154,11 @@ const Login = () => {
                 </div>
               </div>
 
-
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
-
 
               <Button 
                 type="submit" 
@@ -189,6 +190,5 @@ const Login = () => {
     </div>
   );
 };
-
 
 export default Login;

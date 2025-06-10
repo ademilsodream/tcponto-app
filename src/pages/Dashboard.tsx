@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +29,7 @@ import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import AdjustPreviousDays from '@/components/AdjustPreviousDays';
 import EmployeeDrawer from '@/components/EmployeeDrawer';
 import HourBankDetailedView from '@/components/HourBankDetailedView';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -47,7 +48,7 @@ const Dashboard = () => {
   const [employees, setEmployees] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [employeeActiveScreen, setEmployeeActiveScreen] = useState('timeRegistration');
-  const { user, profile, logout } = useAuth();
+  const { user, profile } = useOptimizedAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -87,9 +88,13 @@ const Dashboard = () => {
     }
   };
 
-  const handleSignOut = () => {
-    logout();
-    navigate('/login');
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
   };
 
   const isAdmin = profile?.role === 'admin';

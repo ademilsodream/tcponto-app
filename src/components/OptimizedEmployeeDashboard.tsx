@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState, useCallback, useMemo, Suspense, lazy } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { clearLocationCache } from '@/utils/optimizedLocationValidation';
 
 // Lazy loading dos componentes
@@ -18,7 +19,7 @@ const LoadingSpinner = () => (
 );
 
 const OptimizedEmployeeDashboard: React.FC = React.memo(() => {
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const [activeScreen, setActiveScreen] = useState('timeRegistration');
   
   // Memoizar data selecionada

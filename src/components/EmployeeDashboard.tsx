@@ -6,10 +6,10 @@ import EmployeeMonthlySummary from '@/components/EmployeeMonthlySummary';
 import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
 import AdjustPreviousDays from '@/components/AdjustPreviousDays';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 const EmployeeDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const [activeScreen, setActiveScreen] = useState('timeRegistration');
   const [selectedDate] = useState<Date>(new Date());
 
