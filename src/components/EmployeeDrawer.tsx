@@ -3,7 +3,7 @@ import React from 'react';
 import { Drawer, DrawerContent, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Menu, Clock, BarChart3, FileText, Edit, LogOut } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 interface EmployeeDrawerProps {
   activeScreen: string;
@@ -11,10 +11,14 @@ interface EmployeeDrawerProps {
 }
 
 const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenChange }) => {
-  const { logout } = useAuth();
-
-  const handleSignOut = () => {
-    logout();
+  const handleSignOut = async () => {
+    try {
+      // Usando o método nativo do Supabase para logout
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
   };
 
   const menuItems = [
