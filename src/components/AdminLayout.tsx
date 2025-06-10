@@ -1,20 +1,23 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menubar, MenubarContent, MenubarItem, MenubarMenu, MenubarTrigger } from '@/components/ui/menubar';
 import { Settings, LogOut, User, Building2, BarChart3 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
-  const { user, profile, logout } = useAuth();
+  const { user, profile } = useOptimizedAuth();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // Usando o método nativo do Supabase para logout
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
