@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Calendar, FileText, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 
@@ -58,7 +59,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
   const [hourlyRate, setHourlyRate] = useState(50);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const { formatCurrency } = useCurrency();
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
 
   // Carregar perfil do usuário primeiro
   useEffect(() => {
