@@ -1,57 +1,36 @@
 
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { OptimizedAuthProvider, useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
-import { OptimizedQueryProvider } from '@/providers/OptimizedQueryProvider';
+import { UltraOptimizedQueryProvider } from '@/providers/UltraOptimizedQueryProvider';
 import { Toaster } from '@/components/ui/toaster';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminLayout from '@/components/AdminLayout';
 import EmployeeLayout from '@/components/EmployeeLayout';
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import OptimizedEmployeeDashboard from '@/components/OptimizedEmployeeDashboard';
+import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
 import SettingsPage from '@/components/Settings';
 import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
+// Loading otimizado
+const OptimizedSpinner = React.memo(() => (
+  <div className="min-h-screen flex items-center justify-center w-full">
+    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+  </div>
+));
+
 const AppContent = React.memo(() => {
-  const { user, profile, loading, profileLoading } = useAuth();
+  const { user, profile, isLoading } = useOptimizedAuth();
 
-  // ✨ Loading otimizado - aguardar tanto auth quanto perfil
-  const isFullyLoaded = !loading && !profileLoading;
-  const hasProfile = profile !== null;
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center w-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+  if (isLoading) {
+    return <OptimizedSpinner />;
   }
 
-  // ✨ Se usuário logado mas perfil ainda carregando, mostrar loading específico
-  if (user && profileLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center w-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-          <p className="text-sm text-gray-600">Carregando perfil...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ✨ Verificação de admin aprimorada - só após profile estar carregado
-  const isAdmin = user && hasProfile && profile?.role === 'admin';
-  
-  console.log('🔍 Verificação de role:', {
-    user: !!user,
-    hasProfile,
-    profileRole: profile?.role,
-    isAdmin
-  });
+  const isAdmin = user && profile && profile.role === 'admin';
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
@@ -65,8 +44,7 @@ const AppContent = React.memo(() => {
           path="/" 
           element={
             user ? (
-              // ✨ Só renderizar interface após ter perfil carregado
-              hasProfile ? (
+              profile ? (
                 isAdmin ? (
                   <AdminLayout>
                     <ProtectedRoute>
@@ -76,18 +54,12 @@ const AppContent = React.memo(() => {
                 ) : (
                   <EmployeeLayout>
                     <ProtectedRoute>
-                      <OptimizedEmployeeDashboard />
+                      <UltraOptimizedEmployeeDashboard />
                     </ProtectedRoute>
                   </EmployeeLayout>
                 )
               ) : (
-                // Aguardando carregamento do perfil
-                <div className="min-h-screen flex items-center justify-center w-full">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                    <p className="text-sm text-gray-600">Verificando permissões...</p>
-                  </div>
-                </div>
+                <OptimizedSpinner />
               )
             ) : (
               <Navigate to="/login" replace />
@@ -128,24 +100,20 @@ function App() {
   }, []);
 
   if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center w-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <OptimizedSpinner />;
   }
 
   return (
-    <OptimizedQueryProvider>
-      <AuthProvider>
+    <UltraOptimizedQueryProvider>
+      <OptimizedAuthProvider>
         <CurrencyProvider>
           <Router>
             <AppContent />
             <Toaster />
           </Router>
         </CurrencyProvider>
-      </AuthProvider>
-    </OptimizedQueryProvider>
+      </OptimizedAuthProvider>
+    </UltraOptimizedQueryProvider>
   );
 }
 
