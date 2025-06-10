@@ -144,7 +144,12 @@ const UltraOptimizedTimeRegistration = React.memo(() => {
         locationName: 'Localização Atual',
       };
 
-      const locationsJson = timeRecord?.locations ? { ...timeRecord.locations } : {};
+      // Corrigir o spread operator - verificar se timeRecord.locations existe
+      const existingLocations = timeRecord?.locations || {};
+      const locationsJson = typeof existingLocations === 'object' && existingLocations !== null 
+        ? { ...existingLocations } 
+        : {};
+      
       locationsJson[action] = locationData;
 
       const upsertData = {

@@ -47,7 +47,12 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        setProfile(data);
+        // Garantir que o role seja tipado corretamente
+        const profileData: Profile = {
+          ...data,
+          role: (data.role === 'admin' || data.role === 'user') ? data.role : 'user'
+        };
+        setProfile(profileData);
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
