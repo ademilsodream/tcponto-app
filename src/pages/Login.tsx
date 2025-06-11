@@ -4,9 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-// ✨ Importando ícones para mostrar/ocultar senha
 import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
-// 🔧 CORREÇÃO: Importar do contexto correto
+// 🔧 CORREÇÃO: Importar Supabase para login direto
+import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,11 +19,8 @@ const Login = () => {
   // ✨ Novo estado para controlar a visibilidade da senha
   const [showPassword, setShowPassword] = useState(false);
 
-  // 🔧 CORREÇÃO: Usar o hook correto e destructuring correto
-  // Tente uma dessas opções dependendo do que está disponível:
-  const { signIn: login, user, isLoading: authLoading } = useOptimizedAuth();
-  // OU: const { authenticate: login, user, isLoading: authLoading } = useOptimizedAuth();
-  // OU: const { loginUser: login, user, isLoading: authLoading } = useOptimizedAuth();
+  // 🔧 CORREÇÃO: OptimizedAuth não tem método login, usar Supabase diretamente
+  const { user, isLoading: authLoading } = useOptimizedAuth();
   const navigate = useNavigate();
 
 
@@ -47,15 +44,26 @@ const Login = () => {
     }
 
     setIsLoading(true);
-    const result = await login(email, password);
     
-    if (!result.success) {
-      console.error('Login: Falha no login:', result.error);
-      setError(result.error || 'Erro ao fazer login');
+    try {
+      // 🔧 CORREÇÃO: Usar Supabase diretamente para login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Login: Falha no login:', error);
+        setError(error.message || 'Erro ao fazer login');
+        setIsLoading(false);
+      } else if (data.user) {
+        console.log('Login: Login realizado com sucesso, redirecionando...');
+        navigate('/', { replace: true });
+      }
+    } catch (error: any) {
+      console.error('Login: Erro inesperado:', error);
+      setError('Erro inesperado ao fazer login');
       setIsLoading(false);
-    } else {
-      console.log('Login: Login realizado com sucesso, redirecionando...');
-      navigate('/', { replace: true });
     }
   };
 
