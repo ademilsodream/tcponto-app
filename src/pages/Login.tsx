@@ -20,7 +20,10 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   // 🔧 CORREÇÃO: Usar o hook correto e destructuring correto
-  const { login, user, isLoading: authLoading } = useOptimizedAuth();
+  // Tente uma dessas opções dependendo do que está disponível:
+  const { signIn: login, user, isLoading: authLoading } = useOptimizedAuth();
+  // OU: const { authenticate: login, user, isLoading: authLoading } = useOptimizedAuth();
+  // OU: const { loginUser: login, user, isLoading: authLoading } = useOptimizedAuth();
   const navigate = useNavigate();
 
 
