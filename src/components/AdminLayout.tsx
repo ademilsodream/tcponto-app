@@ -29,6 +29,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         <div className="w-full px-6">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
+              <img 
+                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
+                alt="TCPonto Logo" 
+                className="w-8 h-8 rounded-full" 
+              />
              
             </div>
             <div className="flex items-center space-x-4">
