@@ -29,15 +29,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         <div className="w-full px-6">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <img 
-                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-                alt="TCPonto Logo" 
-                className="w-8 h-8 rounded-full" 
-              />
-              <h1 className="text-xl font-bold text-gray-900">TCPonto - Admin</h1>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                Painel Administrativo
-              </span>
+             
             </div>
             <div className="flex items-center space-x-4">
               <Menubar>
@@ -91,5 +83,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     </div>
   );
 };
+
+export default AdminLayout;
 
 export default AdminLayout;
