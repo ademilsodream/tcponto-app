@@ -34,7 +34,10 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 alt="TCPonto Logo" 
                 className="w-8 h-8 rounded-full" 
               />
-             
+              <h1 className="text-xl font-bold text-gray-900"></h1>
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                
+              </span>
             </div>
             <div className="flex items-center space-x-4">
               <Menubar>
