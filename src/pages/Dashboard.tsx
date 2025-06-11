@@ -373,40 +373,8 @@ const Dashboard = () => {
         "flex-1 transition-all duration-300",
         isSidebarCollapsed ? "ml-16" : "ml-64"
       )}>
-        {/* Top Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {(() => {
-                  switch (activeTab) {
-                    case 'adminDashboard': return 'Dashboard Administrativo';
-                    case 'monthlyControl': return 'Controle Mensal';
-                    case 'payrollReport': return 'Folha de Pagamento';
-                    case 'detailedReport': return 'Relatórios Detalhados';
-                    case 'locationReport': return 'Controle de Localização';
-                    case 'autoDeObras': return 'Alocação de Obras';
-                    case 'hourBank': return 'Banco de Horas';
-                    default: return 'Dashboard';
-                  }
-                })()}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              </p>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <GlobalCurrencySelector />
-              <div className="text-sm text-gray-600">
-                Olá, <span className="font-medium">{userName}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
         {/* Page Content */}
-        <main className="p-6">
+        <main className="p-0">
           {renderTabContent()}
         </main>
       </div>
