@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 // ✨ Importando ícones para mostrar/ocultar senha
 import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+// 🔧 CORREÇÃO: Importar do contexto correto
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -18,18 +19,18 @@ const Login = () => {
   // ✨ Novo estado para controlar a visibilidade da senha
   const [showPassword, setShowPassword] = useState(false);
 
-
-  const { login, user, loading } = useAuth();
+  // 🔧 CORREÇÃO: Usar o hook correto e destructuring correto
+  const { login, user, isLoading: authLoading } = useOptimizedAuth();
   const navigate = useNavigate();
 
 
   useEffect(() => {
     console.log('Login: Verificando se usuário já está logado...');
-    if (!loading && user) {
+    if (!authLoading && user) {
       console.log('Login: Usuário já logado, redirecionando...');
       navigate('/', { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, authLoading, navigate]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +42,6 @@ const Login = () => {
       setError('Preencha todos os campos');
       return;
     }
-
 
     setIsLoading(true);
     const result = await login(email, password);
@@ -63,7 +63,7 @@ const Login = () => {
   };
 
 
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center">
         <div className="text-center">
