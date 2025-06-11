@@ -9,7 +9,7 @@ import { Clock, LogIn, Coffee, LogOut, Loader2, MapPin } from 'lucide-react';
 import { Json } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useLocation } from '@/hooks/useLocation';
 import { PushNotificationService } from '@/services/PushNotificationService';
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
@@ -79,7 +79,7 @@ interface AllowedLocation {
 
 // ✅ Hook de validação de turno integrado
 const useWorkShiftValidation = () => {
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const [hasShift, setHasShift] = useState<boolean>(false);
   const [canRegisterPoint, setCanRegisterPoint] = useState<boolean>(true);
   const [currentShiftMessage, setCurrentShiftMessage] = useState<string>('');
@@ -241,7 +241,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
 
-  const { user, profile, refreshProfile } = useAuth();
+ const { user, profile, refreshProfile } = useOptimizedAuth();
   const { location, loading: locationLoading, error: locationError } = useLocation();
   const { canRegisterPoint, currentShiftMessage, loading: shiftLoading, hasShift } = useWorkShiftValidation();
   const { toast } = useToast();
