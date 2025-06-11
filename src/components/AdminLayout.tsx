@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ interface AdminLayoutProps {
 
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   const { user, profile } = useOptimizedAuth();
-
+  
   const handleLogout = async () => {
     try {
       // Usando o método nativo do Supabase para logout
@@ -25,7 +24,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
-      <header className="bg-white shadow-sm border-b w-full">
+      {/* Header ajustado para não conflitar com o sidebar */}
+      <header className="bg-white shadow-sm border-b w-full ml-64 fixed top-0 right-0 z-40" style={{ width: 'calc(100% - 16rem)' }}>
         <div className="w-full px-6">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
@@ -39,7 +39,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 Painel Administrativo
               </span>
             </div>
-
             <div className="flex items-center space-x-4">
               <Menubar>
                 <MenubarMenu>
@@ -50,7 +49,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                     </Link>
                   </MenubarTrigger>
                 </MenubarMenu>
-
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
                     <Settings className="w-4 h-4 mr-2" />
@@ -65,7 +63,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                   </MenubarContent>
                 </MenubarMenu>
               </Menubar>
-
               <Menubar>
                 <MenubarMenu>
                   <MenubarTrigger className="cursor-pointer">
@@ -84,9 +81,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
           </div>
         </div>
       </header>
-
-      <main className="w-full py-6 px-6">
-        {children}
+      
+      {/* Main content ajustado para sidebar e header */}
+      <main className="w-full pt-16 ml-64" style={{ width: 'calc(100% - 16rem)' }}>
+        <div className="py-6 px-6">
+          {children}
+        </div>
       </main>
     </div>
   );
