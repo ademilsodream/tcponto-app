@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subDays, isAfter, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useAuth } from '@/contexts/AuthContext';
+// 🔧 CORREÇÃO: Importar do contexto correto
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -66,8 +67,10 @@ interface LocationDetailsForEdit {
 }
 
 // ✨ FUNÇÃO HELPER para obter nome do usuário de forma segura
-const getUserName = (user: any): string => {
+const getUserName = (user: any, profile: any): string => {
   console.log('🔍 DEBUG - Obtendo nome do usuário:', {
+    'profile': profile,
+    'profile?.name': profile?.name,
     'user': user,
     'user.user_metadata': user?.user_metadata,
     'user.user_metadata?.name': user?.user_metadata?.name,
@@ -77,6 +80,7 @@ const getUserName = (user: any): string => {
 
   // Lista de possíveis caminhos para o nome (em ordem de preferência)
   const possibleNames = [
+    profile?.name, // 🔧 CORREÇÃO: Primeiro tentar o profile do OptimizedAuth
     user?.user_metadata?.name,
     user?.user_metadata?.full_name,
     user?.user_metadata?.display_name,
@@ -117,7 +121,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     locationName: ''
   });
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
-  const { user } = useAuth();
+  
+  // 🔧 CORREÇÃO: Usar o hook correto
+  const { user, profile } = useOptimizedAuth();
 
   const { toast } = useToast();
 
@@ -384,7 +390,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       // ✨ CORREÇÃO: Usar a função getUserName para obter o nome de forma segura
       const baseRequest = {
         employee_id: user.id,
-        employee_name: getUserName(user), // ← USANDO A FUNÇÃO SEGURA
+        employee_name: getUserName(user, profile), // ← USANDO A FUNÇÃO SEGURA COM PROFILE
         date: format(selectedDate, 'yyyy-MM-dd'),
         reason: editForm.reason.trim(),
         status: 'pending',
