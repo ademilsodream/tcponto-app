@@ -116,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <Clock className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">TimeClock</h2>
+              <h2 className="text-lg font-semibold text-gray-900">TCP</h2>
               <p className="text-xs text-gray-500">Admin Panel</p>
             </div>
           </div>
