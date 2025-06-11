@@ -11,7 +11,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from '@/hooks/useLocation';
-import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 import { PushNotificationService } from '@/services/PushNotificationService';
 import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
 import { format } from 'date-fns';
@@ -78,6 +77,149 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
+// ✅ Hook de validação de turno integrado
+const useWorkShiftValidation = () => {
+  const { user } = useAuth();
+  const [hasShift, setHasShift] = useState<boolean>(false);
+  const [canRegisterPoint, setCanRegisterPoint] = useState<boolean>(true);
+  const [currentShiftMessage, setCurrentShiftMessage] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadShiftData = async () => {
+      if (!user) return;
+
+      try {
+        setLoading(true);
+
+        // 1. Buscar perfil do usuário
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('shift_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.warn('Erro ao buscar perfil:', profileError);
+          setHasShift(false);
+          setCanRegisterPoint(true);
+          setCurrentShiftMessage('Modo livre - sem restrições de horário');
+          setLoading(false);
+          return;
+        }
+
+        // Se não tem shift_id, modo livre
+        if (!profileData?.shift_id) {
+          console.log('👤 Usuário sem turno - modo livre');
+          setHasShift(false);
+          setCanRegisterPoint(true);
+          setCurrentShiftMessage('Modo livre - sem restrições de horário');
+          setLoading(false);
+          return;
+        }
+
+        // 2. Buscar dados do turno
+        const { data: shiftData, error: shiftError } = await supabase
+          .from('work_shifts')
+          .select('*')
+          .eq('id', profileData.shift_id)
+          .eq('is_active', true)
+          .single();
+
+        if (shiftError) {
+          console.warn('Turno não encontrado ou inativo - modo livre');
+          setHasShift(false);
+          setCanRegisterPoint(true);
+          setCurrentShiftMessage('Modo livre - sem restrições de horário');
+          setLoading(false);
+          return;
+        }
+
+        // 3. Buscar horários do turno
+        const { data: schedulesData, error: schedulesError } = await supabase
+          .from('work_shift_schedules')
+          .select('*')
+          .eq('shift_id', profileData.shift_id)
+          .eq('is_active', true);
+
+        if (schedulesError || !schedulesData?.length) {
+          console.warn('Horários não encontrados - modo livre');
+          setHasShift(false);
+          setCanRegisterPoint(true);
+          setCurrentShiftMessage('Modo livre - sem restrições de horário');
+          setLoading(false);
+          return;
+        }
+
+        // 4. Validar janelas de registro
+        setHasShift(true);
+        
+        const now = new Date();
+        const dayOfWeek = now.getDay();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        const todaySchedule = schedulesData.find((s: any) => s.day_of_week === dayOfWeek);
+        
+        if (!todaySchedule) {
+          setCanRegisterPoint(false);
+          setCurrentShiftMessage('Nenhum horário configurado para hoje');
+          setLoading(false);
+          return;
+        }
+
+        // Calcular janelas com tolerância
+        const tolerance = shiftData.early_tolerance_minutes || 15;
+        const windows = [
+          { time: todaySchedule.start_time, type: 'Entrada' },
+          { time: todaySchedule.break_start_time, type: 'Início do Almoço' },
+          { time: todaySchedule.break_end_time, type: 'Fim do Almoço' },
+          { time: todaySchedule.end_time, type: 'Saída' }
+        ].filter(w => w.time);
+
+        let inWindow = false;
+        let message = '';
+
+        for (const window of windows) {
+          const [h, m] = window.time.split(':').map(Number);
+          const windowMinutes = h * 60 + m;
+          const startWindow = windowMinutes - tolerance;
+          const endWindow = windowMinutes + tolerance;
+          
+          const [ch, cm] = currentTime.split(':').map(Number);
+          const currentMinutes = ch * 60 + cm;
+
+          if (currentMinutes >= startWindow && currentMinutes <= endWindow) {
+            inWindow = true;
+            const startTime = `${String(Math.floor(startWindow / 60)).padStart(2, '0')}:${String(startWindow % 60).padStart(2, '0')}`;
+            const endTime = `${String(Math.floor(endWindow / 60)).padStart(2, '0')}:${String(endWindow % 60).padStart(2, '0')}`;
+            message = `Janela de ${window.type} ativa (${startTime} - ${endTime})`;
+            break;
+          }
+        }
+
+        setCanRegisterPoint(inWindow);
+        setCurrentShiftMessage(inWindow ? message : 'Fora das janelas de registro permitidas');
+
+      } catch (err) {
+        console.warn('Erro na validação de turno - modo livre:', err);
+        setHasShift(false);
+        setCanRegisterPoint(true);
+        setCurrentShiftMessage('Modo livre - sem restrições de horário');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadShiftData();
+    
+    // Atualizar a cada minuto
+    const interval = setInterval(loadShiftData, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  return { canRegisterPoint, currentShiftMessage, loading, hasShift };
+};
+
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
 const formatRemainingTime = (ms: number): string => {
@@ -87,7 +229,7 @@ const formatRemainingTime = (ms: number): string => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-const OptimizedTimeRegistration = React.memo(() => {
+const OptimizedTimeRegistrationComponent = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -99,13 +241,12 @@ const OptimizedTimeRegistration = React.memo(() => {
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
 
-  // ✅ HOOKS DO CÓDIGO 2 (funções e validações)
   const { user, profile, refreshProfile } = useAuth();
   const { location, loading: locationLoading, error: locationError } = useLocation();
-  const { canRegisterPoint, currentShiftMessage, loading: shiftLoading } = useWorkShiftValidation();
+  const { canRegisterPoint, currentShiftMessage, loading: shiftLoading, hasShift } = useWorkShiftValidation();
   const { toast } = useToast();
 
-  // Memoização de valores computados (do código 1 - layout)
+  // Memoização de valores computados
   const localDate = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -145,7 +286,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     clock_out: 'Saída'
   }), []);
 
-  // Query otimizada para localizações permitidas com cache (do código 1)
+  // Query otimizada para localizações permitidas com cache
   const { data: allowedLocations = [] } = useOptimizedQuery<AllowedLocation[]>({
     queryKey: ['allowed-locations'],
     queryFn: async () => {
@@ -184,7 +325,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     refetchInterval: false
   });
 
-  // Query otimizada para perfil do usuário (do código 1)
+  // Query otimizada para perfil do usuário
   const { data: profileData } = useOptimizedQuery<{ name?: string } | null>({
     queryKey: ['user-profile', user?.id],
     queryFn: async () => {
@@ -209,7 +350,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     enabled: !!user
   });
 
-  // Query otimizada para registro do dia com cache (do código 1)
+  // Query otimizada para registro do dia com cache
   const {
     data: todayRecord,
     refetch: refetchRecord,
@@ -273,7 +414,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     }
   }, [todayRecord]);
 
-  // ✨ Timer do relógio - atualizado a cada segundo
+  // Timer do relógio - atualizado a cada segundo
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -282,7 +423,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     return () => clearInterval(timer);
   }, []);
 
-  // ✨ Gerenciamento do cooldown mais robusto (do código 1)
+  // Gerenciamento do cooldown
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
 
@@ -341,12 +482,22 @@ const OptimizedTimeRegistration = React.memo(() => {
     2000
   );
 
-  // ✅ FUNÇÃO HÍBRIDA: Combina lógica do código 1 + validações do código 2
+  // Função principal de registro
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
-    // ✅ VALIDAÇÃO DO CÓDIGO 2: Verificar se pode registrar ponto (turno)
-    if (!canRegisterPoint) {
+    // Verificação de ponto já registrado (apenas se tem turno)
+    if (hasShift && timeRecord?.[action]) {
+      toast({
+        title: "Já registrado",
+        description: `${fieldNames[action]} já foi registrado hoje`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Verificação de turno (apenas se tem turno vinculado)
+    if (hasShift && !canRegisterPoint) {
       toast({
         title: "Horário não permitido",
         description: "O registro de ponto está restrito aos horários do seu turno de trabalho",
@@ -355,7 +506,7 @@ const OptimizedTimeRegistration = React.memo(() => {
       return;
     }
 
-    // ✅ VALIDAÇÃO DO CÓDIGO 1: Verificar cooldown
+    // Verificação de cooldown
     if (cooldownEndTime && cooldownEndTime > Date.now()) {
         toast({
             title: "Aguarde",
@@ -367,9 +518,8 @@ const OptimizedTimeRegistration = React.memo(() => {
 
     setSubmitting(true);
 
-    // ✅ VALIDAÇÃO DE LOCALIZAÇÃO (código 1) ou usar location do código 2
+    // Validação de localização
     if (allowedLocations.length > 0) {
-      // Usar validação avançada do código 1
       debouncedLocationRequest(
         action,
         async (locationValidationResult) => {
@@ -385,7 +535,6 @@ const OptimizedTimeRegistration = React.memo(() => {
         }
       );
     } else {
-      // Usar location simples do código 2
       if (!location) {
         toast({
           title: "Erro",
@@ -415,16 +564,29 @@ const OptimizedTimeRegistration = React.memo(() => {
       await processTimeRegistration(action, simpleLocationResult);
     }
 
-  }, [user, submitting, timeRecord, localDate, allowedLocations, debouncedLocationRequest, location, canRegisterPoint, cooldownEndTime, toast, fieldNames]);
+  }, [user, submitting, timeRecord, localDate, allowedLocations, debouncedLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, fieldNames]);
 
-  // ✅ FUNÇÃO HÍBRIDA: Processar registro combinando ambos os códigos
+  // Função para processar registro
   const processTimeRegistration = async (action: TimeRecordKey, locationValidationResult: any) => {
     try {
       const now = new Date();
-      const currentTimeString = format(now, 'HH:mm:ss');
+      
+      // Determinar qual horário usar
+      let currentTimeString: string;
+      
+      if (hasShift) {
+        // Modo turno: usar horário oficial (seria necessário implementar a lógica de obter horário oficial)
+        currentTimeString = format(now, 'HH:mm:ss');
+        console.log('📝 Modo TURNO - registrando horário atual (implementar horário oficial):', currentTimeString);
+      } else {
+        // Modo livre: usar horário atual
+        currentTimeString = format(now, 'HH:mm:ss');
+        console.log('📝 Modo LIVRE - registrando horário atual:', currentTimeString);
+      }
+      
       const currentDateString = localDate;
 
-      // ✅ DADOS DE LOCALIZAÇÃO (código 1)
+      // Dados de localização
       const locationData: LocationDetails = {
         address: locationValidationResult.closestLocation?.address || 'Endereço não disponível',
         distance: locationValidationResult.distance || 0,
@@ -437,7 +599,7 @@ const OptimizedTimeRegistration = React.memo(() => {
       const locationsJson = timeRecord?.locations ? { ...timeRecord.locations as LocationsData } : {};
       locationsJson[action] = locationData;
 
-      // ✅ DADOS PARA UPSERT (código 1)
+      // Dados para upsert
       const upsertData = {
         user_id: user!.id,
         date: currentDateString,
@@ -455,16 +617,16 @@ const OptimizedTimeRegistration = React.memo(() => {
         throw new Error(`Erro ao salvar registro: ${updateError.message}`);
       }
 
-      // ✅ ATUALIZAR ESTADO LOCAL (código 1)
+      // Atualizar estado local
       setTimeRecord(updatedRecord);
 
-      // ✅ COOLDOWN (código 1)
+      // Cooldown
       const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
       setCooldownEndTime(newCooldownEndTime);
       setRemainingCooldown(COOLDOWN_DURATION_MS);
       localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
 
-      // ✅ PUSH NOTIFICATION (código 2)
+      // Push notification
       try {
         const pushService = PushNotificationService.getInstance();
         await pushService.sendNotification({
@@ -484,7 +646,7 @@ const OptimizedTimeRegistration = React.memo(() => {
         description: `${fieldNames[action]} registrado em ${currentTimeString.slice(0, 5)}!`,
       });
 
-      // ✅ ATUALIZAR PROFILE (código 2)
+      // Atualizar profile
       await refreshProfile();
 
       // Refetch em background
@@ -570,7 +732,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     return () => clearInterval(interval);
   }, [timeRecord?.date, localDate, refetchRecord]);
 
-  // ✅ LAYOUT DO CÓDIGO 1 (visual bonito mantido)
+  // Layout e componentes visuais
   const steps = useMemo(() => [
     { key: 'clock_in' as TimeRecordKey, label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
     { key: 'lunch_start' as TimeRecordKey, label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
@@ -598,15 +760,15 @@ const OptimizedTimeRegistration = React.memo(() => {
       return submitting || 
              (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
              shiftLoading ||
-             !canRegisterPoint ||
+             (hasShift && !canRegisterPoint) ||
              locationLoading;
-  }, [submitting, cooldownEndTime, shiftLoading, canRegisterPoint, locationLoading]);
+  }, [submitting, cooldownEndTime, shiftLoading, hasShift, canRegisterPoint, locationLoading]);
 
   const isInCooldown = useMemo(() => {
     return cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0;
   }, [cooldownEndTime, remainingCooldown]);
 
-  // ✅ TRATAMENTO DE ERROS (código 2)
+  // Tratamento de erros
   if (locationError) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -635,7 +797,7 @@ const OptimizedTimeRegistration = React.memo(() => {
     );
   }
 
-  // ✅ LAYOUT VISUAL BONITO DO CÓDIGO 1 MANTIDO
+  // Layout principal
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
@@ -648,7 +810,7 @@ const OptimizedTimeRegistration = React.memo(() => {
         <div className="text-gray-500 text-sm sm:text-base">
           Pronto para registrar seu ponto?
         </div>
-        {/* ✅ MENSAGEM DO TURNO (código 2) */}
+        {/* Mensagem do turno */}
         {currentShiftMessage && (
           <div className="text-xs text-blue-600 mt-1 bg-blue-50 p-2 rounded">
             {currentShiftMessage}
@@ -728,7 +890,7 @@ const OptimizedTimeRegistration = React.memo(() => {
             </div>
           </div>
 
-          {/* ✅ ESTADO DE CARREGAMENTO (código 2) */}
+          {/* Estado de carregamento */}
           {locationLoading && (
             <div className="text-center py-4 text-blue-600">
               <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
@@ -749,7 +911,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Registrando...
                   </>
-                ) : !canRegisterPoint ? (
+                ) : (hasShift && !canRegisterPoint) ? (
                   'Fora do horário permitido'
                 ) : isInCooldown ? (
                   'Aguarde...'
@@ -758,7 +920,7 @@ const OptimizedTimeRegistration = React.memo(() => {
                 )}
               </Button>
               
-              {/* ✅ CONTADOR DE COOLDOWN (código 1) */}
+              {/* Contador de cooldown */}
               {isInCooldown && (
                   <div className="text-center text-sm mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <div className="text-yellow-800 font-medium mb-1">
@@ -770,8 +932,8 @@ const OptimizedTimeRegistration = React.memo(() => {
                   </div>
               )}
 
-              {/* ✅ MENSAGEM DE TURNO RESTRITO (código 2) */}
-              {!canRegisterPoint && !shiftLoading && (
+              {/* Mensagem de turno restrito */}
+              {hasShift && !canRegisterPoint && !shiftLoading && (
                 <div className="text-center text-sm mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <div className="text-red-800 font-medium mb-1">
                     🚫 Registro restrito
@@ -797,7 +959,7 @@ const OptimizedTimeRegistration = React.memo(() => {
         </CardContent>
       </Card>
 
-      {/* ✅ DIALOG DE EDIÇÃO MANTIDO DO CÓDIGO 1 */}
+      {/* Dialog de edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -851,6 +1013,6 @@ const OptimizedTimeRegistration = React.memo(() => {
   );
 });
 
-OptimizedTimeRegistration.displayName = 'OptimizedTimeRegistration';
+OptimizedTimeRegistrationComponent.displayName = 'OptimizedTimeRegistration';
 
-export default OptimizedTimeRegistration;
+export default OptimizedTimeRegistration
