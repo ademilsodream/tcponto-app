@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { ArrowLeft, Calendar as CalendarIconLucide, Clock, DollarSign, ChevronDo
 import { format, startOfMonth, endOfMonth, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
 import { isWorkingDay } from '@/utils/workingDays';
@@ -51,7 +52,7 @@ const formatHoursAsTime = (hours: number) => {
 };
 
 const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack }) => {
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const { formatCurrency } = useCurrency();
 
   // Estados para as datas de início e fim do período
