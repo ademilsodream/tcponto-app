@@ -229,7 +229,7 @@ const formatRemainingTime = (ms: number): string => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-const OptimizedTimeRegistrationComponent = React.memo(() => {
+const OptimizedTimeRegistration = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -1013,6 +1013,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   );
 });
 
-OptimizedTimeRegistrationComponent.displayName = 'OptimizedTimeRegistration';
+OptimizedTimeRegistration.displayName = 'OptimizedTimeRegistration';
 
-export default OptimizedTimeRegistration
+export default OptimizedTimeRegistration;
