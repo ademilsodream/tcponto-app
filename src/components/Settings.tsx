@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import HourBankSettings from './HourBankSettings';
 import CurrencySelector from './CurrencySelector';
 import DepartmentJobManagement from './DepartmentJobManagement';
