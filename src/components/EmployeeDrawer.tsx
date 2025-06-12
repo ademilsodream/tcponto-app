@@ -1,5 +1,4 @@
-
-import React from 'react';
+import * as React from 'react';
 import { Drawer, DrawerContent, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Menu, Clock, BarChart3, FileText, Edit, LogOut } from 'lucide-react';

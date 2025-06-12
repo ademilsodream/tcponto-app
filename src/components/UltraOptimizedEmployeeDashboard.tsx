@@ -1,5 +1,5 @@
-
-import React, { useEffect, useState, useCallback, useMemo, Suspense, lazy } from 'react';
+import * as React from 'react';
+import { useEffect, useState, useCallback, useMemo, Suspense, lazy } from 'react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 // Lazy loading otimizado

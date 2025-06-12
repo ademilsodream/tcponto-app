@@ -1,17 +1,12 @@
-
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { OptimizedAuthProvider, useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { UltraOptimizedQueryProvider } from '@/providers/UltraOptimizedQueryProvider';
 import { Toaster } from '@/components/ui/toaster';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import AdminLayout from '@/components/AdminLayout';
 import EmployeeLayout from '@/components/EmployeeLayout';
 import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
 import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
-import SettingsPage from '@/components/Settings';
 import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
@@ -24,13 +19,13 @@ const OptimizedSpinner = React.memo(() => (
 ));
 
 const AppContent = React.memo(() => {
-  const { user, profile, isLoading } = useOptimizedAuth();
+  // Não há mais lógica de admin, só funcionário
+  // O usuário autenticado vai direto para o dashboard do funcionário
+  const { user, isLoading } = useOptimizedAuth();
 
   if (isLoading) {
     return <OptimizedSpinner />;
   }
-
-  const isAdmin = user && profile && profile.role === 'admin';
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
@@ -39,49 +34,18 @@ const AppContent = React.memo(() => {
           path="/login" 
           element={user ? <Navigate to="/" replace /> : <Login />} 
         />
-        
         <Route 
           path="/" 
           element={
             user ? (
-              profile ? (
-                isAdmin ? (
-                  <AdminLayout>
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  </AdminLayout>
-                ) : (
-                  <EmployeeLayout>
-                    <ProtectedRoute>
-                      <UltraOptimizedEmployeeDashboard />
-                    </ProtectedRoute>
-                  </EmployeeLayout>
-                )
-              ) : (
-                <OptimizedSpinner />
-              )
+              <EmployeeLayout>
+                <UltraOptimizedEmployeeDashboard />
+              </EmployeeLayout>
             ) : (
               <Navigate to="/login" replace />
             )
           } 
         />
-        
-        <Route 
-          path="/settings" 
-          element={
-            user && isAdmin ? (
-              <AdminLayout>
-                <ProtectedRoute>
-                  <SettingsPage />
-                </ProtectedRoute>
-              </AdminLayout>
-            ) : (
-              <Navigate to="/" replace />
-            )
-          } 
-        />
-        
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>

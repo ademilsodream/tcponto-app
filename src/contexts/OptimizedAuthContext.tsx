@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -7,7 +6,6 @@ interface Profile {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'user';
   hourly_rate: number;
   overtime_rate: number;
   employee_code?: string;
@@ -47,10 +45,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        // Garantir que o role seja tipado corretamente
+        // Remover role, sempre funcionário
         const profileData: Profile = {
           ...data,
-          role: (data.role === 'admin' || data.role === 'user') ? data.role : 'user'
         };
         setProfile(profileData);
       }

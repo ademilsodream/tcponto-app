@@ -1,5 +1,4 @@
-
-import React from 'react';
+import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Clock, Calendar } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
