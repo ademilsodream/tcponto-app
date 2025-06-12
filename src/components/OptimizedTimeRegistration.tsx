@@ -903,7 +903,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
               <Button
                 onClick={() => handleTimeAction(nextAction)}
                 disabled={isRegistrationButtonDisabled}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation disabled:bg-gray-400"
+                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-[#10C6B4] hover:bg-[#10C6B4]/90 text-white touch-manipulation disabled:bg-gray-400"
               >
                 <Clock className="w-5 h-5 mr-2" />
                 {submitting ? (
