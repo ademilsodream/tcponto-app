@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2, X, Edit, Trash2, PlusCircle, Users } from 'lucide-react';
+import { Settings2, MapPin, Clock, Timer, DollarSign, Building2, Briefcase, Loader2, X, Edit, Trash2, PlusCircle, Users, Api } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,7 @@ import AutoObrasManagement from './AutoObrasManagement';
 import WorkShiftSettings from './WorkShiftSettings';
 import WorkShiftsManagement from './WorkShiftsManagement';
 import { useCurrency, Currency } from '@/contexts/CurrencyContext';
+import { ApiConfig } from './ApiConfig';
 
 interface Location {
   id: string;
@@ -553,6 +554,10 @@ const Settings = () => {
             <Briefcase className="w-4 h-4" />
             Valores de Alocação
           </TabsTrigger>
+          <TabsTrigger value="api" className="flex items-center gap-2">
+            <Api className="w-4 h-4" />
+            API
+          </TabsTrigger>
         </TabsList>
   
         <TabsContent value="locations" className="space-y-6">
@@ -705,6 +710,10 @@ const Settings = () => {
   
         <TabsContent value="auto-obras">
           <AutoObrasManagement />
+        </TabsContent>
+  
+        <TabsContent value="api">
+          <ApiConfig />
         </TabsContent>
       </Tabs>
   
