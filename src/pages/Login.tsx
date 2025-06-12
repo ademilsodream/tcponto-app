@@ -98,7 +98,7 @@ const Login = () => {
             />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">TCPonto</h1>
-          <p className="text-primary-100">Sistema de Controle de Ponto</p>
+          <p className="text-white">Sistema de Controle de Ponto</p>
         </div>
 
 
@@ -172,7 +172,7 @@ const Login = () => {
 
               <Button 
                 type="submit" 
-                className="w-full bg-primary-800 hover:bg-primary-700 h-12 text-base"
+                className="w-full bg-[#021B40] hover:bg-[#021B40]/90 text-white h-12 text-base"
                 disabled={isLoading}
               >
                 {isLoading ? (
