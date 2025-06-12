@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useCallback, useMemo, Suspense, lazy } from 'react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
-// Lazy loading otimizado
+// Lazy loading otimizado - ✅ CORRIGIR TODOS OS IMPORTS
 const TimeRegistration = lazy(() => import('@/components/TimeRegistration'));
 const EmployeeDrawer = lazy(() => import('@/components/EmployeeDrawer'));
 
@@ -19,24 +19,26 @@ const OptimizedLoadingSpinner = React.memo(() => (
   </div>
 ));
 
+OptimizedLoadingSpinner.displayName = 'OptimizedLoadingSpinner';
+
 const UltraOptimizedEmployeeDashboard = React.memo(() => {
   const { user } = useOptimizedAuth();
   const [activeScreen, setActiveScreen] = useState('timeRegistration');
   
   // Data memoizada
   const selectedDate = useMemo(() => new Date(), []);
-
+  
   // Callback otimizado
   const handleScreenChange = useCallback((screen: string) => {
     setActiveScreen(screen);
   }, []);
-
+  
   // Render memoizado
   const renderActiveScreen = useMemo(() => {
     const screenProps = {
       onBack: () => handleScreenChange('timeRegistration')
     };
-
+    
     switch (activeScreen) {
       case 'timeRegistration':
         return (
@@ -44,6 +46,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
             <TimeRegistration />
           </Suspense>
         );
+        
       case 'monthlySummary':
         return (
           <Suspense fallback={<OptimizedLoadingSpinner />}>
@@ -53,6 +56,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
             />
           </Suspense>
         );
+        
       case 'detailedReport':
         return (
           <Suspense fallback={<OptimizedLoadingSpinner />}>
@@ -62,18 +66,21 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
             />
           </Suspense>
         );
+        
       case 'incompleteRecords':
         return (
           <Suspense fallback={<OptimizedLoadingSpinner />}>
             <IncompleteRecordsProfile {...screenProps} />
           </Suspense>
         );
+        
       case 'adjustPreviousDays':
         return (
           <Suspense fallback={<OptimizedLoadingSpinner />}>
             <AdjustPreviousDays {...screenProps} />
           </Suspense>
         );
+        
       default:
         return (
           <Suspense fallback={<OptimizedLoadingSpinner />}>
@@ -82,7 +89,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
         );
     }
   }, [activeScreen, selectedDate, handleScreenChange]);
-
+  
   return (
     <div className="relative w-full min-h-screen bg-gray-50">
       <Suspense fallback={<OptimizedLoadingSpinner />}>
@@ -91,7 +98,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
           onScreenChange={handleScreenChange}
         />
       </Suspense>
-
+      
       <div className="w-full min-h-screen">
         {renderActiveScreen}
       </div>
