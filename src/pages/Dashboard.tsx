@@ -261,6 +261,7 @@ const Dashboard = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { user, profile } = useOptimizedAuth();
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.role === 'admin') {
@@ -279,7 +280,9 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      console.log('Dados brutos dos perfis:', data);
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Nenhum dado retornado da tabela profiles.');
+      }
 
       const formattedEmployees = data.map(profile => ({
         id: profile.id,
@@ -290,10 +293,11 @@ const Dashboard = () => {
         overtimeRate: Number(profile.hourly_rate) * 1.5
       }));
 
-      console.log('Funcionários formatados:', formattedEmployees);
       setEmployees(formattedEmployees);
-    } catch (error) {
+      setError(null);
+    } catch (error: any) {
       console.error('Error loading employees:', error);
+      setError(error.message || 'Erro desconhecido ao carregar funcionários.');
     } finally {
       setLoading(false);
     }
@@ -320,6 +324,14 @@ const Dashboard = () => {
         </div>
       );
     }
+    if (error) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 text-red-600">
+          <span className="font-bold mb-2">Erro ao carregar funcionários:</span>
+          <span>{error}</span>
+        </div>
+      );
+    }
 
     switch (activeTab) {
       case 'adminDashboard':
@@ -327,7 +339,7 @@ const Dashboard = () => {
       case 'pendingApprovals':
         return <OptimizedPendingApprovals employees={employees} />;
       case 'userManagement':
-        return <UserManagement employees={employees} />;
+        return <UserManagement />;
       case 'monthlyControl':
         return <MonthlyControl employees={employees} />;
       case 'payrollReport':
