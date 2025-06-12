@@ -1,7 +1,6 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 interface WorkShiftValidation {
   isWithinShiftTime: boolean;
@@ -11,7 +10,7 @@ interface WorkShiftValidation {
 }
 
 export const useWorkShiftValidation = () => {
-  const { profile } = useAuth();
+  const { profile } = useOptimizedAuth();
   const [validation, setValidation] = useState<WorkShiftValidation>({
     isWithinShiftTime: true,
     canRegisterPoint: true,

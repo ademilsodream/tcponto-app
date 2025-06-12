@@ -1,8 +1,7 @@
-
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 interface TimeQueryOptions {
   enabled?: boolean;
@@ -11,7 +10,7 @@ interface TimeQueryOptions {
 }
 
 export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = {}) {
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const queryClient = useQueryClient();
   
   const {
@@ -134,7 +133,7 @@ export function useOptimizedLocationsQuery() {
 
 // Hook para perfil do usuário (cache médio)
 export function useOptimizedProfileQuery() {
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const queryClient = useQueryClient();
 
   const query = useQuery({

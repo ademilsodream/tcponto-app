@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getWorkingDaysInMonth, isWorkingDay } from '@/utils/workingDays';
 import { useToast } from '@/hooks/use-toast';
@@ -120,7 +120,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const [loadingModal, setLoadingModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  const { user } = useAuth();
+  const { user } = useOptimizedAuth();
   const { toast } = useToast();
 
   useEffect(() => {
