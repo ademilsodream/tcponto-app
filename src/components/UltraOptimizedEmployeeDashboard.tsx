@@ -3,7 +3,11 @@ import { useEffect, useState, useCallback, useMemo, Suspense, lazy } from 'react
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
 // Lazy loading otimizado
+<<<<<<< Updated upstream
 import TimeRegistration from '@/components/TimeRegistration';
+=======
+const TimeRegistration = lazy(() => import('@/components/TimeRegistration'));
+>>>>>>> Stashed changes
 const EmployeeDrawer = lazy(() => import('@/components/EmployeeDrawer'));
 
 // Componentes pesados carregados apenas quando necessário
@@ -77,7 +81,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
       default:
         return (
           <Suspense fallback={<OptimizedLoadingSpinner />}>
-            <UltraOptimizedTimeRegistration />
+            <TimeRegistration />
           </Suspense>
         );
     }
