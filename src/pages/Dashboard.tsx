@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +11,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, Edit, Building2, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, Edit, Building2, ChevronLeft, ChevronRight, User, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -28,6 +29,8 @@ import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
 import AdjustPreviousDays from '@/components/AdjustPreviousDays';
 import EmployeeDrawer from '@/components/EmployeeDrawer';
 import HourBankDetailedView from '@/components/HourBankDetailedView';
+import SettingsPage from '@/components/Settings';
+import Integration from '@/pages/Integration';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -66,6 +69,18 @@ const Sidebar: React.FC<SidebarProps> = ({
       description: 'Visão geral do sistema'
     },
     {
+      id: 'pendingApprovals',
+      label: 'Solicitações Pendentes',
+      icon: Clock,
+      description: 'Aprovações pendentes'
+    },
+    {
+      id: 'userManagement',
+      label: 'Gerenciar Funcionários',
+      icon: Users,
+      description: 'Gestão de usuários'
+    },
+    {
       id: 'monthlyControl',
       label: 'Fechamento',
       icon: CalendarIcon,
@@ -100,6 +115,18 @@ const Sidebar: React.FC<SidebarProps> = ({
       label: 'Banco de Horas',
       icon: Clock,
       description: 'Controle de horas'
+    },
+    {
+      id: 'settings',
+      label: 'Configurações',
+      icon: Settings,
+      description: 'Configurações do sistema'
+    },
+    {
+      id: 'integration',
+      label: 'Integração',
+      icon: Settings,
+      description: 'Dados de integração'
     }
   ];
 
@@ -160,7 +187,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -293,6 +320,10 @@ const Dashboard = () => {
     switch (activeTab) {
       case 'adminDashboard':
         return <AdminPanel />;
+      case 'pendingApprovals':
+        return <AdminPanel />;
+      case 'userManagement':
+        return <AdminPanel />;
       case 'monthlyControl':
         return <MonthlyControl employees={employees} />;
       case 'payrollReport':
@@ -305,6 +336,10 @@ const Dashboard = () => {
         return <AutoDeObras employees={employees} onBack={() => setActiveTab('adminDashboard')} />;
       case 'hourBank':
         return <HourBankDetailedView employees={employees} />;
+      case 'settings':
+        return <SettingsPage />;
+      case 'integration':
+        return <Integration />;
       default:
         return <AdminPanel />;
     }
@@ -380,6 +415,33 @@ const Dashboard = () => {
       </div>
     </div>
   );
+};
+
+const renderEmployeeContent = () => {
+  switch (employeeActiveScreen) {
+    case 'timeRegistration':
+      return <TimeRegistration />;
+    case 'monthlySummary':
+      return (
+        <EmployeeMonthlySummary 
+          selectedMonth={selectedDate}
+          onBack={() => setEmployeeActiveScreen('timeRegistration')} 
+        />
+      );
+    case 'detailedReport':
+      return (
+        <EmployeeDetailedReport 
+          selectedMonth={selectedDate}
+          onBack={() => setEmployeeActiveScreen('timeRegistration')} 
+        />
+      );
+    case 'incompleteRecords':
+      return <IncompleteRecordsProfile onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+    case 'adjustPreviousDays':
+      return <AdjustPreviousDays onBack={() => setEmployeeActiveScreen('timeRegistration')} />;
+    default:
+      return <TimeRegistration />;
+  }
 };
 
 export default Dashboard;
