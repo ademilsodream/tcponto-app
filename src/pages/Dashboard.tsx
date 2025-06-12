@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +34,8 @@ import Integration from '@/pages/Integration';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import OptimizedPendingApprovals from '@/components/OptimizedPendingApprovals';
+import UserManagement from '@/components/UserManagement';
 
 interface User {
   id: string;
@@ -324,9 +325,9 @@ const Dashboard = () => {
       case 'adminDashboard':
         return <AdminPanel />;
       case 'pendingApprovals':
-        return <AdminPanel />;
+        return <OptimizedPendingApprovals employees={employees} />;
       case 'userManagement':
-        return <AdminPanel />;
+        return <UserManagement employees={employees} />;
       case 'monthlyControl':
         return <MonthlyControl employees={employees} />;
       case 'payrollReport':
