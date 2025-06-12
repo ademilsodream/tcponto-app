@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -26,13 +26,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Cache para o perfil
+const profileCache = new Map<string, { data: Profile; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
 export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadProfile = async (userId: string) => {
+  const loadProfile = useCallback(async (userId: string) => {
     try {
+      // Verificar cache
+      const cachedProfile = profileCache.get(userId);
+      if (cachedProfile && Date.now() - cachedProfile.timestamp < CACHE_DURATION) {
+        setProfile(cachedProfile.data);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*, departments(id, name), job_functions(id, name)')
@@ -45,22 +56,30 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        // Remover role, sempre funcionário
         const profileData: Profile = {
           ...data,
         };
+        
+        // Atualizar cache
+        profileCache.set(userId, {
+          data: profileData,
+          timestamp: Date.now()
+        });
+        
         setProfile(profileData);
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
+      // Limpar cache ao forçar refresh
+      profileCache.delete(user.id);
       await loadProfile(user.id);
     }
-  };
+  }, [user, loadProfile]);
 
   useEffect(() => {
     let mounted = true;
@@ -96,6 +115,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
+          // Limpar cache ao fazer logout
+          profileCache.clear();
         }
         
         setIsLoading(false);
@@ -106,10 +127,17 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile]);
+
+  const value = useMemo(() => ({
+    user,
+    profile,
+    isLoading,
+    refreshProfile
+  }), [user, profile, isLoading, refreshProfile]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, isLoading, refreshProfile }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

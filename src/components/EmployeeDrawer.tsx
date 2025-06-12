@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { Drawer, DrawerContent, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
-import { Menu, Clock, BarChart3, FileText, Edit, LogOut } from 'lucide-react';
+import { Menu, Clock, BarChart3, FileText, Edit, LogOut, Loader2 } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface EmployeeDrawerProps {
   activeScreen: string;
@@ -10,13 +12,44 @@ interface EmployeeDrawerProps {
 }
 
 const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenChange }) => {
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+  const { toast } = useToast();
+
   const handleSignOut = async () => {
     try {
-      // Usando o método nativo do Supabase para logout
-      const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.auth.signOut();
+      setIsLoggingOut(true);
+      
+      // Limpar dados locais
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      // Fazer logout
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+
+      // Limpar cache do navegador
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+
+      toast({
+        title: "Logout realizado",
+        description: "Você foi desconectado com sucesso.",
+      });
+
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
+      toast({
+        title: "Erro ao fazer logout",
+        description: "Tente novamente ou limpe o cache do navegador.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -83,10 +116,15 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
             <DrawerClose asChild>
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-red-50 text-red-600 transition-colors"
+                disabled={isLoggingOut}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <LogOut className="h-5 w-5" />
-                <span className="font-medium">Sair</span>
+                {isLoggingOut ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <LogOut className="h-5 w-5" />
+                )}
+                <span className="font-medium">{isLoggingOut ? 'Saindo...' : 'Sair'}</span>
               </button>
             </DrawerClose>
           </div>
