@@ -120,6 +120,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const [loadingModal, setLoadingModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
+  // ✨ CORREÇÃO: Usar useOptimizedAuth consistentemente
   const { user } = useOptimizedAuth();
   const { toast } = useToast();
 
