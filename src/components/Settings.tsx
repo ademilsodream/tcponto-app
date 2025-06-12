@@ -59,7 +59,8 @@ const Settings = () => {
   const [savingTolerance, setSavingTolerance] = useState(false);
   const { toast } = useToast();
   const { currency, setCurrency, loadSystemCurrency } = useCurrency();
-  const { user } = useAuth();
+  // ✨ CORREÇÃO: Usar useOptimizedAuth em vez de useAuth
+  const { user } = useOptimizedAuth();
 
 
   React.useEffect(() => {
@@ -510,6 +511,7 @@ const Settings = () => {
       setSavingTolerance(false);
     }
   };
+  
   
   return (
     <div className="container mx-auto p-6">
