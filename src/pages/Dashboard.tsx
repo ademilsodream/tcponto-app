@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { CalendarIcon, LogOut, Users, BarChart3, FileText, MapPin, Clock, Menu, Edit, Building2, ChevronLeft, ChevronRight, User, Settings } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -132,11 +133,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className={cn(
-      "fixed left-0 top-0 h-full bg-white border-r border-gray-200 shadow-lg transition-all duration-300 z-50",
+      "fixed left-0 top-0 h-full bg-white border-r border-gray-200 shadow-lg transition-all duration-300 z-50 flex flex-col",
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Header do Sidebar */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
         {!isCollapsed && (
           <div className="flex items-center space-x-3">
             <img 
@@ -170,7 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Profile Section */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
             <User className="w-5 h-5 text-primary-600" />
@@ -186,48 +187,50 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={cn(
-                "w-full flex items-center px-3 py-3 rounded-lg text-left transition-colors duration-200 group",
-                isActive 
-                  ? "bg-primary-100 text-primary-700 border border-primary-200" 
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              )}
-              title={isCollapsed ? item.label : undefined}
-            >
-              <Icon className={cn(
-                "w-5 h-5 flex-shrink-0",
-                isActive ? "text-primary-600" : "text-gray-400"
-              )} />
-              {!isCollapsed && (
-                <div className="ml-3 flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">
-                    {item.label}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {item.description}
-                  </p>
-                </div>
-              )}
-              {isActive && !isCollapsed && (
-                <div className="w-2 h-2 bg-primary-600 rounded-full flex-shrink-0" />
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      {/* Navigation Menu com ScrollArea */}
+      <ScrollArea className="flex-1 p-4">
+        <nav className="space-y-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={cn(
+                  "w-full flex items-center px-3 py-3 rounded-lg text-left transition-colors duration-200 group",
+                  isActive 
+                    ? "bg-primary-100 text-primary-700 border border-primary-200" 
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+                title={isCollapsed ? item.label : undefined}
+              >
+                <Icon className={cn(
+                  "w-5 h-5 flex-shrink-0",
+                  isActive ? "text-primary-600" : "text-gray-400"
+                )} />
+                {!isCollapsed && (
+                  <div className="ml-3 flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {item.label}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {item.description}
+                    </p>
+                  </div>
+                )}
+                {isActive && !isCollapsed && (
+                  <div className="w-2 h-2 bg-primary-600 rounded-full flex-shrink-0" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </ScrollArea>
 
       {/* Footer - Sign Out */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-gray-200 flex-shrink-0">
         <button
           onClick={onSignOut}
           className={cn(
