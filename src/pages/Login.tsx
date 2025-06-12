@@ -76,7 +76,7 @@ const Login = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen w-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center">
+      <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center">
         <div className="text-center">
           <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-white" />
           <p className="text-white">Verificando autenticação...</p>
@@ -87,7 +87,7 @@ const Login = () => {
 
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-primary-900 via-primary-800 to-primary-600 flex items-center justify-center p-4">
+    <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
