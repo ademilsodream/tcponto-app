@@ -519,9 +519,8 @@ const TimeRegistration = () => {
             <>
               <Button
                 onClick={() => handleTimeAction(nextAction)}
-                // ✨ Usa a nova variável de estado para desabilitar o botão
                 disabled={isRegistrationButtonDisabled}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
+                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-[#10C6B4] hover:bg-[#10C6B4]/90 text-white touch-manipulation"
               >
                 <Clock className="w-5 h-5 mr-2" />
                 {submitting ? 'Registrando...' : 'Registrar'}
