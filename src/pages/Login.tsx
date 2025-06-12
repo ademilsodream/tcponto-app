@@ -172,7 +172,8 @@ const Login = () => {
 
               <Button 
                 type="submit" 
-                className="w-full bg-[#10C6B4] hover:bg-[#10C6B4]/90 text-white h-12 text-base"
+                style={{ backgroundColor: '#10C6B4' }}
+                className="w-full hover:opacity-90 text-white h-12 text-base"
                 disabled={isLoading}
               >
                 {isLoading ? (
