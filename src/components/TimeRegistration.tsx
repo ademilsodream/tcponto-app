@@ -5,10 +5,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, LogIn, Coffee, LogOut } from 'lucide-react';
+import { Clock, LogIn, Coffee, LogOut, Timer, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
+import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation'; // ✨ Novo hook
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,7 +35,6 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
-// ✨ Constante para a duração do cooldown (20 minutos)
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
 const TimeRegistration = () => {
@@ -47,13 +47,26 @@ const TimeRegistration = () => {
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const { user } = useOptimizedAuth();
+  const { user, hasAccess } = useOptimizedAuth(); // ✨ Usar hasAccess
   const { toast } = useToast();
 
-  // ✨ Novo estado para o fim do cooldown (timestamp em ms)
+  // ✨ Usar o novo hook de validação de turno
+  const shiftValidation = useWorkShiftValidation();
+
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
-  // ✨ Novo estado para o tempo restante do cooldown (em ms)
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
+
+  // ✨ Verificação de acesso no início
+  useEffect(() => {
+    if (!hasAccess) {
+      toast({
+        title: "Acesso Negado",
+        description: "Você não tem permissão para registrar ponto.",
+        variant: "destructive"
+      });
+      return;
+    }
+  }, [hasAccess, toast]);
 
   // Atualizar relógio a cada segundo
   useEffect(() => {
@@ -76,7 +89,6 @@ const TimeRegistration = () => {
         setCooldownEndTime(endTime);
         setRemainingCooldown(endTime - Date.now());
 
-        // Timer para finalizar o cooldown
         timeoutId = setTimeout(() => {
           setCooldownEndTime(null);
           setRemainingCooldown(null);
@@ -87,35 +99,31 @@ const TimeRegistration = () => {
           });
         }, endTime - Date.now());
 
-        // Intervalo para atualizar o tempo restante na UI
         intervalId = setInterval(() => {
           setRemainingCooldown(Math.max(0, endTime - Date.now()));
         }, 1000);
 
       } else {
-        // Cooldown expirou enquanto o app estava fechado
         localStorage.removeItem('timeRegistrationCooldown');
         setCooldownEndTime(null);
         setRemainingCooldown(null);
       }
     } else {
-      // Sem cooldown no storage
       setCooldownEndTime(null);
       setRemainingCooldown(null);
     }
 
-    // Função de limpeza para os timers
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [toast]); // Depende de toast para garantir que a função clearCooldown tenha acesso a ele
+  }, [toast]);
 
   useEffect(() => {
-    if (user) {
+    if (user && hasAccess) {
       initializeData();
     }
-  }, [user]);
+  }, [user, hasAccess]);
 
   const initializeData = async () => {
     try {
@@ -156,11 +164,6 @@ const TimeRegistration = () => {
 
       if (!processedLocations || processedLocations.length === 0) {
         console.warn('⚠️ Nenhuma localização permitida encontrada no banco de dados');
-        // toast({ // Comentado para não spamar toast se não houver localizações configuradas
-        //   title: "Aviso",
-        //   description: "Nenhuma localização permitida configurada no sistema",
-        //   variant: "destructive"
-        // });
       }
     } catch (error) {
       console.error('❌ Erro ao carregar localizações permitidas:', error);
@@ -201,18 +204,27 @@ const TimeRegistration = () => {
   };
 
   const handleTimeAction = async (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => {
-    if (!user) return;
+    if (!user || !hasAccess) return;
 
-    // ✨ Verifica se há cooldown ativo
+    // ✨ Verificar se há cooldown ativo
     if (cooldownEndTime && cooldownEndTime > Date.now()) {
         toast({
             title: "Aguarde",
             description: "Você só pode registrar o próximo ponto após o período de espera.",
-            variant: "default" // Use default ou info para não parecer um erro
+            variant: "default"
         });
         return;
     }
 
+    // ✨ Verificar se a ação é permitida pelo turno
+    if (!shiftValidation.allowedButtons[action]) {
+      toast({
+        title: "Fora do Horário",
+        description: shiftValidation.currentShiftMessage || "Este registro não está disponível no momento.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -245,7 +257,6 @@ const TimeRegistration = () => {
       }
 
       console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
-
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -294,7 +305,6 @@ const TimeRegistration = () => {
         if (error) throw error;
       }
 
-      // Recarrega o registro do dia para atualizar a UI
       await loadTodayRecord();
 
       const actionNames = {
@@ -314,7 +324,6 @@ const TimeRegistration = () => {
       setCooldownEndTime(newCooldownEndTime);
       localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
 
-
     } catch (error) {
       console.error('❌ Erro ao registrar:', error);
       toast({
@@ -326,7 +335,6 @@ const TimeRegistration = () => {
       setSubmitting(false);
     }
   };
-
 
   const handleEditSubmit = async () => {
     if (!user || !editField || !editValue || !editReason) {
@@ -359,7 +367,7 @@ const TimeRegistration = () => {
         .from('edit_requests')
         .insert({
           employee_id: user.id,
-          employee_name: user.email || 'Usuário', // Pode ser melhor pegar o nome do perfil
+          employee_name: user.email || 'Usuário',
           date: new Date().toISOString().split('T')[0],
           field: editField,
           old_value: timeRecord?.[editField] || null,
@@ -393,7 +401,6 @@ const TimeRegistration = () => {
     }
   };
 
-  // ✨ Função para formatar o tempo restante do cooldown
   const formatRemainingTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -401,6 +408,25 @@ const TimeRegistration = () => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // ✨ Se não tem acesso, mostrar mensagem de bloqueio
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <Card className="w-full max-w-md bg-white shadow-lg">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Acesso Negado</h2>
+            <p className="text-gray-600 mb-4">
+              Você não tem permissão para registrar ponto neste sistema.
+            </p>
+            <p className="text-sm text-gray-500">
+              Entre em contato com o administrador para mais informações.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -424,7 +450,6 @@ const TimeRegistration = () => {
 
   const completedCount = steps.filter(step => !!getValue(step.key)).length;
 
-  // Determinar próxima ação
   const getNextAction = () => {
     if (!timeRecord?.clock_in) return 'clock_in';
     if (!timeRecord?.lunch_start) return 'lunch_start';
@@ -442,18 +467,16 @@ const TimeRegistration = () => {
     clock_out: 'Saída'
   };
 
-  // ✨ Verifica se o botão de registro deve estar desabilitado pelo cooldown
-  const isRegistrationButtonDisabled = submitting || (cooldownEndTime !== null && cooldownEndTime > Date.now());
-
+  // ✨ Verificar se botão está habilitado considerando cooldown E turno
+  const isRegistrationButtonDisabled = submitting || 
+    (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
+    (nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
-      {/* Header com logo movida para direita - otimizado para mobile */}
-      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16"> {/* padding-left para não ficar sob o menu */}
-
+      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
       </div>
 
-      {/* Relógio Principal - otimizado para mobile */}
       <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
           {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
@@ -463,26 +486,43 @@ const TimeRegistration = () => {
         </div>
       </div>
 
-      {/* Card Principal - otimizado para mobile */}
       <Card className="w-full max-w-md bg-white shadow-lg">
         <CardContent className="p-4 sm:p-6">
-          {/* Progresso Horizontal - otimizado para mobile */}
+          {/* ✨ Informações do turno */}
+          {shiftValidation.currentShiftMessage && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-700 text-sm">
+                <Timer className="w-4 h-4" />
+                <span>{shiftValidation.currentShiftMessage}</span>
+              </div>
+              {shiftValidation.nextButtonAvailable && shiftValidation.timeUntilNext > 0 && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Próximo registro em {shiftValidation.timeUntilNext} minutos
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mb-6">
             <div className="flex justify-between items-center mb-3">
               {steps.map((step, index) => {
                 const Icon = step.icon;
                 const isCompleted = !!getValue(step.key);
                 const isNext = !isCompleted && completedCount === index;
+                // ✨ Verificar se o botão está permitido pelo turno
+                const isAllowedByShift = shiftValidation.allowedButtons[step.key as keyof typeof shiftValidation.allowedButtons];
 
                 return (
                   <div key={step.key} className="flex flex-col items-center flex-1">
                     <div
                       className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
                         isCompleted
-                          ? `${step.color} text-white` // Usando a cor específica do step
-                          : isNext
+                          ? `${step.color} text-white`
+                          : isNext && isAllowedByShift
                             ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
-                            : 'bg-gray-100 text-gray-400'
+                            : isNext && !isAllowedByShift
+                              ? 'bg-yellow-100 border-2 border-yellow-500 text-yellow-600'
+                              : 'bg-gray-100 text-gray-400'
                       }`}
                     >
                       <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -502,7 +542,6 @@ const TimeRegistration = () => {
               })}
             </div>
 
-            {/* Barra de progresso horizontal */}
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
@@ -514,22 +553,35 @@ const TimeRegistration = () => {
             </div>
           </div>
 
-          {/* Botão Registrar - otimizado para mobile */}
           {nextAction && (
             <>
               <Button
                 onClick={() => handleTimeAction(nextAction)}
                 disabled={isRegistrationButtonDisabled}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold bg-[#10C6B4] hover:bg-[#10C6B4]/90 text-white touch-manipulation"
+                className={`w-full h-12 sm:h-14 text-base sm:text-lg font-semibold touch-manipulation ${
+                  shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]
+                    ? 'bg-[#10C6B4] hover:bg-[#10C6B4]/90 text-white'
+                    : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                }`}
               >
                 <Clock className="w-5 h-5 mr-2" />
-                {submitting ? 'Registrando...' : 'Registrar'}
+                {submitting ? 'Registrando...' : 
+                 !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons] ? 'Fora do Horário' :
+                 'Registrar'}
               </Button>
+              
               {/* ✨ Exibe o tempo restante do cooldown */}
               {cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0 && (
-                  <div className="text-center text-sm text-gray-600 mt-4">
-                      Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
-                  </div>
+                <div className="text-center text-sm text-gray-600 mt-2">
+                  Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
+                </div>
+              )}
+
+              {/* ✨ Informação sobre horário não permitido */}
+              {nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons] && shiftValidation.timeUntilNext > 0 && (
+                <div className="text-center text-sm text-yellow-600 mt-2">
+                  Registro disponível em {shiftValidation.timeUntilNext} minutos
+                </div>
               )}
             </>
           )}

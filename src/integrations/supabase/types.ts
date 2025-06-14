@@ -553,6 +553,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          can_access_tcobras: boolean
+          can_register_time: boolean
           created_at: string
           department_id: string | null
           email: string
@@ -569,6 +571,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          can_access_tcobras?: boolean
+          can_register_time?: boolean
           created_at?: string
           department_id?: string | null
           email: string
@@ -585,6 +589,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          can_access_tcobras?: boolean
+          can_register_time?: boolean
           created_at?: string
           department_id?: string | null
           email?: string

@@ -15,6 +15,7 @@ interface Profile {
   department_id?: string;
   job_function_id?: string;
   role: 'admin' | 'user';
+  can_register_time: boolean; // ✨ Novo campo para controle de acesso
   departments?: { id: string; name: string };
   job_functions?: { id: string; name: string };
 }
@@ -23,7 +24,9 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
+  hasAccess: boolean; // ✨ Novo campo para verificar se pode acessar
   refreshProfile: () => Promise<void>;
+  logout: () => Promise<void>; // ✨ Novo método de logout
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +40,23 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ✨ Função para verificar se o usuário tem acesso
+  const hasAccess = useMemo(() => {
+    if (!profile) return false;
+    return profile.status === 'active' && profile.can_register_time === true;
+  }, [profile]);
+
+  const logout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+      profileCache.clear();
+    } catch (error) {
+      console.error('Erro no logout:', error);
+    }
+  }, []);
+
   const loadProfile = useCallback(async (userId: string) => {
     try {
       // Verificar cache primeiro
@@ -49,7 +69,11 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       // ✨ Timeout para query de perfil
       const profilePromise = supabase
         .from('profiles')
-        .select('*, departments(id, name), job_functions(id, name)')
+        .select(`
+          *,
+          departments(id, name),
+          job_functions(id, name)
+        `)
         .eq('id', userId)
         .single();
 
@@ -72,9 +96,18 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
         const profileData: Profile = {
           ...data,
-          role: validateRole(data.role)
+          role: validateRole(data.role),
+          can_register_time: Boolean(data.can_register_time) // ✨ Garantir que seja boolean
         };
         
+        // ✨ Verificar se o usuário tem acesso básico
+        if (profileData.status !== 'active') {
+          console.warn('⚠️ Usuário com status inativo:', profileData.status);
+          // Forçar logout para usuários inativos
+          await logout();
+          return;
+        }
+
         // Atualizar cache
         profileCache.set(userId, {
           data: profileData,
@@ -85,9 +118,13 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
-      // ✨ Não bloquear - continuar sem perfil
+      // ✨ Em caso de erro, fazer logout por segurança
+      if (error instanceof Error && error.message === 'Profile timeout') {
+        console.warn('⚠️ Timeout no carregamento do perfil - fazendo logout');
+        await logout();
+      }
     }
-  }, []);
+  }, [logout]);
 
   const refreshProfile = useCallback(async () => {
     if (user) {
@@ -161,8 +198,10 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     user,
     profile,
     isLoading,
-    refreshProfile
-  }), [user, profile, isLoading, refreshProfile]);
+    hasAccess, // ✨ Novo campo
+    refreshProfile,
+    logout // ✨ Novo método
+  }), [user, profile, isLoading, hasAccess, refreshProfile, logout]);
 
   return (
     <AuthContext.Provider value={value}>
