@@ -731,6 +731,39 @@ export type Database = {
         }
         Relationships: []
       }
+      tcrh_api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          key_name: string
+          last_used_at: string | null
+          permissions: Json | null
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          key_name: string
+          last_used_at?: string | null
+          permissions?: Json | null
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          key_name?: string
+          last_used_at?: string | null
+          permissions?: Json | null
+        }
+        Relationships: []
+      }
       time_records: {
         Row: {
           approved_at: string | null
@@ -810,27 +843,40 @@ export type Database = {
       }
       user_sessions: {
         Row: {
+          api_key_id: string | null
           created_at: string
-          expires_at: string
+          expires_at: string | null
           id: string
+          is_permanent: boolean | null
           session_token: string
           user_id: string
         }
         Insert: {
+          api_key_id?: string | null
           created_at?: string
-          expires_at?: string
+          expires_at?: string | null
           id?: string
+          is_permanent?: boolean | null
           session_token: string
           user_id: string
         }
         Update: {
+          api_key_id?: string | null
           created_at?: string
-          expires_at?: string
+          expires_at?: string | null
           id?: string
+          is_permanent?: boolean | null
           session_token?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "user_sessions_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "tcrh_api_keys"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "user_sessions_user_id_fkey"
             columns: ["user_id"]
