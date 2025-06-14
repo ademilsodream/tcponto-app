@@ -38,32 +38,33 @@ const Login = () => {
     }
   }, [user, profile, authLoading, hasAccess, navigate]);
 
-  const validateUserAccess = async (userId: string) => {
+  const checkUserPermissionsBeforeLogin = async (userEmail: string) => {
     try {
-      console.log('🔍 Validando permissões do usuário:', userId);
+      console.log('🔍 Verificando permissões ANTES do login para:', userEmail);
       
       const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('id', userId)
+        .select('id, name, email, status, can_register_time')
+        .eq('email', userEmail)
         .single();
 
-      if (error) {
-        console.error('❌ Erro ao carregar perfil para validação:', error);
-        throw new Error('Erro ao verificar permissões do usuário');
+      if (error && error.code !== 'PGRST116') {
+        console.error('❌ Erro ao buscar perfil por email:', error);
+        throw new Error('Erro ao verificar usuário no sistema');
       }
 
       if (!profileData) {
-        throw new Error('Perfil do usuário não encontrado');
+        console.warn('🚫 Usuário não encontrado no sistema');
+        throw new Error('Usuário não encontrado no sistema');
       }
 
-      console.log('📋 Perfil carregado para validação:', {
+      console.log('📋 Perfil encontrado:', {
         name: profileData.name,
         status: profileData.status,
         can_register_time: profileData.can_register_time
       });
 
-      // ✨ VALIDAÇÃO CRÍTICA: Verificar se usuário tem acesso
+      // ✨ VALIDAÇÃO CRÍTICA: Verificar se usuário tem acesso ANTES do login
       const isActive = profileData.status === 'active';
       const canRegister = profileData.can_register_time === true;
 
@@ -85,12 +86,17 @@ const Login = () => {
         return false;
       }
 
-      console.log('✅ Usuário tem todas as permissões necessárias');
+      console.log('✅ Usuário tem todas as permissões necessárias - pode fazer login');
       return true;
 
-    } catch (error) {
-      console.error('❌ Erro na validação de acesso:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ Erro na pré-validação:', error);
+      if (error.message === 'Usuário não encontrado no sistema') {
+        setError('Email não encontrado no sistema');
+      } else {
+        setError('Erro ao verificar permissões. Tente novamente.');
+      }
+      return false;
     }
   };
 
@@ -98,7 +104,7 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setAccessDeniedInfo(null);
-    console.log('Login: Tentando fazer login...');
+    console.log('Login: Iniciando processo de login...');
     
     if (!email || !password) {
       setError('Preencha todos os campos');
@@ -108,7 +114,18 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // ✨ PASSO 1: Fazer login no Supabase
+      // ✨ PASSO 1: VERIFICAR PERMISSÕES ANTES DO LOGIN
+      console.log('🔐 Verificando permissões antes de autenticar...');
+      const hasValidPermissions = await checkUserPermissionsBeforeLogin(email);
+      
+      if (!hasValidPermissions) {
+        console.warn('🚫 Usuário sem permissões adequadas - BLOQUEANDO LOGIN');
+        setIsLoading(false);
+        return; // Para aqui - NÃO faz login
+      }
+
+      // ✨ PASSO 2: Só fazer login se passou na validação
+      console.log('✅ Permissões validadas - prosseguindo com login...');
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -131,38 +148,8 @@ const Login = () => {
         return;
       }
 
-      if (!data.user) {
-        setError('Erro inesperado durante o login');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('✅ Login realizado com sucesso, validando permissões...');
-
-      // ✨ PASSO 2: Validar permissões ANTES de permitir acesso
-      try {
-        const hasValidAccess = await validateUserAccess(data.user.id);
-        
-        if (!hasValidAccess) {
-          console.warn('🚫 Usuário sem permissões adequadas - fazendo logout');
-          
-          // ✨ LOGOUT IMEDIATO se não tiver permissão
-          await supabase.auth.signOut();
-          setIsLoading(false);
-          return; // accessDeniedInfo já foi definido em validateUserAccess
-        }
-
-        console.log('🎉 Login completo com todas as validações aprovadas');
-        // O useEffect vai detectar a mudança de estado e redirecionar
-
-      } catch (validationError) {
-        console.error('❌ Erro na validação de permissões:', validationError);
-        
-        // Fazer logout em caso de erro
-        await supabase.auth.signOut();
-        setError('Erro ao verificar permissões. Tente novamente.');
-        setIsLoading(false);
-      }
+      console.log('🎉 Login realizado com sucesso - usuário já pré-validado');
+      // O useEffect vai detectar a mudança de estado e redirecionar
 
     } catch (error: any) {
       console.error('Login: Erro inesperado:', error);
@@ -191,7 +178,7 @@ const Login = () => {
     );
   }
 
-  // ✨ Tela de acesso negado
+  // ✨ Tela de acesso negado - NUNCA fez login
   if (accessDeniedInfo) {
     return (
       <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">

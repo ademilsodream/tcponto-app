@@ -136,7 +136,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           console.warn('⚠️ Usuário PERDEU permissões durante uso - forçando logout');
           console.warn('⚠️ Status:', profileData.status, 'Can Register:', profileData.can_register_time);
           
-          // ✨ Logout imediato para usuários que perderam acesso
+          // ✨ Logout imediato para usuários que perderam acesso DURANTE o uso
           setTimeout(async () => {
             await logout();
           }, 1000);
