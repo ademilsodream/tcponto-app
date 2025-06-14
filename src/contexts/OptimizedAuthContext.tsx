@@ -128,21 +128,18 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           role: profileData.role
         });
         
-        // ✨ VERIFICAÇÃO CRÍTICA: Se usuário não tem acesso, fazer logout imediato
+        // ✨ VERIFICAÇÃO: Se usuário PERDEU acesso durante uso, fazer logout
         const isActive = profileData.status === 'active';
         const canRegister = profileData.can_register_time === true;
         
         if (!isActive || !canRegister) {
-          console.warn('⚠️ Usuário sem permissões adequadas - forçando logout');
+          console.warn('⚠️ Usuário PERDEU permissões durante uso - forçando logout');
           console.warn('⚠️ Status:', profileData.status, 'Can Register:', profileData.can_register_time);
           
-          // ✨ Primeiro definir o perfil para mostrar a mensagem de erro
-          setProfile(profileData);
-          
-          // ✨ Depois fazer logout após um pequeno delay para permitir que a UI mostre a mensagem
+          // ✨ Logout imediato para usuários que perderam acesso
           setTimeout(async () => {
             await logout();
-          }, 2000);
+          }, 1000);
           
           return;
         }
@@ -154,7 +151,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         });
         
         setProfile(profileData);
-        console.log('✅ Perfil carregado com sucesso e usuário tem acesso');
+        console.log('✅ Perfil carregado com sucesso e usuário mantém acesso');
       }
     } catch (error) {
       console.error('❌ Erro ao carregar perfil:', error);
