@@ -1,25 +1,26 @@
+
 import * as React from 'react';
-import { useState, useCallback, useMemo, Suspense, lazy } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 
-// Lazy loading otimizado - ✅ CORRIGIR TODOS OS IMPORTS
-const TimeRegistration = lazy(() => import('@/components/TimeRegistration'));
-const EmployeeDrawer = lazy(() => import('@/components/EmployeeDrawer'));
+// ✨ Importação direta - sem lazy loading para componentes principais
+import TimeRegistration from '@/components/TimeRegistration';
+import EmployeeDrawer from '@/components/EmployeeDrawer';
 
-// Componentes pesados carregados apenas quando necessário
-const EmployeeMonthlySummary = lazy(() => import('@/components/EmployeeMonthlySummary'));
-const EmployeeDetailedReport = lazy(() => import('@/components/EmployeeDetailedReport'));
-const IncompleteRecordsProfile = lazy(() => import('@/components/IncompleteRecordsProfile'));
-const AdjustPreviousDays = lazy(() => import('@/components/AdjustPreviousDays'));
+// ✨ Apenas componentes secundários em lazy loading
+const EmployeeMonthlySummary = React.lazy(() => import('@/components/EmployeeMonthlySummary'));
+const EmployeeDetailedReport = React.lazy(() => import('@/components/EmployeeDetailedReport'));
+const IncompleteRecordsProfile = React.lazy(() => import('@/components/IncompleteRecordsProfile'));
+const AdjustPreviousDays = React.lazy(() => import('@/components/AdjustPreviousDays'));
 
-// Loading otimizado
-const OptimizedLoadingSpinner = React.memo(() => (
-  <div className="flex items-center justify-center w-full h-full min-h-[200px]">
+// Loading simples e rápido
+const QuickLoadingSpinner = React.memo(() => (
+  <div className="flex items-center justify-center w-full h-32">
     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
   </div>
 ));
 
-OptimizedLoadingSpinner.displayName = 'OptimizedLoadingSpinner';
+QuickLoadingSpinner.displayName = 'QuickLoadingSpinner';
 
 const UltraOptimizedEmployeeDashboard = React.memo(() => {
   const { user } = useOptimizedAuth();
@@ -33,7 +34,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
     setActiveScreen(screen);
   }, []);
   
-  // Render memoizado
+  // Render memoizado com fallback rápido
   const renderActiveScreen = useMemo(() => {
     const screenProps = {
       onBack: () => handleScreenChange('timeRegistration')
@@ -41,63 +42,55 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
     
     switch (activeScreen) {
       case 'timeRegistration':
-        return (
-          <Suspense fallback={<OptimizedLoadingSpinner />}>
-            <TimeRegistration />
-          </Suspense>
-        );
+        // ✨ Componente principal - sem lazy loading
+        return <TimeRegistration />;
         
       case 'monthlySummary':
         return (
-          <Suspense fallback={<OptimizedLoadingSpinner />}>
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
             <EmployeeMonthlySummary 
               selectedMonth={selectedDate}
               {...screenProps}
             />
-          </Suspense>
+          </React.Suspense>
         );
         
       case 'detailedReport':
         return (
-          <Suspense fallback={<OptimizedLoadingSpinner />}>
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
             <EmployeeDetailedReport 
               selectedMonth={selectedDate}
               {...screenProps}
             />
-          </Suspense>
+          </React.Suspense>
         );
         
       case 'incompleteRecords':
         return (
-          <Suspense fallback={<OptimizedLoadingSpinner />}>
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
             <IncompleteRecordsProfile {...screenProps} />
-          </Suspense>
+          </React.Suspense>
         );
         
       case 'adjustPreviousDays':
         return (
-          <Suspense fallback={<OptimizedLoadingSpinner />}>
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
             <AdjustPreviousDays {...screenProps} />
-          </Suspense>
+          </React.Suspense>
         );
         
       default:
-        return (
-          <Suspense fallback={<OptimizedLoadingSpinner />}>
-            <TimeRegistration />
-          </Suspense>
-        );
+        return <TimeRegistration />;
     }
   }, [activeScreen, selectedDate, handleScreenChange]);
   
   return (
     <div className="relative w-full min-h-screen bg-gray-50">
-      <Suspense fallback={<OptimizedLoadingSpinner />}>
-        <EmployeeDrawer 
-          activeScreen={activeScreen}
-          onScreenChange={handleScreenChange}
-        />
-      </Suspense>
+      {/* ✨ Drawer principal - sem lazy loading */}
+      <EmployeeDrawer 
+        activeScreen={activeScreen}
+        onScreenChange={handleScreenChange}
+      />
       
       <div className="w-full min-h-screen">
         {renderActiveScreen}

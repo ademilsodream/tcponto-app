@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ✨ Cache otimizado para o perfil
 const profileCache = new Map<string, { data: Profile; timestamp: number }>();
-const CACHE_DURATION = 2 * 60 * 1000; // ✨ 2 minutos
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutos
 
 export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -46,11 +46,18 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         return;
       }
 
-      const { data, error } = await supabase
+      // ✨ Timeout para query de perfil
+      const profilePromise = supabase
         .from('profiles')
         .select('*, departments(id, name), job_functions(id, name)')
         .eq('id', userId)
         .single();
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Profile timeout')), 8000);
+      });
+
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
 
       if (error && error.code !== 'PGRST116') {
         console.error('Erro ao carregar perfil:', error);
@@ -65,7 +72,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
         const profileData: Profile = {
           ...data,
-          role: validateRole(data.role) // ✨ Garantir que role seja válido
+          role: validateRole(data.role)
         };
         
         // Atualizar cache
@@ -78,12 +85,12 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
+      // ✨ Não bloquear - continuar sem perfil
     }
   }, []);
 
   const refreshProfile = useCallback(async () => {
     if (user) {
-      // Limpar cache ao forçar refresh
       profileCache.delete(user.id);
       await loadProfile(user.id);
     }
@@ -91,9 +98,18 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   useEffect(() => {
     let mounted = true;
+    let initializationTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
+        // ✨ Timeout de segurança para auth
+        initializationTimeout = setTimeout(() => {
+          if (mounted) {
+            console.warn('⚠️ Auth initialization timeout - prosseguindo');
+            setIsLoading(false);
+          }
+        }, 8000);
+
         const { data: { session } } = await supabase.auth.getSession();
         
         if (mounted) {
@@ -101,11 +117,13 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
             setUser(session.user);
             await loadProfile(session.user.id);
           }
+          clearTimeout(initializationTimeout);
           setIsLoading(false);
         }
       } catch (error) {
         console.error('Erro na inicialização:', error);
         if (mounted) {
+          clearTimeout(initializationTimeout);
           setIsLoading(false);
         }
       }
@@ -123,7 +141,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
-          // Limpar cache ao fazer logout
           profileCache.clear();
         }
         
@@ -133,6 +150,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
     return () => {
       mounted = false;
+      if (initializationTimeout) {
+        clearTimeout(initializationTimeout);
+      }
       subscription.unsubscribe();
     };
   }, [loadProfile]);

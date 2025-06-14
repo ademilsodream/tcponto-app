@@ -1,3 +1,4 @@
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,7 +20,7 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
     refetchInterval = false
   } = options;
 
-  // Query otimizada para registro de ponto
+  // ✨ Query com timeout obrigatório
   const query = useQuery({
     queryKey: ['time-record', user?.id, date],
     queryFn: async () => {
@@ -27,26 +28,42 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
       
       console.log('📅 Buscando registro para data:', date);
       
-      const { data, error } = await supabase
+      // ✨ Timeout para evitar queries infinitas
+      const queryPromise = supabase
         .from('time_records')
         .select('*')
         .eq('user_id', user.id)
         .eq('date', date)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout')), 10000);
+      });
+
+      try {
+        const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+
+        return data;
+      } catch (error: any) {
+        if (error.message === 'Query timeout') {
+          console.warn('⚠️ Query timeout - retornando null');
+          return null;
+        }
         throw error;
       }
-
-      return data;
     },
     enabled: enabled && !!user,
     staleTime,
-    refetchInterval: false, // Sempre desabilitado
+    refetchInterval: false, // ✨ Sempre desabilitado
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-    retry: 1
+    retry: 1, // ✨ Apenas 1 retry
+    retryDelay: 1000 // ✨ 1 segundo entre retries
   });
 
   // Invalidação inteligente - apenas quando necessário
@@ -65,7 +82,7 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
     });
   }, [queryClient, user?.id, date]);
 
-  // Cancelar queries quando componente desmonta
+  // ✨ Cleanup automático quando componente desmonta
   useEffect(() => {
     return () => {
       queryClient.cancelQueries({ 
@@ -85,25 +102,39 @@ export function useOptimizedTimeQuery(date: string, options: TimeQueryOptions = 
 export function useOptimizedLocationsQuery() {
   const queryClient = useQueryClient();
 
-  // Função isolada para buscar localizações
-  const fetchLocations = async () => {
+  const fetchLocations = useCallback(async () => {
     console.log('📍 Carregando localizações (cache longo)...');
     
-    const { data, error } = await supabase
+    // ✨ Timeout para locations
+    const locationsPromise = supabase
       .from('allowed_locations')
       .select('*')
       .eq('is_active', true)
       .order('name');
 
-    if (error) throw error;
-    
-    return (data || []).map(location => ({
-      ...location,
-      latitude: Number(location.latitude),
-      longitude: Number(location.longitude),
-      range_meters: Number(location.range_meters)
-    }));
-  };
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Locations timeout')), 8000);
+    });
+
+    try {
+      const { data, error } = await Promise.race([locationsPromise, timeoutPromise]) as any;
+
+      if (error) throw error;
+      
+      return (data || []).map((location: any) => ({
+        ...location,
+        latitude: Number(location.latitude),
+        longitude: Number(location.longitude),
+        range_meters: Number(location.range_meters)
+      }));
+    } catch (error: any) {
+      if (error.message === 'Locations timeout') {
+        console.warn('⚠️ Locations timeout - retornando array vazio');
+        return [];
+      }
+      throw error;
+    }
+  }, []);
 
   const query = useQuery({
     queryKey: ['allowed-locations-static'],
@@ -113,17 +144,17 @@ export function useOptimizedLocationsQuery() {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-    retry: 1
+    retry: 1,
+    retryDelay: 2000
   });
 
-  // Prefetch para cache - usando a função isolada
   const prefetchLocations = useCallback(() => {
     queryClient.prefetchQuery({
       queryKey: ['allowed-locations-static'],
       queryFn: fetchLocations,
       staleTime: 60 * 60 * 1000
     });
-  }, [queryClient]);
+  }, [queryClient, fetchLocations]);
 
   return {
     ...query,
@@ -141,18 +172,33 @@ export function useOptimizedProfileQuery() {
     queryFn: async () => {
       if (!user) return null;
       
-      const { data, error } = await supabase
+      // ✨ Timeout para profile
+      const profilePromise = supabase
         .from('profiles')
         .select('name, email, role')
         .eq('id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.warn('Perfil não encontrado');
-        return null;
-      }
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Profile timeout')), 6000);
+      });
 
-      return data;
+      try {
+        const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Perfil não encontrado');
+          return null;
+        }
+
+        return data;
+      } catch (error: any) {
+        if (error.message === 'Profile timeout') {
+          console.warn('⚠️ Profile timeout - retornando null');
+          return null;
+        }
+        throw error;
+      }
     },
     enabled: !!user,
     staleTime: 30 * 60 * 1000, // 30 minutos
@@ -160,10 +206,11 @@ export function useOptimizedProfileQuery() {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-    retry: 1
+    retry: 1,
+    retryDelay: 1500
   });
 
-  // Cleanup ao desmontar
+  // ✨ Cleanup ao desmontar
   useEffect(() => {
     return () => {
       if (!user) {
