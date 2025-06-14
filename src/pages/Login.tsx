@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LogIn, Clock, Eye, EyeOff, AlertTriangle, UserX } from 'lucide-react';
+import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,34 +16,27 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [accessDenied, setAccessDenied] = useState(false); // ✨ Novo estado para acesso negado
 
-  const { user, profile, isLoading: authLoading, hasAccess, logout } = useOptimizedAuth();
+  const { user, profile, isLoading: authLoading, hasAccess } = useOptimizedAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('Login: Verificando se usuário já está logado...');
-    if (!authLoading && user && profile) {
-      // ✨ Verificar se tem acesso antes de redirecionar
-      if (hasAccess) {
-        console.log('Login: Usuário logado com acesso, redirecionando...');
-        navigate('/', { replace: true });
-      } else {
-        console.log('Login: Usuário logado mas sem acesso');
-        setAccessDenied(true);
-        // Forçar logout automático para usuários sem acesso
-        setTimeout(() => {
-          logout();
-          setAccessDenied(false);
-        }, 5000);
-      }
+    console.log('Login: Verificando estado do usuário...', { 
+      user: !!user, 
+      profile: !!profile, 
+      hasAccess, 
+      authLoading 
+    });
+
+    if (!authLoading && user && profile && hasAccess) {
+      console.log('Login: Usuário com acesso completo, redirecionando...');
+      navigate('/', { replace: true });
     }
-  }, [user, profile, authLoading, hasAccess, navigate, logout]);
+  }, [user, profile, authLoading, hasAccess, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setAccessDenied(false);
     console.log('Login: Tentando fazer login...');
     
     if (!email || !password) {
@@ -61,12 +54,22 @@ const Login = () => {
 
       if (error) {
         console.error('Login: Falha no login:', error);
-        setError(error.message || 'Erro ao fazer login');
+        let errorMessage = 'Erro ao fazer login';
+        
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = 'Email ou senha incorretos';
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = 'Email não confirmado. Verifique sua caixa de entrada';
+        } else {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
         setIsLoading(false);
       } else if (data.user) {
-        console.log('Login: Login realizado com sucesso, aguardando verificação de acesso...');
-        // ✨ Não redirecionar imediatamente - aguardar carregamento do perfil
-        // O useEffect acima vai cuidar do redirecionamento baseado nas permissões
+        console.log('Login: Login realizado com sucesso, aguardando verificação de permissões...');
+        // ✨ O useEffect acima vai cuidar do redirecionamento baseado nas permissões
+        // Se o usuário não tiver acesso, o AuthContext vai fazer logout automático
       }
     } catch (error: any) {
       console.error('Login: Erro inesperado:', error);
@@ -78,53 +81,6 @@ const Login = () => {
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
-
-  // ✨ Se acesso foi negado, mostrar tela específica
-  if (accessDenied && user) {
-    return (
-      <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <Card className="shadow-2xl border-0">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2 text-red-600">
-                <UserX className="w-6 h-6" />
-                Acesso Negado
-              </CardTitle>
-              <CardDescription>
-                Sua conta não tem permissão para acessar este sistema
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  {profile?.status !== 'active' 
-                    ? 'Sua conta está inativa. Entre em contato com o administrador.'
-                    : 'Você não tem permissão para registrar ponto. Entre em contato com o administrador.'
-                  }
-                </AlertDescription>
-              </Alert>
-              
-              <div className="text-center text-sm text-gray-600">
-                <p>Redirecionando para login em alguns segundos...</p>
-              </div>
-
-              <Button
-                onClick={() => {
-                  logout();
-                  setAccessDenied(false);
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Voltar ao Login
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   if (authLoading) {
     return (
