@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { OptimizedAuthProvider, useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -11,16 +12,16 @@ import NotFound from '@/pages/NotFound';
 import { initializeApp } from '@/utils/initializeApp';
 import './App.css';
 
-// Loading otimizado
+// ✨ Loading ultra otimizado
 const OptimizedSpinner = React.memo(() => (
   <div className="min-h-screen flex items-center justify-center w-full">
     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
   </div>
 ));
 
+OptimizedSpinner.displayName = 'OptimizedSpinner';
+
 const AppContent = React.memo(() => {
-  // Não há mais lógica de admin, só funcionário
-  // O usuário autenticado vai direto para o dashboard do funcionário
   const { user, isLoading } = useOptimizedAuth();
 
   if (isLoading) {

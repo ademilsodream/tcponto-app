@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -13,6 +14,7 @@ interface Profile {
   shift_id?: string;
   department_id?: string;
   job_function_id?: string;
+  role: 'admin' | 'user'; // ✨ Adicionado role à interface
   departments?: { id: string; name: string };
   job_functions?: { id: string; name: string };
 }
@@ -26,9 +28,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Cache para o perfil
+// ✨ Cache otimizado para o perfil
 const profileCache = new Map<string, { data: Profile; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+const CACHE_DURATION = 2 * 60 * 1000; // ✨ Reduzido para 2 minutos
 
 export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -37,7 +39,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   const loadProfile = useCallback(async (userId: string) => {
     try {
-      // Verificar cache
+      // Verificar cache primeiro
       const cachedProfile = profileCache.get(userId);
       if (cachedProfile && Date.now() - cachedProfile.timestamp < CACHE_DURATION) {
         setProfile(cachedProfile.data);
@@ -58,6 +60,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       if (data) {
         const profileData: Profile = {
           ...data,
+          role: data.role || 'user' // ✨ Garantir que role sempre existe
         };
         
         // Atualizar cache

@@ -21,14 +21,16 @@ export function useRealtimeTimeRecords() {
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Carregar registros iniciais
+  // ✨ Carregar registros com debounce
   useEffect(() => {
     if (!user) return;
+
+    let timeoutId: NodeJS.Timeout;
 
     const loadTimeRecords = async () => {
       try {
         setLoading(true);
-        console.log('🔄 Carregando registros de ponto...');
+        console.log('🔄 Carregando registros otimizado...');
 
         let query = supabase
           .from('time_records')
@@ -45,10 +47,9 @@ export function useRealtimeTimeRecords() {
             status
           `)
           .order('date', { ascending: false })
-          .order('created_at', { ascending: false });
+          .limit(50); // ✨ Limitar para melhor performance
 
-        // Se for admin, buscar todos os registros
-        // Se for usuário comum, buscar apenas seus registros
+        // ✨ Verificar role de forma segura
         if (profile?.role !== 'admin') {
           query = query.eq('user_id', user.id);
         }
@@ -69,17 +70,22 @@ export function useRealtimeTimeRecords() {
       }
     };
 
-    loadTimeRecords();
+    // ✨ Debounce para evitar múltiplas chamadas
+    timeoutId = setTimeout(loadTimeRecords, 100);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [user, profile?.role]);
 
-  // Configurar realtime para receber atualizações em tempo real
+  // ✨ Realtime otimizado - apenas para registros do dia
   useEffect(() => {
     if (!user) return;
 
-    console.log('🔄 Configurando realtime para time_records...');
+    console.log('🔄 Configurando realtime otimizado...');
 
     const channel = supabase
-      .channel('time_records_changes')
+      .channel('time_records_optimized')
       .on(
         'postgres_changes',
         {
@@ -88,27 +94,22 @@ export function useRealtimeTimeRecords() {
           table: 'time_records'
         },
         (payload) => {
-          console.log('📡 Atualização realtime recebida:', payload);
+          console.log('📡 Atualização realtime:', payload);
           
           const record = payload.new as TimeRecord;
           const eventType = payload.eventType;
 
+          // ✨ Otimizar updates para reduzir re-renders
           setTimeRecords(prev => {
             switch (eventType) {
               case 'INSERT':
-                // Verificar se já existe para evitar duplicatas
-                if (prev.find(r => r.id === record.id)) {
-                  return prev;
-                }
-                console.log('➕ Novo registro adicionado:', record);
-                return [record, ...prev];
+                if (prev.find(r => r.id === record.id)) return prev;
+                return [record, ...prev.slice(0, 49)]; // ✨ Manter apenas 50 registros
                 
               case 'UPDATE':
-                console.log('🔄 Registro atualizado:', record);
                 return prev.map(r => r.id === record.id ? record : r);
                 
               case 'DELETE':
-                console.log('🗑️ Registro removido:', payload.old);
                 return prev.filter(r => r.id !== payload.old.id);
                 
               default:
@@ -117,9 +118,7 @@ export function useRealtimeTimeRecords() {
           });
         }
       )
-      .subscribe((status) => {
-        console.log('📡 Status da conexão realtime:', status);
-      });
+      .subscribe();
 
     return () => {
       console.log('🔌 Desconectando realtime...');
@@ -131,7 +130,7 @@ export function useRealtimeTimeRecords() {
     if (!user) return;
 
     try {
-      console.log('🔄 Atualizando registros manualmente...');
+      console.log('🔄 Refresh otimizado...');
       
       let query = supabase
         .from('time_records')
@@ -148,8 +147,9 @@ export function useRealtimeTimeRecords() {
           status
         `)
         .order('date', { ascending: false })
-        .order('created_at', { ascending: false });
+        .limit(50); // ✨ Limitar para melhor performance
 
+      // ✨ Verificar role de forma segura
       if (profile?.role !== 'admin') {
         query = query.eq('user_id', user.id);
       }

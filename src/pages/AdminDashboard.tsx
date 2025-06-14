@@ -7,11 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Clock, Settings, BarChart3 } from 'lucide-react';
 import AdminTimeRecordsView from '@/components/AdminTimeRecordsView';
 
-const AdminDashboard = () => {
+const AdminDashboard = React.memo(() => {
   const { user, profile } = useOptimizedAuth();
   const [activeTab, setActiveTab] = useState('time-records');
 
-  // Verificar se é admin
+  // ✨ Verificar role de forma segura
   if (!user || profile?.role !== 'admin') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -95,6 +95,8 @@ const AdminDashboard = () => {
       </div>
     </div>
   );
-};
+});
+
+AdminDashboard.displayName = 'AdminDashboard';
 
 export default AdminDashboard;

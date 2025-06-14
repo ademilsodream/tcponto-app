@@ -9,12 +9,12 @@ import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-const AdminTimeRecordsView = () => {
+const AdminTimeRecordsView = React.memo(() => {
   const { profile } = useOptimizedAuth();
   const { timeRecords, loading, refreshRecords } = useRealtimeTimeRecords();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Verificar se é admin
+  // ✨ Verificar role de forma segura
   if (profile?.role !== 'admin') {
     return (
       <Card>
@@ -147,6 +147,8 @@ const AdminTimeRecordsView = () => {
       </Card>
     </div>
   );
-};
+});
+
+AdminTimeRecordsView.displayName = 'AdminTimeRecordsView';
 
 export default AdminTimeRecordsView;
