@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LogIn, Clock, Eye, EyeOff, UserX, AlertTriangle } from 'lucide-react';
+import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,156 +16,39 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [accessDeniedInfo, setAccessDeniedInfo] = useState<{
-    reason: string;
-    details: string;
-  } | null>(null);
 
   const { user, profile, isLoading: authLoading, hasAccess } = useOptimizedAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log('Login: Verificando estado do usuário...', { 
-      user: !!user, 
-      profile: !!profile, 
-      hasAccess, 
-      authLoading 
-    });
-
     if (!authLoading && user && profile && hasAccess) {
-      console.log('Login: Usuário com acesso completo, redirecionando...');
       navigate('/', { replace: true });
     }
   }, [user, profile, authLoading, hasAccess, navigate]);
 
-  const checkUserPermissionsBeforeLogin = async (userEmail: string) => {
-    try {
-      console.log('🔍 Verificando permissões ANTES do login para:', userEmail);
-      
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('id, name, email, status, can_register_time')
-        .eq('email', userEmail)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('❌ Erro ao buscar perfil por email:', error);
-        throw new Error('Erro ao verificar usuário no sistema');
-      }
-
-      if (!profileData) {
-        console.warn('🚫 Usuário não encontrado no sistema');
-        throw new Error('Usuário não encontrado no sistema');
-      }
-
-      console.log('📋 Perfil encontrado:', {
-        name: profileData.name,
-        status: profileData.status,
-        can_register_time: profileData.can_register_time
-      });
-
-      // ✨ VALIDAÇÃO CRÍTICA: Verificar se usuário tem acesso ANTES do login
-      const isActive = profileData.status === 'active';
-      const canRegister = profileData.can_register_time === true;
-
-      if (!isActive) {
-        console.warn('🚫 Acesso negado: Conta inativa');
-        setAccessDeniedInfo({
-          reason: 'Conta Inativa',
-          details: 'Sua conta está com status inativo. Entre em contato com o administrador para reativar sua conta.'
-        });
-        return false;
-      }
-
-      if (!canRegister) {
-        console.warn('🚫 Acesso negado: Sem permissão para registrar ponto');
-        setAccessDeniedInfo({
-          reason: 'Sem Permissão de Registro',
-          details: 'Você não tem permissão para registrar ponto no sistema. Entre em contato com o administrador para solicitar acesso.'
-        });
-        return false;
-      }
-
-      console.log('✅ Usuário tem todas as permissões necessárias - pode fazer login');
-      return true;
-
-    } catch (error: any) {
-      console.error('❌ Erro na pré-validação:', error);
-      if (error.message === 'Usuário não encontrado no sistema') {
-        setError('Email não encontrado no sistema');
-      } else {
-        setError('Erro ao verificar permissões. Tente novamente.');
-      }
-      return false;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setAccessDeniedInfo(null);
-    console.log('Login: Iniciando processo de login...');
-    
     if (!email || !password) {
       setError('Preencha todos os campos');
       return;
     }
-
     setIsLoading(true);
-    
+
     try {
-      // ✨ PASSO 1: VERIFICAR PERMISSÕES ANTES DO LOGIN
-      console.log('🔐 Verificando permissões antes de autenticar...');
-      const hasValidPermissions = await checkUserPermissionsBeforeLogin(email);
-      
-      if (!hasValidPermissions) {
-        console.warn('🚫 Usuário sem permissões adequadas - BLOQUEANDO LOGIN');
-        setIsLoading(false);
-        return; // Para aqui - NÃO faz login
-      }
-
-      // ✨ PASSO 2: Só fazer login se passou na validação
-      console.log('✅ Permissões validadas - prosseguindo com login...');
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
       if (loginError) {
-        console.error('Login: Falha na autenticação:', loginError);
-        let errorMessage = 'Erro ao fazer login';
-        
-        if (loginError.message.includes('Invalid login credentials')) {
-          errorMessage = 'Email ou senha incorretos';
-        } else if (loginError.message.includes('Email not confirmed')) {
-          errorMessage = 'Email não confirmado. Verifique sua caixa de entrada';
-        } else {
-          errorMessage = loginError.message;
-        }
-        
-        setError(errorMessage);
+        setError('Email ou senha incorretos');
         setIsLoading(false);
         return;
       }
-
-      console.log('🎉 Login realizado com sucesso - usuário já pré-validado');
-      // O useEffect vai detectar a mudança de estado e redirecionar
-
     } catch (error: any) {
-      console.error('Login: Erro inesperado:', error);
       setError('Erro inesperado ao fazer login');
       setIsLoading(false);
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const handleTryAgain = () => {
-    setAccessDeniedInfo(null);
-    setError('');
-  };
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
   if (authLoading) {
     return (
@@ -173,59 +56,6 @@ const Login = () => {
         <div className="text-center">
           <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-white" />
           <p className="text-white">Verificando autenticação...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ✨ Tela de acesso negado - NUNCA fez login
-  if (accessDeniedInfo) {
-    return (
-      <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
-              <img 
-                src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
-                alt="TCPonto Logo" 
-                className="w-20 h-20 rounded-full shadow-lg"
-              />
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-2">TCPonto</h1>
-          </div>
-
-          <Card className="shadow-2xl border-0">
-            <CardContent className="p-6">
-              <div className="text-center mb-6">
-                <UserX className="w-16 h-16 text-red-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-red-600 mb-2">Acesso Negado</h2>
-                <p className="text-gray-600">Sua conta não tem permissão para acessar este sistema</p>
-              </div>
-
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div className="flex items-start">
-                  <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />
-                  <div className="text-sm text-red-700">
-                    <p className="font-medium mb-1">{accessDeniedInfo.reason}</p>
-                    <p>{accessDeniedInfo.details}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center text-sm text-gray-500 mb-4">
-                <p>Entre em contato com o administrador do sistema para resolver esta situação.</p>
-              </div>
-
-              <div className="text-center">
-                <Button
-                  onClick={handleTryAgain}
-                  className="bg-[#021B40] hover:bg-[#021B40]/90 text-white px-6 py-2 rounded-lg text-sm"
-                >
-                  Tentar Novamente
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     );
@@ -316,7 +146,7 @@ const Login = () => {
                 {isLoading ? (
                   <>
                     <Clock className="w-4 h-4 animate-spin mr-2" />
-                    Verificando permissões...
+                    Entrando...
                   </>
                 ) : (
                   <>

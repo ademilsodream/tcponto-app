@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -31,227 +31,77 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// ✨ Cache otimizado para o perfil
-const profileCache = new Map<string, { data: Profile; timestamp: number }>();
-const CACHE_DURATION = 2 * 60 * 1000; // 2 minutos
-
 export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✨ Função para verificar se o usuário tem acesso TOTAL ao sistema
-  const hasAccess = useMemo(() => {
-    if (!profile) {
-      return false;
-    }
-    // Garantir lowercase em status e comparar boolean
-    const statusValue = (profile.status ?? '').toLowerCase();
-    const canRegisterValue = typeof profile.can_register_time === 'string'
-      ? profile.can_register_time === 'true'
-      : Boolean(profile.can_register_time);
+  const hasAccess = !!(profile && profile.status === "active" && profile.can_register_time);
 
-    const isActive = statusValue === 'active';
-    const canRegister = canRegisterValue === true;
-    const fullAccess = isActive && canRegister;
+  const logout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setProfile(null);
+  };
 
-    console.log('🔒 Verificando acesso do usuário:', {
-      status: profile.status,
-      can_register_time: profile.can_register_time,
-      isActive,
-      canRegister,
-      fullAccess
-    });
+  const loadProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(`
+        *,
+        departments(id, name),
+        job_functions(id, name)
+      `)
+      .eq('id', userId)
+      .single();
+    if (data) setProfile({ ...data, role: data.role === 'admin' ? 'admin' : 'user', can_register_time: Boolean(data.can_register_time) });
+    else setProfile(null);
+  };
 
-    return fullAccess;
-  }, [profile]);
-
-  const logout = useCallback(async () => {
-    try {
-      console.log('🚪 Iniciando logout...');
-      await supabase.auth.signOut();
-      setUser(null);
-      setProfile(null);
-      profileCache.clear();
-      console.log('🚪 Logout concluído');
-    } catch (error) {
-      console.error('❌ Erro no logout:', error);
-    }
-  }, []);
-
-  const loadProfile = useCallback(async (userId: string) => {
-    try {
-      console.log('👤 Carregando perfil para usuário:', userId);
-      
-      // Verificar cache primeiro
-      const cachedProfile = profileCache.get(userId);
-      if (cachedProfile && Date.now() - cachedProfile.timestamp < CACHE_DURATION) {
-        console.log('📦 Usando perfil do cache');
-        setProfile(cachedProfile.data);
-        return;
-      }
-
-      // ✨ Timeout para query de perfil
-      const profilePromise = supabase
-        .from('profiles')
-        .select(`
-          *,
-          departments(id, name),
-          job_functions(id, name)
-        `)
-        .eq('id', userId)
-        .single();
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Profile timeout')), 8000);
-      });
-
-      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('❌ Erro ao carregar perfil:', error);
-        return;
-      }
-
-      if (data) {
-        // ✨ Validar role com type guard
-        const validateRole = (role: any): 'admin' | 'user' => {
-          return role === 'admin' ? 'admin' : 'user';
-        };
-
-        const profileData: Profile = {
-          ...data,
-          role: validateRole(data.role),
-          can_register_time: Boolean(data.can_register_time)
-        };
-        
-        console.log('👤 Perfil carregado:', { 
-          name: profileData.name, 
-          status: profileData.status, 
-          can_register_time: profileData.can_register_time,
-          role: profileData.role
-        });
-        
-        // ✨ VERIFICAÇÃO: Se usuário PERDEU acesso durante uso, fazer logout
-        const isActive = profileData.status === 'active';
-        const canRegister = profileData.can_register_time === true;
-        
-        if (!isActive || !canRegister) {
-          console.warn('⚠️ Usuário PERDEU permissões durante uso - forçando logout');
-          console.warn('⚠️ Status:', profileData.status, 'Can Register:', profileData.can_register_time);
-          
-          // ✨ Logout imediato para usuários que perderam acesso DURANTE o uso
-          setTimeout(async () => {
-            await logout();
-          }, 1000);
-          
-          return;
-        }
-
-        // Atualizar cache apenas se usuário tem acesso
-        profileCache.set(userId, {
-          data: profileData,
-          timestamp: Date.now()
-        });
-        
-        setProfile(profileData);
-        console.log('✅ Perfil carregado com sucesso e usuário mantém acesso');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao carregar perfil:', error);
-      // ✨ Em caso de erro, fazer logout por segurança
-      if (error instanceof Error && error.message === 'Profile timeout') {
-        console.warn('⚠️ Timeout no carregamento do perfil - fazendo logout');
-        await logout();
-      }
-    }
-  }, [logout]);
-
-  const refreshProfile = useCallback(async () => {
-    if (user) {
-      profileCache.delete(user.id);
-      await loadProfile(user.id);
-    }
-  }, [user, loadProfile]);
+  const refreshProfile = async () => {
+    if (user) await loadProfile(user.id);
+  };
 
   useEffect(() => {
     let mounted = true;
-    let initializationTimeout: NodeJS.Timeout;
-
-    const initializeAuth = async () => {
-      try {
-        console.log('🚀 Inicializando autenticação...');
-        
-        // ✨ Timeout de segurança para auth
-        initializationTimeout = setTimeout(() => {
-          if (mounted) {
-            console.warn('⚠️ Auth initialization timeout - prosseguindo');
-            setIsLoading(false);
-          }
-        }, 8000);
-
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (mounted) {
-          if (session?.user) {
-            console.log('👤 Sessão encontrada, carregando perfil...');
-            setUser(session.user);
-            await loadProfile(session.user.id);
-          } else {
-            console.log('👤 Nenhuma sessão ativa');
-          }
-          clearTimeout(initializationTimeout);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('❌ Erro na inicialização:', error);
-        if (mounted) {
-          clearTimeout(initializationTimeout);
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        console.log('🔄 Auth state changed:', event);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          console.log('✅ Login detectado, carregando perfil...');
-          setUser(session.user);
-          await loadProfile(session.user.id);
-        } else if (event === 'SIGNED_OUT') {
-          console.log('🚪 Logout detectado');
-          setUser(null);
-          setProfile(null);
-          profileCache.clear();
-        }
-        
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser(session.user);
+        loadProfile(session.user.id);
+      } else {
         setIsLoading(false);
       }
-    );
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser(session.user);
+        loadProfile(session.user.id);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+      setIsLoading(false);
+    });
+
+    setIsLoading(false);
 
     return () => {
       mounted = false;
-      if (initializationTimeout) {
-        clearTimeout(initializationTimeout);
-      }
       subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, []);
 
-  const value = useMemo(() => ({
+  const value = {
     user,
     profile,
     isLoading,
     hasAccess,
     refreshProfile,
-    logout
-  }), [user, profile, isLoading, hasAccess, refreshProfile, logout]);
+    logout,
+  };
 
   return (
     <AuthContext.Provider value={value}>

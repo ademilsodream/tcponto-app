@@ -5,7 +5,6 @@ import App from './App.tsx';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  // Removido <React.StrictMode> para evitar execuções múltiplas e recarregamentos.
+  <App />
 );
