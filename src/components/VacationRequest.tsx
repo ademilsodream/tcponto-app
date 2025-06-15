@@ -4,11 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { DatePicker } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useOptimizedAuth } from "@/contexts/OptimizedAuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { format, differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays, isAfter, isBefore, isSameDay } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface VacationPolicy {
   min_period_days: number;
@@ -59,7 +62,7 @@ export default function VacationRequest() {
       setError("Preencha as datas de início e fim das férias.");
       return false;
     }
-    if (endDate <= startDate) {
+    if (isAfter(startDate, endDate) || isSameDay(startDate, endDate) === false && isAfter(endDate, startDate) === false) {
       setError("A data final deve ser após a inicial.");
       return false;
     }
@@ -72,9 +75,16 @@ export default function VacationRequest() {
       setError("Você não possui saldo suficiente de férias.");
       return false;
     }
-    if (policy && !policy.allow_retroactive && startDate < new Date()) {
-      setError("Não é permitido solicitar férias retroativas.");
-      return false;
+    if (policy && !policy.allow_retroactive) {
+      const now = new Date();
+      // Ignora hora/minuto para comparar só datas
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      now.setHours(0, 0, 0, 0);
+      if (isBefore(start, now)) {
+        setError("Não é permitido solicitar férias retroativas.");
+        return false;
+      }
     }
     return true;
   };
@@ -110,6 +120,11 @@ export default function VacationRequest() {
     setIsLoading(false);
   };
 
+  // Helper for calendar popover button label
+  function getDateLabel(date: Date | null, placeholder: string) {
+    return date ? format(date, "dd/MM/yyyy") : <span className="text-muted-foreground">{placeholder}</span>;
+  }
+
   return (
     <div className="max-w-xl mx-auto p-4">
       <Card className="shadow-md mb-4">
@@ -120,21 +135,67 @@ export default function VacationRequest() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>Data de início</Label>
-              <DatePicker 
-                selected={startDate} 
-                onSelect={setStartDate} 
-                minDate={new Date()}
-                required
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal mt-1",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {getDateLabel(startDate, "Selecionar data de início")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate ?? undefined}
+                    onSelect={setStartDate}
+                    disabled={date =>
+                      false
+                    }
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                    fromDate={new Date()}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Data de término</Label>
-              <DatePicker 
-                selected={endDate} 
-                onSelect={setEndDate}
-                minDate={startDate ?? new Date()}
-                required
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal mt-1",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {getDateLabel(endDate, "Selecionar data de término")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate ?? undefined}
+                    onSelect={setEndDate}
+                    disabled={date =>
+                      startDate
+                        ? isBefore(date, startDate)
+                        : false
+                    }
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                    fromDate={startDate ?? new Date()}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Dias solicitados</Label>
