@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useEmployeeDocuments } from "@/hooks/useEmployeeDocuments";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const iconsByType: Record<string, React.ReactNode> = {
   pdf: <FileText className="w-6 h-6 text-red-600" />,
@@ -63,19 +64,31 @@ export default function EmployeeDocuments() {
       });
   }, [documents, search, filterStatus, filterCategory]);
 
-  // Download e marcar como lido
+  // Download e marcar como lido (corrigido)
   const handleDownload = async (doc: typeof documents[0]) => {
     try {
-      // Use native fetch API
-      const response = await fetch(
-        `https://cyapqtyrefkdemhxryvs.supabase.co/storage/v1/object/public/${doc.file_path}`
-      );
-      if (!response.ok) {
-        toast({ title: "Erro", description: "Não foi possível baixar o documento.", variant: "destructive" });
+      // Extrair bucket do caminho completo: bucketName/caminho/do/arquivo.ext
+      const [bucket, ...fileParts] = doc.file_path.split("/");
+      const storageFilePath = fileParts.join("/");
+      if (!bucket || !storageFilePath) {
+        toast({ title: "Erro", description: "Arquivo com caminho inválido.", variant: "destructive" });
+        console.error("Bucket ou file path inválido:", doc.file_path);
         return;
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+
+      // Download via supabase.storage, suporta arquivos públicos e privados
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(storageFilePath);
+
+      if (error || !data) {
+        toast({ title: "Erro", description: "Não foi possível baixar o documento.", variant: "destructive" });
+        console.error("Erro ao baixar arquivo do Supabase Storage:", error);
+        return;
+      }
+
+      // download retorna Blob (no browser)
+      const url = window.URL.createObjectURL(data);
       const a = document.createElement("a");
       a.href = url;
       a.download = doc.file_name;
@@ -83,10 +96,12 @@ export default function EmployeeDocuments() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+
       await markAsRead(doc.id);
       toast({ title: "Download concluído", description: "Documento baixado e marcado como lido." });
-    } catch (e) {
+    } catch (e: any) {
       toast({ title: "Erro", description: "Falha ao baixar documento.", variant: "destructive" });
+      console.error("Exceção ao baixar arquivo:", e);
     }
   };
 
