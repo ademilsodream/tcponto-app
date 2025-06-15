@@ -12,6 +12,7 @@ const EmployeeDetailedReport = React.lazy(() => import('@/components/EmployeeDet
 const IncompleteRecordsProfile = React.lazy(() => import('@/components/IncompleteRecordsProfile'));
 const AdjustPreviousDays = React.lazy(() => import('@/components/AdjustPreviousDays'));
 const VacationRequest = React.lazy(() => import('@/components/VacationRequest'));
+const EmployeeDocuments = React.lazy(() => import('@/components/EmployeeDocuments'));
 
 // Loading simples e rápido
 const QuickLoadingSpinner = React.memo(() => (
@@ -77,6 +78,12 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
         return (
           <React.Suspense fallback={<QuickLoadingSpinner />}>
             <VacationRequest />
+          </React.Suspense>
+        );
+      case 'documents':
+        return (
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
+            <EmployeeDocuments />
           </React.Suspense>
         );
       default:
