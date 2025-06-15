@@ -1,11 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { OptimizedAuthProvider, useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
+import { OptimizedAuthProvider } from '@/contexts/OptimizedAuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import { UltraOptimizedQueryProvider } from '@/providers/UltraOptimizedQueryProvider';
 import { Toaster } from '@/components/ui/toaster';
 import EmployeeLayout from '@/components/EmployeeLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import Login from '@/pages/Login';
 import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
 import NotFound from '@/pages/NotFound';
@@ -25,24 +26,22 @@ const OptimizedSpinner = React.memo(() => (
 OptimizedSpinner.displayName = 'OptimizedSpinner';
 
 const AppContent = React.memo(() => {
-  const { user, isLoading } = useOptimizedAuth();
+  // Remover useOptimizedAuth daqui! Checagem ficará no ProtectedRoute
   const [authTimeout, setAuthTimeout] = useState(false);
 
   // ✨ Timeout para auth - nunca deixar carregando infinito
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (isLoading) {
-        console.warn('⚠️ Auth timeout - forçando continuação');
-        setAuthTimeout(true);
-      }
+      setAuthTimeout(true);
     }, 10000); // 10 segundos máximo
 
     return () => clearTimeout(timer);
-  }, [isLoading]);
+  }, []);
 
-  // ✨ Se passou do timeout, mostrar login sempre
-  if (isLoading && !authTimeout) {
-    return <OptimizedSpinner />;
+  // O Spinner será responsabilidade do ProtectedRoute
+  if (!authTimeout) {
+    // Apenas para garantir UX pré-carregamento inicial (segurança extra)
+    // Alternativamente pode ser removido, pois o ProtectedRoute cobre
   }
 
   return (
@@ -50,18 +49,17 @@ const AppContent = React.memo(() => {
       <Routes>
         <Route 
           path="/login" 
-          element={user ? <Navigate to="/" replace /> : <Login />} 
+          element={<Login />} 
         />
         <Route 
           path="/" 
           element={
-            user ? (
+            // ENVOLVE aqui o conteúdo protegido
+            <ProtectedRoute>
               <EmployeeLayout>
                 <UltraOptimizedEmployeeDashboard />
               </EmployeeLayout>
-            ) : (
-              <Navigate to="/login" replace />
-            )
+            </ProtectedRoute>
           } 
         />
         <Route path="*" element={<NotFound />} />
@@ -133,3 +131,4 @@ function App() {
 }
 
 export default App;
+
