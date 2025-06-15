@@ -42,23 +42,27 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   // ✨ Função para verificar se o usuário tem acesso TOTAL ao sistema
   const hasAccess = useMemo(() => {
-    console.log('🔒 Verificando acesso do usuário:', { 
-      profile: profile?.name, 
-      status: profile?.status, 
-      can_register_time: profile?.can_register_time 
-    });
-    
     if (!profile) {
-      console.log('🔒 Sem perfil carregado - sem acesso');
       return false;
     }
-    
-    const isActive = profile.status === 'active';
-    const canRegister = profile.can_register_time === true;
+    // Garantir lowercase em status e comparar boolean
+    const statusValue = (profile.status ?? '').toLowerCase();
+    const canRegisterValue = typeof profile.can_register_time === 'string'
+      ? profile.can_register_time === 'true'
+      : Boolean(profile.can_register_time);
+
+    const isActive = statusValue === 'active';
+    const canRegister = canRegisterValue === true;
     const fullAccess = isActive && canRegister;
-    
-    console.log('🔒 Resultado verificação acesso:', { isActive, canRegister, fullAccess });
-    
+
+    console.log('🔒 Verificando acesso do usuário:', {
+      status: profile.status,
+      can_register_time: profile.can_register_time,
+      isActive,
+      canRegister,
+      fullAccess
+    });
+
     return fullAccess;
   }, [profile]);
 
