@@ -125,6 +125,23 @@ export default function VacationRequest() {
     return date ? format(date, "dd/MM/yyyy") : <span className="text-muted-foreground">{placeholder}</span>;
   }
 
+  // Nova mensagem de orientação se saldo for 0
+  const renderBalanceHint = () => {
+    if (balance === null) {
+      return null;
+    }
+    if (balance === 0) {
+      return (
+        <Alert variant="destructive" className="mb-2">
+          <AlertDescription>
+            Você está sem saldo de férias disponível no momento. Caso acredite que deveria ter saldo, por favor entre em contato com o RH para regularizar.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="max-w-xl mx-auto p-4">
       <Card className="shadow-md mb-4">
@@ -211,7 +228,17 @@ export default function VacationRequest() {
             </div>
             <div>
               <Label>Saldo disponível</Label>
-              <Input type="text" disabled value={balance ?? "..."} />
+              <Input
+                type="text"
+                disabled
+                value={
+                  balance === null
+                    ? "..."
+                    : `${balance} dia${balance === 1 ? "" : "s"}`
+                }
+                className={balance === 0 ? "border-destructive font-bold text-destructive" : ""}
+              />
+              {renderBalanceHint()}
             </div>
             {error && (
               <Alert variant="destructive">
@@ -223,7 +250,11 @@ export default function VacationRequest() {
                 <AlertDescription className="text-green-700">{success}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full bg-primary" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full bg-primary"
+              disabled={isLoading || (balance !== null && balance === 0)}
+            >
               {isLoading ? "Enviando..." : "Solicitar Férias"}
             </Button>
           </form>
