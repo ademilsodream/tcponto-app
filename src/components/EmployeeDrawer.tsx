@@ -59,6 +59,7 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
     { key: 'detailedReport', label: 'Relatório Detalhado', icon: FileText },
     { key: 'incompleteRecords', label: 'Registros Incompletos', icon: Clock },
     { key: 'adjustPreviousDays', label: 'Ajustar dias anteriores', icon: Edit },
+    { key: 'vacationRequest', label: 'Solicitar Férias', icon: FileText },
   ];
 
   return (

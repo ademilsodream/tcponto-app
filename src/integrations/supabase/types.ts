@@ -144,6 +144,36 @@ export type Database = {
           },
         ]
       }
+      blocked_periods: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_date: string
+          id: string
+          name: string
+          start_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date: string
+          id?: string
+          name: string
+          start_date: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string
+          id?: string
+          name?: string
+          start_date?: string
+        }
+        Relationships: []
+      }
       departments: {
         Row: {
           created_at: string
@@ -888,6 +918,185 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacation_balances: {
+        Row: {
+          available_days: number
+          employee_id: string
+          id: string
+          total_days: number
+          updated_at: string | null
+          used_days: number
+          year: number
+        }
+        Insert: {
+          available_days?: number
+          employee_id: string
+          id?: string
+          total_days?: number
+          updated_at?: string | null
+          used_days?: number
+          year: number
+        }
+        Update: {
+          available_days?: number
+          employee_id?: string
+          id?: string
+          total_days?: number
+          updated_at?: string | null
+          used_days?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_vb_employee"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacation_policies: {
+        Row: {
+          allow_retroactive: boolean
+          created_at: string | null
+          id: string
+          max_days_per_year: number
+          max_split: number
+          min_period_days: number
+          updated_at: string | null
+        }
+        Insert: {
+          allow_retroactive?: boolean
+          created_at?: string | null
+          id?: string
+          max_days_per_year?: number
+          max_split?: number
+          min_period_days?: number
+          updated_at?: string | null
+        }
+        Update: {
+          allow_retroactive?: boolean
+          created_at?: string | null
+          id?: string
+          max_days_per_year?: number
+          max_split?: number
+          min_period_days?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      vacation_request_history: {
+        Row: {
+          action: string
+          action_at: string | null
+          action_by: string | null
+          id: string
+          justification: string | null
+          vacation_request_id: string
+        }
+        Insert: {
+          action: string
+          action_at?: string | null
+          action_by?: string | null
+          id?: string
+          justification?: string | null
+          vacation_request_id: string
+        }
+        Update: {
+          action?: string
+          action_at?: string | null
+          action_by?: string | null
+          id?: string
+          justification?: string | null
+          vacation_request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_request_history_vacation_request_id_fkey"
+            columns: ["vacation_request_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacation_requests: {
+        Row: {
+          adjust_reason: string | null
+          approver_id: string | null
+          days: number
+          decided_at: string | null
+          decision_justification: string | null
+          department_id: string | null
+          employee_id: string
+          end_date: string
+          id: string
+          job_function_id: string | null
+          previous_end_date: string | null
+          previous_start_date: string | null
+          requested_at: string
+          start_date: string
+          status: string
+        }
+        Insert: {
+          adjust_reason?: string | null
+          approver_id?: string | null
+          days: number
+          decided_at?: string | null
+          decision_justification?: string | null
+          department_id?: string | null
+          employee_id: string
+          end_date: string
+          id?: string
+          job_function_id?: string | null
+          previous_end_date?: string | null
+          previous_start_date?: string | null
+          requested_at?: string
+          start_date: string
+          status?: string
+        }
+        Update: {
+          adjust_reason?: string | null
+          approver_id?: string | null
+          days?: number
+          decided_at?: string | null
+          decision_justification?: string | null
+          department_id?: string | null
+          employee_id?: string
+          end_date?: string
+          id?: string
+          job_function_id?: string | null
+          previous_end_date?: string | null
+          previous_start_date?: string | null
+          requested_at?: string
+          start_date?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_department"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_employee"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_job_function"
+            columns: ["job_function_id"]
+            isOneToOne: false
+            referencedRelation: "job_functions"
             referencedColumns: ["id"]
           },
         ]
