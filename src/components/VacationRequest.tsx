@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -104,7 +103,6 @@ export default function VacationRequest() {
     const days = differenceInCalendarDays(endDate!, startDate!) + 1;
     const { error: reqErr } = await supabase.from("vacation_requests").insert({
       employee_id: user.id,
-      employee_name: profile.name,
       start_date: format(startDate!, "yyyy-MM-dd"),
       end_date: format(endDate!, "yyyy-MM-dd"),
       days: days,
