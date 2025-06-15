@@ -11,6 +11,7 @@ import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 
 interface VacationPolicy {
   min_period_days: number;
@@ -27,6 +28,8 @@ export default function VacationRequest() {
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchBalanceAndPolicy = async () => {
@@ -61,7 +64,7 @@ export default function VacationRequest() {
       setError("Preencha as datas de início e fim das férias.");
       return false;
     }
-    if (isAfter(startDate, endDate) || isSameDay(startDate, endDate) === false && isAfter(endDate, startDate) === false) {
+    if (isAfter(startDate, endDate) || (isSameDay(startDate, endDate) === false && isAfter(endDate, startDate) === false)) {
       setError("A data final deve ser após a inicial.");
       return false;
     }
@@ -76,7 +79,6 @@ export default function VacationRequest() {
     }
     if (policy && !policy.allow_retroactive) {
       const now = new Date();
-      // Ignora hora/minuto para comparar só datas
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
       now.setHours(0, 0, 0, 0);
@@ -84,6 +86,11 @@ export default function VacationRequest() {
         setError("Não é permitido solicitar férias retroativas.");
         return false;
       }
+    }
+    // Validação dos dados obrigatórios do perfil
+    if (!profile?.department_id || !profile?.job_function_id) {
+      setError("Seu perfil está incompleto (setor ou função ausente). Solicite atualização ao RH.");
+      return false;
     }
     return true;
   };
@@ -101,18 +108,27 @@ export default function VacationRequest() {
     setIsLoading(true);
 
     const days = differenceInCalendarDays(endDate!, startDate!) + 1;
-    const { error: reqErr } = await supabase.from("vacation_requests").insert({
+    const payload = {
       employee_id: user.id,
       start_date: format(startDate!, "yyyy-MM-dd"),
       end_date: format(endDate!, "yyyy-MM-dd"),
-      days: days,
-      status: "pending"
-    });
+      days,
+      status: "pending",
+      department_id: profile.department_id,
+      job_function_id: profile.job_function_id,
+    };
+
+    const { error: reqErr } = await supabase.from("vacation_requests").insert(payload);
 
     if (reqErr) {
       setError("Erro ao solicitar férias. Tente novamente.");
     } else {
       setSuccess("Solicitação registrada com sucesso! Aguardando aprovação.");
+      toast({
+        title: "Solicitação enviada!",
+        description: "Sua solicitação de férias foi registrada com sucesso e está aguardando aprovação.",
+        variant: "default"
+      });
       clearForm();
     }
     setIsLoading(false);
