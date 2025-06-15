@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -12,6 +11,7 @@ const EmployeeMonthlySummary = React.lazy(() => import('@/components/EmployeeMon
 const EmployeeDetailedReport = React.lazy(() => import('@/components/EmployeeDetailedReport'));
 const IncompleteRecordsProfile = React.lazy(() => import('@/components/IncompleteRecordsProfile'));
 const AdjustPreviousDays = React.lazy(() => import('@/components/AdjustPreviousDays'));
+const VacationRequest = React.lazy(() => import('@/components/VacationRequest'));
 
 // Loading simples e rápido
 const QuickLoadingSpinner = React.memo(() => (
@@ -42,9 +42,7 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
     
     switch (activeScreen) {
       case 'timeRegistration':
-        // ✨ Componente principal - sem lazy loading
         return <TimeRegistration />;
-        
       case 'monthlySummary':
         return (
           <React.Suspense fallback={<QuickLoadingSpinner />}>
@@ -54,7 +52,6 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
             />
           </React.Suspense>
         );
-        
       case 'detailedReport':
         return (
           <React.Suspense fallback={<QuickLoadingSpinner />}>
@@ -64,21 +61,24 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
             />
           </React.Suspense>
         );
-        
       case 'incompleteRecords':
         return (
           <React.Suspense fallback={<QuickLoadingSpinner />}>
             <IncompleteRecordsProfile {...screenProps} />
           </React.Suspense>
         );
-        
       case 'adjustPreviousDays':
         return (
           <React.Suspense fallback={<QuickLoadingSpinner />}>
             <AdjustPreviousDays {...screenProps} />
           </React.Suspense>
         );
-        
+      case 'vacationRequest':
+        return (
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
+            <VacationRequest />
+          </React.Suspense>
+        );
       default:
         return <TimeRegistration />;
     }
