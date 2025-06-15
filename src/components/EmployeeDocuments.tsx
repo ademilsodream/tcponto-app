@@ -66,14 +66,15 @@ export default function EmployeeDocuments() {
   // Download e marcar como lido
   const handleDownload = async (doc: typeof documents[0]) => {
     try {
-      const { data, error: downloadError } = await fetch(
+      // Use native fetch API
+      const response = await fetch(
         `https://cyapqtyrefkdemhxryvs.supabase.co/storage/v1/object/public/${doc.file_path}`
       );
-      if (downloadError || !data) {
+      if (!response.ok) {
         toast({ title: "Erro", description: "Não foi possível baixar o documento.", variant: "destructive" });
         return;
       }
-      const blob = await data.blob();
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
