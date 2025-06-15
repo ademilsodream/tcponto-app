@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useOptimizedAuth } from "@/contexts/OptimizedAuthContext";
-import { Folder, FileText, Loader2, Download, Eye } from "lucide-react";
+import { Folder, FileText, Loader2, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,9 @@ function getFileExtension(filename: string) {
   const split = filename.split(".");
   return split.length > 1 ? split.pop()!.toLowerCase() : "default";
 }
+
+// Defina o nome do bucket usado para armazenar os arquivos dos documentos.
+const BUCKET_NAME = "employee-documents"; // ajuste aqui se o bucket for diferente
 
 export default function EmployeeDocuments() {
   const { user } = useOptimizedAuth();
@@ -67,23 +70,26 @@ export default function EmployeeDocuments() {
   // Download e marcar como lido (corrigido)
   const handleDownload = async (doc: typeof documents[0]) => {
     try {
-      // Extrair bucket do caminho completo: bucketName/caminho/do/arquivo.ext
-      const [bucket, ...fileParts] = doc.file_path.split("/");
-      const storageFilePath = fileParts.join("/");
-      if (!bucket || !storageFilePath) {
-        toast({ title: "Erro", description: "Arquivo com caminho inválido.", variant: "destructive" });
-        console.error("Bucket ou file path inválido:", doc.file_path);
+      // Usar BUCKET_NAME, file_path como path dentro do bucket
+      const filePath = doc.file_path; // e.g., "employee-uuid/arquivo.pdf"
+      if (!filePath) {
+        toast({ title: "Erro", description: "Caminho do documento ausente.", variant: "destructive" });
         return;
       }
+      // Debug: mostrar o bucket e o path que está sendo usado
+      console.log("[DOCUMENT DOWNLOADER] Using bucket:", BUCKET_NAME, "| filePath:", filePath);
 
-      // Download via supabase.storage, suporta arquivos públicos e privados
       const { data, error } = await supabase.storage
-        .from(bucket)
-        .download(storageFilePath);
+        .from(BUCKET_NAME)
+        .download(filePath);
 
       if (error || !data) {
-        toast({ title: "Erro", description: "Não foi possível baixar o documento.", variant: "destructive" });
-        console.error("Erro ao baixar arquivo do Supabase Storage:", error);
+        toast({
+          title: "Erro ao baixar",
+          description: `Falha ao baixar do bucket '${BUCKET_NAME}'. Verifique se o bucket existe e se o arquivo está lá.`,
+          variant: "destructive"
+        });
+        console.error("Erro ao baixar arquivo do Supabase Storage:", error, "BUCKET:", BUCKET_NAME, "file_path:", filePath);
         return;
       }
 
