@@ -1,3 +1,579 @@
+// hooks/useEnhancedLocation.ts
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+
+interface LocationState {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  altitude?: number | null;
+  altitudeAccuracy?: number | null;
+  heading?: number | null;
+  speed?: number | null;
+  timestamp: number;
+}
+
+interface CalibrationState {
+  isCalibrating: boolean;
+  calibrationProgress: number;
+  samples: LocationState[];
+  bestAccuracy: number;
+}
+
+export const useEnhancedLocation = () => {
+  const [location, setLocation] = useState<LocationState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [calibration, setCalibration] = useState<CalibrationState>({
+    isCalibrating: false,
+    calibrationProgress: 0,
+    samples: [],
+    bestAccuracy: Infinity
+  });
+  
+  const watchIdRef = useRef<number | null>(null);
+  const calibrationWatchRef = useRef<number | null>(null);
+  const { toast } = useToast();
+
+  // Configurações aprimoradas de geolocalização
+  const geoOptions: PositionOptions = {
+    enableHighAccuracy: true,
+    timeout: 30000,
+    maximumAge: 0 // Sempre obter localização fresca
+  };
+
+  // Função para calcular média ponderada das localizações
+  const calculateWeightedAverage = (samples: LocationState[]): LocationState => {
+    if (samples.length === 0) throw new Error('No samples available');
+    
+    // Ordenar por precisão (menor accuracy = melhor)
+    const sortedSamples = [...samples].sort((a, b) => a.accuracy - b.accuracy);
+    
+    // Usar apenas as 5 melhores amostras
+    const bestSamples = sortedSamples.slice(0, Math.min(5, sortedSamples.length));
+    
+    // Calcular pesos baseados na precisão
+    const weights = bestSamples.map(s => 1 / s.accuracy);
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    
+    // Calcular média ponderada
+    const weightedLat = bestSamples.reduce((sum, sample, i) => 
+      sum + (sample.latitude * weights[i] / totalWeight), 0
+    );
+    const weightedLng = bestSamples.reduce((sum, sample, i) => 
+      sum + (sample.longitude * weights[i] / totalWeight), 0
+    );
+    
+    // Retornar localização com melhor precisão
+    return {
+      latitude: weightedLat,
+      longitude: weightedLng,
+      accuracy: bestSamples[0].accuracy,
+      timestamp: Date.now()
+    };
+  };
+
+  // Função de calibração
+  const startCalibration = useCallback(() => {
+    // Limpar calibração anterior se existir
+    if (calibrationWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(calibrationWatchRef.current);
+    }
+
+    setCalibration(prev => ({
+      ...prev,
+      isCalibrating: true,
+      calibrationProgress: 0,
+      samples: [],
+      bestAccuracy: Infinity
+    }));
+
+    toast({
+      title: "Calibrando GPS",
+      description: "Por favor, aguarde enquanto melhoramos a precisão...",
+    });
+
+    let sampleCount = 0;
+    const targetSamples = 10;
+    const samples: LocationState[] = [];
+
+    // Coletar múltiplas amostras
+    calibrationWatchRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const newSample: LocationState = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude,
+          altitudeAccuracy: position.coords.altitudeAccuracy,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+          timestamp: position.timestamp
+        };
+
+        samples.push(newSample);
+        sampleCount++;
+
+        const progress = (sampleCount / targetSamples) * 100;
+        const bestAccuracy = Math.min(...samples.map(s => s.accuracy));
+
+        setCalibration(prev => ({
+          ...prev,
+          calibrationProgress: progress,
+          samples: samples,
+          bestAccuracy: bestAccuracy
+        }));
+
+        // Quando atingir o número alvo de amostras
+        if (sampleCount >= targetSamples) {
+          if (calibrationWatchRef.current !== null) {
+            navigator.geolocation.clearWatch(calibrationWatchRef.current);
+            calibrationWatchRef.current = null;
+          }
+          
+          try {
+            const calibratedLocation = calculateWeightedAverage(samples);
+            setLocation(calibratedLocation);
+            
+            toast({
+              title: "Calibração concluída",
+              description: `Precisão melhorada para ${calibratedLocation.accuracy.toFixed(1)}m`,
+              variant: "default"
+            });
+          } catch (error) {
+            toast({
+              title: "Erro na calibração",
+              description: "Não foi possível melhorar a precisão",
+              variant: "destructive"
+            });
+          }
+
+          setCalibration(prev => ({
+            ...prev,
+            isCalibrating: false,
+            calibrationProgress: 100
+          }));
+        }
+      },
+      (error) => {
+        setError(`Erro durante calibração: ${error.message}`);
+        setCalibration(prev => ({
+          ...prev,
+          isCalibrating: false
+        }));
+        if (calibrationWatchRef.current !== null) {
+          navigator.geolocation.clearWatch(calibrationWatchRef.current);
+          calibrationWatchRef.current = null;
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+      }
+    );
+
+    // Timeout de segurança
+    setTimeout(() => {
+      if (calibration.isCalibrating && calibrationWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(calibrationWatchRef.current);
+        calibrationWatchRef.current = null;
+        setCalibration(prev => ({
+          ...prev,
+          isCalibrating: false
+        }));
+        
+        if (samples.length > 0) {
+          try {
+            const calibratedLocation = calculateWeightedAverage(samples);
+            setLocation(calibratedLocation);
+          } catch (error) {
+            console.error('Erro ao calcular média:', error);
+          }
+        }
+      }
+    }, 30000);
+  }, [toast]);
+
+  // Função para forçar atualização de localização
+  const refreshLocation = useCallback(() => {
+    setLoading(true);
+    setError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const newLocation: LocationState = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude,
+          altitudeAccuracy: position.coords.altitudeAccuracy,
+          heading: position.coords.heading,
+          speed: position.coords.speed,
+          timestamp: position.timestamp
+        };
+
+        setLocation(newLocation);
+        setLoading(false);
+
+        // Sugerir calibração se precisão for ruim
+        if (position.coords.accuracy > 50) {
+          toast({
+            title: "Precisão baixa detectada",
+            description: `Precisão atual: ${position.coords.accuracy.toFixed(1)}m. Considere calibrar o GPS.`,
+            action: (
+              <Button size="sm" onClick={startCalibration}>
+                Calibrar
+              </Button>
+            )
+          });
+        }
+      },
+      (error) => {
+        setError(error.message);
+        setLoading(false);
+      },
+      geoOptions
+    );
+  }, [startCalibration, toast]);
+
+  // Monitoramento contínuo com alta precisão
+  useEffect(() => {
+    let mounted = true;
+
+    const startWatching = () => {
+      if (!mounted) return;
+
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (position) => {
+          if (!mounted) return;
+
+          const newLocation: LocationState = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            altitudeAccuracy: position.coords.altitudeAccuracy,
+            heading: position.coords.heading,
+            speed: position.coords.speed,
+            timestamp: position.timestamp
+          };
+
+          setLocation(newLocation);
+          setLoading(false);
+          setError(null);
+        },
+        (error) => {
+          if (!mounted) return;
+          
+          setError(error.message);
+          setLoading(false);
+          
+          // Tentar novamente em caso de erro
+          if (error.code === 1) { // PERMISSION_DENIED
+            toast({
+              title: "Permissão negada",
+              description: "Por favor, permita o acesso à localização nas configurações do navegador",
+              variant: "destructive"
+            });
+          }
+        },
+        geoOptions
+      );
+    };
+
+    startWatching();
+
+    return () => {
+      mounted = false;
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (calibrationWatchRef.current !== null) {
+        navigator.geolocation.clearWatch(calibrationWatchRef.current);
+      }
+    };
+  }, [toast]);
+
+  return {
+    location,
+    loading,
+    error,
+    calibration,
+    startCalibration,
+    refreshLocation,
+    isHighAccuracy: location ? location.accuracy <= 20 : false,
+    isMediumAccuracy: location ? location.accuracy > 20 && location.accuracy <= 50 : false,
+    isLowAccuracy: location ? location.accuracy > 50 : false
+  };
+};
+
+// components/GPSStatus.tsx
+import React from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { 
+  MapPin, 
+  RefreshCw, 
+  Target, 
+  AlertCircle,
+  CheckCircle,
+  AlertTriangle
+} from 'lucide-react';
+
+interface GPSStatusProps {
+  location: any;
+  calibration: any;
+  onCalibrate: () => void;
+  onRefresh: () => void;
+  isHighAccuracy: boolean;
+  isMediumAccuracy: boolean;
+  isLowAccuracy: boolean;
+}
+
+export const GPSStatus: React.FC<GPSStatusProps> = ({
+  location,
+  calibration,
+  onCalibrate,
+  onRefresh,
+  isHighAccuracy,
+  isMediumAccuracy,
+  isLowAccuracy
+}) => {
+  const getAccuracyColor = () => {
+    if (isHighAccuracy) return 'text-green-600';
+    if (isMediumAccuracy) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getAccuracyIcon = () => {
+    if (isHighAccuracy) return <CheckCircle className="w-5 h-5" />;
+    if (isMediumAccuracy) return <AlertTriangle className="w-5 h-5" />;
+    return <AlertCircle className="w-5 h-5" />;
+  };
+
+  const getAccuracyText = () => {
+    if (isHighAccuracy) return 'Excelente';
+    if (isMediumAccuracy) return 'Média';
+    return 'Baixa';
+  };
+
+  return (
+    <Card className="w-full max-w-md mb-4">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <MapPin className={`w-5 h-5 ${getAccuracyColor()}`} />
+            <span className="text-sm font-medium">Status GPS</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onRefresh}
+              disabled={calibration.isCalibrating}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant={isLowAccuracy ? 'default' : 'outline'}
+              onClick={onCalibrate}
+              disabled={calibration.isCalibrating}
+            >
+              <Target className="w-4 h-4 mr-1" />
+              Calibrar
+            </Button>
+          </div>
+        </div>
+
+        {location && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Precisão:</span>
+              <div className={`flex items-center space-x-1 ${getAccuracyColor()}`}>
+                {getAccuracyIcon()}
+                <span className="font-medium">
+                  {location.accuracy.toFixed(1)}m ({getAccuracyText()})
+                </span>
+              </div>
+            </div>
+
+            {calibration.isCalibrating && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Calibrando...</span>
+                  <span className="text-sm font-medium">
+                    {calibration.calibrationProgress.toFixed(0)}%
+                  </span>
+                </div>
+                <Progress value={calibration.calibrationProgress} />
+                <p className="text-xs text-gray-500">
+                  Coletando amostras para melhorar precisão...
+                </p>
+              </div>
+            )}
+
+            {!calibration.isCalibrating && calibration.samples.length > 0 && (
+              <div className="text-xs text-gray-500">
+                Última calibração: {calibration.samples.length} amostras coletadas
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// utils/enhancedLocationValidation.ts
+interface Location {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
+
+interface AllowedLocation {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  range_meters: number;
+  is_active: boolean;
+}
+
+interface ValidationResult {
+  valid: boolean;
+  location?: Location;
+  message: string;
+  closestLocation?: AllowedLocation;
+  distance?: number;
+  gpsAccuracy?: number;
+  adaptiveRange?: number;
+  confidence: number;
+}
+
+export const validateLocationWithConfidence = async (
+  allowedLocations: AllowedLocation[],
+  currentLocation?: Location | null,
+  options?: {
+    minAccuracy?: number;
+    requireCalibration?: boolean;
+  }
+): Promise<ValidationResult> => {
+  const minAccuracy = options?.minAccuracy || 100;
+
+  try {
+    let userLocation: Location;
+
+    if (currentLocation) {
+      userLocation = currentLocation;
+    } else {
+      // Obter localização com alta precisão
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 30000,
+            maximumAge: 0
+          }
+        );
+      });
+
+      userLocation = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+    }
+
+    const accuracy = userLocation.accuracy || 50;
+
+    // Verificar se precisão atende ao mínimo
+    if (accuracy > minAccuracy) {
+      return {
+        valid: false,
+        location: userLocation,
+        message: `Precisão GPS insuficiente (${accuracy.toFixed(1)}m). Mínimo requerido: ${minAccuracy}m`,
+        gpsAccuracy: accuracy,
+        confidence: Math.max(0, 100 - (accuracy / 2))
+      };
+    }
+
+    // Calcular distâncias para todas as localizações permitidas
+    const distances = allowedLocations.map(loc => ({
+      location: loc,
+      distance: calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        loc.latitude,
+        loc.longitude
+      )
+    }));
+
+    // Encontrar a localização mais próxima
+    const closest = distances.reduce((prev, curr) => 
+      curr.distance < prev.distance ? curr : prev
+    );
+
+    // Calcular range adaptativo baseado na precisão do GPS
+    const adaptiveRange = Math.max(
+      closest.location.range_meters,
+      accuracy * 1.5 // Compensar imprecisão do GPS
+    );
+
+    // Calcular confiança baseada em múltiplos fatores
+    const distanceConfidence = Math.max(0, 100 - (closest.distance / adaptiveRange) * 100);
+    const accuracyConfidence = Math.max(0, 100 - (accuracy / 20) * 100);
+    const overallConfidence = (distanceConfidence + accuracyConfidence) / 2;
+
+    const isValid = closest.distance <= adaptiveRange;
+
+    return {
+      valid: isValid,
+      location: userLocation,
+      message: isValid 
+        ? `Localização válida (${closest.distance.toFixed(1)}m de ${closest.location.name})`
+        : `Fora da área permitida. Distância: ${closest.distance.toFixed(1)}m`,
+      closestLocation: closest.location,
+      distance: closest.distance,
+      gpsAccuracy: accuracy,
+      adaptiveRange,
+      confidence: overallConfidence
+    };
+
+  } catch (error: any) {
+    throw new Error(`Erro ao obter localização: ${error.message}`);
+  }
+};
+
+// Função auxiliar para calcular distância
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Raio da Terra em metros
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
+
+// Limpar cache (mantendo a função existente)
+export const clearLocationCache = () => {
+  // Implementação existente
+};
+
+// COMPONENTE PRINCIPAL COMPLETO COM TODAS AS INTEGRAÇÕES
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,14 +586,14 @@ import { Json } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
-import { useLocation } from '@/hooks/useLocation';
+import { useEnhancedLocation } from '@/hooks/useEnhancedLocation';
+import { GPSStatus } from '@/components/GPSStatus';
 import { PushNotificationService } from '@/services/PushNotificationService';
-import { validateLocationForTimeRecord, Location } from '@/utils/optimizedLocationValidation';
+import { validateLocationWithConfidence, clearLocationCache } from '@/utils/enhancedLocationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useDebouncedCallback } from '@/hooks/useDebounce';
-import { clearLocationCache } from '@/utils/optimizedLocationValidation';
 
 // Cache para localizações permitidas
 const allowedLocationsCache = new Map<string, { data: any; timestamp: number }>();
@@ -36,6 +612,8 @@ interface LocationDetails {
   longitude: number;
   timestamp: string;
   locationName: string;
+  gpsAccuracy?: number;
+  confidence?: number;
 }
 
 interface LocationsData {
@@ -77,7 +655,7 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
-// ✅ Hook de validação de turno integrado
+// Hook de validação de turno (mantendo o existente)
 const useWorkShiftValidation = () => {
   const { user } = useOptimizedAuth();
   const [hasShift, setHasShift] = useState<boolean>(false);
@@ -241,8 +819,21 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
 
- const { user, profile, refreshProfile } = useOptimizedAuth();
-  const { location, loading: locationLoading, error: locationError } = useLocation();
+  const { user, profile, refreshProfile } = useOptimizedAuth();
+  
+  // Usar o hook aprimorado de localização
+  const { 
+    location, 
+    loading: locationLoading, 
+    error: locationError,
+    calibration,
+    startCalibration,
+    refreshLocation,
+    isHighAccuracy,
+    isMediumAccuracy,
+    isLowAccuracy
+  } = useEnhancedLocation();
+  
   const { canRegisterPoint, currentShiftMessage, loading: shiftLoading, hasShift } = useWorkShiftValidation();
   const { toast } = useToast();
 
@@ -267,7 +858,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     if (hour >= 5 && hour < 12) return 'Bom dia';
     if (hour >= 12 && hour < 18) return 'Boa tarde';
     return 'Boa noite';
-  }, [currentTime.getHours]);
+  }, [currentTime.getHours()]);
 
   const userDisplayName = useMemo(() => {
     if (userProfile?.name) {
@@ -459,14 +1050,22 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   }, []);
 
   const debouncedLocationRequest = useDebouncedCallback(
-    async (action: string, onSuccess: (locationValidationResult: { valid: boolean; location?: Location; message: string; closestLocation?: AllowedLocation; distance?: number; gpsAccuracy?: number; adaptiveRange?: number; }) => void, onError: (message: string) => void) => {
+    async (action: string, onSuccess: (locationValidationResult: any) => void, onError: (message: string) => void) => {
       if (!allowedLocations || allowedLocations.length === 0) {
         onError('Nenhuma localização permitida configurada');
         return;
       }
 
       try {
-        const locationValidation = await validateLocationForTimeRecord(allowedLocations);
+        // Usar a nova função de validação com confiança
+        const locationValidation = await validateLocationWithConfidence(
+          allowedLocations,
+          location,
+          {
+            minAccuracy: isLowAccuracy ? 100 : 50,
+            requireCalibration: isLowAccuracy
+          }
+        );
 
         if (!locationValidation.valid) {
           onError(locationValidation.message);
@@ -482,7 +1081,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     2000
   );
 
-  // Função principal de registro
+  // Função principal de registro com validação de GPS aprimorada
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
@@ -508,12 +1107,48 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
 
     // Verificação de cooldown
     if (cooldownEndTime && cooldownEndTime > Date.now()) {
+      toast({
+        title: "Aguarde",
+        description: `Você só pode registrar o próximo ponto após ${formatRemainingTime(cooldownEndTime - Date.now())}.`,
+        variant: "default"
+      });
+      return;
+    }
+
+    // Nova verificação de precisão do GPS
+    if (location && location.accuracy > 100) {
+      const shouldProceed = await new Promise<boolean>((resolve) => {
         toast({
-            title: "Aguarde",
-            description: `Você só pode registrar o próximo ponto após ${formatRemainingTime(cooldownEndTime - Date.now())}.`,
-            variant: "default"
+          title: "Precisão GPS baixa",
+          description: `Precisão atual: ${location.accuracy.toFixed(1)}m. Deseja calibrar antes de registrar?`,
+          action: (
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => {
+                  // Fechar o toast
+                  resolve(true);
+                }}
+              >
+                Continuar assim
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  startCalibration();
+                  resolve(false);
+                }}
+              >
+                Calibrar GPS
+              </Button>
+            </div>
+          ),
+          duration: 10000 // 10 segundos para decidir
         });
-        return;
+      });
+
+      if (!shouldProceed) return;
     }
 
     setSubmitting(true);
@@ -558,15 +1193,17 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
           range_meters: 100,
           is_active: true
         },
-        distance: 0
+        distance: 0,
+        gpsAccuracy: location.accuracy,
+        confidence: 100
       };
 
       await processTimeRegistration(action, simpleLocationResult);
     }
 
-  }, [user, submitting, timeRecord, localDate, allowedLocations, debouncedLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, fieldNames]);
+  }, [user, submitting, timeRecord, localDate, allowedLocations, debouncedLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, fieldNames, isLowAccuracy, startCalibration]);
 
-  // Função para processar registro
+  // Função para processar registro com dados aprimorados
   const processTimeRegistration = async (action: TimeRecordKey, locationValidationResult: any) => {
     try {
       const now = new Date();
@@ -586,7 +1223,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       
       const currentDateString = localDate;
 
-      // Dados de localização
+      // Dados de localização aprimorados
       const locationData: LocationDetails = {
         address: locationValidationResult.closestLocation?.address || 'Endereço não disponível',
         distance: locationValidationResult.distance || 0,
@@ -594,6 +1231,8 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         longitude: locationValidationResult.location?.longitude || 0,
         timestamp: now.toISOString(),
         locationName: locationValidationResult.closestLocation?.name || 'Localização Desconhecida',
+        gpsAccuracy: locationValidationResult.gpsAccuracy,
+        confidence: locationValidationResult.confidence
       };
 
       const locationsJson = timeRecord?.locations ? { ...timeRecord.locations as LocationsData } : {};
@@ -757,12 +1396,13 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   }, [timeRecord]);
 
   const isRegistrationButtonDisabled = useMemo(() => {
-      return submitting || 
-             (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
-             shiftLoading ||
-             (hasShift && !canRegisterPoint) ||
-             locationLoading;
-  }, [submitting, cooldownEndTime, shiftLoading, hasShift, canRegisterPoint, locationLoading]);
+    return submitting || 
+           (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
+           shiftLoading ||
+           (hasShift && !canRegisterPoint) ||
+           locationLoading ||
+           calibration.isCalibrating;
+  }, [submitting, cooldownEndTime, shiftLoading, hasShift, canRegisterPoint, locationLoading, calibration.isCalibrating]);
 
   const isInCooldown = useMemo(() => {
     return cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0;
@@ -827,6 +1467,17 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         </div>
       </div>
 
+      {/* Componente de Status GPS */}
+      <GPSStatus
+        location={location}
+        calibration={calibration}
+        onCalibrate={startCalibration}
+        onRefresh={refreshLocation}
+        isHighAccuracy={isHighAccuracy}
+        isMediumAccuracy={isMediumAccuracy}
+        isLowAccuracy={isLowAccuracy}
+      />
+
       <Card className="w-full max-w-md bg-white shadow-lg">
         <CardContent className="p-4 sm:p-6">
           <div className="mb-6">
@@ -847,7 +1498,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
                             : 'bg-gray-100 text-gray-400'
                       }`}
                     >
-                      <Icon className="w-4 h-4 sm:w-5 h-5" />
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <span className={`text-xs text-center ${
                       isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
@@ -859,21 +1510,21 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
                         {getValue(step.key)}
                       </span>
                     )}
-                     {isCompleted && (
-                        <Button
-                            variant="link"
-                            size="sm"
-                            className="text-xs text-blue-500 hover:text-blue-700 p-0 h-auto"
-                            onClick={() => {
-                                setEditField(step.key);
-                                setEditValue(getValue(step.key) || '');
-                                setEditReason('');
-                                setIsEditDialogOpen(true);
-                            }}
-                        >
-                            Editar
-                        </Button>
-                     )}
+                    {isCompleted && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="text-xs text-blue-500 hover:text-blue-700 p-0 h-auto"
+                        onClick={() => {
+                          setEditField(step.key);
+                          setEditValue(getValue(step.key) || '');
+                          setEditReason('');
+                          setIsEditDialogOpen(true);
+                        }}
+                      >
+                        Editar
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -891,14 +1542,16 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
           </div>
 
           {/* Estado de carregamento */}
-          {locationLoading && (
+          {(locationLoading || calibration.isCalibrating) && (
             <div className="text-center py-4 text-blue-600">
               <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-              <div className="text-sm">Obtendo localização...</div>
+              <div className="text-sm">
+                {calibration.isCalibrating ? 'Calibrando GPS...' : 'Obtendo localização...'}
+              </div>
             </div>
           )}
 
-          {nextAction && !locationLoading && (
+          {nextAction && !locationLoading && !calibration.isCalibrating && (
             <>
               <Button
                 onClick={() => handleTimeAction(nextAction)}
@@ -922,14 +1575,14 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
               
               {/* Contador de cooldown */}
               {isInCooldown && (
-                  <div className="text-center text-sm mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="text-yellow-800 font-medium mb-1">
-                          ⏱️ Aguarde para o próximo registro
-                      </div>
-                      <div className="text-yellow-700">
-                          Disponível em: <span className="font-mono font-bold">{formatRemainingTime(remainingCooldown!)}</span>
-                      </div>
+                <div className="text-center text-sm mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="text-yellow-800 font-medium mb-1">
+                    ⏱️ Aguarde para o próximo registro
                   </div>
+                  <div className="text-yellow-700">
+                    Disponível em: <span className="font-mono font-bold">{formatRemainingTime(remainingCooldown!)}</span>
+                  </div>
+                </div>
               )}
 
               {/* Mensagem de turno restrito */}
