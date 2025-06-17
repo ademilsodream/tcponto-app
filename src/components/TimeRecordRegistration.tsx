@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Clock, MapPin } from 'lucide-react';
 import { GPSStatus } from './GPSStatus';
-import { validateLocationWithConfidence, startCalibration } from '@/utils/enhancedLocationValidation';
-import { AllowedLocation } from '@/utils/types';
+import { validateLocationWithRetry, validateGPSQuality } from '@/utils/locationValidationEnhanced';
+import { AllowedLocation } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
+import { useEnhancedLocation } from '@/hooks/useEnhancedLocation';
 
 interface TimeRecordRegistrationProps {
   allowedLocations: AllowedLocation[];
@@ -19,17 +20,23 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
   onRegister,
   isLoading = false
 }) => {
-  const [location, setLocation] = useState<any>(null);
   const [validationResult, setValidationResult] = useState<any>(null);
-  const [isCalibrating, setIsCalibrating] = useState(false);
   const { toast } = useToast();
+  const {
+    location,
+    loading: locationLoading,
+    error: locationError,
+    calibration,
+    startCalibration,
+    refreshLocation,
+    isHighAccuracy,
+    isMediumAccuracy,
+    isLowAccuracy
+  } = useEnhancedLocation();
 
   const validateLocation = async () => {
     try {
-      const result = await validateLocationWithConfidence(allowedLocations, location, {
-        minAccuracy: 100,
-        requireCalibration: false
-      });
+      const result = await validateLocationWithRetry(allowedLocations);
       setValidationResult(result);
       return result.valid;
     } catch (error: any) {
@@ -44,12 +51,7 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
 
   const handleCalibrate = async () => {
     try {
-      setIsCalibrating(true);
       await startCalibration();
-      toast({
-        title: 'Calibração concluída',
-        description: 'GPS calibrado com sucesso!'
-      });
       // Revalidar localização após calibração
       await validateLocation();
     } catch (error: any) {
@@ -58,16 +60,13 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
         description: error.message,
         variant: 'destructive'
       });
-    } finally {
-      setIsCalibrating(false);
     }
   };
 
   const handleRefresh = async () => {
     try {
-      const result = await validateLocationWithConfidence(allowedLocations);
-      setLocation(result.location);
-      setValidationResult(result);
+      await refreshLocation();
+      await validateLocation();
     } catch (error: any) {
       toast({
         title: 'Erro ao atualizar',
@@ -104,23 +103,33 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
   };
 
   useEffect(() => {
-    handleRefresh();
-  }, []);
+    validateLocation();
+  }, [location]);
+
+  useEffect(() => {
+    if (locationError) {
+      toast({
+        title: 'Erro de GPS',
+        description: locationError,
+        variant: 'destructive'
+      });
+    }
+  }, [locationError, toast]);
 
   return (
     <div className="space-y-4">
       <GPSStatus
         location={location}
-        calibration={validationResult?.calibration}
+        calibration={calibration}
         onCalibrate={handleCalibrate}
         onRefresh={handleRefresh}
-        isHighAccuracy={validationResult?.gpsAccuracy <= 50}
-        isMediumAccuracy={validationResult?.gpsAccuracy <= 100}
-        isLowAccuracy={validationResult?.gpsAccuracy > 100}
-        gpsAccuracy={validationResult?.gpsAccuracy}
+        isHighAccuracy={isHighAccuracy}
+        isMediumAccuracy={isMediumAccuracy}
+        isLowAccuracy={isLowAccuracy}
+        gpsAccuracy={location?.accuracy}
         distance={validationResult?.distance}
         adaptiveRange={validationResult?.adaptiveRange}
-        isCalibrating={isCalibrating}
+        isCalibrating={calibration.isCalibrating}
       />
 
       {validationResult && !validationResult.valid && (
@@ -137,7 +146,7 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <Button
               onClick={() => handleRegister('clock_in')}
-              disabled={isLoading || !validationResult?.valid}
+              disabled={isLoading || locationLoading || !validationResult?.valid}
               className="w-full"
             >
               <Clock className="mr-2 h-4 w-4" />
@@ -146,7 +155,7 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
 
             <Button
               onClick={() => handleRegister('lunch_start')}
-              disabled={isLoading || !validationResult?.valid}
+              disabled={isLoading || locationLoading || !validationResult?.valid}
               className="w-full"
             >
               <Clock className="mr-2 h-4 w-4" />
@@ -155,7 +164,7 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
 
             <Button
               onClick={() => handleRegister('lunch_end')}
-              disabled={isLoading || !validationResult?.valid}
+              disabled={isLoading || locationLoading || !validationResult?.valid}
               className="w-full"
             >
               <Clock className="mr-2 h-4 w-4" />
@@ -164,7 +173,7 @@ export const TimeRecordRegistration: React.FC<TimeRecordRegistrationProps> = ({
 
             <Button
               onClick={() => handleRegister('clock_out')}
-              disabled={isLoading || !validationResult?.valid}
+              disabled={isLoading || locationLoading || !validationResult?.valid}
               className="w-full"
             >
               <Clock className="mr-2 h-4 w-4" />

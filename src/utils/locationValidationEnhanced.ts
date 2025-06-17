@@ -318,4 +318,4 @@ export const validateLocationWithRetry = async (
     valid: false,
     message: 'Não foi possível obter localização precisa após várias tentativas'
   };
-};
+}; 

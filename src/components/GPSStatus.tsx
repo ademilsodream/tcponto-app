@@ -12,6 +12,7 @@ import {
   Compass
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { validateGPSQuality } from '@/utils/enhancedLocationValidation';
 
 interface GPSStatusProps {
   location: any;
@@ -55,13 +56,8 @@ export const GPSStatus: React.FC<GPSStatusProps> = ({
   };
 
   const getAccuracyText = () => {
-    if (gpsAccuracy <= 10) return 'Excelente';
-    if (gpsAccuracy <= 30) return 'Muito Boa';
-    if (gpsAccuracy <= 50) return 'Boa';
-    if (gpsAccuracy <= 100) return 'Aceitável';
-    if (gpsAccuracy <= 200) return 'Baixa';
-    if (gpsAccuracy <= 500) return 'Muito Baixa';
-    return 'Inaceitável';
+    const quality = validateGPSQuality(gpsAccuracy);
+    return `${quality.quality} (${gpsAccuracy}m)`;
   };
 
   const getDistanceStatus = () => {
@@ -74,6 +70,12 @@ export const GPSStatus: React.FC<GPSStatusProps> = ({
           <span>Range: {Math.round(adaptiveRange)}m</span>
         </div>
         <Progress value={percentage} className="h-2" />
+        <div className="text-xs text-gray-500 mt-1">
+          {percentage > 100 
+            ? `Você está ${Math.round(distance - adaptiveRange)}m fora do range permitido`
+            : `Você está dentro do range permitido (${Math.round(adaptiveRange - distance)}m de margem)`
+          }
+        </div>
       </div>
     );
   };
@@ -89,7 +91,7 @@ export const GPSStatus: React.FC<GPSStatusProps> = ({
           <div className="flex items-center space-x-2">
             {getAccuracyIcon()}
             <span className={`text-sm ${getAccuracyColor()}`}>
-              {getAccuracyText()} ({gpsAccuracy}m)
+              {getAccuracyText()}
             </span>
           </div>
         </div>
@@ -113,6 +115,12 @@ export const GPSStatus: React.FC<GPSStatusProps> = ({
               </TooltipTrigger>
               <TooltipContent>
                 <p>Calibre o GPS para melhorar a precisão</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {isCalibrating 
+                    ? 'Calibrando...'
+                    : 'Coleta 5 amostras em 5 segundos para melhorar a precisão'
+                  }
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
