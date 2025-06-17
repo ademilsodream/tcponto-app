@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -8,8 +8,10 @@ import {
   Target, 
   AlertCircle,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Compass
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface GPSStatusProps {
   location: any;
@@ -19,6 +21,10 @@ interface GPSStatusProps {
   isHighAccuracy: boolean;
   isMediumAccuracy: boolean;
   isLowAccuracy: boolean;
+  gpsAccuracy?: number;
+  distance?: number;
+  adaptiveRange?: number;
+  isCalibrating?: boolean;
 }
 
 export const GPSStatus: React.FC<GPSStatusProps> = ({
@@ -28,89 +34,99 @@ export const GPSStatus: React.FC<GPSStatusProps> = ({
   onRefresh,
   isHighAccuracy,
   isMediumAccuracy,
-  isLowAccuracy
+  isLowAccuracy,
+  gpsAccuracy = 0,
+  distance = 0,
+  adaptiveRange = 0,
+  isCalibrating = false
 }) => {
+  const [showCalibrationTip, setShowCalibrationTip] = useState(false);
+
   const getAccuracyColor = () => {
-    if (isHighAccuracy) return 'text-green-600';
-    if (isMediumAccuracy) return 'text-yellow-600';
-    return 'text-red-600';
+    if (isHighAccuracy) return 'text-green-500';
+    if (isMediumAccuracy) return 'text-yellow-500';
+    return 'text-red-500';
   };
 
   const getAccuracyIcon = () => {
-    if (isHighAccuracy) return <CheckCircle className="w-5 h-5" />;
-    if (isMediumAccuracy) return <AlertTriangle className="w-5 h-5" />;
-    return <AlertCircle className="w-5 h-5" />;
+    if (isHighAccuracy) return <CheckCircle className="w-5 h-5 text-green-500" />;
+    if (isMediumAccuracy) return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+    return <AlertTriangle className="w-5 h-5 text-red-500" />;
   };
 
   const getAccuracyText = () => {
-    if (isHighAccuracy) return 'Excelente';
-    if (isMediumAccuracy) return 'Média';
-    return 'Baixa';
+    if (gpsAccuracy <= 10) return 'Excelente';
+    if (gpsAccuracy <= 30) return 'Muito Boa';
+    if (gpsAccuracy <= 50) return 'Boa';
+    if (gpsAccuracy <= 100) return 'Aceitável';
+    if (gpsAccuracy <= 200) return 'Baixa';
+    if (gpsAccuracy <= 500) return 'Muito Baixa';
+    return 'Inaceitável';
+  };
+
+  const getDistanceStatus = () => {
+    if (!distance || !adaptiveRange) return null;
+    const percentage = (distance / adaptiveRange) * 100;
+    return (
+      <div className="mt-2">
+        <div className="flex justify-between text-sm mb-1">
+          <span>Distância: {Math.round(distance)}m</span>
+          <span>Range: {Math.round(adaptiveRange)}m</span>
+        </div>
+        <Progress value={percentage} className="h-2" />
+      </div>
+    );
   };
 
   return (
-    <Card className="w-full max-w-md mb-4">
+    <Card className="w-full">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <MapPin className={`w-5 h-5 ${getAccuracyColor()}`} />
-            <span className="text-sm font-medium">Status GPS</span>
+            <MapPin className="w-5 h-5" />
+            <span className="font-medium">Status do GPS</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onRefresh}
-              disabled={calibration.isCalibrating}
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant={isLowAccuracy ? 'default' : 'outline'}
-              onClick={onCalibrate}
-              disabled={calibration.isCalibrating}
-            >
-              <Target className="w-4 h-4 mr-1" />
-              Calibrar
-            </Button>
+            {getAccuracyIcon()}
+            <span className={`text-sm ${getAccuracyColor()}`}>
+              {getAccuracyText()} ({gpsAccuracy}m)
+            </span>
           </div>
         </div>
 
-        {location && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Precisão:</span>
-              <div className={`flex items-center space-x-1 ${getAccuracyColor()}`}>
-                {getAccuracyIcon()}
-                <span className="font-medium">
-                  {location.accuracy.toFixed(1)}m ({getAccuracyText()})
-                </span>
-              </div>
-            </div>
+        {getDistanceStatus()}
 
-            {calibration.isCalibrating && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Calibrando...</span>
-                  <span className="text-sm font-medium">
-                    {calibration.calibrationProgress.toFixed(0)}%
-                  </span>
-                </div>
-                <Progress value={calibration.calibrationProgress} />
-                <p className="text-xs text-gray-500">
-                  Coletando amostras para melhorar precisão...
-                </p>
-              </div>
-            )}
+        <div className="flex justify-end space-x-2 mt-4">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onCalibrate}
+                  disabled={isCalibrating}
+                  className="flex items-center space-x-1"
+                >
+                  <Compass className="w-4 h-4" />
+                  <span>Calibrar GPS</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Calibre o GPS para melhorar a precisão</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
-            {!calibration.isCalibrating && calibration.samples.length > 0 && (
-              <div className="text-xs text-gray-500">
-                Última calibração: {calibration.samples.length} amostras coletadas
-              </div>
-            )}
-          </div>
-        )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            className="flex items-center space-x-1"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Atualizar</span>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
