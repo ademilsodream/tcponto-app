@@ -1,8 +1,7 @@
-
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.88cd27e9ec9746319e6f757d94f7199b',
+  appId: 'com.tcponto.app',
   appName: 'TCPonto',
   webDir: 'dist',
   server: {
