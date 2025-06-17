@@ -1,53 +1,32 @@
-
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { OptimizedAuthProvider } from '@/contexts/OptimizedAuthContext';
-import { CurrencyProvider } from '@/contexts/CurrencyContext';
-import { UltraOptimizedQueryProvider } from '@/providers/UltraOptimizedQueryProvider';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
-import EmployeeLayout from '@/components/EmployeeLayout';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import { AuthProvider } from '@/contexts/OptimizedAuthContext';
+import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import Login from '@/pages/Login';
-import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
-import NotFound from '@/pages/NotFound';
-// Removido: import { initializeApp } from '@/utils/initializeApp';
-import './App.css';
+import EmployeeLayout from '@/components/EmployeeLayout';
+import AdminLayout from '@/components/AdminLayout';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-const AppContent = React.memo(() => {
-  return (
-    <div className="min-h-screen bg-gray-50 w-full">
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route 
-          path="/" 
-          element={
-            <ProtectedRoute>
-              <EmployeeLayout>
-                <UltraOptimizedEmployeeDashboard />
-              </EmployeeLayout>
-            </ProtectedRoute>
-          } 
-        />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </div>
-  );
-});
-
-AppContent.displayName = 'AppContent';
+const queryClient = new QueryClient();
 
 function App() {
   return (
-    <UltraOptimizedQueryProvider>
-      <OptimizedAuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
         <CurrencyProvider>
           <Router>
-            <AppContent />
-            <Toaster />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/employee/*" element={<EmployeeLayout />} />
+              <Route path="/admin/*" element={<AdminLayout />} />
+              <Route path="/" element={<Login />} />
+            </Routes>
           </Router>
+          <Toaster />
         </CurrencyProvider>
-      </OptimizedAuthProvider>
-    </UltraOptimizedQueryProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
