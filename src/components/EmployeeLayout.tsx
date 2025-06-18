@@ -2,12 +2,11 @@ import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut, User, Clock, Calendar } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
+import { Outlet } from 'react-router-dom';
 
-interface EmployeeLayoutProps {
-  children: React.ReactNode;
-}
+interface EmployeeLayoutProps {}
 
-const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
+const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
   const { user, profile } = useOptimizedAuth();
 
   const handleLogout = async () => {
@@ -60,7 +59,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
       </header>
 
       <main className="w-full p-4">
-        {children}
+        <Outlet />
       </main>
     </div>
   );
