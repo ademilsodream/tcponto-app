@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TimeRecordRegistration } from '@/components/TimeRecordRegistration';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AllowedLocation } from '@/utils/types';
+import { AllowedLocation } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 
 const TimeRecordPage: React.FC = () => {

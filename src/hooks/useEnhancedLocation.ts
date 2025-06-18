@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { validateGPSQuality } from '@/utils/enhancedLocationValidation';
@@ -35,7 +34,7 @@ interface UseEnhancedLocationReturn {
   isHighAccuracy: boolean;
   isMediumAccuracy: boolean;
   isLowAccuracy: boolean;
-  calibrateAndValidate: () => Promise<LocationState>;
+  calibrateAndValidate: () => Promise<void>;
 }
 
 const CALIBRATION_SAMPLES = 8; // Aumentado para mais precisão
@@ -234,14 +233,14 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
   }, [getHighAccuracyLocation, location, toast]);
 
   // Nova função que calibra e retorna a localização validada
-  const calibrateAndValidate = useCallback(async (): Promise<LocationState> => {
+  const calibrateAndValidate = useCallback(async (): Promise<void> => {
     const calibratedLocation = await startCalibration();
     
     if (calibratedLocation.accuracy > 50) {
       throw new Error(`GPS com baixa precisão (${Math.round(calibratedLocation.accuracy)}m). Tente novamente em local aberto.`);
     }
     
-    return calibratedLocation;
+    setLocation(calibratedLocation);
   }, [startCalibration]);
 
   // Função para atualizar localização

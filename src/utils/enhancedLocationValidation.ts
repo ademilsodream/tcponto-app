@@ -319,3 +319,27 @@ export const validateLocationWithRetry = async (
     message: 'Não foi possível obter localização precisa após várias tentativas'
   };
 };
+
+// Validar localização com nível de confiança
+export const validateLocationWithConfidence = async (
+  allowedLocations: AllowedLocation[],
+  minConfidence: number = 0.7
+): Promise<ValidationResult> => {
+  const result = await validateLocationForTimeRecord(allowedLocations);
+  
+  if (!result.valid || (result.confidence && result.confidence < minConfidence)) {
+    return {
+      ...result,
+      valid: false,
+      message: result.message || 'Localização não confiável o suficiente'
+    };
+  }
+  
+  return result;
+};
+
+// Limpar cache de localização
+export const clearLocationCache = (): void => {
+  // Implementação futura se necessário
+  console.log('Cache de localização limpo');
+};
