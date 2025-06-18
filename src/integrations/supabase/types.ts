@@ -552,6 +552,30 @@ export type Database = {
         }
         Relationships: []
       }
+      mapbox_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          mapbox_token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mapbox_token: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          mapbox_token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_logs: {
         Row: {
           created_at: string | null

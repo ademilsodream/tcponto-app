@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { validateGPSQuality } from '@/utils/enhancedLocationValidation';
@@ -34,10 +35,13 @@ interface UseEnhancedLocationReturn {
   isHighAccuracy: boolean;
   isMediumAccuracy: boolean;
   isLowAccuracy: boolean;
+  calibrateAndValidate: () => Promise<LocationState>;
 }
 
-const CALIBRATION_SAMPLES = 5;
-const CALIBRATION_INTERVAL = 1000; // 1 segundo entre amostras
+const CALIBRATION_SAMPLES = 8; // Aumentado para mais precisão
+const CALIBRATION_INTERVAL = 1500; // Intervalo maior entre amostras
+const HIGH_ACCURACY_THRESHOLD = 10; // Mais rigoroso
+const MEDIUM_ACCURACY_THRESHOLD = 25; // Mais rigoroso
 
 export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
   const [location, setLocation] = useState<LocationState | null>(null);
@@ -51,28 +55,30 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
   });
   
   const watchIdRef = useRef<number | null>(null);
-  const calibrationWatchRef = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Configurações aprimoradas de geolocalização
-  const geoOptions: PositionOptions = {
+  // Configurações mais rigorosas para alta precisão
+  const highAccuracyOptions: PositionOptions = {
     enableHighAccuracy: true,
-    timeout: 15000,
+    timeout: 20000, // Timeout maior para permitir maior precisão
     maximumAge: 0 // Sempre obter localização fresca
   };
 
-  // Função para calcular média ponderada das localizações
+  // Função para calcular média ponderada com filtro de outliers
   const calculateWeightedAverage = (samples: LocationState[]): LocationState => {
     if (samples.length === 0) throw new Error('No samples available');
     
-    // Ordenar por precisão (menor accuracy = melhor)
-    const sortedSamples = [...samples].sort((a, b) => a.accuracy - b.accuracy);
+    // Filtrar outliers (remover as 2 piores precisões se temos mais de 5 amostras)
+    let filteredSamples = [...samples].sort((a, b) => a.accuracy - b.accuracy);
+    if (filteredSamples.length > 5) {
+      filteredSamples = filteredSamples.slice(0, -2);
+    }
     
-    // Usar apenas as 3 melhores amostras
-    const bestSamples = sortedSamples.slice(0, Math.min(3, sortedSamples.length));
+    // Usar apenas as 5 melhores amostras
+    const bestSamples = filteredSamples.slice(0, Math.min(5, filteredSamples.length));
     
-    // Calcular pesos baseados na precisão
-    const weights = bestSamples.map(s => 1 / s.accuracy);
+    // Calcular pesos baseados na precisão (inverso quadrático para dar mais peso às melhores)
+    const weights = bestSamples.map(s => 1 / (s.accuracy * s.accuracy));
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     
     // Calcular média ponderada
@@ -83,7 +89,6 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
       sum + (sample.longitude * weights[i] / totalWeight), 0
     );
     
-    // Retornar localização com melhor precisão
     return {
       latitude: weightedLat,
       longitude: weightedLng,
@@ -92,7 +97,7 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     };
   };
 
-  // Função para obter localização com alta precisão
+  // Função para obter localização com múltiplas tentativas
   const getHighAccuracyLocation = useCallback((): Promise<LocationState> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -100,28 +105,56 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy || 999,
-            altitude: position.coords.altitude,
-            altitudeAccuracy: position.coords.altitudeAccuracy,
-            heading: position.coords.heading,
-            speed: position.coords.speed,
-            timestamp: position.timestamp
-          });
-        },
-        (error) => {
-          reject(new Error(`Erro ao obter localização: ${error.message}`));
-        },
-        geoOptions
-      );
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      const tryGetLocation = () => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const locationData = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy || 999,
+              altitude: position.coords.altitude,
+              altitudeAccuracy: position.coords.altitudeAccuracy,
+              heading: position.coords.heading,
+              speed: position.coords.speed,
+              timestamp: position.timestamp
+            };
+
+            // Se a precisão é boa o suficiente, aceitar
+            if (locationData.accuracy <= 30) {
+              resolve(locationData);
+              return;
+            }
+
+            // Se ainda temos tentativas e a precisão não é boa, tentar novamente
+            attempts++;
+            if (attempts < maxAttempts) {
+              setTimeout(tryGetLocation, 2000);
+              return;
+            }
+
+            // Última tentativa - aceitar o que temos
+            resolve(locationData);
+          },
+          (error) => {
+            attempts++;
+            if (attempts < maxAttempts) {
+              setTimeout(tryGetLocation, 2000);
+              return;
+            }
+            reject(new Error(`Erro ao obter localização após ${maxAttempts} tentativas: ${error.message}`));
+          },
+          highAccuracyOptions
+        );
+      };
+
+      tryGetLocation();
     });
   }, []);
 
-  // Função para iniciar calibração
+  // Função de calibração avançada
   const startCalibration = useCallback(async () => {
     if (calibration.isCalibrating) return;
 
@@ -136,6 +169,12 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     try {
       const samples: LocationState[] = [];
       
+      toast({
+        title: 'Calibrando GPS',
+        description: 'Coletando amostras para maior precisão...',
+        duration: 3000
+      });
+
       for (let i = 0; i < CALIBRATION_SAMPLES; i++) {
         const location = await getHighAccuracyLocation();
         samples.push(location);
@@ -152,7 +191,7 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
         }
       }
 
-      // Calcular posição média
+      // Calcular posição calibrada
       const calibratedLocation = calculateWeightedAverage(samples);
       
       // Calcular offset se houver localização anterior
@@ -173,9 +212,11 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
       const quality = validateGPSQuality(calibratedLocation.accuracy);
       toast({
         title: 'Calibração Concluída',
-        description: `GPS ${quality.quality.toLowerCase()} (${Math.round(calibratedLocation.accuracy)}m)`,
+        description: `GPS ${quality.quality.toLowerCase()} - Precisão: ${Math.round(calibratedLocation.accuracy)}m`,
         variant: quality.acceptable ? 'default' : 'destructive'
       });
+
+      return calibratedLocation;
 
     } catch (error: any) {
       toast({
@@ -183,6 +224,7 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
         description: error.message,
         variant: 'destructive'
       });
+      throw error;
     } finally {
       setCalibration(prev => ({
         ...prev,
@@ -190,6 +232,17 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
       }));
     }
   }, [getHighAccuracyLocation, location, toast]);
+
+  // Nova função que calibra e retorna a localização validada
+  const calibrateAndValidate = useCallback(async (): Promise<LocationState> => {
+    const calibratedLocation = await startCalibration();
+    
+    if (calibratedLocation.accuracy > 50) {
+      throw new Error(`GPS com baixa precisão (${Math.round(calibratedLocation.accuracy)}m). Tente novamente em local aberto.`);
+    }
+    
+    return calibratedLocation;
+  }, [startCalibration]);
 
   // Função para atualizar localização
   const refreshLocation = useCallback(async () => {
@@ -213,7 +266,7 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     }
   }, [getHighAccuracyLocation, calibration.offset]);
 
-  // Iniciar watch de localização
+  // Watch de localização com configurações aprimoradas
   useEffect(() => {
     if (!navigator.geolocation) {
       setError('Geolocalização não suportada');
@@ -248,7 +301,7 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
         setError(`Erro ao obter localização: ${error.message}`);
         setLoading(false);
       },
-      geoOptions
+      highAccuracyOptions
     );
 
     return () => {
@@ -265,8 +318,9 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     calibration,
     startCalibration,
     refreshLocation,
-    isHighAccuracy: location ? location.accuracy <= 20 : false,
-    isMediumAccuracy: location ? location.accuracy > 20 && location.accuracy <= 50 : false,
-    isLowAccuracy: location ? location.accuracy > 50 : false
+    calibrateAndValidate,
+    isHighAccuracy: location ? location.accuracy <= HIGH_ACCURACY_THRESHOLD : false,
+    isMediumAccuracy: location ? location.accuracy > HIGH_ACCURACY_THRESHOLD && location.accuracy <= MEDIUM_ACCURACY_THRESHOLD : false,
+    isLowAccuracy: location ? location.accuracy > MEDIUM_ACCURACY_THRESHOLD : false
   };
 };
