@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">TCPonto</string>
-    <string name="title_activity_main">TCPonto</string>
-    <string name="package_name">com.tcponto.app</string>
-    <string name="custom_url_scheme">com.tcponto.app</string>
-</resources>
