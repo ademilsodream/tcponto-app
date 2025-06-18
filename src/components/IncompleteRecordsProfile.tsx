@@ -533,7 +533,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       if (error.code === '23505') {
         errorMessage = 'Já existe uma solicitação para este dia. Aguarde a aprovação.';
       } else if (error.code === '42501') {
-        errorMessage = 'Sem permissão para criar solicitação. Contate o administrador.';
+        errorMessage = 'Sem permissão para criar solicitação. Entre em contato com o RH.';
       } else if (error.message) {
         errorMessage = `Erro: ${error.message}`;
       }
@@ -780,7 +780,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
               <Alert className="border-amber-200 bg-amber-50">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-amber-800 text-sm">
-                  A solicitação será enviada para aprovação do administrador.
+                  A solicitação será enviada para aprovação do RH.
                   Selecione a localização referente ao ajuste.
                 </AlertDescription>
               </Alert>
@@ -918,7 +918,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
               </div>
 
               <p className="text-xs text-gray-500 text-center">
-                * A solicitação será enviada para aprovação do administrador.
+                * A solicitação será enviada para aprovação do RH.
               </p>
             </div>
           )}

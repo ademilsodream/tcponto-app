@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -14,7 +13,6 @@ interface Profile {
   shift_id?: string;
   department_id?: string;
   job_function_id?: string;
-  role: 'admin' | 'user';
   can_register_time: boolean;
   departments?: { id: string; name: string };
   job_functions?: { id: string; name: string };
@@ -54,7 +52,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       `)
       .eq('id', userId)
       .single();
-    if (data) setProfile({ ...data, role: data.role === 'admin' ? 'admin' : 'user', can_register_time: Boolean(data.can_register_time) });
+    if (data) setProfile({ ...data, can_register_time: Boolean(data.can_register_time) });
     else setProfile(null);
   };
 

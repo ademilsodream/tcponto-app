@@ -169,7 +169,7 @@ const TimeRegistration = () => {
       console.error('❌ Erro ao carregar localizações permitidas:', error);
       toast({
         title: "Erro",
-        description: "Erro ao carregar localizações permitidas",
+        description: "Nenhuma localização permitida configurada. Entre em contato com o RH.",
         variant: "destructive"
       });
     }
@@ -235,7 +235,7 @@ const TimeRegistration = () => {
         console.error('❌ Nenhuma localização permitida carregada');
         toast({
           title: "Erro de Configuração",
-          description: "Nenhuma localização permitida configurada. Contate o administrador.",
+          description: "Nenhuma localização permitida configurada. Entre em contato com o RH.",
           variant: "destructive"
         });
         return;
@@ -420,7 +420,7 @@ const TimeRegistration = () => {
               Você não tem permissão para registrar ponto neste sistema.
             </p>
             <p className="text-sm text-gray-500">
-              Entre em contato com o administrador para mais informações.
+              Entre em contato com o RH para mais informações.
             </p>
           </CardContent>
         </Card>

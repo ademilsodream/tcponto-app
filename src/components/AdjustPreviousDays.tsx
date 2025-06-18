@@ -496,11 +496,11 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       if (error.code === '23505') {
         errorMessage = 'Já existe uma solicitação para este dia. Aguarde a aprovação.';
       } else if (error.code === '42501') {
-        errorMessage = 'Sem permissão para criar solicitação. Contate o administrador.';
+        errorMessage = 'Sem permissão para criar solicitação. Entre em contato com o RH.';
       } else if (error.code === '23502') {
         errorMessage = `Erro: Dados obrigatórios faltando. Detalhes: ${error.details}`;
       } else if (error.message?.includes('check constraint')) {
-        errorMessage = 'Valor inválido para o campo. Contate o administrador.';
+        errorMessage = 'Valor inválido para o campo. Entre em contato com o RH.';
       } else if (error.message) {
         errorMessage = `Erro: ${error.message}`;
       }
@@ -692,7 +692,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                     </Button>
 
                     <p className="text-xs text-gray-500">
-                      * A solicitação será enviada para aprovação do administrador.
+                      * A solicitação será enviada para aprovação do RH.
                       Você será notificado quando for processada.
                     </p>
                   </div>

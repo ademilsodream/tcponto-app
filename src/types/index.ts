@@ -1,9 +1,7 @@
-
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'user';
   hourlyRate: number;
   overtimeRate: number;
   employeeCode?: string;
@@ -83,7 +81,6 @@ export interface HourBankTransaction {
   previous_balance: number;
   new_balance: number;
   description?: string;
-  admin_user_id?: string;
   transaction_date: string;
   expiration_date?: string;
   created_at: string;
