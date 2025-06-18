@@ -73,16 +73,7 @@
 
         </activity>
 
-        <!-- 🔔 Firebase Cloud Messaging Service -->
-        <service
-            android:name="com.google.firebase.messaging.FirebaseMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
-        <!-- 📍 Serviço de Localização em Background (se implementar) -->
+        <!-- 📍 Serviço de Localização em Background -->
         <service 
             android:name=".LocationService"
             android:enabled="true"
@@ -112,13 +103,16 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- 🔑 Meta-data -->
-        <!-- Google Maps API Key (se usar mapas) -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY" />
+        <!-- Firebase Cloud Messaging Service -->
+        <service
+            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
-        <!-- Firebase -->
+        <!-- Meta-data -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />
@@ -128,8 +122,6 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="tcponto_notifications" />
-
-        <!-- Capacitor Config -->
         <meta-data
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
