@@ -40,6 +40,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     console.log('🔐 Iniciando logout...');
     try {
       await supabase.auth.signOut();
+      console.log('🔒 setUser(null) chamado por logout');
+      console.trace('🔍 Stack trace do setUser(null) por logout');
       setUser(null);
       setProfile(null);
       console.log('✅ Logout realizado com sucesso');
@@ -59,6 +61,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       console.log('🔎 Resultado da busca de perfil:', { data, error });
       if (error) {
         console.error('❌ Erro ao carregar perfil:', error);
+        console.trace('🔍 Stack trace do erro ao carregar perfil');
         setProfile(null);
         return;
       }
@@ -71,7 +74,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         console.log('✅ Perfil carregado:', profileData);
       } else {
         console.warn('⚠️ Perfil não encontrado para o usuário. Usando perfil mínimo de fallback.');
-        // Fallback: cria perfil mínimo em memória para liberar acesso
         const fallbackProfile = {
           id: userId,
           name: user?.email || 'Usuário',
@@ -86,6 +88,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
     } catch (error) {
       console.error('❌ Erro inesperado ao carregar/criar perfil:', error);
+      console.trace('🔍 Stack trace do erro inesperado ao carregar/criar perfil');
       setProfile(null);
     } finally {
       setIsLoading(false);
@@ -148,6 +151,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         await loadProfile(session.user.id);
       } else {
         console.log('❌ Sessão encerrada');
+        console.log('🔒 setUser(null) chamado por onAuthStateChange (sessão encerrada)');
+        console.trace('🔍 Stack trace do setUser(null) por onAuthStateChange');
         setUser(null);
         setProfile(null);
       }
