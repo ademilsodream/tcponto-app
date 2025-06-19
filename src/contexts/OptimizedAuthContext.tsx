@@ -34,7 +34,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const hasAccess = !!(profile && profile.status === "active" && profile.can_register_time);
+  const hasAccess = !!(profile && profile.can_register_time === true);
 
   const logout = async () => {
     console.log('🔐 Iniciando logout...');
