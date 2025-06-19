@@ -19,27 +19,46 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loadSystemCurrency = async () => {
     try {
+      console.log('🔄 Carregando moeda do sistema...');
+      
       const { data, error } = await supabase
         .from('system_settings')
         .select('setting_value')
         .eq('setting_key', 'default_currency')
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao carregar moeda do sistema:', error);
+      if (error) {
+        console.error('❌ Erro ao carregar moeda do sistema:', error);
+        // Em caso de erro, manter EUR como padrão
         return;
       }
 
-      if (data?.setting_value) {
+      if (data?.setting_value && ['BRL', 'EUR', 'USD'].includes(data.setting_value)) {
+        console.log('✅ Moeda carregada:', data.setting_value);
         setCurrencyState(data.setting_value as Currency);
+      } else {
+        console.log('💡 Usando moeda padrão: EUR');
       }
     } catch (error) {
-      console.error('Erro ao carregar moeda do sistema:', error);
+      console.error('❌ Erro inesperado ao carregar moeda do sistema:', error);
+      // Em caso de erro, manter EUR como padrão
     }
   };
 
   useEffect(() => {
-    loadSystemCurrency();
+    // Carregar moeda apenas se o usuário estiver autenticado
+    const checkAuthAndLoadCurrency = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await loadSystemCurrency();
+        }
+      } catch (error) {
+        console.error('❌ Erro ao verificar sessão para carregar moeda:', error);
+      }
+    };
+
+    checkAuthAndLoadCurrency();
   }, []);
 
   const setCurrency = async (newCurrency: Currency) => {
@@ -51,10 +70,11 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         .from('system_settings')
         .select('id')
         .eq('setting_key', 'default_currency')
-        .single();
+        .maybeSingle();
 
-      if (selectError && selectError.code !== 'PGRST116') {
-        throw selectError;
+      if (selectError) {
+        console.error('❌ Erro ao verificar configuração existente:', selectError);
+        return;
       }
 
       if (existingSetting) {
@@ -67,7 +87,10 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           })
           .eq('setting_key', 'default_currency');
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erro ao atualizar moeda:', error);
+          throw error;
+        }
       } else {
         // Inserir nova configuração
         const { error } = await supabase
@@ -78,12 +101,17 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             description: 'Moeda padrão do sistema'
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erro ao inserir moeda:', error);
+          throw error;
+        }
       }
+
+      console.log('✅ Moeda salva:', newCurrency);
     } catch (error) {
-      console.error('Erro ao salvar moeda no sistema:', error);
+      console.error('❌ Erro ao salvar moeda no sistema:', error);
       // Reverter para o valor anterior em caso de erro
-      loadSystemCurrency();
+      await loadSystemCurrency();
     }
   };
 

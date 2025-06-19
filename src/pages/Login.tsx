@@ -21,28 +21,42 @@ const Login = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Se usuário está autenticado e tem acesso, redirecionar
     if (!authLoading && user && profile && hasAccess) {
-      navigate('/', { replace: true });
+      console.log('✅ Usuário autenticado com acesso, redirecionando...');
+      navigate('/employee', { replace: true });
     }
   }, [user, profile, authLoading, hasAccess, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
     if (!email || !password) {
       setError('Preencha todos os campos');
       return;
     }
+    
     setIsLoading(true);
+    console.log('🔐 Tentando fazer login...');
 
     try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: loginError } = await supabase.auth.signInWithPassword({ 
+        email: email.trim(), 
+        password 
+      });
+      
       if (loginError) {
+        console.error('❌ Erro de login:', loginError);
         setError('Email ou senha incorretos');
         setIsLoading(false);
         return;
       }
+
+      console.log('✅ Login realizado com sucesso');
+      // O redirecionamento será feito pelo useEffect quando o estado for atualizado
     } catch (error: any) {
+      console.error('❌ Erro inesperado ao fazer login:', error);
       setError('Erro inesperado ao fazer login');
       setIsLoading(false);
     }
@@ -50,6 +64,7 @@ const Login = () => {
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
+  // Mostrar loading enquanto verifica autenticação
   if (authLoading) {
     return (
       <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center">

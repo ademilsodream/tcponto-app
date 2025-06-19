@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -37,54 +38,119 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const hasAccess = !!(profile && profile.status === "active" && profile.can_register_time);
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
+    console.log('🔐 Iniciando logout...');
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+      console.log('✅ Logout realizado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro durante logout:', error);
+    }
   };
 
   const loadProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        departments(id, name),
-        job_functions(id, name)
-      `)
-      .eq('id', userId)
-      .single();
-    if (data) setProfile({ ...data, can_register_time: Boolean(data.can_register_time) });
-    else setProfile(null);
+    try {
+      console.log('👤 Carregando perfil do usuário:', userId);
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          *,
+          departments(id, name),
+          job_functions(id, name)
+        `)
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Erro ao carregar perfil:', error);
+        setProfile(null);
+        return;
+      }
+
+      if (data) {
+        const profileData = { 
+          ...data, 
+          can_register_time: Boolean(data.can_register_time) 
+        };
+        setProfile(profileData);
+        console.log('✅ Perfil carregado:', profileData.name);
+      } else {
+        console.log('⚠️ Perfil não encontrado para o usuário');
+        setProfile(null);
+      }
+    } catch (error) {
+      console.error('❌ Erro inesperado ao carregar perfil:', error);
+      setProfile(null);
+    }
   };
 
   const refreshProfile = async () => {
-    if (user) await loadProfile(user.id);
+    if (user) {
+      await loadProfile(user.id);
+    }
   };
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      if (session?.user) {
-        setUser(session.user);
-        loadProfile(session.user.id);
-      } else {
-        setIsLoading(false);
-      }
-    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const initializeAuth = async () => {
+      try {
+        console.log('🔄 Inicializando autenticação...');
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Erro ao obter sessão:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        if (!mounted) return;
+
+        if (session?.user) {
+          console.log('✅ Sessão encontrada:', session.user.email);
+          setUser(session.user);
+          await loadProfile(session.user.id);
+        } else {
+          console.log('ℹ️ Nenhuma sessão ativa encontrada');
+        }
+      } catch (error) {
+        console.error('❌ Erro durante inicialização:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Configurar listener de mudanças de auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      console.log('🔐 Auth state changed:', event);
+      
       if (session?.user) {
+        console.log('✅ Sessão ativa:', {
+          user_id: session.user.id,
+          email: session.user.email,
+          expires_at: session.expires_at ? new Date(session.expires_at * 1000) : null
+        });
+        
         setUser(session.user);
-        loadProfile(session.user.id);
+        await loadProfile(session.user.id);
       } else {
+        console.log('❌ Sessão encerrada');
         setUser(null);
         setProfile(null);
       }
+      
       setIsLoading(false);
     });
 
-    setIsLoading(false);
+    // Inicializar autenticação
+    initializeAuth();
 
     return () => {
       mounted = false;
