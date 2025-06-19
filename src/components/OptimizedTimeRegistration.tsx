@@ -1,4 +1,3 @@
-
 // COMPONENTE PRINCIPAL COMPLETO COM TODAS AS INTEGRAÇÕES
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,7 +18,6 @@ import { validateLocationWithConfidence, clearLocationCache } from '@/utils/enha
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
-import { useDebouncedCallback } from '@/hooks/useDebounce';
 
 // Cache para localizações permitidas
 const allowedLocationsCache = new Map<string, { data: any; timestamp: number }>();
@@ -475,37 +473,39 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     };
   }, []);
 
-  const debouncedLocationRequest = useDebouncedCallback(
-    async (action: string, onSuccess: (locationValidationResult: any) => void, onError: (message: string) => void) => {
-      if (!allowedLocations || allowedLocations.length === 0) {
-        onError('Nenhuma localização permitida configurada');
+  // Função para validar localização com debounce
+  const validateLocationRequest = useCallback(async (
+    action: string,
+    onSuccess: (locationValidationResult: any) => void,
+    onError: (message: string) => void
+  ) => {
+    if (!allowedLocations || allowedLocations.length === 0) {
+      onError('Nenhuma localização permitida configurada');
+      return;
+    }
+
+    try {
+      // Usar a nova função de validação com confiança
+      const locationValidation = await validateLocationWithConfidence(
+        allowedLocations,
+        location,
+        {
+          minAccuracy: isLowAccuracy ? 100 : 50,
+          requireCalibration: isLowAccuracy
+        }
+      );
+
+      if (!locationValidation.valid) {
+        onError(locationValidation.message);
         return;
       }
 
-      try {
-        // Usar a nova função de validação com confiança
-        const locationValidation = await validateLocationWithConfidence(
-          allowedLocations,
-          location,
-          {
-            minAccuracy: isLowAccuracy ? 100 : 50,
-            requireCalibration: isLowAccuracy
-          }
-        );
+      onSuccess(locationValidation);
 
-        if (!locationValidation.valid) {
-          onError(locationValidation.message);
-          return;
-        }
-
-        onSuccess(locationValidation);
-
-      } catch (error: any) {
-        onError(error.message || 'Erro ao validar localização');
-      }
-    },
-    2000
-  );
+    } catch (error: any) {
+      onError(error.message || 'Erro ao validar localização');
+    }
+  }, [allowedLocations, location, isLowAccuracy]);
 
   // Função principal de registro com validação de GPS aprimorada
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
@@ -581,7 +581,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
 
     // Validação de localização
     if (allowedLocations.length > 0) {
-      debouncedLocationRequest(
+      await validateLocationRequest(
         action,
         async (locationValidationResult) => {
           await processTimeRegistration(action, locationValidationResult);
@@ -627,7 +627,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       await processTimeRegistration(action, simpleLocationResult);
     }
 
-  }, [user, submitting, timeRecord, localDate, allowedLocations, debouncedLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, fieldNames, isLowAccuracy, startCalibration]);
+  }, [user, submitting, timeRecord, localDate, allowedLocations, validateLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, fieldNames, isLowAccuracy, startCalibration]);
 
   // Função para processar registro com dados aprimorados
   const processTimeRegistration = async (action: TimeRecordKey, locationValidationResult: any) => {

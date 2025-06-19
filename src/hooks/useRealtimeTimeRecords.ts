@@ -21,7 +21,6 @@ export function useRealtimeTimeRecords() {
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✨ Carregar registros com debounce
   useEffect(() => {
     if (!user) return;
 
@@ -47,10 +46,11 @@ export function useRealtimeTimeRecords() {
             status
           `)
           .order('date', { ascending: false })
-          .limit(50); // ✨ Limitar para melhor performance
+          .limit(50);
 
-        // ✨ Verificar role de forma segura
-        if (profile?.role !== 'admin') {
+        // Check if user is admin by checking if profile exists and has admin role
+        const isAdmin = profile && 'role' in profile && profile.role === 'admin';
+        if (!isAdmin) {
           query = query.eq('user_id', user.id);
         }
 
@@ -70,15 +70,13 @@ export function useRealtimeTimeRecords() {
       }
     };
 
-    // ✨ Debounce para evitar múltiplas chamadas
     timeoutId = setTimeout(loadTimeRecords, 100);
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [user, profile?.role]);
+  }, [user, profile]);
 
-  // ✨ Realtime otimizado - apenas para registros do dia
   useEffect(() => {
     if (!user) return;
 
@@ -99,12 +97,11 @@ export function useRealtimeTimeRecords() {
           const record = payload.new as TimeRecord;
           const eventType = payload.eventType;
 
-          // ✨ Otimizar updates para reduzir re-renders
           setTimeRecords(prev => {
             switch (eventType) {
               case 'INSERT':
                 if (prev.find(r => r.id === record.id)) return prev;
-                return [record, ...prev.slice(0, 49)]; // ✨ Manter apenas 50 registros
+                return [record, ...prev.slice(0, 49)];
                 
               case 'UPDATE':
                 return prev.map(r => r.id === record.id ? record : r);
@@ -147,10 +144,11 @@ export function useRealtimeTimeRecords() {
           status
         `)
         .order('date', { ascending: false })
-        .limit(50); // ✨ Limitar para melhor performance
+        .limit(50);
 
-      // ✨ Verificar role de forma segura
-      if (profile?.role !== 'admin') {
+      // Check if user is admin
+      const isAdmin = profile && 'role' in profile && profile.role === 'admin';
+      if (!isAdmin) {
         query = query.eq('user_id', user.id);
       }
 

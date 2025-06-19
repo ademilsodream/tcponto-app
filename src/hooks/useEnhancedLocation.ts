@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { validateGPSQuality } from '@/utils/enhancedLocationValidation';
@@ -37,10 +38,10 @@ interface UseEnhancedLocationReturn {
   calibrateAndValidate: () => Promise<void>;
 }
 
-const CALIBRATION_SAMPLES = 8; // Aumentado para mais precisão
-const CALIBRATION_INTERVAL = 1500; // Intervalo maior entre amostras
-const HIGH_ACCURACY_THRESHOLD = 10; // Mais rigoroso
-const MEDIUM_ACCURACY_THRESHOLD = 25; // Mais rigoroso
+const CALIBRATION_SAMPLES = 8;
+const CALIBRATION_INTERVAL = 1500;
+const HIGH_ACCURACY_THRESHOLD = 10;
+const MEDIUM_ACCURACY_THRESHOLD = 25;
 
 export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
   const [location, setLocation] = useState<LocationState | null>(null);
@@ -56,31 +57,25 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
   const watchIdRef = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Configurações mais rigorosas para alta precisão
   const highAccuracyOptions: PositionOptions = {
     enableHighAccuracy: true,
-    timeout: 20000, // Timeout maior para permitir maior precisão
-    maximumAge: 0 // Sempre obter localização fresca
+    timeout: 20000,
+    maximumAge: 0
   };
 
-  // Função para calcular média ponderada com filtro de outliers
   const calculateWeightedAverage = (samples: LocationState[]): LocationState => {
     if (samples.length === 0) throw new Error('No samples available');
     
-    // Filtrar outliers (remover as 2 piores precisões se temos mais de 5 amostras)
     let filteredSamples = [...samples].sort((a, b) => a.accuracy - b.accuracy);
     if (filteredSamples.length > 5) {
       filteredSamples = filteredSamples.slice(0, -2);
     }
     
-    // Usar apenas as 5 melhores amostras
     const bestSamples = filteredSamples.slice(0, Math.min(5, filteredSamples.length));
     
-    // Calcular pesos baseados na precisão (inverso quadrático para dar mais peso às melhores)
     const weights = bestSamples.map(s => 1 / (s.accuracy * s.accuracy));
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     
-    // Calcular média ponderada
     const weightedLat = bestSamples.reduce((sum, sample, i) => 
       sum + (sample.latitude * weights[i] / totalWeight), 0
     );
@@ -96,7 +91,6 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     };
   };
 
-  // Função para obter localização com múltiplas tentativas
   const getHighAccuracyLocation = useCallback((): Promise<LocationState> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
@@ -121,20 +115,17 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
               timestamp: position.timestamp
             };
 
-            // Se a precisão é boa o suficiente, aceitar
             if (locationData.accuracy <= 30) {
               resolve(locationData);
               return;
             }
 
-            // Se ainda temos tentativas e a precisão não é boa, tentar novamente
             attempts++;
             if (attempts < maxAttempts) {
               setTimeout(tryGetLocation, 2000);
               return;
             }
 
-            // Última tentativa - aceitar o que temos
             resolve(locationData);
           },
           (error) => {
@@ -153,8 +144,7 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     });
   }, []);
 
-  // Função de calibração avançada
-  const startCalibration = useCallback(async () => {
+  const startCalibration = useCallback(async (): Promise<void> => {
     if (calibration.isCalibrating) return;
 
     setCalibration(prev => ({
@@ -190,10 +180,8 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
         }
       }
 
-      // Calcular posição calibrada
       const calibratedLocation = calculateWeightedAverage(samples);
       
-      // Calcular offset se houver localização anterior
       if (location) {
         const offset = {
           latitude: calibratedLocation.latitude - location.latitude,
@@ -215,8 +203,6 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
         variant: quality.acceptable ? 'default' : 'destructive'
       });
 
-      return calibratedLocation;
-
     } catch (error: any) {
       toast({
         title: 'Erro na Calibração',
@@ -232,18 +218,14 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     }
   }, [getHighAccuracyLocation, location, toast]);
 
-  // Nova função que calibra e retorna a localização validada
   const calibrateAndValidate = useCallback(async (): Promise<void> => {
-    const calibratedLocation = await startCalibration();
+    await startCalibration();
     
-    if (calibratedLocation.accuracy > 50) {
-      throw new Error(`GPS com baixa precisão (${Math.round(calibratedLocation.accuracy)}m). Tente novamente em local aberto.`);
+    if (location && location.accuracy > 50) {
+      throw new Error(`GPS com baixa precisão (${Math.round(location.accuracy)}m). Tente novamente em local aberto.`);
     }
-    
-    setLocation(calibratedLocation);
-  }, [startCalibration]);
+  }, [startCalibration, location]);
 
-  // Função para atualizar localização
   const refreshLocation = useCallback(async () => {
     try {
       setLoading(true);
@@ -251,7 +233,6 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
       
       const newLocation = await getHighAccuracyLocation();
       
-      // Aplicar offset de calibração se existir
       if (calibration.offset) {
         newLocation.latitude += calibration.offset.latitude;
         newLocation.longitude += calibration.offset.longitude;
@@ -265,7 +246,6 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
     }
   }, [getHighAccuracyLocation, calibration.offset]);
 
-  // Watch de localização com configurações aprimoradas
   useEffect(() => {
     if (!navigator.geolocation) {
       setError('Geolocalização não suportada');
@@ -286,7 +266,6 @@ export const useEnhancedLocation = (): UseEnhancedLocationReturn => {
           timestamp: position.timestamp
         };
 
-        // Aplicar offset de calibração se existir
         if (calibration.offset) {
           newLocation.latitude += calibration.offset.latitude;
           newLocation.longitude += calibration.offset.longitude;

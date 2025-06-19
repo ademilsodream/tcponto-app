@@ -1,10 +1,22 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TimeRecordRegistration } from '@/components/TimeRecordRegistration';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { AllowedLocation } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
+
+interface AllowedLocation {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  range_meters: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const TimeRecordPage: React.FC = () => {
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
@@ -20,7 +32,7 @@ const TimeRecordPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('allowed_locations')
-        .select('id, name, address, latitude, longitude, range_meters, is_active')
+        .select('id, name, address, latitude, longitude, range_meters, is_active, created_at, updated_at')
         .eq('is_active', true);
 
       if (error) throw error;
@@ -52,7 +64,6 @@ const TimeRecordPage: React.FC = () => {
       const timeString = now.toTimeString().split(' ')[0];
       const dateString = now.toISOString().split('T')[0];
 
-      // Verificar se já existe um registro para hoje
       const { data: existingRecord, error: fetchError } = await supabase
         .from('time_records')
         .select('*')
@@ -66,7 +77,6 @@ const TimeRecordPage: React.FC = () => {
       }
 
       if (existingRecord) {
-        // Atualizar registro existente
         const { error: updateError } = await supabase
           .from('time_records')
           .update({
@@ -77,7 +87,6 @@ const TimeRecordPage: React.FC = () => {
 
         if (updateError) throw updateError;
       } else {
-        // Criar novo registro
         const { error: insertError } = await supabase
           .from('time_records')
           .insert({
@@ -125,4 +134,4 @@ const TimeRecordPage: React.FC = () => {
   );
 };
 
-export default TimeRecordPage; 
+export default TimeRecordPage;
