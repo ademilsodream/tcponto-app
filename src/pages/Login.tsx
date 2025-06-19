@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,7 +48,7 @@ const Login = () => {
     console.log('🔐 Tentando fazer login...');
 
     try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({ 
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({ 
         email: email.trim(), 
         password 
       });
@@ -59,6 +58,32 @@ const Login = () => {
         setError('Email ou senha incorretos');
         setIsLoading(false);
         return;
+      }
+
+      // Após login, garantir que o perfil existe
+      if (data?.user) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
+        if (!profileData) {
+          // Cria perfil mínimo
+          const { error: insertError } = await supabase.from('profiles').insert({
+            id: data.user.id,
+            name: '',
+            email: data.user.email,
+            role: 'user',
+            hourly_rate: 0.00
+          });
+          if (insertError) {
+            console.error('❌ Erro ao criar perfil:', insertError);
+            setError('Erro ao criar perfil do usuário. Contate o suporte.');
+            setIsLoading(false);
+            return;
+          }
+          console.log('✅ Perfil criado automaticamente para o usuário.');
+        }
       }
 
       console.log('✅ Login realizado com sucesso');
