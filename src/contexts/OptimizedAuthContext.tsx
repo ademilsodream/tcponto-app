@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
@@ -33,89 +33,154 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   const hasAccess = !!(profile && profile.can_register_time === true);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     console.log('🔐 Iniciando logout...');
     try {
+      setIsLoading(true);
       await supabase.auth.signOut();
-      console.log('🔒 setUser(null) chamado por logout');
-      console.trace('🔍 Stack trace do setUser(null) por logout');
-      setUser(null);
-      setProfile(null);
+      // Os estados serão resetados automaticamente pelo onAuthStateChange
       console.log('✅ Logout realizado com sucesso');
     } catch (error) {
       console.error('❌ Erro durante logout:', error);
-    }
-  };
-
-  const loadProfile = async (userId: string) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      console.log('🟢 RAW PROFILE DATA:', { data, error, userId });
-      if (error) {
-        setProfile(null);
-        setIsLoading(false);
-        return;
-      }
-      if (data) {
-        setProfile(data);
-      } else {
-        setProfile(null);
-      }
-    } catch (error) {
-      setProfile(null);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const refreshProfile = async () => {
+  const loadProfile = useCallback(async (userId: string) => {
+    if (!userId) return;
+    
+    console.log('📥 Carregando perfil para usuário:', userId);
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          name,
+          email,
+          hourly_rate,
+          overtime_rate,
+          employee_code,
+          status,
+          shift_id,
+          department_id,
+          job_function_id,
+          can_register_time,
+          departments:department_id(id, name),
+          job_functions:job_function_id(id, name)
+        `)
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Erro ao carregar perfil:', error);
+        setProfile(null);
+        return;
+      }
+
+      if (data) {
+        console.log('✅ Perfil carregado com sucesso:', data);
+        setProfile(data);
+      } else {
+        console.log('⚠️ Nenhum perfil encontrado para o usuário');
+        setProfile(null);
+      }
+    } catch (error) {
+      console.error('❌ Erro inesperado ao carregar perfil:', error);
+      setProfile(null);
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await loadProfile(user.id);
     }
-  };
+  }, [user, loadProfile]);
 
   useEffect(() => {
     let mounted = true;
-    setIsLoading(true);
 
+    const initializeAuth = async () => {
+      console.log('🚀 Inicializando autenticação...');
+      
+      try {
+        // Primeiro, verificar se já existe uma sessão
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Erro ao obter sessão:', error);
+          setIsLoading(false);
+          setInitialized(true);
+          return;
+        }
+
+        if (mounted) {
+          if (session?.user) {
+            console.log('✅ Sessão existente encontrada:', session.user.email);
+            setUser(session.user);
+            await loadProfile(session.user.id);
+          } else {
+            console.log('ℹ️ Nenhuma sessão ativa encontrada');
+            setUser(null);
+            setProfile(null);
+          }
+          setIsLoading(false);
+          setInitialized(true);
+        }
+      } catch (error) {
+        console.error('❌ Erro durante inicialização:', error);
+        if (mounted) {
+          setIsLoading(false);
+          setInitialized(true);
+        }
+      }
+    };
+
+    // Configurar listener para mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      if (session?.user) {
-        setUser(session.user);
-        await loadProfile(session.user.id);
-      } else {
-        setUser(null);
-        setProfile(null);
+      if (!mounted || !initialized) return;
+
+      console.log('🔄 Mudança de estado de auth:', event, session?.user?.email || 'sem usuário');
+
+      switch (event) {
+        case 'SIGNED_IN':
+          if (session?.user) {
+            setUser(session.user);
+            setIsLoading(true);
+            await loadProfile(session.user.id);
+            setIsLoading(false);
+          }
+          break;
+        
+        case 'SIGNED_OUT':
+          setUser(null);
+          setProfile(null);
+          setIsLoading(false);
+          break;
+        
+        case 'TOKEN_REFRESHED':
+          // Não precisamos fazer nada especial aqui
+          console.log('🔄 Token renovado');
+          break;
+        
+        default:
+          break;
       }
-      setIsLoading(false);
     });
 
-    // Chame manualmente o evento na primeira montagem para cobrir o caso de sessão já existente
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      if (session?.user) {
-        setUser(session.user);
-        loadProfile(session.user.id);
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-      setIsLoading(false);
-    });
+    // Inicializar a autenticação
+    initializeAuth();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadProfile, initialized]);
 
   const value = {
     user,
@@ -139,4 +204,17 @@ export const useOptimizedAuth = () => {
     throw new Error('useOptimizedAuth must be used within an OptimizedAuthProvider');
   }
   return context;
+};
+
+// Hook adicional para verificar se o usuário tem permissões específicas
+export const useAuthPermissions = () => {
+  const { profile } = useOptimizedAuth();
+  
+  return {
+    canRegisterTime: profile?.can_register_time ?? false,
+    hasProfile: !!profile,
+    isActive: profile?.status === 'active',
+    hasShift: !!profile?.shift_id,
+    hasDepartment: !!profile?.department_id,
+  };
 };
