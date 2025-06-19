@@ -50,19 +50,28 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     }
   };
 
-  const loadProfile = async (userId: string) => {
+  const loadProfile = async (userId: string, sessionUser?: any) => {
+    let timeoutId: any;
     try {
       console.log('👤 Carregando perfil do usuário:', userId);
+      // Timeout de segurança para nunca travar
+      timeoutId = setTimeout(() => {
+        console.error('⏰ Timeout ao carregar perfil! Forçando setIsLoading(false)');
+        setIsLoading(false);
+      }, 8000);
       const { data, error } = await supabase
         .from('profiles')
         .select(`*, departments(id, name), job_functions(id, name)`)
         .eq('id', userId)
         .maybeSingle();
+      clearTimeout(timeoutId);
       console.log('🔎 Resultado da busca de perfil:', { data, error });
       if (error) {
         console.error('❌ Erro ao carregar perfil:', error);
         console.trace('🔍 Stack trace do erro ao carregar perfil');
         setProfile(null);
+        console.log('🔽 setIsLoading(false) após erro');
+        setIsLoading(false);
         return;
       }
       if (data) {
@@ -72,12 +81,14 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         };
         setProfile(profileData);
         console.log('✅ Perfil carregado:', profileData);
+        console.log('🔽 setIsLoading(false) após perfil carregado');
+        setIsLoading(false);
       } else {
         console.warn('⚠️ Perfil não encontrado para o usuário. Usando perfil mínimo de fallback (inclusive após reload).');
         const fallbackProfile = {
           id: userId,
-          name: user?.email || 'Usuário',
-          email: user?.email || '',
+          name: sessionUser?.email || 'Usuário',
+          email: sessionUser?.email || '',
           hourly_rate: 0,
           overtime_rate: 0,
           can_register_time: true,
@@ -85,21 +96,23 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           role: 'user',
         };
         setProfile(fallbackProfile);
+        console.log('🔽 setIsLoading(false) após fallback');
         setIsLoading(false);
         return;
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('❌ Erro inesperado ao carregar/criar perfil:', error);
       console.trace('🔍 Stack trace do erro inesperado ao carregar/criar perfil');
       setProfile(null);
-    } finally {
+      console.log('🔽 setIsLoading(false) após erro inesperado');
       setIsLoading(false);
     }
   };
 
   const refreshProfile = async () => {
     if (user) {
-      await loadProfile(user.id);
+      await loadProfile(user.id, user);
     }
   };
 
@@ -109,21 +122,17 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     const initializeAuth = async () => {
       try {
         console.log('🔄 Inicializando autenticação...');
-        
         const { data: { session }, error } = await supabase.auth.getSession();
-        
         if (error) {
           console.error('❌ Erro ao obter sessão:', error);
           setIsLoading(false);
           return;
         }
-
         if (!mounted) return;
-
         if (session?.user) {
           console.log('✅ Sessão encontrada:', session.user.email);
           setUser(session.user);
-          await loadProfile(session.user.id);
+          await loadProfile(session.user.id, session.user);
         } else {
           console.log('ℹ️ Nenhuma sessão ativa encontrada');
         }
@@ -139,10 +148,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     // Configurar listener de mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-
-      console.log('🔐 [onAuthStateChange] Evento:', event, '| Sessão:', session, '| Horário:', new Date().toISOString());
+      console.log('�� [onAuthStateChange] Evento:', event, '| Sessão:', session, '| Horário:', new Date().toISOString());
       console.trace('🔍 Stack trace do evento de auth');
-      
       if (session?.user) {
         console.log('✅ Sessão ativa:', {
           user_id: session.user.id,
@@ -150,15 +157,15 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           expires_at: session.expires_at ? new Date(session.expires_at * 1000) : null
         });
         setUser(session.user);
-        await loadProfile(session.user.id);
+        await loadProfile(session.user.id, session.user);
       } else {
         console.log('❌ Sessão encerrada');
         console.log('🔒 setUser(null) chamado por onAuthStateChange (sessão encerrada)');
         console.trace('🔍 Stack trace do setUser(null) por onAuthStateChange');
         setUser(null);
         setProfile(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     // Inicializar autenticação
