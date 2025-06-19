@@ -109,6 +109,7 @@ const Login = () => {
     );
   }
 
+  // Se terminou o loading e não tem perfil ou acesso, mostrar o formulário normalmente
   return (
     <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
