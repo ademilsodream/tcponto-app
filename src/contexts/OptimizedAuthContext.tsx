@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -77,11 +76,40 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         setProfile(profileData);
         console.log('✅ Perfil carregado:', profileData.name);
       } else {
-        console.log('⚠️ Perfil não encontrado para o usuário');
-        setProfile(null);
+        console.log('⚠️ Perfil não encontrado para o usuário, criando perfil mínimo...');
+        // Cria perfil mínimo
+        const { error: insertError } = await supabase.from('profiles').insert({
+          id: userId,
+          name: '',
+          email: user?.email || '',
+          role: 'user',
+          hourly_rate: 0.00
+        });
+        if (insertError) {
+          console.error('❌ Erro ao criar perfil automaticamente:', insertError);
+          setProfile(null);
+          return;
+        }
+        // Tenta carregar novamente
+        const { data: newProfile, error: newProfileError } = await supabase
+          .from('profiles')
+          .select(`*, departments(id, name), job_functions(id, name)`)
+          .eq('id', userId)
+          .maybeSingle();
+        if (newProfile) {
+          const profileData = { 
+            ...newProfile, 
+            can_register_time: Boolean(newProfile.can_register_time) 
+          };
+          setProfile(profileData);
+          console.log('✅ Perfil criado e carregado:', profileData.name);
+        } else {
+          console.error('❌ Erro ao carregar perfil recém-criado:', newProfileError);
+          setProfile(null);
+        }
       }
     } catch (error) {
-      console.error('❌ Erro inesperado ao carregar perfil:', error);
+      console.error('❌ Erro inesperado ao carregar/criar perfil:', error);
       setProfile(null);
     }
   };
