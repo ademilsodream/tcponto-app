@@ -28,10 +28,12 @@ const Login = () => {
       hasAccess
     });
 
-    // Se usuário está autenticado e tem acesso, redirecionar
-    if (!authLoading && user && profile && hasAccess) {
+    // Redirecionar apenas quando o loading terminar e houver acesso
+    if (authLoading === false && user && profile && hasAccess) {
       console.log('✅ Usuário autenticado com acesso, redirecionando para /employee...');
       navigate('/employee', { replace: true });
+    } else if (authLoading === false) {
+      console.log('ℹ️ Não autenticado ou sem acesso, permanecendo na tela de login.');
     }
   }, [user, profile, authLoading, hasAccess, navigate]);
 
