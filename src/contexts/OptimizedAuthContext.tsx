@@ -84,28 +84,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   useEffect(() => {
     let mounted = true;
-    const initializeAuth = async () => {
-      setIsLoading(true);
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error || !mounted) {
-          setIsLoading(false);
-          return;
-        }
-        if (session?.user) {
-          setUser(session.user);
-          await loadProfile(session.user.id);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      } catch (error) {
-        setUser(null);
-        setProfile(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    setIsLoading(true);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       if (session?.user) {
@@ -117,7 +97,20 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
       setIsLoading(false);
     });
-    initializeAuth();
+
+    // Chame manualmente o evento na primeira montagem para cobrir o caso de sessão já existente
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      if (session?.user) {
+        setUser(session.user);
+        loadProfile(session.user.id);
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+      setIsLoading(false);
+    });
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
