@@ -73,7 +73,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         setProfile(profileData);
         console.log('✅ Perfil carregado:', profileData);
       } else {
-        console.warn('⚠️ Perfil não encontrado para o usuário. Usando perfil mínimo de fallback.');
+        console.warn('⚠️ Perfil não encontrado para o usuário. Usando perfil mínimo de fallback (inclusive após reload).');
         const fallbackProfile = {
           id: userId,
           name: user?.email || 'Usuário',
@@ -85,6 +85,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           role: 'user',
         };
         setProfile(fallbackProfile);
+        setIsLoading(false);
+        return;
       }
     } catch (error) {
       console.error('❌ Erro inesperado ao carregar/criar perfil:', error);
