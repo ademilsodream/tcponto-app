@@ -488,11 +488,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       // Usar a nova função de validação com confiança
       const locationValidation = await validateLocationWithConfidence(
         allowedLocations,
-        location,
-        {
-          minAccuracy: isLowAccuracy ? 100 : 50,
-          requireCalibration: isLowAccuracy
-        }
+        isLowAccuracy ? 0.5 : 0.7
       );
 
       if (!locationValidation.valid) {
@@ -505,7 +501,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     } catch (error: any) {
       onError(error.message || 'Erro ao validar localização');
     }
-  }, [allowedLocations, location, isLowAccuracy]);
+  }, [allowedLocations, isLowAccuracy]);
 
   // Função principal de registro com validação de GPS aprimorada
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
