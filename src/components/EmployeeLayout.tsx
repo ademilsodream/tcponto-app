@@ -1,8 +1,10 @@
+
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, Clock, Calendar } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
-import { Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
 
 interface EmployeeLayoutProps {}
 
@@ -58,8 +60,11 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
         </div>
       </header>
 
-      <main className="w-full p-4">
-        <Outlet />
+      <main className="w-full">
+        <Routes>
+          <Route index element={<OptimizedTimeRegistration />} />
+          <Route path="*" element={<Navigate to="/employee" replace />} />
+        </Routes>
       </main>
     </div>
   );

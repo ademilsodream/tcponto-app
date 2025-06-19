@@ -21,9 +21,17 @@ const Login = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Debug logging
+    console.log('🔍 Login - Estado atual:', {
+      authLoading,
+      user: user ? { id: user.id, email: user.email } : null,
+      profile: profile ? { name: profile.name, status: profile.status } : null,
+      hasAccess
+    });
+
     // Se usuário está autenticado e tem acesso, redirecionar
     if (!authLoading && user && profile && hasAccess) {
-      console.log('✅ Usuário autenticado com acesso, redirecionando...');
+      console.log('✅ Usuário autenticado com acesso, redirecionando para /employee...');
       navigate('/employee', { replace: true });
     }
   }, [user, profile, authLoading, hasAccess, navigate]);

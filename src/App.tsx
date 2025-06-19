@@ -5,7 +5,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { OptimizedAuthProvider } from '@/contexts/OptimizedAuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import Login from '@/pages/Login';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import EmployeeLayout from '@/components/EmployeeLayout';
+import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -18,7 +20,14 @@ function App() {
           <Router>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/employee/*" element={<EmployeeLayout />} />
+              <Route 
+                path="/employee/*" 
+                element={
+                  <ProtectedRoute>
+                    <EmployeeLayout />
+                  </ProtectedRoute>
+                } 
+              />
               <Route path="/" element={<Login />} />
             </Routes>
           </Router>
