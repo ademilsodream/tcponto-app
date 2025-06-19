@@ -473,7 +473,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     };
   }, []);
 
-  // Função para validar localização com debounce
+  // Função para validar localização corrigida
   const validateLocationRequest = useCallback(async (
     action: string,
     onSuccess: (locationValidationResult: any) => void,
