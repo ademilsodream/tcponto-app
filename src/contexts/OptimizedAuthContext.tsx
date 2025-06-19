@@ -51,30 +51,24 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const loadProfile = async (userId: string) => {
     try {
       console.log('👤 Carregando perfil do usuário:', userId);
-      
       const { data, error } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          departments(id, name),
-          job_functions(id, name)
-        `)
+        .select(`*, departments(id, name), job_functions(id, name)`)
         .eq('id', userId)
         .maybeSingle();
-
+      console.log('🔎 Resultado da busca de perfil:', { data, error });
       if (error) {
         console.error('❌ Erro ao carregar perfil:', error);
         setProfile(null);
         return;
       }
-
       if (data) {
         const profileData = { 
           ...data, 
           can_register_time: Boolean(data.can_register_time) 
         };
         setProfile(profileData);
-        console.log('✅ Perfil carregado:', profileData.name);
+        console.log('✅ Perfil carregado:', profileData);
       } else {
         console.log('⚠️ Perfil não encontrado para o usuário, criando perfil mínimo...');
         // Cria perfil mínimo
@@ -83,8 +77,11 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           name: '',
           email: user?.email || '',
           role: 'user',
-          hourly_rate: 0.00
+          hourly_rate: 0.00,
+          status: 'active',
+          can_register_time: true
         });
+        console.log('🔎 Resultado do insert de perfil:', { insertError });
         if (insertError) {
           console.error('❌ Erro ao criar perfil automaticamente:', insertError);
           setProfile(null);
@@ -96,13 +93,14 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           .select(`*, departments(id, name), job_functions(id, name)`)
           .eq('id', userId)
           .maybeSingle();
+        console.log('🔎 Resultado da busca de perfil recém-criado:', { newProfile, newProfileError });
         if (newProfile) {
           const profileData = { 
             ...newProfile, 
             can_register_time: Boolean(newProfile.can_register_time) 
           };
           setProfile(profileData);
-          console.log('✅ Perfil criado e carregado:', profileData.name);
+          console.log('✅ Perfil criado e carregado:', profileData);
         } else {
           console.error('❌ Erro ao carregar perfil recém-criado:', newProfileError);
           setProfile(null);
