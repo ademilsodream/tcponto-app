@@ -111,6 +111,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     } catch (error) {
       console.error('❌ Erro inesperado ao carregar/criar perfil:', error);
       setProfile(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
