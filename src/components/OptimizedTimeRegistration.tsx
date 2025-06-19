@@ -886,7 +886,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
 
       <div className="text-center mb-6">
         <div className="text-gray-600 text-base sm:text-lg mb-2">
-          {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+          {format(currentTime, "EEEE, dd 'de' MMMM")}
         </div>
         <div className="text-gray-900 text-4xl sm:text-6xl font-bold tracking-wider mb-4">
           {format(currentTime, 'HH:mm:ss')}
