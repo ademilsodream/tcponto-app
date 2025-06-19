@@ -70,41 +70,19 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         setProfile(profileData);
         console.log('✅ Perfil carregado:', profileData);
       } else {
-        console.log('⚠️ Perfil não encontrado para o usuário, criando perfil mínimo...');
-        // Cria perfil mínimo
-        const { error: insertError } = await supabase.from('profiles').insert({
+        console.warn('⚠️ Perfil não encontrado para o usuário. Usando perfil mínimo de fallback.');
+        // Fallback: cria perfil mínimo em memória para liberar acesso
+        const fallbackProfile = {
           id: userId,
-          name: '',
+          name: user?.email || 'Usuário',
           email: user?.email || '',
-          role: 'user',
-          hourly_rate: 0.00,
+          hourly_rate: 0,
+          overtime_rate: 0,
+          can_register_time: true,
           status: 'active',
-          can_register_time: true
-        });
-        console.log('🔎 Resultado do insert de perfil:', { insertError });
-        if (insertError) {
-          console.error('❌ Erro ao criar perfil automaticamente:', insertError);
-          setProfile(null);
-          return;
-        }
-        // Tenta carregar novamente
-        const { data: newProfile, error: newProfileError } = await supabase
-          .from('profiles')
-          .select(`*, departments(id, name), job_functions(id, name)`)
-          .eq('id', userId)
-          .maybeSingle();
-        console.log('🔎 Resultado da busca de perfil recém-criado:', { newProfile, newProfileError });
-        if (newProfile) {
-          const profileData = { 
-            ...newProfile, 
-            can_register_time: Boolean(newProfile.can_register_time) 
-          };
-          setProfile(profileData);
-          console.log('✅ Perfil criado e carregado:', profileData);
-        } else {
-          console.error('❌ Erro ao carregar perfil recém-criado:', newProfileError);
-          setProfile(null);
-        }
+          role: 'user',
+        };
+        setProfile(fallbackProfile);
       }
     } catch (error) {
       console.error('❌ Erro inesperado ao carregar/criar perfil:', error);
