@@ -135,7 +135,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log('🔐 Auth state changed:', event);
+      console.log('🔐 [onAuthStateChange] Evento:', event, '| Sessão:', session, '| Horário:', new Date().toISOString());
+      console.trace('🔍 Stack trace do evento de auth');
       
       if (session?.user) {
         console.log('✅ Sessão ativa:', {
@@ -143,7 +144,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           email: session.user.email,
           expires_at: session.expires_at ? new Date(session.expires_at * 1000) : null
         });
-        
         setUser(session.user);
         await loadProfile(session.user.id);
       } else {
@@ -151,7 +151,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         setUser(null);
         setProfile(null);
       }
-      
       setIsLoading(false);
     });
 
