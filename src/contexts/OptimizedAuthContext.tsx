@@ -61,7 +61,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }, 8000);
       const { data, error } = await supabase
         .from('profiles')
-        .select(`*, departments(id, name), job_functions(id, name)`)
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
       clearTimeout(timeoutId);
