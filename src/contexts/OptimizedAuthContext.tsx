@@ -64,7 +64,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         .select('*')
         .eq('id', userId)
         .maybeSingle();
-      console.log('🟢 RAW PROFILE DATA:', data, 'ERROR:', error);
+      console.log('🟢 RAW PROFILE DATA:', { data, error, userId });
       clearTimeout(timeoutId);
       console.log('🔎 Resultado da busca de perfil:', { data, error });
       if (error) {
