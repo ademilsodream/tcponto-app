@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
@@ -9,6 +8,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import EmployeeLayout from '@/components/EmployeeLayout';
 import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
 
 const queryClient = new QueryClient();
 
@@ -26,8 +26,10 @@ function App() {
                   <ProtectedRoute>
                     <EmployeeLayout />
                   </ProtectedRoute>
-                } 
-              />
+                }
+              >
+                <Route index element={<UltraOptimizedEmployeeDashboard />} />
+              </Route>
               <Route path="/" element={<Login />} />
             </Routes>
           </Router>
