@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,22 +21,12 @@ const Login = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Debug logging
-    console.log('🔍 Login - Estado atual:', {
-      authLoading,
-      user: user ? { id: user.id, email: user.email } : null,
-      profile: profile ? { name: profile.name, status: profile.status } : null,
-      hasAccess
-    });
-
-    // Redirecionar apenas quando o loading terminar e houver acesso
-    if (authLoading === false && user && profile && hasAccess) {
-      console.log('✅ Usuário autenticado com acesso, redirecionando para /employee...');
+    // Só redirecionar quando tiver terminado o loading e houver acesso
+    if (!authLoading && user && profile && hasAccess) {
+      console.log('✅ Redirecionando usuário autenticado para /employee');
       navigate('/employee', { replace: true });
-    } else if (authLoading === false) {
-      console.log('ℹ️ Não autenticado ou sem acesso, permanecendo na tela de login.');
     }
-  }, [user, profile, authLoading, hasAccess, navigate]);
+  }, [authLoading, user, profile, hasAccess, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +38,7 @@ const Login = () => {
     }
     
     setIsLoading(true);
-    console.log('🔐 Tentando fazer login...');
+    console.log('🔐 Tentando fazer login com:', email);
 
     try {
       const { data, error: loginError } = await supabase.auth.signInWithPassword({ 
@@ -56,40 +47,16 @@ const Login = () => {
       });
       
       if (loginError) {
-        console.error('❌ Erro de login:', loginError);
+        console.error('❌ Erro de login:', loginError.message);
         setError('Email ou senha incorretos');
         setIsLoading(false);
         return;
       }
 
-      // Após login, garantir que o perfil existe
       if (data?.user) {
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', data.user.id)
-          .maybeSingle();
-        if (!profileData) {
-          // Cria perfil mínimo
-          const { error: insertError } = await supabase.from('profiles').insert({
-            id: data.user.id,
-            name: '',
-            email: data.user.email,
-            role: 'user',
-            hourly_rate: 0.00
-          });
-          if (insertError) {
-            console.error('❌ Erro ao criar perfil:', insertError);
-            setError('Erro ao criar perfil do usuário. Contate o suporte.');
-            setIsLoading(false);
-            return;
-          }
-          console.log('✅ Perfil criado automaticamente para o usuário.');
-        }
+        console.log('✅ Login realizado com sucesso para:', data.user.email);
+        // O redirecionamento será feito pelo useEffect quando o estado for atualizado
       }
-
-      console.log('✅ Login realizado com sucesso');
-      // O redirecionamento será feito pelo useEffect quando o estado for atualizado
     } catch (error: any) {
       console.error('❌ Erro inesperado ao fazer login:', error);
       setError('Erro inesperado ao fazer login');
@@ -111,7 +78,6 @@ const Login = () => {
     );
   }
 
-  // Se terminou o loading e não tem perfil ou acesso, mostrar o formulário normalmente
   return (
     <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
       <div className="w-full max-w-md">

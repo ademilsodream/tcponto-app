@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -33,26 +34,14 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
   const hasAccess = !!(profile && profile.can_register_time === true);
 
-  const logout = useCallback(async () => {
-    console.log('🔐 Iniciando logout...');
-    try {
-      setIsLoading(true);
-      await supabase.auth.signOut();
-      // Os estados serão resetados automaticamente pelo onAuthStateChange
-      console.log('✅ Logout realizado com sucesso');
-    } catch (error) {
-      console.error('❌ Erro durante logout:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   const loadProfile = useCallback(async (userId: string) => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('❌ Tentativa de carregar perfil sem userId');
+      return;
+    }
     
     console.log('📥 Carregando perfil para usuário:', userId);
     
@@ -84,10 +73,10 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        console.log('✅ Perfil carregado com sucesso:', data);
+        console.log('✅ Perfil carregado:', { name: data.name, status: data.status, can_register_time: data.can_register_time });
         setProfile(data);
       } else {
-        console.log('⚠️ Nenhum perfil encontrado para o usuário');
+        console.log('⚠️ Nenhum perfil encontrado');
         setProfile(null);
       }
     } catch (error) {
@@ -97,90 +86,107 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (user) {
+    if (user?.id) {
       await loadProfile(user.id);
     }
-  }, [user, loadProfile]);
+  }, [user?.id, loadProfile]);
+
+  const logout = useCallback(async () => {
+    console.log('🔐 Iniciando logout...');
+    try {
+      setIsLoading(true);
+      await supabase.auth.signOut();
+      console.log('✅ Logout realizado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro durante logout:', error);
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
+    console.log('🚀 Inicializando sistema de autenticação...');
 
-    const initializeAuth = async () => {
-      console.log('🚀 Inicializando autenticação...');
-      
+    // 1. Configurar listener de mudanças de auth PRIMEIRO
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      console.log('🔄 Auth state change:', event, session?.user?.email || 'sem usuário');
+
+      // Atualizar estado do usuário imediatamente
+      const newUser = session?.user ?? null;
+      setUser(newUser);
+
+      // Processar mudanças de estado
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('👋 Usuário deslogado');
+        setProfile(null);
+        setIsLoading(false);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (newUser) {
+          console.log('👤 Usuário logado:', newUser.email);
+          setIsLoading(true);
+          
+          // Usar setTimeout para evitar problemas de deadlock
+          setTimeout(() => {
+            if (mounted) {
+              loadProfile(newUser.id).finally(() => {
+                if (mounted) {
+                  setIsLoading(false);
+                }
+              });
+            }
+          }, 0);
+        }
+      }
+    });
+
+    // 2. Verificar sessão existente DEPOIS de configurar o listener
+    const initializeSession = async () => {
       try {
-        // Primeiro, verificar se já existe uma sessão
+        console.log('🔍 Verificando sessão existente...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('❌ Erro ao obter sessão:', error);
           setIsLoading(false);
-          setInitialized(true);
           return;
         }
 
-        if (mounted) {
-          if (session?.user) {
-            console.log('✅ Sessão existente encontrada:', session.user.email);
-            setUser(session.user);
-            await loadProfile(session.user.id);
-          } else {
-            console.log('ℹ️ Nenhuma sessão ativa encontrada');
-            setUser(null);
-            setProfile(null);
-          }
+        if (session?.user && mounted) {
+          console.log('✅ Sessão existente encontrada:', session.user.email);
+          setUser(session.user);
+          setIsLoading(true);
+          
+          // Carregar perfil da sessão existente
+          loadProfile(session.user.id).finally(() => {
+            if (mounted) {
+              setIsLoading(false);
+            }
+          });
+        } else {
+          console.log('ℹ️ Nenhuma sessão ativa');
+          setUser(null);
+          setProfile(null);
           setIsLoading(false);
-          setInitialized(true);
         }
       } catch (error) {
         console.error('❌ Erro durante inicialização:', error);
         if (mounted) {
           setIsLoading(false);
-          setInitialized(true);
         }
       }
     };
 
-    // Configurar listener para mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted || !initialized) return;
+    // Executar inicialização
+    initializeSession();
 
-      console.log('🔄 Mudança de estado de auth:', event, session?.user?.email || 'sem usuário');
-
-      switch (event) {
-        case 'SIGNED_IN':
-          if (session?.user) {
-            setUser(session.user);
-            setIsLoading(true);
-            await loadProfile(session.user.id);
-            setIsLoading(false);
-          }
-          break;
-        
-        case 'SIGNED_OUT':
-          setUser(null);
-          setProfile(null);
-          setIsLoading(false);
-          break;
-        
-        case 'TOKEN_REFRESHED':
-          // Não precisamos fazer nada especial aqui
-          console.log('🔄 Token renovado');
-          break;
-        
-        default:
-          break;
-      }
-    });
-
-    // Inicializar a autenticação
-    initializeAuth();
-
+    // Cleanup
     return () => {
+      console.log('🧹 Limpando auth context...');
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [loadProfile, initialized]);
+  }, []); // Sem dependências para evitar re-execução
 
   const value = {
     user,
@@ -206,7 +212,7 @@ export const useOptimizedAuth = () => {
   return context;
 };
 
-// Hook adicional para verificar se o usuário tem permissões específicas
+// Hook adicional para verificar permissões
 export const useAuthPermissions = () => {
   const { profile } = useOptimizedAuth();
   
