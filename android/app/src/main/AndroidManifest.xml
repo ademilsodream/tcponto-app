@@ -45,7 +45,6 @@
             android:launchMode="singleTask"
             android:alwaysRetainTaskState="true"
             android:theme="@style/AppTheme.NoActionBarLaunch"
-            android:orientation="vertical"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
             android:resizeableActivity="false">
 

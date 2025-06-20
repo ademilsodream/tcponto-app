@@ -1,42 +1,42 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Toaster } from '@/components/ui/toaster';
-import { OptimizedAuthProvider } from '@/contexts/OptimizedAuthContext';
-import { CurrencyProvider } from '@/contexts/CurrencyContext';
-import Login from '@/pages/Login';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import EmployeeLayout from '@/components/EmployeeLayout';
-import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
-
-const queryClient = new QueryClient();
+import React, { useEffect } from 'react';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 function App() {
+  useEffect(() => {
+    // Solicita permissão para push
+    PushNotifications.requestPermissions().then(result => {
+      if (result.receive === 'granted') {
+        PushNotifications.register();
+      }
+    });
+
+    // Sucesso no registro
+    PushNotifications.addListener('registration', token => {
+      console.log('Push registration success, token: ' + token.value);
+      // Aqui você pode enviar o token para seu backend, se quiser
+    });
+
+    // Erro no registro
+    PushNotifications.addListener('registrationError', err => {
+      console.error('Push registration error: ', err.error);
+    });
+
+    // Notificação recebida em foreground
+    PushNotifications.addListener('pushNotificationReceived', notification => {
+      console.log('Push received: ', notification);
+    });
+
+    // Ação do usuário na notificação
+    PushNotifications.addListener('pushNotificationActionPerformed', notification => {
+      console.log('Push action performed: ', notification);
+    });
+  }, []);
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <OptimizedAuthProvider>
-        <CurrencyProvider>
-          <Router>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route 
-                path="/employee/*" 
-                element={
-                  <ProtectedRoute>
-                    <EmployeeLayout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<UltraOptimizedEmployeeDashboard />} />
-              </Route>
-              <Route path="/" element={<Login />} />
-            </Routes>
-          </Router>
-          <Toaster />
-        </CurrencyProvider>
-      </OptimizedAuthProvider>
-    </QueryClientProvider>
+    <div style={{ padding: 40, fontSize: 24 }}>
+      <b>TCPonto Teste</b>
+      <div style={{ marginTop: 20, color: 'green' }}>Se você vê esta tela, o app está funcionando!</div>
+    </div>
   );
 }
 
