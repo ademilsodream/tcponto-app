@@ -1,13 +1,7 @@
-
-// COMPONENTE PRINCIPAL COMPLETO COM TODAS AS INTEGRAÇÕES
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Clock, LogIn, Coffee, LogOut, Loader2, MapPin } from 'lucide-react';
+import { Clock, Loader2, MapPin } from 'lucide-react';
 import { Json } from '@/integrations/supabase/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -17,221 +11,21 @@ import { GPSStatus } from '@/components/GPSStatus';
 import { PushNotificationService } from '@/services/PushNotificationService';
 import { validateLocationWithConfidence, clearLocationCache } from '@/utils/enhancedLocationValidation';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { AllowedLocation } from '@/types/index';
-
-// Cache para localizações permitidas
-const allowedLocationsCache = new Map<string, { data: any; timestamp: number }>();
-const LOCATIONS_CACHE_DURATION = 30 * 60 * 1000; // 30 minutos
-
-// Cache para registros de tempo
-const timeRecordsCache = new Map<string, { data: any; timestamp: number }>();
-const TIME_RECORDS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
-
-type TimeRecordKey = 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
-
-interface LocationDetails {
-  address: string;
-  distance: number;
-  latitude: number;
-  longitude: number;
-  timestamp: string;
-  locationName: string;
-  gpsAccuracy?: number;
-  confidence?: number;
-}
-
-interface LocationsData {
-  clock_in?: LocationDetails;
-  lunch_start?: LocationDetails;
-  lunch_end?: LocationDetails;
-  clock_out?: LocationDetails;
-}
-
-interface TimeRecord {
-  id: string;
-  date: string;
-  clock_in?: string;
-  lunch_start?: string;
-  lunch_end?: string;
-  clock_out?: string;
-  total_hours: number;
-  normal_hours?: number;
-  overtime_hours?: number;
-  normal_pay?: number;
-  overtime_pay?: number;
-  total_pay?: number;
-  locations?: Json | null;
-  created_at?: string;
-  updated_at?: string;
-  status?: string;
-  is_pending_approval?: boolean;
-  approved_by?: string;
-  approved_at?: string;
-}
-
-interface AllowedLocation {
-  id: string;
-  name: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-  range_meters: number;
-  is_active: boolean;
-}
-
-// Hook de validação de turno (mantendo o existente)
-const useWorkShiftValidation = () => {
-  const { user } = useOptimizedAuth();
-  const [hasShift, setHasShift] = useState<boolean>(false);
-  const [canRegisterPoint, setCanRegisterPoint] = useState<boolean>(true);
-  const [currentShiftMessage, setCurrentShiftMessage] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadShiftData = async () => {
-      if (!user) return;
-
-      try {
-        setLoading(true);
-
-        // 1. Buscar perfil do usuário
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('shift_id')
-          .eq('id', user.id)
-          .single();
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.warn('Erro ao buscar perfil:', profileError);
-          setHasShift(false);
-          setCanRegisterPoint(true);
-          setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setLoading(false);
-          return;
-        }
-
-        // Se não tem shift_id, modo livre
-        if (!profileData?.shift_id) {
-          console.log('👤 Usuário sem turno - modo livre');
-          setHasShift(false);
-          setCanRegisterPoint(true);
-          setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setLoading(false);
-          return;
-        }
-
-        // 2. Buscar dados do turno
-        const { data: shiftData, error: shiftError } = await supabase
-          .from('work_shifts')
-          .select('*')
-          .eq('id', profileData.shift_id)
-          .eq('is_active', true)
-          .single();
-
-        if (shiftError) {
-          console.warn('Turno não encontrado ou inativo - modo livre');
-          setHasShift(false);
-          setCanRegisterPoint(true);
-          setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setLoading(false);
-          return;
-        }
-
-        // 3. Buscar horários do turno
-        const { data: schedulesData, error: schedulesError } = await supabase
-          .from('work_shift_schedules')
-          .select('*')
-          .eq('shift_id', profileData.shift_id)
-          .eq('is_active', true);
-
-        if (schedulesError || !schedulesData?.length) {
-          console.warn('Horários não encontrados - modo livre');
-          setHasShift(false);
-          setCanRegisterPoint(true);
-          setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setLoading(false);
-          return;
-        }
-
-        // 4. Validar janelas de registro
-        setHasShift(true);
-        
-        const now = new Date();
-        const dayOfWeek = now.getDay();
-        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        const todaySchedule = schedulesData.find((s: any) => s.day_of_week === dayOfWeek);
-        
-        if (!todaySchedule) {
-          setCanRegisterPoint(false);
-          setCurrentShiftMessage('Nenhum horário configurado para hoje');
-          setLoading(false);
-          return;
-        }
-
-        // Calcular janelas com tolerância
-        const tolerance = shiftData.early_tolerance_minutes || 15;
-        const windows = [
-          { time: todaySchedule.start_time, type: 'Entrada' },
-          { time: todaySchedule.break_start_time, type: 'Início do Almoço' },
-          { time: todaySchedule.break_end_time, type: 'Fim do Almoço' },
-          { time: todaySchedule.end_time, type: 'Saída' }
-        ].filter(w => w.time);
-
-        let inWindow = false;
-        let message = '';
-
-        for (const window of windows) {
-          const [h, m] = window.time.split(':').map(Number);
-          const windowMinutes = h * 60 + m;
-          const startWindow = windowMinutes - tolerance;
-          const endWindow = windowMinutes + tolerance;
-          
-          const [ch, cm] = currentTime.split(':').map(Number);
-          const currentMinutes = ch * 60 + cm;
-
-          if (currentMinutes >= startWindow && currentMinutes <= endWindow) {
-            inWindow = true;
-            const startTime = `${String(Math.floor(startWindow / 60)).padStart(2, '0')}:${String(startWindow % 60).padStart(2, '0')}`;
-            const endTime = `${String(Math.floor(endWindow / 60)).padStart(2, '0')}:${String(endWindow % 60).padStart(2, '0')}`;
-            message = `Janela de ${window.type} ativa (${startTime} - ${endTime})`;
-            break;
-          }
-        }
-
-        setCanRegisterPoint(inWindow);
-        setCurrentShiftMessage(inWindow ? message : 'Fora das janelas de registro permitidas');
-
-      } catch (err) {
-        console.warn('Erro na validação de turno - modo livre:', err);
-        setHasShift(false);
-        setCanRegisterPoint(true);
-        setCurrentShiftMessage('Modo livre - sem restrições de horário');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadShiftData();
-    
-    // Atualizar a cada minuto
-    const interval = setInterval(loadShiftData, 60000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  return { canRegisterPoint, currentShiftMessage, loading, hasShift };
-};
-
-const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
-
-const formatRemainingTime = (ms: number): string => {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
+import { TimeDisplay } from './TimeDisplay';
+import { TimeRegistrationProgress } from './TimeRegistrationProgress';
+import { EditRequestDialog } from './EditRequestDialog';
+import { useWorkShiftValidation } from '../hooks/useWorkShiftValidation';
+import { 
+  COOLDOWN_DURATION_MS, 
+  formatRemainingTime,
+  allowedLocationsCache,
+  LOCATIONS_CACHE_DURATION,
+  timeRecordsCache,
+  TIME_RECORDS_CACHE_DURATION
+} from '../utils/timeRegistrationUtils';
+import { TimeRecord, TimeRecordKey, LocationDetails, LocationsData } from '../types/timeRegistration';
 
 const OptimizedTimeRegistrationComponent = React.memo(() => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
@@ -245,9 +39,8 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
 
-  const { user, profile, refreshProfile } = useOptimizedAuth();
+  const { user, refreshProfile } = useOptimizedAuth();
   
-  // Usar o hook aprimorado de localização
   const { 
     location, 
     loading: locationLoading, 
@@ -272,13 +65,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     return `${year}-${month}-${day}`;
   }, []);
 
-  const localTime = useMemo(() => {
-    const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-  }, [currentTime]);
-
   const greeting = useMemo(() => {
     const hour = currentTime.getHours();
     if (hour >= 5 && hour < 12) return 'Bom dia';
@@ -296,18 +82,10 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     return 'Usuário';
   }, [userProfile?.name, user?.email]);
 
-  const fieldNames: Record<TimeRecordKey, string> = useMemo(() => ({
-    clock_in: 'Entrada',
-    lunch_start: 'Início do Almoço',
-    lunch_end: 'Fim do Almoço',
-    clock_out: 'Saída'
-  }), []);
-
   // Query otimizada para localizações permitidas com cache
   const { data: allowedLocations = [] } = useOptimizedQuery<AllowedLocation[]>({
     queryKey: ['allowed-locations'],
     queryFn: async () => {
-      // Verificar cache
       const cachedData = allowedLocationsCache.get('allowed-locations');
       if (cachedData && Date.now() - cachedData.timestamp < LOCATIONS_CACHE_DURATION) {
         return cachedData.data;
@@ -330,7 +108,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         range_meters: Number(location.range_meters)
       }));
 
-      // Atualizar cache
       allowedLocationsCache.set('allowed-locations', {
         data: formattedData,
         timestamp: Date.now()
@@ -377,7 +154,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     queryFn: async () => {
       if (!user) return null;
 
-      // Verificar cache
       const cacheKey = `${user.id}-${localDate}`;
       const cachedData = timeRecordsCache.get(cacheKey);
       if (cachedData && Date.now() - cachedData.timestamp < TIME_RECORDS_CACHE_DURATION) {
@@ -398,7 +174,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         return null;
       }
 
-      // Atualizar cache
       timeRecordsCache.set(cacheKey, {
         data,
         timestamp: Date.now()
@@ -464,10 +239,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       }
     };
 
-    // Verificar imediatamente
     updateCooldown();
-
-    // Atualizar a cada segundo
     intervalId = setInterval(updateCooldown, 1000);
 
     return () => {
@@ -487,7 +259,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     }
 
     try {
-      // Usar a nova função de validação com confiança
       const locationValidation = await validateLocationWithConfidence(
         allowedLocations,
         isLowAccuracy ? 0.5 : 0.7
@@ -509,17 +280,15 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
-    // Verificação de ponto já registrado (apenas se tem turno)
     if (hasShift && timeRecord?.[action]) {
       toast({
         title: "Já registrado",
-        description: `${fieldNames[action]} já foi registrado hoje`,
+        description: `${action === 'clock_in' ? 'Entrada' : action === 'lunch_start' ? 'Início do Almoço' : action === 'lunch_end' ? 'Fim do Almoço' : 'Saída'} já foi registrado hoje`,
         variant: "destructive"
       });
       return;
     }
 
-    // Verificação de turno (apenas se tem turno vinculado)
     if (hasShift && !canRegisterPoint) {
       toast({
         title: "Horário não permitido",
@@ -529,7 +298,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       return;
     }
 
-    // Verificação de cooldown
     if (cooldownEndTime && cooldownEndTime > Date.now()) {
       toast({
         title: "Aguarde",
@@ -539,7 +307,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       return;
     }
 
-    // Nova verificação de precisão do GPS
     if (location && location.accuracy > 100) {
       const shouldProceed = await new Promise<boolean>((resolve) => {
         toast({
@@ -550,10 +317,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
               <Button 
                 size="sm" 
                 variant="outline" 
-                onClick={() => {
-                  // Fechar o toast
-                  resolve(true);
-                }}
+                onClick={() => resolve(true)}
               >
                 Continuar assim
               </Button>
@@ -568,7 +332,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
               </Button>
             </div>
           ),
-          duration: 10000 // 10 segundos para decidir
+          duration: 10000
         });
       });
 
@@ -577,7 +341,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
 
     setSubmitting(true);
 
-    // Validação de localização
     if (allowedLocations.length > 0) {
       await validateLocationRequest(
         action,
@@ -625,29 +388,25 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       await processTimeRegistration(action, simpleLocationResult);
     }
 
-  }, [user, submitting, timeRecord, localDate, allowedLocations, validateLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, fieldNames, isLowAccuracy, startCalibration]);
+  }, [user, submitting, timeRecord, allowedLocations, validateLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, isLowAccuracy, startCalibration]);
 
   // Função para processar registro com dados aprimorados
   const processTimeRegistration = async (action: TimeRecordKey, locationValidationResult: any) => {
     try {
       const now = new Date();
       
-      // Determinar qual horário usar
       let currentTimeString: string;
       
       if (hasShift) {
-        // Modo turno: usar horário oficial (seria necessário implementar a lógica de obter horário oficial)
         currentTimeString = format(now, 'HH:mm:ss');
         console.log('📝 Modo TURNO - registrando horário atual (implementar horário oficial):', currentTimeString);
       } else {
-        // Modo livre: usar horário atual
         currentTimeString = format(now, 'HH:mm:ss');
         console.log('📝 Modo LIVRE - registrando horário atual:', currentTimeString);
       }
       
       const currentDateString = localDate;
 
-      // Dados de localização aprimorados
       const locationData: LocationDetails = {
         address: locationValidationResult.closestLocation?.address || 'Endereço não disponível',
         distance: locationValidationResult.distance || 0,
@@ -662,7 +421,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       const locationsJson = timeRecord?.locations ? { ...timeRecord.locations as LocationsData } : {};
       locationsJson[action] = locationData;
 
-      // Dados para upsert
       const upsertData = {
         user_id: user!.id,
         date: currentDateString,
@@ -680,39 +438,33 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         throw new Error(`Erro ao salvar registro: ${updateError.message}`);
       }
 
-      // Atualizar estado local
       setTimeRecord(updatedRecord);
 
-      // Cooldown
       const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
       setCooldownEndTime(newCooldownEndTime);
       setRemainingCooldown(COOLDOWN_DURATION_MS);
       localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
 
-      // Push notification
       try {
         const pushService = PushNotificationService.getInstance();
         await pushService.sendNotification({
           userId: user!.id,
           title: 'Ponto Registrado',
-          body: `${fieldNames[action]} registrado às ${currentTimeString.slice(0, 5)}`
+          body: `${action === 'clock_in' ? 'Entrada' : action === 'lunch_start' ? 'Início do Almoço' : action === 'lunch_end' ? 'Fim do Almoço' : 'Saída'} registrado às ${currentTimeString.slice(0, 5)}`
         });
       } catch (pushError) {
         console.warn('Erro ao enviar notificação push:', pushError);
       }
 
-      // Limpar cache de localização
       clearLocationCache();
 
       toast({
         title: "Sucesso",
-        description: `${fieldNames[action]} registrado em ${currentTimeString.slice(0, 5)}!`,
+        description: `${action === 'clock_in' ? 'Entrada' : action === 'lunch_start' ? 'Início do Almoço' : action === 'lunch_end' ? 'Fim do Almoço' : 'Saída'} registrado em ${currentTimeString.slice(0, 5)}!`,
       });
 
-      // Atualizar profile
       await refreshProfile();
 
-      // Refetch em background
       setTimeout(() => {
         refetchRecord();
       }, 1000);
@@ -795,22 +547,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     return () => clearInterval(interval);
   }, [timeRecord?.date, localDate, refetchRecord]);
 
-  // Layout e componentes visuais
-  const steps = useMemo(() => [
-    { key: 'clock_in' as TimeRecordKey, label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
-    { key: 'lunch_start' as TimeRecordKey, label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'lunch_end' as TimeRecordKey, label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'clock_out' as TimeRecordKey, label: 'Saída', icon: LogOut, color: 'bg-red-500' },
-  ], []);
-
-  const getValue = useCallback((key: TimeRecordKey) => {
-    return timeRecord?.[key];
-  }, [timeRecord]);
-
-  const completedCount = useMemo(() => {
-    return steps.filter(step => getValue(step.key)).length;
-  }, [steps, getValue]);
-
   const nextAction = useMemo<TimeRecordKey | null>(() => {
     if (!timeRecord?.clock_in) return 'clock_in';
     if (!timeRecord?.lunch_start) return 'lunch_start';
@@ -831,6 +567,13 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const isInCooldown = useMemo(() => {
     return cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0;
   }, [cooldownEndTime, remainingCooldown]);
+
+  const handleEditRequest = (field: TimeRecordKey, value: string) => {
+    setEditField(field);
+    setEditValue(value);
+    setEditReason('');
+    setIsEditDialogOpen(true);
+  };
 
   // Tratamento de erros
   if (locationError) {
@@ -867,31 +610,13 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
       </div>
 
-      <div className="text-center mb-4">
-        <div className="text-blue-600 text-xl sm:text-2xl font-semibold mb-1">
-          {greeting}, {userDisplayName}! 👋
-        </div>
-        <div className="text-gray-500 text-sm sm:text-base">
-          Pronto para registrar seu ponto?
-        </div>
-        {/* Mensagem do turno */}
-        {currentShiftMessage && (
-          <div className="text-xs text-blue-600 mt-1 bg-blue-50 p-2 rounded">
-            {currentShiftMessage}
-          </div>
-        )}
-      </div>
+      <TimeDisplay
+        currentTime={currentTime}
+        greeting={greeting}
+        userDisplayName={userDisplayName}
+        currentShiftMessage={currentShiftMessage}
+      />
 
-      <div className="text-center mb-6">
-        <div className="text-gray-600 text-base sm:text-lg mb-2">
-          {format(currentTime, "EEEE, dd 'de' MMMM")}
-        </div>
-        <div className="text-gray-900 text-4xl sm:text-6xl font-bold tracking-wider mb-4">
-          {format(currentTime, 'HH:mm:ss')}
-        </div>
-      </div>
-
-      {/* Componente de Status GPS */}
       <GPSStatus
         location={location}
         calibration={calibration}
@@ -904,68 +629,11 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
 
       <Card className="w-full max-w-md bg-white shadow-lg">
         <CardContent className="p-4 sm:p-6">
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-3">
-              {steps.map((step, index) => {
-                const Icon = step.icon;
-                const isCompleted = !!getValue(step.key);
-                const isNext = !isCompleted && completedCount === index;
+          <TimeRegistrationProgress
+            timeRecord={timeRecord}
+            onEditRequest={handleEditRequest}
+          />
 
-                return (
-                  <div key={step.key} className="flex flex-col items-center flex-1">
-                    <div
-                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
-                        isCompleted
-                          ? `${step.color} text-white`
-                          : isNext
-                            ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
-                            : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </div>
-                    <span className={`text-xs text-center ${
-                      isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
-                    }`}>
-                      {step.label}
-                    </span>
-                    {isCompleted && (
-                      <span className="text-xs text-blue-600 mt-1 font-medium">
-                        {getValue(step.key)}
-                      </span>
-                    )}
-                    {isCompleted && (
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="text-xs text-blue-500 hover:text-blue-700 p-0 h-auto"
-                        onClick={() => {
-                          setEditField(step.key);
-                          setEditValue(getValue(step.key) || '');
-                          setEditReason('');
-                          setIsEditDialogOpen(true);
-                        }}
-                      >
-                        Editar
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width: `${(completedCount / 4) * 100}%`,
-                  background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Estado de carregamento */}
           {(locationLoading || calibration.isCalibrating) && (
             <div className="text-center py-4 text-blue-600">
               <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
@@ -997,7 +665,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
                 )}
               </Button>
               
-              {/* Contador de cooldown */}
               {isInCooldown && (
                 <div className="text-center text-sm mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <div className="text-yellow-800 font-medium mb-1">
@@ -1009,7 +676,6 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
                 </div>
               )}
 
-              {/* Mensagem de turno restrito */}
               {hasShift && !canRegisterPoint && !shiftLoading && (
                 <div className="text-center text-sm mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <div className="text-red-800 font-medium mb-1">
@@ -1036,56 +702,17 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         </CardContent>
       </Card>
 
-      {/* Dialog de edição */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Solicitar Alteração - {editField ? fieldNames[editField] : ''}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-value">Novo Horário</Label>
-              <Input
-                id="edit-value"
-                type="time"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
-              <Textarea
-                id="edit-reason"
-                value={editReason}
-                onChange={(e) => setEditReason(e.target.value)}
-                placeholder="Descreva o motivo da solicitação de alteração..."
-                required
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => setIsEditDialogOpen(false)}
-                disabled={submitting}
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleEditSubmit}
-                disabled={submitting || !editValue || !editReason}
-              >
-                {submitting ? 'Enviando...' : 'Enviar Solicitação'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EditRequestDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        editField={editField}
+        editValue={editValue}
+        editReason={editReason}
+        submitting={submitting}
+        onValueChange={setEditValue}
+        onReasonChange={setEditReason}
+        onSubmit={handleEditSubmit}
+      />
     </div>
   );
 });
