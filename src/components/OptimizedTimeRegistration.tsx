@@ -1,3 +1,4 @@
+
 // COMPONENTE PRINCIPAL COMPLETO COM TODAS AS INTEGRAÇÕES
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import { validateLocationWithConfidence, clearLocationCache } from '@/utils/enha
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
+import { AllowedLocation } from '@/types/index';
 
 // Cache para localizações permitidas
 const allowedLocationsCache = new Map<string, { data: any; timestamp: number }>();
