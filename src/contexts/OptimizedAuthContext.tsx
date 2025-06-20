@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
+import { PushNotificationService } from '@/services/PushNotificationService';
 
 interface Profile {
   id: string;
@@ -187,6 +187,12 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       subscription.unsubscribe();
     };
   }, []); // Sem dependências para evitar re-execução
+
+  useEffect(() => {
+    if (user && user.id) {
+      PushNotificationService.getInstance().initialize(user.id);
+    }
+  }, [user]);
 
   const value = {
     user,
