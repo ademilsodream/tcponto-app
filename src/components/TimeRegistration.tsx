@@ -13,6 +13,9 @@ import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation'; // ✨ 
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
+import AnnouncementNotification from '@/components/AnnouncementNotification';
+import AnnouncementModal from '@/components/AnnouncementModal';
 
 interface TimeRecord {
   id: string;
@@ -47,11 +50,16 @@ const TimeRegistration = () => {
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
-  const { user, hasAccess } = useOptimizedAuth(); // ✨ Usar hasAccess
+  const { user, hasAccess } = useOptimizedAuth();
   const { toast } = useToast();
 
   // ✨ Usar o novo hook de validação de turno
   const shiftValidation = useWorkShiftValidation();
+
+  // ✨ Adicionar hook de anúncios
+  const { unreadAnnouncements, markAsRead } = useUnreadAnnouncements();
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
 
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
@@ -472,6 +480,20 @@ const TimeRegistration = () => {
     (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
     (nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]);
 
+  const handleAnnouncementClick = (announcement: any) => {
+    setSelectedAnnouncement(announcement);
+    setIsAnnouncementModalOpen(true);
+  };
+
+  const handleCloseAnnouncementModal = () => {
+    setIsAnnouncementModalOpen(false);
+    setSelectedAnnouncement(null);
+  };
+
+  const handleMarkAnnouncementAsRead = (announcementId: string) => {
+    markAsRead(announcementId);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
@@ -599,6 +621,16 @@ const TimeRegistration = () => {
         </CardContent>
       </Card>
 
+      {/* ✨ Componente de notificação de anúncios - adicionado abaixo do card principal */}
+      {unreadAnnouncements.length > 0 && (
+        <div className="w-full max-w-md mt-4">
+          <AnnouncementNotification
+            announcements={unreadAnnouncements}
+            onAnnouncementClick={handleAnnouncementClick}
+          />
+        </div>
+      )}
+
       {/* Dialog de Edição - mantido igual */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
@@ -649,6 +681,14 @@ const TimeRegistration = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ✨ Modal de anúncios */}
+      <AnnouncementModal
+        announcement={selectedAnnouncement}
+        isOpen={isAnnouncementModalOpen}
+        onClose={handleCloseAnnouncementModal}
+        onMarkAsRead={handleMarkAnnouncementAsRead}
+      />
     </div>
   );
 };
