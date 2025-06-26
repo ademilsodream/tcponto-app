@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -84,7 +83,7 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      // 🔧 CORREÇÃO: Simplificar a verificação de expiração
+      // 🔧 CORREÇÃO: Verificação de expiração usando Date para evitar bugs de timezone
       const now = new Date();
       console.log('🕐 Data/hora atual (UTC):', now.toISOString());
       console.log('🕐 Data/hora atual (Local):', now.toString());
@@ -104,14 +103,13 @@ export const useUnreadAnnouncements = () => {
             };
           }
 
-          // 🔧 CORREÇÃO: Usar comparação de string direta para evitar problemas de timezone
-          const expiresAtString = announcement.expires_at;
-          const nowString = now.toISOString();
-          const isExpired = expiresAtString < nowString;
+          // Comparação correta de datas usando Date
+          const expiresAtDate = new Date(announcement.expires_at);
+          const isExpired = expiresAtDate <= now;
           
-          console.log('   - expires_at (String):', expiresAtString);
-          console.log('   - now (String):', nowString);
-          console.log('   - isExpired (String comparison):', isExpired);
+          console.log('   - expires_at (Date):', expiresAtDate.toISOString());
+          console.log('   - now (Date):', now.toISOString());
+          console.log('   - isExpired (Date comparison):', isExpired);
 
           if (isExpired) {
             console.log('   ❌ ANÚNCIO EXPIRADO - IGNORANDO');
