@@ -1,185 +1,202 @@
 
 import React, { useState, useEffect } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Clock } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const { user, profile, isLoading: authLoading, hasAccess } = useOptimizedAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
+  console.log('🔐 Login component - Estado atual:', {
+    user: !!user,
+    profile: !!profile,
+    authLoading,
+    hasAccess,
+    userEmail: user?.email
+  });
+
+  // ✨ Redirecionamento automático melhorado
   useEffect(() => {
-    // Só redirecionar quando tiver terminado o loading e houver acesso
+    console.log('🔄 Login useEffect - Verificando redirecionamento:', {
+      authLoading,
+      user: !!user,
+      profile: !!profile,
+      hasAccess
+    });
+
+    // Se não está carregando e tem usuário com perfil e acesso, redirecionar
     if (!authLoading && user && profile && hasAccess) {
-      console.log('✅ Redirecionando usuário autenticado para /employee');
+      console.log('✅ Login: Redirecionando usuário logado para /employee');
       navigate('/employee', { replace: true });
-    }
-  }, [authLoading, user, profile, hasAccess, navigate]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    
-    if (!email || !password) {
-      setError('Preencha todos os campos');
-      return;
-    }
-    
-    setIsLoading(true);
-    console.log('🔐 Tentando fazer login com:', email);
-
-    try {
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({ 
-        email: email.trim(), 
-        password 
+    } else if (!authLoading && user && profile && !hasAccess) {
+      console.log('🔒 Login: Usuário sem acesso - mantendo na tela de login');
+      toast({
+        title: "Acesso Negado",
+        description: "Você não tem permissão para acessar o sistema de ponto.",
+        variant: "destructive"
       });
-      
-      if (loginError) {
-        console.error('❌ Erro de login:', loginError.message);
-        setError('Email ou senha incorretos');
-        setIsLoading(false);
-        return;
-      }
-
-      if (data?.user) {
-        console.log('✅ Login realizado com sucesso para:', data.user.email);
-        // O redirecionamento será feito pelo useEffect quando o estado for atualizado
-      }
-    } catch (error: any) {
-      console.error('❌ Erro inesperado ao fazer login:', error);
-      setError('Erro inesperado ao fazer login');
-      setIsLoading(false);
     }
-  };
+  }, [authLoading, user, profile, hasAccess, navigate, toast]);
 
-  const togglePasswordVisibility = () => setShowPassword(!showPassword);
-
-  // Mostrar loading enquanto verifica autenticação
+  // ✨ Se está carregando autenticação, mostrar loading
   if (authLoading) {
+    console.log('⏳ Login: Carregando autenticação...');
     return (
-      <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center">
         <div className="text-center">
-          <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-white" />
-          <p className="text-white">Verificando autenticação...</p>
+          <Clock className="w-8 h-8 animate-spin mx-auto mb-4 text-primary-600" />
+          <p className="text-primary-600">Verificando autenticação...</p>
         </div>
       </div>
     );
   }
 
+  // ✨ Se usuário já está logado e tem acesso, redirecionar (fallback)
+  if (user && profile && hasAccess) {
+    console.log('🔄 Login: Redirecionamento via Navigate component');
+    return <Navigate to="/employee" replace />;
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    console.log('🔐 Tentativa de login para:', email);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('❌ Erro no login:', error);
+        toast({
+          title: "Erro no login",
+          description: error.message === 'Invalid login credentials' 
+            ? "Email ou senha incorretos" 
+            : error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data.user) {
+        console.log('✅ Login realizado com sucesso:', data.user.email);
+        // O redirecionamento será feito pelo useEffect quando o AuthContext atualizar
+      }
+    } catch (error) {
+      console.error('❌ Erro inesperado no login:', error);
+      toast({
+        title: "Erro",
+        description: "Erro inesperado ao fazer login",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
             <img 
               src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
               alt="TCPonto Logo" 
-              className="w-20 h-20 rounded-full shadow-lg"
+              className="w-16 h-16 rounded-full" 
             />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">TCPonto</h1>
-          <p className="text-white">Sistema de Controle de Ponto</p>
-        </div>
-
-        <Card className="shadow-2xl border-0">
-          <CardHeader className="text-center">
-            <CardTitle className="flex items-center justify-center gap-2 text-primary-900">
-              <LogIn className="w-5 h-5" />
-              Entrar no Sistema
-            </CardTitle>
-            <CardDescription>
-              Digite suas credenciais para acessar
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
+          <CardTitle className="text-2xl font-bold text-gray-900">TCPonto</CardTitle>
+          <CardDescription>
+            Sistema de Controle de Ponto
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <div className="relative">
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
-                  autoComplete="email"
-                  className="h-12 text-base"
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  autoComplete="current-password"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Digite sua senha"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    autoComplete="current-password"
-                    className="h-12 text-base pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 h-full"
-                    onClick={togglePasswordVisibility}
-                    disabled={isLoading}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-gray-500" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-gray-500" />
-                    )}
-                  </Button>
-                </div>
-              </div>
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={loading}
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </Button>
+          </form>
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button 
-                type="submit" 
-                className="w-full bg-[#021B40] hover:bg-[#021B40]/90 text-white h-12 text-base"
-                disabled={isLoading}
+          {/* 🧪 BOTÃO DE DEBUG TEMPORÁRIO */}
+          {user && profile && (
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+              <p className="text-sm text-blue-700 mb-2">
+                Debug: Usuário logado como {user.email}
+              </p>
+              <Button
+                onClick={() => {
+                  console.log('🧪 Forçando navegação para /employee');
+                  navigate('/employee', { replace: true });
+                }}
+                variant="outline"
+                size="sm"
+                className="w-full"
               >
-                {isLoading ? (
-                  <>
-                    <Clock className="w-4 h-4 animate-spin mr-2" />
-                    Entrando...
-                  </>
-                ) : (
-                  <>
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Entrar
-                  </>
-                )}
+                🧪 Ir para Dashboard (Debug)
               </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <div className="text-center mt-6">
-          <p className="text-white text-sm opacity-75">V-2.0</p>
-        </div>
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
