@@ -84,37 +84,51 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      // Filtrar anúncios não expirados e fazer type casting
+      // 🔧 CORREÇÃO: Simplificar a verificação de expiração
       const now = new Date();
-      console.log('🕐 Data/hora atual para comparação:', now.toISOString());
+      console.log('🕐 Data/hora atual (UTC):', now.toISOString());
+      console.log('🕐 Data/hora atual (Local):', now.toString());
 
       const activeAnnouncements = announcementsData
-        .filter(announcement => {
-          if (announcement.expires_at) {
-            const expirationDate = new Date(announcement.expires_at);
-            const isExpired = expirationDate < now;
-            console.log(`⏰ Verificando expiração do anúncio ${announcement.id}:`, {
-              expires_at: announcement.expires_at,
-              expirationDate: expirationDate.toISOString(),
-              now: now.toISOString(),
-              isExpired
-            });
-            if (isExpired) {
-              console.log(`❌ Anúncio ${announcement.id} EXPIRADO, ignorando`);
-              return false;
-            }
-            console.log(`✅ Anúncio ${announcement.id} ATIVO (não expirou)`);
-          } else {
-            console.log(`✅ Anúncio ${announcement.id} ATIVO (sem data de expiração)`);
+        .map(announcement => {
+          console.log(`🔍 Processando anúncio ${announcement.id}:`);
+          console.log('   - Title:', announcement.title);
+          console.log('   - expires_at (RAW):', announcement.expires_at);
+          
+          // Se não tem data de expiração, sempre ativo
+          if (!announcement.expires_at) {
+            console.log('   ✅ SEM DATA DE EXPIRAÇÃO - SEMPRE ATIVO');
+            return {
+              ...announcement,
+              priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
+            };
           }
-          return true;
+
+          // 🔧 CORREÇÃO: Usar comparação de string direta para evitar problemas de timezone
+          const expiresAtString = announcement.expires_at;
+          const nowString = now.toISOString();
+          const isExpired = expiresAtString < nowString;
+          
+          console.log('   - expires_at (String):', expiresAtString);
+          console.log('   - now (String):', nowString);
+          console.log('   - isExpired (String comparison):', isExpired);
+
+          if (isExpired) {
+            console.log('   ❌ ANÚNCIO EXPIRADO - IGNORANDO');
+            return null;
+          }
+
+          console.log('   ✅ ANÚNCIO ATIVO - INCLUINDO');
+          return {
+            ...announcement,
+            priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
+          };
         })
-        .map(announcement => ({
-          ...announcement,
-          priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
-        }));
+        .filter(announcement => announcement !== null) as Announcement[];
 
       console.log('✅ RESULTADO FINAL - Anúncios ativos processados:', activeAnnouncements.length, activeAnnouncements);
+      
+      // 🔧 CORREÇÃO: Sempre definir o estado, mesmo que seja array vazio
       setUnreadAnnouncements(activeAnnouncements);
       
       if (activeAnnouncements.length > 0) {
