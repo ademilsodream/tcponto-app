@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -419,6 +420,23 @@ const TimeRegistration = () => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const handleAnnouncementClick = (announcement: any) => {
+    console.log('🖱️ TimeRegistration: Clique no anúncio:', announcement.id);
+    setSelectedAnnouncement(announcement);
+    setIsAnnouncementModalOpen(true);
+  };
+
+  const handleCloseAnnouncementModal = () => {
+    console.log('❌ TimeRegistration: Fechando modal de anúncio');
+    setIsAnnouncementModalOpen(false);
+    setSelectedAnnouncement(null);
+  };
+
+  const handleMarkAnnouncementAsRead = (announcementId: string) => {
+    console.log('📖 TimeRegistration: Marcando anúncio como lido:', announcementId);
+    markAsRead(announcementId);
+  };
+
   // ✨ Se não tem acesso, mostrar mensagem de bloqueio
   if (!hasAccess) {
     return (
@@ -482,101 +500,6 @@ const TimeRegistration = () => {
   const isRegistrationButtonDisabled = submitting || 
     (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
     (nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]);
-
-  const handleAnnouncementClick = (announcement: any) => {
-    console.log('🖱️ TimeRegistration: Clique no anúncio:', announcement.id);
-    setSelectedAnnouncement(announcement);
-    setIsAnnouncementModalOpen(true);
-  };
-
-  const handleCloseAnnouncementModal = () => {
-    console.log('❌ TimeRegistration: Fechando modal de anúncio');
-    setIsAnnouncementModalOpen(false);
-    setSelectedAnnouncement(null);
-  };
-
-  const handleMarkAnnouncementAsRead = (announcementId: string) => {
-    console.log('📖 TimeRegistration: Marcando anúncio como lido:', announcementId);
-    markAsRead(announcementId);
-  };
-
-  // Se não tem acesso, mostrar mensagem de bloqueio
-  if (!hasAccess) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white shadow-lg">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Acesso Negado</h2>
-            <p className="text-gray-600 mb-4">
-              Você não tem permissão para registrar ponto neste sistema.
-            </p>
-            <p className="text-sm text-gray-500">
-              Entre em contato com o RH para mais informações.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8 min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2">Carregando...</span>
-      </div>
-    );
-  }
-
-  const steps = [
-    { key: 'clock_in', label: 'Entrada', icon: LogIn, color: 'bg-green-500' },
-    { key: 'lunch_start', label: 'Início Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'lunch_end', label: 'Volta Almoço', icon: Coffee, color: 'bg-orange-500' },
-    { key: 'clock_out', label: 'Saída', icon: LogOut, color: 'bg-red-500' },
-  ];
-
-  const getValue = (key: string) => {
-    return timeRecord?.[key as keyof TimeRecord];
-  };
-
-  const completedCount = steps.filter(step => !!getValue(step.key)).length;
-
-  const getNextAction = () => {
-    if (!timeRecord?.clock_in) return 'clock_in';
-    if (!timeRecord?.lunch_start) return 'lunch_start';
-    if (!timeRecord?.lunch_end) return 'lunch_end';
-    if (!timeRecord?.clock_out) return 'clock_out';
-    return null;
-  };
-
-  const nextAction = getNextAction();
-
-  const fieldNames = {
-    clock_in: 'Entrada',
-    lunch_start: 'Início do Almoço',
-    lunch_end: 'Fim do Almoço',
-    clock_out: 'Saída'
-  };
-
-  // ✨ Verificar se botão está habilitado considerando cooldown E turno
-  const isRegistrationButtonDisabled = submitting || 
-    (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
-    (nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]);
-
-  const handleAnnouncementClick = (announcement: any) => {
-    setSelectedAnnouncement(announcement);
-    setIsAnnouncementModalOpen(true);
-  };
-
-  const handleCloseAnnouncementModal = () => {
-    setIsAnnouncementModalOpen(false);
-    setSelectedAnnouncement(null);
-  };
-
-  const handleMarkAnnouncementAsRead = (announcementId: string) => {
-    markAsRead(announcementId);
-  };
 
   console.log('🎨 TimeRegistration ANTES DO RENDER - anúncios para exibir:', unreadAnnouncements.length);
 
@@ -708,11 +631,8 @@ const TimeRegistration = () => {
       </Card>
 
       {/* ✨ Componente de notificação de anúncios - adicionado abaixo do card principal */}
-      {/* ✨ Componente de notificação de anúncios - DEBUG VISUAL */}
-      {console.log('🎨 RENDERIZANDO SEÇÃO DE ANÚNCIOS - total:', unreadAnnouncements.length)}
       {unreadAnnouncements.length > 0 ? (
         <div className="w-full max-w-md mt-4">
-          {console.log('✅ RENDERIZANDO AnnouncementNotification com', unreadAnnouncements.length, 'anúncios')}
           <AnnouncementNotification
             announcements={unreadAnnouncements}
             onAnnouncementClick={handleAnnouncementClick}
@@ -720,7 +640,6 @@ const TimeRegistration = () => {
         </div>
       ) : (
         <div className="w-full max-w-md mt-4 text-center text-gray-500 text-sm">
-          {console.log('❌ NENHUM ANÚNCIO PARA EXIBIR - mostrando mensagem de debug')}
           Nenhum anúncio disponível no momento
         </div>
       )}
