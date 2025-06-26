@@ -42,10 +42,11 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      console.log('📋 Recipients encontrados:', recipientData?.length || 0);
+      console.log('🎯 DEBUG - User ID:', user.id);
+      console.log('📋 Recipients não lidos encontrados:', recipientData?.length || 0, recipientData);
 
       if (!recipientData || recipientData.length === 0) {
-        console.log('📭 Nenhum recipient não lido encontrado');
+        console.log('📭 Nenhum recipient não lido encontrado para este usuário');
         setUnreadAnnouncements([]);
         setLoading(false);
         return;
@@ -75,7 +76,7 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0);
+      console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0, announcementsData);
 
       if (!announcementsData || announcementsData.length === 0) {
         console.log('📭 Nenhum anúncio ativo encontrado');
@@ -84,9 +85,9 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      // 🔧 CORREÇÃO SIMPLIFICADA: Verificação de expiração usando ISO strings
-      const now = new Date().toISOString();
-      console.log('🕐 Data/hora atual (ISO):', now);
+      // ✅ CORREÇÃO: Usar apenas DATA para comparação de expiração
+      const today = new Date().toISOString().split('T')[0]; // Apenas a data: YYYY-MM-DD
+      console.log('📅 Data atual (apenas data):', today);
 
       const activeAnnouncements = announcementsData
         .filter(announcement => {
@@ -99,17 +100,21 @@ export const useUnreadAnnouncements = () => {
             return true;
           }
 
-          // Comparação direta de strings ISO (funciona perfeitamente para datas UTC)
-          const isExpired = announcement.expires_at <= now;
-          console.log('   - now:', now);
-          console.log('   - isExpired:', isExpired);
+          // Extrair apenas a data da expiração (YYYY-MM-DD)
+          const expirationDate = announcement.expires_at.split('T')[0];
+          console.log('   - expirationDate (apenas data):', expirationDate);
+          console.log('   - today:', today);
 
-          if (isExpired) {
+          // Comparação: anúncio é válido se expira hoje ou depois de hoje
+          const isValid = expirationDate >= today;
+          console.log('   - isValid:', isValid);
+
+          if (!isValid) {
             console.log('   ❌ ANÚNCIO EXPIRADO - IGNORANDO');
             return false;
           }
 
-          console.log('   ✅ ANÚNCIO ATIVO - INCLUINDO');
+          console.log('   ✅ ANÚNCIO VÁLIDO - INCLUINDO');
           return true;
         })
         .map(announcement => ({
@@ -117,7 +122,7 @@ export const useUnreadAnnouncements = () => {
           priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
         }));
 
-      console.log('✅ RESULTADO FINAL - Anúncios ativos:', activeAnnouncements.length);
+      console.log('✅ RESULTADO FINAL - Anúncios válidos:', activeAnnouncements.length, activeAnnouncements);
       setUnreadAnnouncements(activeAnnouncements);
 
     } catch (error) {
@@ -202,7 +207,8 @@ export const useUnreadAnnouncements = () => {
 
   console.log('🏠 Hook useUnreadAnnouncements retornando:', { 
     unreadAnnouncements: unreadAnnouncements.length, 
-    loading
+    loading,
+    userId: user?.id
   });
 
   return {
