@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -640,7 +639,7 @@ const TimeRegistration = () => {
         </div>
       ) : (
         <div className="w-full max-w-md mt-4 text-center text-gray-500 text-sm">
-          
+          {/* Espaço reservado para quando não há anúncios */}
         </div>
       )}
 
