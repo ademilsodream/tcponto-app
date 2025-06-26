@@ -27,24 +27,23 @@ export const useUnreadAnnouncements = () => {
     try {
       console.log('🔍 Buscando anúncios não lidos para o usuário:', user.id);
 
+      // Query mais simples e direta
       const { data, error } = await supabase
         .from('announcement_recipients')
         .select(`
-          announcements!inner (
+          announcement_id,
+          announcements (
             id,
             title,
             content,
             priority,
             created_at,
-            expires_at,
-            is_active
+            expires_at
           )
         `)
         .eq('employee_id', user.id)
         .eq('is_read', false)
-        .eq('announcements.is_active', true)
-        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString(), { referencedTable: 'announcements' })
-        .order('created_at', { referencedTable: 'announcements', ascending: false });
+        .not('announcements', 'is', null);
 
       if (error) {
         console.error('❌ Erro ao buscar anúncios:', error);
@@ -53,12 +52,35 @@ export const useUnreadAnnouncements = () => {
 
       console.log('📋 Dados retornados da query:', data);
 
+      if (!data || data.length === 0) {
+        console.log('📭 Nenhum anúncio não lido encontrado');
+        setUnreadAnnouncements([]);
+        return;
+      }
+
+      // Processar e filtrar anúncios
       const announcements = data
-        ?.map(item => item.announcements)
-        .filter(Boolean) as Announcement[];
+        .filter(item => item.announcements) // Filtrar apenas itens com anúncio válido
+        .map(item => item.announcements as Announcement)
+        .filter(announcement => {
+          // Filtrar apenas anúncios ativos
+          if (!announcement) return false;
+          
+          // Se tem data de expiração, verificar se não expirou
+          if (announcement.expires_at) {
+            const isExpired = new Date(announcement.expires_at) < new Date();
+            if (isExpired) {
+              console.log(`⏰ Anúncio ${announcement.id} expirado, ignorando`);
+              return false;
+            }
+          }
+          
+          return true;
+        })
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       console.log('✅ Anúncios processados:', announcements);
-      setUnreadAnnouncements(announcements || []);
+      setUnreadAnnouncements(announcements);
     } catch (error) {
       console.error('❌ Erro ao buscar anúncios:', error);
     } finally {
