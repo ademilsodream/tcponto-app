@@ -43,7 +43,7 @@ export const useUnreadAnnouncements = () => {
         .eq('employee_id', user.id)
         .eq('is_read', false)
         .eq('announcements.is_active', true)
-        .or('announcements.expires_at.is.null,announcements.expires_at.gt.' + new Date().toISOString())
+        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString(), { referencedTable: 'announcements' })
         .order('created_at', { referencedTable: 'announcements', ascending: false });
 
       if (error) {
