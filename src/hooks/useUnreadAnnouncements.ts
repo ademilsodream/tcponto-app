@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -84,9 +83,10 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      // 🔧 CORREÇÃO: Filtro de expiração simplificado e mais robusto
-      const now = new Date().toISOString();
-      console.log('🕐 Data/hora atual (ISO):', now);
+      // 🔧 CORREÇÃO: Verificação de expiração usando Date para evitar bugs de timezone
+      const now = new Date();
+      console.log('🕐 Data/hora atual (UTC):', now.toISOString());
+      console.log('🕐 Data/hora atual (Local):', now.toString());
 
       const activeAnnouncements = announcementsData
         .map(announcement => {
@@ -103,21 +103,13 @@ export const useUnreadAnnouncements = () => {
             };
           }
 
-          // 🔧 NOVA LÓGICA: Comparação direta de strings ISO
-          const expiresAt = announcement.expires_at;
-          const isExpired = expiresAt < now;
+          // Comparação correta de datas usando Date
+          const expiresAtDate = new Date(announcement.expires_at);
+          const isExpired = expiresAtDate <= now;
           
-          console.log('   - expires_at (ISO):', expiresAt);
-          console.log('   - now (ISO):', now);
-          console.log('   - isExpired (string comparison):', isExpired);
-          
-          // 🔧 TESTE ADICIONAL: Mostrar diferença em milliseconds
-          const expiresAtMs = new Date(expiresAt).getTime();
-          const nowMs = new Date(now).getTime();
-          const diffMs = expiresAtMs - nowMs;
-          const diffHours = diffMs / (1000 * 60 * 60);
-          
-          console.log('   - Diferença em horas:', diffHours);
+          console.log('   - expires_at (Date):', expiresAtDate.toISOString());
+          console.log('   - now (Date):', now.toISOString());
+          console.log('   - isExpired (Date comparison):', isExpired);
 
           if (isExpired) {
             console.log('   ❌ ANÚNCIO EXPIRADO - IGNORANDO');
@@ -134,22 +126,13 @@ export const useUnreadAnnouncements = () => {
 
       console.log('✅ RESULTADO FINAL - Anúncios ativos processados:', activeAnnouncements.length, activeAnnouncements);
       
-      // 🔧 TESTE TEMPORÁRIO: Também mostrar anúncios SEM filtro de expiração
-      const allAnnouncementsWithoutFilter = announcementsData.map(announcement => ({
-        ...announcement,
-        priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
-      }));
-      
-      console.log('🧪 TESTE: Anúncios SEM filtro de expiração:', allAnnouncementsWithoutFilter.length, allAnnouncementsWithoutFilter);
-      
-      // Sempre definir o estado, mesmo que seja array vazio
+      // 🔧 CORREÇÃO: Sempre definir o estado, mesmo que seja array vazio
       setUnreadAnnouncements(activeAnnouncements);
       
       if (activeAnnouncements.length > 0) {
         console.log('🎉 SUCESSO! Definindo', activeAnnouncements.length, 'anúncios no state');
       } else {
         console.log('⚠️ ATENÇÃO! Nenhum anúncio ativo após filtros - lista vazia');
-        console.log('💡 SUGESTÃO: Verifique se o filtro de expiração está correto');
       }
 
     } catch (error) {

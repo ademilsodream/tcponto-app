@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
@@ -7,14 +6,13 @@ import { CurrencyProvider } from '@/contexts/CurrencyContext';
 import Login from '@/pages/Login';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import EmployeeLayout from '@/components/EmployeeLayout';
-import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
+import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
 
 const queryClient = new QueryClient();
 
 function App() {
-  console.log('🚀 App component renderizando...');
-  
   return (
     <QueryClientProvider client={queryClient}>
       <OptimizedAuthProvider>

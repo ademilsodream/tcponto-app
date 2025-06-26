@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,32 +57,37 @@ const TimeRegistration = () => {
   // ✨ Usar o novo hook de validação de turno
   const shiftValidation = useWorkShiftValidation();
 
-  // ✨ Adicionar hook de anúncios com logs detalhados
+  // ✨ Adicionar hook de anúncios
   const { unreadAnnouncements, markAsRead } = useUnreadAnnouncements();
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
 
-  // ✨ LOG DETALHADO DOS ANÚNCIOS
-  console.log('🏠 TimeRegistration - ESTADO COMPLETO:', {
-    unreadAnnouncementsCount: unreadAnnouncements.length,
-    unreadAnnouncements: unreadAnnouncements,
-    hasUser: !!user,
-    hasAccess: hasAccess,
-    userEmail: user?.email
-  });
+  // Log dos anúncios para debug
+  console.log('🏠 TimeRegistration - anúncios recebidos:', unreadAnnouncements.length, unreadAnnouncements);
 
-  // ✨ useEffect para monitorar mudanças nos anúncios
+  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
+  const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
+
+  // ✨ Verificação de acesso no início
   useEffect(() => {
-    console.log('🔄 TimeRegistration useEffect - Anúncios mudaram:', {
-      count: unreadAnnouncements.length,
-      announcements: unreadAnnouncements.map(a => ({
-        id: a.id,
-        title: a.title,
-        priority: a.priority,
-        expires_at: a.expires_at
-      }))
-    });
-  }, [unreadAnnouncements]);
+    if (!hasAccess) {
+      toast({
+        title: "Acesso Negado",
+        description: "Você não tem permissão para registrar ponto.",
+        variant: "destructive"
+      });
+      return;
+    }
+  }, [hasAccess, toast]);
+
+  // Atualizar relógio a cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // ✨ Efeito para carregar cooldown do localStorage e configurar timers
   useEffect(() => {
@@ -495,46 +501,148 @@ const TimeRegistration = () => {
     (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
     (nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]);
 
-  console.log('🎨 TimeRegistration ANTES DO RENDER:', {
-    unreadAnnouncementsCount: unreadAnnouncements.length,
-    showingAnnouncements: unreadAnnouncements.length > 0,
-    currentRoute: window.location.pathname
-  });
+  console.log('🎨 TimeRegistration ANTES DO RENDER - anúncios para exibir:', unreadAnnouncements.length);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
-      {/* ... keep existing code (time display and main card) */}
+      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
+      </div>
 
-      {/* ✨ Componente de notificação de anúncios - COM LOGS EXTRAS */}
-      <div className="w-full max-w-md mt-4">
-        {console.log('🔔 Renderizando seção de anúncios:', {
-          hasAnnouncements: unreadAnnouncements.length > 0,
-          announcementsCount: unreadAnnouncements.length
-        })}
-        
-        {unreadAnnouncements.length > 0 ? (
-          <>
-            {console.log('✅ Renderizando AnnouncementNotification com', unreadAnnouncements.length, 'anúncios')}
-            <AnnouncementNotification
-              announcements={unreadAnnouncements}
-              onAnnouncementClick={handleAnnouncementClick}
-            />
-          </>
-        ) : (
-          <>
-            {console.log('❌ Nenhum anúncio para exibir - mostrando mensagem vazia')}
-            <div className="text-center text-gray-500 text-sm p-4 bg-white rounded-lg border">
-              <div className="mb-2">📭 Nenhum anúncio disponível</div>
-              <div className="text-xs text-gray-400">
-                {user ? `Usuário: ${user.email}` : 'Usuário não logado'}
+      <div className="text-center mb-6">
+        <div className="text-gray-600 text-base sm:text-lg mb-2">
+          {format(currentTime, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+        </div>
+        <div className="text-gray-900 text-4xl sm:text-6xl font-bold tracking-wider mb-4">
+          {format(currentTime, 'HH:mm:ss')}
+        </div>
+      </div>
+
+      <Card className="w-full max-w-md bg-white shadow-lg">
+        <CardContent className="p-4 sm:p-6">
+          {/* ✨ Informações do turno */}
+          {shiftValidation.currentShiftMessage && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-700 text-sm">
+                <Timer className="w-4 h-4" />
+                <span>{shiftValidation.currentShiftMessage}</span>
               </div>
-              <div className="text-xs text-gray-400">
-                Rota: {window.location.pathname}
+              {shiftValidation.nextButtonAvailable && shiftValidation.timeUntilNext > 0 && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Próximo registro em {shiftValidation.timeUntilNext} minutos
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-3">
+              {steps.map((step, index) => {
+                const Icon = step.icon;
+                const isCompleted = !!getValue(step.key);
+                const isNext = !isCompleted && completedCount === index;
+                // ✨ Verificar se o botão está permitido pelo turno
+                const isAllowedByShift = shiftValidation.allowedButtons[step.key as keyof typeof shiftValidation.allowedButtons];
+
+                return (
+                  <div key={step.key} className="flex flex-col items-center flex-1">
+                    <div
+                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
+                        isCompleted
+                          ? `${step.color} text-white`
+                          : isNext && isAllowedByShift
+                            ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
+                            : isNext && !isAllowedByShift
+                              ? 'bg-yellow-100 border-2 border-yellow-500 text-yellow-600'
+                              : 'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <span className={`text-xs text-center ${
+                      isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
+                    }`}>
+                      {step.label}
+                    </span>
+                    {isCompleted && (
+                      <span className="text-xs text-blue-600 mt-1 font-medium">
+                        {getValue(step.key)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{
+                width: `${(completedCount / 4) * 100}%`,
+                background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6'
+                }}
+              />
+            </div>
+          </div>
+
+          {nextAction && (
+            <>
+              <Button
+                onClick={() => handleTimeAction(nextAction)}
+                disabled={isRegistrationButtonDisabled}
+                className={`w-full h-12 sm:h-14 text-base sm:text-lg font-semibold touch-manipulation ${
+                  shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]
+                    ? 'bg-[#10C6B4] hover:bg-[#10C6B4]/90 text-white'
+                    : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                }`}
+              >
+                <Clock className="w-5 h-5 mr-2" />
+                {submitting ? 'Registrando...' : 
+                 !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons] ? 'Fora do Horário' :
+                 'Registrar'}
+              </Button>
+              
+              {/* ✨ Exibe o tempo restante do cooldown */}
+              {cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0 && (
+                <div className="text-center text-sm text-gray-600 mt-2">
+                  Próximo registro disponível em: {formatRemainingTime(remainingCooldown)}
+                </div>
+              )}
+
+              {/* ✨ Informação sobre horário não permitido */}
+              {nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons] && shiftValidation.timeUntilNext > 0 && (
+                <div className="text-center text-sm text-yellow-600 mt-2">
+                  Registro disponível em {shiftValidation.timeUntilNext} minutos
+                </div>
+              )}
+            </>
+          )}
+
+          {!nextAction && (
+            <div className="text-center py-4">
+              <div className="text-green-600 font-semibold mb-2">
+                ✅ Todos os registros concluídos!
+              </div>
+              <div className="text-sm text-gray-500">
+                Tenha um ótimo resto do dia!
               </div>
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ✨ Componente de notificação de anúncios - adicionado abaixo do card principal */}
+      {unreadAnnouncements.length > 0 ? (
+        <div className="w-full max-w-md mt-4">
+          <AnnouncementNotification
+            announcements={unreadAnnouncements}
+            onAnnouncementClick={handleAnnouncementClick}
+          />
+        </div>
+      ) : (
+        <div className="w-full max-w-md mt-4 text-center text-gray-500 text-sm">
+          Nenhum anúncio disponível no momento
+        </div>
+      )}
 
       {/* Dialog de Edição - mantido igual */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
