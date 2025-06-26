@@ -56,6 +56,8 @@ export const useUnreadAnnouncements = () => {
       const announcementIds = recipientData.map(r => r.announcement_id);
       console.log('🔍 Buscando anúncios pelos IDs:', announcementIds);
 
+      // ✅ QUERY SIMPLIFICADA PARA DEBUG - Remover filtros desnecessários
+      console.log('🔍 EXECUTANDO QUERY SIMPLIFICADA...');
       const { data: announcementsData, error: announcementsError } = await supabase
         .from('announcements')
         .select(`
@@ -64,11 +66,16 @@ export const useUnreadAnnouncements = () => {
           content,
           priority,
           created_at,
-          expires_at
+          expires_at,
+          is_active
         `)
-        .in('id', announcementIds)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .in('id', announcementIds);
+
+      console.log('🔍 QUERY EXECUTADA. Resultado bruto:', {
+        data: announcementsData,
+        error: announcementsError,
+        count: announcementsData?.length || 0
+      });
 
       if (announcementsError) {
         console.error('❌ Erro ao buscar anúncios:', announcementsError);
@@ -79,21 +86,32 @@ export const useUnreadAnnouncements = () => {
       console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0, announcementsData);
 
       if (!announcementsData || announcementsData.length === 0) {
-        console.log('📭 Nenhum anúncio ativo encontrado');
-        setUnreadAnnouncements([]);
+        console.log('📭 Nenhum anúncio encontrado pelos IDs fornecidos');
+        console.log('🔍 DEBUG: IDs buscados vs encontrados:', {
+          buscados: announcementIds,
+          encontrados: []
+        });
         setLoading(false);
         return;
       }
 
-      // ✅ CORREÇÃO: Usar apenas DATA para comparação de expiração
-      const today = new Date().toISOString().split('T')[0]; // Apenas a data: YYYY-MM-DD
+      // Filtrar apenas anúncios ativos e válidos
+      console.log('🔍 APLICANDO FILTROS...');
+      const today = new Date().toISOString().split('T')[0];
       console.log('📅 Data atual (apenas data):', today);
 
       const activeAnnouncements = announcementsData
         .filter(announcement => {
           console.log(`🔍 Verificando anúncio ${announcement.id}: ${announcement.title}`);
+          console.log('   - is_active:', announcement.is_active);
           console.log('   - expires_at:', announcement.expires_at);
           
+          // Verificar se está ativo
+          if (!announcement.is_active) {
+            console.log('   ❌ ANÚNCIO INATIVO - IGNORANDO');
+            return false;
+          }
+
           // Se não tem data de expiração, sempre ativo
           if (!announcement.expires_at) {
             console.log('   ✅ SEM DATA DE EXPIRAÇÃO - SEMPRE ATIVO');
