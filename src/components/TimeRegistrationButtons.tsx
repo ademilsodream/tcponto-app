@@ -4,13 +4,20 @@ import { Button } from '@/components/ui/button';
 import { Clock } from 'lucide-react';
 import { CooldownDisplay } from './CooldownDisplay';
 
+interface AllowedButtons {
+  clock_in: boolean;
+  lunch_start: boolean;
+  lunch_end: boolean;
+  clock_out: boolean;
+}
+
 interface TimeRegistrationButtonsProps {
   nextAction: string | null;
   onTimeAction: (action: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out') => void;
   isRegistrationButtonDisabled: boolean;
   submitting: boolean;
   shiftValidation: {
-    allowedButtons: Record<string, boolean>;
+    allowedButtons: AllowedButtons;
     timeUntilNext?: number;
   };
   remainingCooldown: number | null;
@@ -28,7 +35,7 @@ export const TimeRegistrationButtons: React.FC<TimeRegistrationButtonsProps> = (
 }) => {
   if (!nextAction) return null;
 
-  const isAllowedByShift = shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons];
+  const isAllowedByShift = shiftValidation.allowedButtons[nextAction as keyof AllowedButtons];
 
   return (
     <>

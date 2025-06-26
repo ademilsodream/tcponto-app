@@ -138,7 +138,10 @@ const TimeRegistration = () => {
             onTimeAction={handleTimeAction}
             isRegistrationButtonDisabled={isRegistrationButtonDisabled}
             submitting={submitting}
-            shiftValidation={shiftValidation}
+            shiftValidation={{
+              allowedButtons: shiftValidation.allowedButtons,
+              timeUntilNext: shiftValidation.timeUntilNext
+            }}
             remainingCooldown={remainingCooldown}
             formatRemainingTime={formatRemainingTime}
           />
