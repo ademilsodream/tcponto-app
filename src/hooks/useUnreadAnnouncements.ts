@@ -79,17 +79,22 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      // Filtrar anúncios não expirados
-      const activeAnnouncements = announcementsData.filter(announcement => {
-        if (announcement.expires_at) {
-          const isExpired = new Date(announcement.expires_at) < new Date();
-          if (isExpired) {
-            console.log(`⏰ Anúncio ${announcement.id} expirado, ignorando`);
-            return false;
+      // Filtrar anúncios não expirados e fazer type casting
+      const activeAnnouncements = announcementsData
+        .filter(announcement => {
+          if (announcement.expires_at) {
+            const isExpired = new Date(announcement.expires_at) < new Date();
+            if (isExpired) {
+              console.log(`⏰ Anúncio ${announcement.id} expirado, ignorando`);
+              return false;
+            }
           }
-        }
-        return true;
-      });
+          return true;
+        })
+        .map(announcement => ({
+          ...announcement,
+          priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
+        }));
 
       console.log('✅ Anúncios ativos processados:', activeAnnouncements);
       setUnreadAnnouncements(activeAnnouncements);
