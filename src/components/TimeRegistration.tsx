@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Clock, LogIn, Coffee, LogOut, Timer, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
-import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation'; // ✨ Novo hook
+import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -41,6 +42,8 @@ interface AllowedLocation {
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
 const TimeRegistration = () => {
+  console.log('🏠 TimeRegistration - INICIANDO RENDERIZAÇÃO...');
+  
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -50,6 +53,11 @@ const TimeRegistration = () => {
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // ✨ ESTADOS DE COOLDOWN ADICIONADOS
+  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
+  const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
+  
   const { user, hasAccess } = useOptimizedAuth();
   const { toast } = useToast();
 
@@ -61,13 +69,13 @@ const TimeRegistration = () => {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
 
-  // ✨ LOG DETALHADO DOS ANÚNCIOS
   console.log('🏠 TimeRegistration - ESTADO COMPLETO:', {
     unreadAnnouncementsCount: unreadAnnouncements.length,
     unreadAnnouncements: unreadAnnouncements,
     hasUser: !!user,
     hasAccess: hasAccess,
-    userEmail: user?.email
+    userEmail: user?.email,
+    currentRoute: window.location.pathname
   });
 
   // ✨ useEffect para monitorar mudanças nos anúncios
@@ -130,6 +138,15 @@ const TimeRegistration = () => {
       initializeData();
     }
   }, [user, hasAccess]);
+
+  // ✨ Timer do relógio
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   const initializeData = async () => {
     try {
@@ -503,40 +520,134 @@ const TimeRegistration = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
-      {/* ... keep existing code (time display and main card) */}
-
-      {/* ✨ Componente de notificação de anúncios - COM LOGS EXTRAS */}
-      <div className="w-full max-w-md mt-4">
-        {console.log('🔔 Renderizando seção de anúncios:', {
-          hasAnnouncements: unreadAnnouncements.length > 0,
-          announcementsCount: unreadAnnouncements.length
-        })}
-        
-        {unreadAnnouncements.length > 0 ? (
-          <>
-            {console.log('✅ Renderizando AnnouncementNotification com', unreadAnnouncements.length, 'anúncios')}
-            <AnnouncementNotification
-              announcements={unreadAnnouncements}
-              onAnnouncementClick={handleAnnouncementClick}
-            />
-          </>
-        ) : (
-          <>
-            {console.log('❌ Nenhum anúncio para exibir - mostrando mensagem vazia')}
-            <div className="text-center text-gray-500 text-sm p-4 bg-white rounded-lg border">
-              <div className="mb-2">📭 Nenhum anúncio disponível</div>
-              <div className="text-xs text-gray-400">
-                {user ? `Usuário: ${user.email}` : 'Usuário não logado'}
-              </div>
-              <div className="text-xs text-gray-400">
-                Rota: {window.location.pathname}
-              </div>
-            </div>
-          </>
+      {/* ✨ Relógio e Saudação */}
+      <div className="text-center mb-6">
+        <div className="text-4xl font-bold text-gray-900 mb-2">
+          {format(currentTime, 'HH:mm:ss')}
+        </div>
+        <div className="text-lg text-gray-600">
+          {format(currentTime, 'EEEE, dd \'de\' MMMM', { locale: ptBR })}
+        </div>
+        {shiftValidation.currentShiftMessage && (
+          <div className="text-sm text-blue-600 mt-2">
+            {shiftValidation.currentShiftMessage}
+          </div>
         )}
       </div>
 
-      {/* Dialog de Edição - mantido igual */}
+      {/* ✨ Card Principal de Registro */}
+      <Card className="w-full max-w-md bg-white shadow-lg mb-4">
+        <CardContent className="p-6">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Registro de Ponto</h2>
+            <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+              <Timer className="w-4 h-4" />
+              <span>{completedCount}/4 registros completos</span>
+            </div>
+          </div>
+
+          {/* ✨ Progresso dos Registros */}
+          <div className="space-y-3 mb-6">
+            {steps.map((step, index) => {
+              const value = getValue(step.key);
+              const isCompleted = !!value;
+              const Icon = step.icon;
+
+              return (
+                <div key={step.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCompleted ? step.color : 'bg-gray-300'}`}>
+                      <Icon className="w-4 h-4 text-white" />
+                    </div>
+                    <span className="font-medium text-gray-900">{step.label}</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    {isCompleted ? (
+                      <>
+                        <span className="text-sm font-mono bg-green-100 text-green-800 px-2 py-1 rounded">
+                          {value}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-blue-600 hover:text-blue-800"
+                          onClick={() => {
+                            setEditField(step.key as any);
+                            setEditValue(value as string);
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-400">--:--</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ✨ Botão de Registro */}
+          {nextAction && (
+            <Button
+              onClick={() => handleTimeAction(nextAction)}
+              disabled={isRegistrationButtonDisabled}
+              className="w-full h-12 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Clock className="w-5 h-5 mr-2" />
+              {submitting ? 'Registrando...' : `Registrar ${fieldNames[nextAction]}`}
+            </Button>
+          )}
+
+          {/* ✨ Mensagem de Cooldown */}
+          {cooldownEndTime && cooldownEndTime > Date.now() && remainingCooldown && (
+            <div className="text-center text-sm mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="text-yellow-800 font-medium mb-1">
+                ⏱️ Aguarde para o próximo registro
+              </div>
+              <div className="text-yellow-700">
+                Disponível em: <span className="font-mono font-bold">{formatRemainingTime(remainingCooldown)}</span>
+              </div>
+            </div>
+          )}
+
+          {!nextAction && (
+            <div className="text-center py-4">
+              <div className="text-green-600 font-semibold mb-2">
+                ✅ Todos os registros concluídos!
+              </div>
+              <div className="text-sm text-gray-500">
+                Tenha um ótimo resto do dia!
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ✨ Componente de notificação de anúncios */}
+      <div className="w-full max-w-md">
+        {unreadAnnouncements.length > 0 ? (
+          <AnnouncementNotification
+            announcements={unreadAnnouncements}
+            onAnnouncementClick={handleAnnouncementClick}
+          />
+        ) : (
+          <div className="text-center text-gray-500 text-sm p-4 bg-white rounded-lg border">
+            <div className="mb-2">📭 Nenhum anúncio disponível</div>
+            <div className="text-xs text-gray-400">
+              {user ? `Usuário: ${user.email}` : 'Usuário não logado'}
+            </div>
+            <div className="text-xs text-gray-400">
+              Rota: {window.location.pathname}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Dialog de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
