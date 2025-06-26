@@ -639,7 +639,9 @@ const TimeRegistration = () => {
           />
         </div>
       ) : (
-        
+        <div className="w-full max-w-md mt-4 text-center text-gray-500 text-sm">
+          
+        </div>
       )}
 
       {/* Dialog de Edição - mantido igual */}
