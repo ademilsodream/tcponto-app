@@ -26,7 +26,8 @@ export const useUnreadAnnouncements = () => {
     }
 
     try {
-      console.log('🔍 Buscando anúncios não lidos para o usuário:', user.id);
+      console.log('🔍 INICIANDO BUSCA DE ANÚNCIOS para usuário:', user.id);
+      setLoading(true);
 
       // Primeiro, buscar os IDs dos anúncios não lidos do usuário
       const { data: recipientData, error: recipientError } = await supabase
@@ -37,14 +38,16 @@ export const useUnreadAnnouncements = () => {
 
       if (recipientError) {
         console.error('❌ Erro ao buscar recipients:', recipientError);
+        setLoading(false);
         return;
       }
 
-      console.log('📋 Recipients encontrados:', recipientData);
+      console.log('📋 Recipients encontrados:', recipientData?.length || 0, recipientData);
 
       if (!recipientData || recipientData.length === 0) {
-        console.log('📭 Nenhum recipient não lido encontrado');
+        console.log('📭 Nenhum recipient não lido encontrado - DEFININDO LISTA VAZIA');
         setUnreadAnnouncements([]);
+        setLoading(false);
         return;
       }
 
@@ -68,26 +71,41 @@ export const useUnreadAnnouncements = () => {
 
       if (announcementsError) {
         console.error('❌ Erro ao buscar anúncios:', announcementsError);
+        setLoading(false);
         return;
       }
 
-      console.log('📋 Anúncios encontrados:', announcementsData);
+      console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0, announcementsData);
 
       if (!announcementsData || announcementsData.length === 0) {
-        console.log('📭 Nenhum anúncio ativo encontrado');
+        console.log('📭 Nenhum anúncio ativo encontrado - DEFININDO LISTA VAZIA');
         setUnreadAnnouncements([]);
+        setLoading(false);
         return;
       }
 
       // Filtrar anúncios não expirados e fazer type casting
+      const now = new Date();
+      console.log('🕐 Data/hora atual para comparação:', now.toISOString());
+
       const activeAnnouncements = announcementsData
         .filter(announcement => {
           if (announcement.expires_at) {
-            const isExpired = new Date(announcement.expires_at) < new Date();
+            const expirationDate = new Date(announcement.expires_at);
+            const isExpired = expirationDate < now;
+            console.log(`⏰ Verificando expiração do anúncio ${announcement.id}:`, {
+              expires_at: announcement.expires_at,
+              expirationDate: expirationDate.toISOString(),
+              now: now.toISOString(),
+              isExpired
+            });
             if (isExpired) {
-              console.log(`⏰ Anúncio ${announcement.id} expirado, ignorando`);
+              console.log(`❌ Anúncio ${announcement.id} EXPIRADO, ignorando`);
               return false;
             }
+            console.log(`✅ Anúncio ${announcement.id} ATIVO (não expirou)`);
+          } else {
+            console.log(`✅ Anúncio ${announcement.id} ATIVO (sem data de expiração)`);
           }
           return true;
         })
@@ -96,10 +114,18 @@ export const useUnreadAnnouncements = () => {
           priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
         }));
 
-      console.log('✅ Anúncios ativos processados:', activeAnnouncements);
+      console.log('✅ RESULTADO FINAL - Anúncios ativos processados:', activeAnnouncements.length, activeAnnouncements);
       setUnreadAnnouncements(activeAnnouncements);
+      
+      if (activeAnnouncements.length > 0) {
+        console.log('🎉 SUCESSO! Definindo', activeAnnouncements.length, 'anúncios no state');
+      } else {
+        console.log('⚠️ ATENÇÃO! Nenhum anúncio ativo após filtros - lista vazia');
+      }
+
     } catch (error) {
       console.error('❌ Erro inesperado ao buscar anúncios:', error);
+      setUnreadAnnouncements([]);
     } finally {
       setLoading(false);
     }
@@ -128,9 +154,11 @@ export const useUnreadAnnouncements = () => {
       console.log('✅ Anúncio marcado como lido com sucesso');
 
       // Atualizar estado local
-      setUnreadAnnouncements(prev => 
-        prev.filter(announcement => announcement.id !== announcementId)
-      );
+      setUnreadAnnouncements(prev => {
+        const newList = prev.filter(announcement => announcement.id !== announcementId);
+        console.log('📝 Atualizando lista local: removendo anúncio', announcementId, 'nova lista:', newList.length);
+        return newList;
+      });
     } catch (error) {
       console.error('❌ Erro ao marcar anúncio como lido:', error);
     }
@@ -174,6 +202,12 @@ export const useUnreadAnnouncements = () => {
       supabase.removeChannel(channel);
     };
   }, [user]);
+
+  console.log('🏠 Hook useUnreadAnnouncements retornando:', { 
+    unreadAnnouncements: unreadAnnouncements.length, 
+    loading,
+    announcements: unreadAnnouncements 
+  });
 
   return {
     unreadAnnouncements,

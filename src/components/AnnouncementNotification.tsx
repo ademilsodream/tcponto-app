@@ -22,9 +22,14 @@ const AnnouncementNotification: React.FC<AnnouncementNotificationProps> = ({
   announcements, 
   onAnnouncementClick 
 }) => {
+  console.log('🔔 AnnouncementNotification renderizando com:', announcements.length, 'anúncios', announcements);
+  
   if (announcements.length === 0) {
+    console.log('❌ AnnouncementNotification: Nenhum anúncio para exibir - retornando null');
     return null;
   }
+
+  console.log('✅ AnnouncementNotification: Exibindo notificação de anúncios!');
 
   const firstAnnouncement = announcements[0];
   const hasMultiple = announcements.length > 1;
@@ -68,7 +73,10 @@ const AnnouncementNotification: React.FC<AnnouncementNotificationProps> = ({
               {hasMultiple && ` e mais ${announcements.length - 1} anúncio${announcements.length - 1 > 1 ? 's' : ''}`}
             </p>
             <Button
-              onClick={() => onAnnouncementClick(firstAnnouncement)}
+              onClick={() => {
+                console.log('🖱️ Clicando no anúncio:', firstAnnouncement.id);
+                onAnnouncementClick(firstAnnouncement);
+              }}
               size="sm"
               className="w-full text-xs"
               variant="outline"
