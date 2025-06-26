@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -41,10 +42,10 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      console.log('📋 Recipients encontrados:', recipientData?.length || 0, recipientData);
+      console.log('📋 Recipients encontrados:', recipientData?.length || 0);
 
       if (!recipientData || recipientData.length === 0) {
-        console.log('📭 Nenhum recipient não lido encontrado - DEFININDO LISTA VAZIA');
+        console.log('📭 Nenhum recipient não lido encontrado');
         setUnreadAnnouncements([]);
         setLoading(false);
         return;
@@ -74,66 +75,50 @@ export const useUnreadAnnouncements = () => {
         return;
       }
 
-      console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0, announcementsData);
+      console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0);
 
       if (!announcementsData || announcementsData.length === 0) {
-        console.log('📭 Nenhum anúncio ativo encontrado - DEFININDO LISTA VAZIA');
+        console.log('📭 Nenhum anúncio ativo encontrado');
         setUnreadAnnouncements([]);
         setLoading(false);
         return;
       }
 
-      // 🔧 CORREÇÃO: Verificação de expiração usando Date para evitar bugs de timezone
-      const now = new Date();
-      console.log('🕐 Data/hora atual (UTC):', now.toISOString());
-      console.log('🕐 Data/hora atual (Local):', now.toString());
+      // 🔧 CORREÇÃO SIMPLIFICADA: Verificação de expiração usando ISO strings
+      const now = new Date().toISOString();
+      console.log('🕐 Data/hora atual (ISO):', now);
 
       const activeAnnouncements = announcementsData
-        .map(announcement => {
-          console.log(`🔍 Processando anúncio ${announcement.id}:`);
-          console.log('   - Title:', announcement.title);
-          console.log('   - expires_at (RAW):', announcement.expires_at);
+        .filter(announcement => {
+          console.log(`🔍 Verificando anúncio ${announcement.id}: ${announcement.title}`);
+          console.log('   - expires_at:', announcement.expires_at);
           
           // Se não tem data de expiração, sempre ativo
           if (!announcement.expires_at) {
             console.log('   ✅ SEM DATA DE EXPIRAÇÃO - SEMPRE ATIVO');
-            return {
-              ...announcement,
-              priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
-            };
+            return true;
           }
 
-          // Comparação correta de datas usando Date
-          const expiresAtDate = new Date(announcement.expires_at);
-          const isExpired = expiresAtDate <= now;
-          
-          console.log('   - expires_at (Date):', expiresAtDate.toISOString());
-          console.log('   - now (Date):', now.toISOString());
-          console.log('   - isExpired (Date comparison):', isExpired);
+          // Comparação direta de strings ISO (funciona perfeitamente para datas UTC)
+          const isExpired = announcement.expires_at <= now;
+          console.log('   - now:', now);
+          console.log('   - isExpired:', isExpired);
 
           if (isExpired) {
             console.log('   ❌ ANÚNCIO EXPIRADO - IGNORANDO');
-            return null;
+            return false;
           }
 
           console.log('   ✅ ANÚNCIO ATIVO - INCLUINDO');
-          return {
-            ...announcement,
-            priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
-          };
+          return true;
         })
-        .filter(announcement => announcement !== null) as Announcement[];
+        .map(announcement => ({
+          ...announcement,
+          priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
+        }));
 
-      console.log('✅ RESULTADO FINAL - Anúncios ativos processados:', activeAnnouncements.length, activeAnnouncements);
-      
-      // 🔧 CORREÇÃO: Sempre definir o estado, mesmo que seja array vazio
+      console.log('✅ RESULTADO FINAL - Anúncios ativos:', activeAnnouncements.length);
       setUnreadAnnouncements(activeAnnouncements);
-      
-      if (activeAnnouncements.length > 0) {
-        console.log('🎉 SUCESSO! Definindo', activeAnnouncements.length, 'anúncios no state');
-      } else {
-        console.log('⚠️ ATENÇÃO! Nenhum anúncio ativo após filtros - lista vazia');
-      }
 
     } catch (error) {
       console.error('❌ Erro inesperado ao buscar anúncios:', error);
@@ -168,7 +153,7 @@ export const useUnreadAnnouncements = () => {
       // Atualizar estado local
       setUnreadAnnouncements(prev => {
         const newList = prev.filter(announcement => announcement.id !== announcementId);
-        console.log('📝 Atualizando lista local: removendo anúncio', announcementId, 'nova lista:', newList.length);
+        console.log('📝 Atualizando lista local: nova lista:', newList.length);
         return newList;
       });
     } catch (error) {
@@ -217,8 +202,7 @@ export const useUnreadAnnouncements = () => {
 
   console.log('🏠 Hook useUnreadAnnouncements retornando:', { 
     unreadAnnouncements: unreadAnnouncements.length, 
-    loading,
-    announcements: unreadAnnouncements 
+    loading
   });
 
   return {
