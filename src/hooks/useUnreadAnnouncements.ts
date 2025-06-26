@@ -19,6 +19,7 @@ export const useUnreadAnnouncements = () => {
 
   const fetchUnreadAnnouncements = async () => {
     if (!user) {
+      console.log('❌ Usuário não está logado');
       setUnreadAnnouncements([]);
       setLoading(false);
       return;
@@ -27,62 +28,73 @@ export const useUnreadAnnouncements = () => {
     try {
       console.log('🔍 Buscando anúncios não lidos para o usuário:', user.id);
 
-      // Query mais simples e direta
-      const { data, error } = await supabase
+      // Primeiro, buscar os IDs dos anúncios não lidos do usuário
+      const { data: recipientData, error: recipientError } = await supabase
         .from('announcement_recipients')
-        .select(`
-          announcement_id,
-          announcements (
-            id,
-            title,
-            content,
-            priority,
-            created_at,
-            expires_at
-          )
-        `)
+        .select('announcement_id')
         .eq('employee_id', user.id)
-        .eq('is_read', false)
-        .not('announcements', 'is', null);
+        .eq('is_read', false);
 
-      if (error) {
-        console.error('❌ Erro ao buscar anúncios:', error);
+      if (recipientError) {
+        console.error('❌ Erro ao buscar recipients:', recipientError);
         return;
       }
 
-      console.log('📋 Dados retornados da query:', data);
+      console.log('📋 Recipients encontrados:', recipientData);
 
-      if (!data || data.length === 0) {
-        console.log('📭 Nenhum anúncio não lido encontrado');
+      if (!recipientData || recipientData.length === 0) {
+        console.log('📭 Nenhum recipient não lido encontrado');
         setUnreadAnnouncements([]);
         return;
       }
 
-      // Processar e filtrar anúncios
-      const announcements = data
-        .filter(item => item.announcements) // Filtrar apenas itens com anúncio válido
-        .map(item => item.announcements as Announcement)
-        .filter(announcement => {
-          // Filtrar apenas anúncios ativos
-          if (!announcement) return false;
-          
-          // Se tem data de expiração, verificar se não expirou
-          if (announcement.expires_at) {
-            const isExpired = new Date(announcement.expires_at) < new Date();
-            if (isExpired) {
-              console.log(`⏰ Anúncio ${announcement.id} expirado, ignorando`);
-              return false;
-            }
-          }
-          
-          return true;
-        })
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // Buscar os anúncios pelos IDs encontrados
+      const announcementIds = recipientData.map(r => r.announcement_id);
+      console.log('🔍 Buscando anúncios pelos IDs:', announcementIds);
 
-      console.log('✅ Anúncios processados:', announcements);
-      setUnreadAnnouncements(announcements);
+      const { data: announcementsData, error: announcementsError } = await supabase
+        .from('announcements')
+        .select(`
+          id,
+          title,
+          content,
+          priority,
+          created_at,
+          expires_at
+        `)
+        .in('id', announcementIds)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (announcementsError) {
+        console.error('❌ Erro ao buscar anúncios:', announcementsError);
+        return;
+      }
+
+      console.log('📋 Anúncios encontrados:', announcementsData);
+
+      if (!announcementsData || announcementsData.length === 0) {
+        console.log('📭 Nenhum anúncio ativo encontrado');
+        setUnreadAnnouncements([]);
+        return;
+      }
+
+      // Filtrar anúncios não expirados
+      const activeAnnouncements = announcementsData.filter(announcement => {
+        if (announcement.expires_at) {
+          const isExpired = new Date(announcement.expires_at) < new Date();
+          if (isExpired) {
+            console.log(`⏰ Anúncio ${announcement.id} expirado, ignorando`);
+            return false;
+          }
+        }
+        return true;
+      });
+
+      console.log('✅ Anúncios ativos processados:', activeAnnouncements);
+      setUnreadAnnouncements(activeAnnouncements);
     } catch (error) {
-      console.error('❌ Erro ao buscar anúncios:', error);
+      console.error('❌ Erro inesperado ao buscar anúncios:', error);
     } finally {
       setLoading(false);
     }
@@ -120,7 +132,13 @@ export const useUnreadAnnouncements = () => {
   };
 
   useEffect(() => {
-    fetchUnreadAnnouncements();
+    if (user) {
+      console.log('👤 Usuário logado detectado, carregando anúncios...');
+      fetchUnreadAnnouncements();
+    } else {
+      console.log('👤 Usuário não logado, aguardando...');
+      setLoading(false);
+    }
   }, [user]);
 
   // Configurar listener para novos anúncios
