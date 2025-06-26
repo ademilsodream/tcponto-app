@@ -25,34 +25,42 @@ export const useUnreadAnnouncements = () => {
     }
 
     try {
+      console.log('🔍 Buscando anúncios não lidos para o usuário:', user.id);
+
       const { data, error } = await supabase
         .from('announcement_recipients')
         .select(`
-          announcements (
+          announcements!inner (
             id,
             title,
             content,
             priority,
             created_at,
-            expires_at
+            expires_at,
+            is_active
           )
         `)
         .eq('employee_id', user.id)
         .eq('is_read', false)
-        .order('created_at', { ascending: false });
+        .eq('announcements.is_active', true)
+        .or('announcements.expires_at.is.null,announcements.expires_at.gt.' + new Date().toISOString())
+        .order('created_at', { referencedTable: 'announcements', ascending: false });
 
       if (error) {
-        console.error('Erro ao buscar anúncios:', error);
+        console.error('❌ Erro ao buscar anúncios:', error);
         return;
       }
+
+      console.log('📋 Dados retornados da query:', data);
 
       const announcements = data
         ?.map(item => item.announcements)
         .filter(Boolean) as Announcement[];
 
+      console.log('✅ Anúncios processados:', announcements);
       setUnreadAnnouncements(announcements || []);
     } catch (error) {
-      console.error('Erro ao buscar anúncios:', error);
+      console.error('❌ Erro ao buscar anúncios:', error);
     } finally {
       setLoading(false);
     }
@@ -62,6 +70,8 @@ export const useUnreadAnnouncements = () => {
     if (!user) return;
 
     try {
+      console.log('📖 Marcando anúncio como lido:', announcementId);
+
       const { error } = await supabase
         .from('announcement_recipients')
         .update({ 
@@ -72,16 +82,18 @@ export const useUnreadAnnouncements = () => {
         .eq('announcement_id', announcementId);
 
       if (error) {
-        console.error('Erro ao marcar anúncio como lido:', error);
+        console.error('❌ Erro ao marcar anúncio como lido:', error);
         return;
       }
+
+      console.log('✅ Anúncio marcado como lido com sucesso');
 
       // Atualizar estado local
       setUnreadAnnouncements(prev => 
         prev.filter(announcement => announcement.id !== announcementId)
       );
     } catch (error) {
-      console.error('Erro ao marcar anúncio como lido:', error);
+      console.error('❌ Erro ao marcar anúncio como lido:', error);
     }
   };
 
@@ -93,6 +105,8 @@ export const useUnreadAnnouncements = () => {
   useEffect(() => {
     if (!user) return;
 
+    console.log('🔄 Configurando listener para novos anúncios');
+
     const channel = supabase
       .channel('announcement_recipients_changes')
       .on(
@@ -103,13 +117,15 @@ export const useUnreadAnnouncements = () => {
           table: 'announcement_recipients',
           filter: `employee_id=eq.${user.id}`
         },
-        () => {
+        (payload) => {
+          console.log('🔔 Novo anúncio recebido:', payload);
           fetchUnreadAnnouncements();
         }
       )
       .subscribe();
 
     return () => {
+      console.log('🛑 Removendo listener de anúncios');
       supabase.removeChannel(channel);
     };
   }, [user]);
