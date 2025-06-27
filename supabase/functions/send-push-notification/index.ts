@@ -13,8 +13,8 @@ const corsHeaders = {
 };
 
 interface PushNotificationPayload {
-  token: string;
-  platform: string;
+  tokens?: { token: string; platform: string }[];
+  userId?: string;
   title: string;
   body: string;
   data?: any;
@@ -27,14 +27,41 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { tokens, title, body, data = {} } = await req.json();
-
-    if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
-      throw new Error("Tokens de push notification são obrigatórios");
-    }
+    const payload: PushNotificationPayload = await req.json();
+    let { tokens, userId, title, body, data = {} } = payload;
 
     if (!title || !body) {
       throw new Error("Título e corpo da notificação são obrigatórios");
+    }
+
+    // Se não foram fornecidos tokens, buscar tokens ativos do usuário
+    if (!tokens && userId) {
+      const { data: userTokens, error } = await supabase
+        .from('push_tokens')
+        .select('token, platform')
+        .eq('employee_id', userId)
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('Erro ao buscar tokens:', error);
+        throw new Error('Erro ao buscar tokens do usuário');
+      }
+
+      tokens = userTokens || [];
+    }
+
+    if (!tokens || tokens.length === 0) {
+      console.log('Nenhum token ativo encontrado');
+      return new Response(JSON.stringify({ 
+        success: true,
+        message: 'Nenhum token ativo encontrado',
+        results: [],
+        sent: 0,
+        failed: 0
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     const results = [];
@@ -44,11 +71,8 @@ const handler = async (req: Request): Promise<Response> => {
         let response;
 
         if (tokenInfo.platform === 'android') {
-          // Enviar via FCM para Android
-          response = await sendFCMNotification(tokenInfo.token, title, body, data);
-        } else if (tokenInfo.platform === 'ios') {
-          // Enviar via APNs para iOS
-          response = await sendAPNsNotification(tokenInfo.token, title, body, data);
+          // Enviar via Firebase Admin SDK
+          response = await sendFirebaseNotification(tokenInfo.token, title, body, data);
         } else {
           console.log(`Plataforma não suportada: ${tokenInfo.platform}`);
           continue;
@@ -97,54 +121,127 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-async function sendFCMNotification(token: string, title: string, body: string, data: any) {
-  const fcmServerKey = Deno.env.get("FCM_SERVER_KEY");
+async function sendFirebaseNotification(token: string, title: string, body: string, data: any) {
+  const serviceAccountJson = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
   
-  if (!fcmServerKey) {
-    throw new Error("FCM_SERVER_KEY não configurada");
+  if (!serviceAccountJson) {
+    throw new Error("FCM_SERVICE_ACCOUNT_JSON não configurado");
   }
 
-  const payload = {
-    to: token,
-    notification: {
-      title,
-      body,
-      sound: "default",
-      badge: 1
-    },
-    data
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(serviceAccountJson);
+  } catch (error) {
+    throw new Error("FCM_SERVICE_ACCOUNT_JSON inválido");
+  }
+
+  // Obter access token usando JWT
+  const accessToken = await getFirebaseAccessToken(serviceAccount);
+  
+  const projectId = serviceAccount.project_id;
+  const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
+
+  const message = {
+    message: {
+      token: token,
+      notification: {
+        title: title,
+        body: body
+      },
+      data: data,
+      android: {
+        priority: "high",
+        notification: {
+          channel_id: "default",
+          sound: "default"
+        }
+      }
+    }
   };
 
-  const response = await fetch("https://fcm.googleapis.com/fcm/send", {
+  const response = await fetch(fcmUrl, {
     method: "POST",
     headers: {
-      "Authorization": `key=${fcmServerKey}`,
+      "Authorization": `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(message),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`FCM Error: ${response.status} - ${errorText}`);
+    throw new Error(`Firebase Error: ${response.status} - ${errorText}`);
   }
 
   return await response.json();
 }
 
-async function sendAPNsNotification(token: string, title: string, body: string, data: any) {
-  // Para implementação completa do APNs, seria necessário configurar certificados
-  // Por agora, vamos registrar e retornar sucesso simulado
-  console.log(`APNs notification would be sent to: ${token}`);
-  console.log(`Title: ${title}, Body: ${body}`);
-  
-  // Em produção, aqui seria implementada a comunicação com APNs
-  // usando bibliotecas como node-apn ou similar
-  
-  return { 
-    success: true, 
-    message: "APNs notification queued (implementation needed)" 
+async function getFirebaseAccessToken(serviceAccount: any): Promise<string> {
+  // Usar a biblioteca JWT do Deno
+  const header = {
+    alg: "RS256",
+    typ: "JWT"
   };
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: serviceAccount.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now
+  };
+
+  // Criar JWT manualmente (implementação simplificada)
+  const encoder = new TextEncoder();
+  const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  const unsignedToken = `${headerB64}.${payloadB64}`;
+  
+  // Importar chave privada
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    encoder.encode(serviceAccount.private_key.replace(/\\n/g, '\n')),
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256",
+    },
+    false,
+    ["sign"]
+  );
+
+  // Assinar o token
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    privateKey,
+    encoder.encode(unsignedToken)
+  );
+
+  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  
+  const jwt = `${unsignedToken}.${signatureB64}`;
+
+  // Trocar JWT por access token
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  });
+
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    throw new Error(`Erro ao obter access token: ${tokenResponse.status} - ${errorText}`);
+  }
+
+  const tokenData = await tokenResponse.json();
+  return tokenData.access_token;
 }
 
 serve(handler);

@@ -16,6 +16,8 @@ import { TimeRegistrationButtons } from './TimeRegistrationButtons';
 import { CompletionMessage } from './CompletionMessage';
 import { TimeRegistrationProgress } from './TimeRegistrationProgress';
 import { useTimeRegistrationLogic } from '@/hooks/useTimeRegistrationLogic';
+import { PushNotificationService } from '@/services/PushNotificationService';
+import { supabase } from '@/integrations/supabase/client';
 
 const TimeRegistration = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -48,6 +50,24 @@ const TimeRegistration = () => {
   } = useTimeRegistrationLogic();
 
   const { unreadAnnouncements, markAsRead } = useUnreadAnnouncements();
+
+  // Inicializar push notifications
+  useEffect(() => {
+    const initializePushNotifications = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          console.log('🔔 Inicializando push notifications para usuário:', user.id);
+          const pushService = PushNotificationService.getInstance();
+          await pushService.initialize(user.id);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao inicializar push notifications:', error);
+      }
+    };
+
+    initializePushNotifications();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -85,6 +105,20 @@ const TimeRegistration = () => {
     setIsEditDialogOpen(false);
   };
 
+  // Função para testar push notification
+  const handleTestPushNotification = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const pushService = PushNotificationService.getInstance();
+        await pushService.testNotification(user.id);
+        console.log('✅ Teste de push notification enviado');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao testar push notification:', error);
+    }
+  };
+
   if (!hasAccess) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
@@ -116,6 +150,17 @@ const TimeRegistration = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
       <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
+        {/* Botão de teste de push notification - apenas para desenvolvimento */}
+        {process.env.NODE_ENV === 'development' && (
+          <Button 
+            onClick={handleTestPushNotification}
+            variant="outline"
+            size="sm"
+            className="mb-2"
+          >
+            Testar Push
+          </Button>
+        )}
       </div>
 
       <TimeRegistrationHeader currentTime={currentTime} />
