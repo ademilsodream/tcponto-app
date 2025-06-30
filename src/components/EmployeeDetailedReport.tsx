@@ -340,13 +340,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                                     <span>{formatHoursAsTime(record.overtime_hours)}</span>
                                 </div>
                             )}
-                             {/* ✨ Sempre mostrar pagamento agora que é calculado */}
-                             <div className="flex justify-between text-sm font-medium pt-2 border-t">
-                                <span>Total Ganho Estimado:</span>
-                                <span className="text-green-600">
-                                    {formatCurrency(Number(record.total_pay))}
-                                </span>
-                             </div>
+                            
                         </div>
                     </CardContent>
                 )}
