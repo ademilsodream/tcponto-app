@@ -149,20 +149,6 @@ const TimeRegistration = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
-      <div className="w-full max-w-md mb-6 pl-20 sm:pl-16">
-        {/* Botão de teste de push notification - apenas para desenvolvimento */}
-        {process.env.NODE_ENV === 'development' && (
-          <Button 
-            onClick={handleTestPushNotification}
-            variant="outline"
-            size="sm"
-            className="mb-2"
-          >
-            Testar Push
-          </Button>
-        )}
-      </div>
-
       <TimeRegistrationHeader currentTime={currentTime} />
 
       <Card className="w-full max-w-md bg-white shadow-lg">
