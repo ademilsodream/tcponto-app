@@ -367,9 +367,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
             <p className="text-2xl font-bold text-green-600 mt-1">
               {formatHoursAsTime(summary.normalHours)}
             </p>
-            <p className="text-sm text-gray-700 mt-1">
-              {formatCurrency(summary.normalPay)}
-            </p>
           </div>
 
           {/* Horas Extras */}
@@ -378,9 +375,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
             <p className="text-2xl font-bold text-orange-600 mt-1">
               {formatHoursAsTime(summary.overtimeHours)}
             </p>
-            <p className="text-sm text-gray-700 mt-1">
-              {formatCurrency(summary.overtimePay)}
-            </p>
           </div>
 
           {/* Total */}
@@ -388,9 +382,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
             <p className="text-xs text-gray-500 font-medium uppercase">Total</p>
             <p className="text-2xl font-bold text-primary-700 mt-1">
               {formatHoursAsTime(summary.totalHours)}h
-            </p>
-            <p className="text-sm text-indigo-700 font-bold mt-1">
-              {formatCurrency(summary.totalPay)}
             </p>
           </div>
         </div>
