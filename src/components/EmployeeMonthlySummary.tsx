@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, FileText, ArrowLeft } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -22,12 +23,10 @@ interface MonthlySummary {
 
 interface EmployeeMonthlySummaryProps {
   selectedMonth: Date;
-  // ❌ REMOVIDO: onShowDetailedReport não é mais necessário
-  // onShowDetailedReport: () => void;
   onBack?: () => void;
 }
 
-// ✨ Função para formatar horas no padrão HH:MM (mantida)
+// Função para formatar horas no padrão HH:MM
 const formatHoursAsTime = (hours: number) => {
   if (typeof hours !== 'number' || isNaN(hours) || hours < 0) {
     return '00:00';
@@ -40,12 +39,41 @@ const formatHoursAsTime = (hours: number) => {
   return `${hoursDisplay.toString().padStart(2, '0')}:${minutesDisplay.toString().padStart(2, '0')}`;
 };
 
+// Gerar lista de meses para o seletor
+const generateMonths = () => {
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(2024, i, 1);
+    months.push({
+      value: i,
+      label: format(date, 'MMMM', { locale: ptBR })
+    });
+  }
+  return months;
+};
+
+// Gerar lista de anos (últimos 5 anos)
+const generateYears = () => {
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let i = 0; i < 5; i++) {
+    const year = currentYear - i;
+    years.push({
+      value: year,
+      label: year.toString()
+    });
+  }
+  return years;
+};
+
 const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
-  selectedMonth,
-  // ❌ REMOVIDO: onShowDetailedReport não é mais desestruturado
-  // onShowDetailedReport,
+  selectedMonth: initialMonth,
   onBack
 }) => {
+  // Estado interno para período selecionado
+  const [selectedYear, setSelectedYear] = useState(initialMonth.getFullYear());
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(initialMonth.getMonth());
+  
   const [summary, setSummary] = useState<MonthlySummary>({
     totalHours: 0,
     normalHours: 0,
@@ -61,6 +89,9 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
   const { formatCurrency } = useCurrency();
   const { user } = useOptimizedAuth();
 
+  // Criar data atual baseada na seleção
+  const currentSelectedDate = new Date(selectedYear, selectedMonthIndex, 1);
+
   // Carregar perfil do usuário primeiro
   useEffect(() => {
     if (user) {
@@ -68,12 +99,12 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     }
   }, [user]);
 
-  // Depois carregar o resumo quando o perfil estiver carregado
+  // Recarregar resumo quando período muda
   useEffect(() => {
     if (user && profileLoaded) {
       loadMonthlySummary();
     }
-  }, [selectedMonth, user, profileLoaded, hourlyRate]);
+  }, [selectedYear, selectedMonthIndex, user, profileLoaded, hourlyRate]);
 
   const loadUserProfile = async () => {
     if (!user) return;
@@ -87,37 +118,33 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
 
       if (error) {
         console.error('Erro ao carregar perfil:', error);
-        // Não lançar erro aqui para não quebrar o componente, apenas logar
-        // throw error;
       }
 
       if (data) {
         const rate = Number(data.hourly_rate);
-        if (!isNaN(rate)) { // Valida se a taxa é um número válido
+        if (!isNaN(rate)) {
            setHourlyRate(rate);
         } else {
            console.warn('Hourly rate inválido no perfil, usando valor padrão.');
-           setHourlyRate(50); // Fallback para valor padrão
+           setHourlyRate(50);
         }
       } else {
          console.warn('Perfil do usuário não encontrado ou sem hourly_rate.');
-         setHourlyRate(50); // Fallback para valor padrão
+         setHourlyRate(50);
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
-      setHourlyRate(50); // Fallback em caso de erro na requisição
+      setHourlyRate(50);
     } finally {
       setProfileLoaded(true);
     }
   };
 
-  // Função para calcular valores (hora extra = hora normal)
-  // Mantida como estava
+  // Função para calcular valores
   const calculatePay = (normalHours: number, overtimeHours: number, rate: number) => {
     const normalPay = normalHours * rate;
-    const overtimePay = overtimeHours * rate; // Hora extra com mesmo valor da hora normal
+    const overtimePay = overtimeHours * rate;
 
-    // Garantir que os resultados são números válidos antes de somar
     const validNormalPay = typeof normalPay === 'number' && !isNaN(normalPay) ? normalPay : 0;
     const validOvertimePay = typeof overtimePay === 'number' && !isNaN(overtimePay) ? overtimePay : 0;
 
@@ -126,14 +153,13 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     return { normalPay: validNormalPay, overtimePay: validOvertimePay, totalPay };
   };
 
-
   const loadMonthlySummary = async () => {
     if (!user || !profileLoaded) return;
 
     setLoading(true);
     try {
-      const startDate = format(selectedMonth, 'yyyy-MM-01');
-      const endDate = format(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0), 'yyyy-MM-dd');
+      const startDate = format(currentSelectedDate, 'yyyy-MM-01');
+      const endDate = format(new Date(selectedYear, selectedMonthIndex + 1, 0), 'yyyy-MM-dd');
 
       const { data: records, error } = await supabase
         .from('time_records')
@@ -145,12 +171,10 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
 
       if (error) {
          console.error('Erro ao carregar registros de ponto:', error);
-         throw error; // Lança o erro para ser pego pelo catch
+         throw error;
       }
 
-      // Recalcular tudo usando os dados brutos e o hourlyRate correto
       const summary = records.reduce((acc, record) => {
-        // Usar a função padronizada para calcular horas
         const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
           record.clock_in || '',
           record.lunch_start || '',
@@ -158,11 +182,10 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
           record.clock_out || ''
         );
 
-        // Calcular valores com o hourlyRate correto
         const { normalPay, overtimePay, totalPay } = calculatePay(
           normalHours,
           overtimeHours,
-          hourlyRate // Usando o hourlyRate carregado
+          hourlyRate
         );
 
         return {
@@ -187,7 +210,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
       setSummary(summary);
     } catch (error) {
       console.error('Error loading monthly summary:', error);
-      // Resetar resumo em caso de erro
       setSummary({
         totalHours: 0,
         normalHours: 0,
@@ -202,11 +224,45 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     }
   };
 
+  // Navegação rápida entre meses
+  const goToPreviousMonth = () => {
+    if (selectedMonthIndex === 0) {
+      setSelectedMonthIndex(11);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonthIndex(selectedMonthIndex - 1);
+    }
+  };
+
+  const goToNextMonth = () => {
+    const currentDate = new Date();
+    const nextMonth = selectedMonthIndex === 11 ? 0 : selectedMonthIndex + 1;
+    const nextYear = selectedMonthIndex === 11 ? selectedYear + 1 : selectedYear;
+    
+    // Não permitir ir para meses futuros
+    if (nextYear > currentDate.getFullYear() || 
+        (nextYear === currentDate.getFullYear() && nextMonth > currentDate.getMonth())) {
+      return;
+    }
+
+    setSelectedMonthIndex(nextMonth);
+    setSelectedYear(nextYear);
+  };
+
+  // Verificar se pode ir para o próximo mês
+  const canGoToNextMonth = () => {
+    const currentDate = new Date();
+    const nextMonth = selectedMonthIndex === 11 ? 0 : selectedMonthIndex + 1;
+    const nextYear = selectedMonthIndex === 11 ? selectedYear + 1 : selectedYear;
+    
+    return !(nextYear > currentDate.getFullYear() || 
+             (nextYear === currentDate.getFullYear() && nextMonth > currentDate.getMonth()));
+  };
+
   if (loading || !profileLoaded) {
     return (
       <Card>
         <CardContent className="p-6 text-center text-gray-600">
-           {/* Adicionado um spinner simples */}
            <div className="flex items-center justify-center mb-2">
              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
            </div>
@@ -216,23 +272,89 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     );
   }
 
+  const months = generateMonths();
+  const years = generateYears();
+
   return (
-    // ✨ Ajustes de layout e cores para mobile
     <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg border-none">
-      <CardHeader className="pb-4"> {/* Ajuste no padding */}
-        <div className="flex items-center justify-between flex-wrap gap-2"> {/* Permite quebrar linha em telas pequenas */}
-          <CardTitle className="text-primary-800 flex items-center gap-2 text-lg sm:text-xl"> {/* Ajuste no tamanho do título */}
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-primary-800 flex items-center gap-2 text-lg sm:text-xl">
             <Calendar className="w-5 h-5 text-primary-600" />
-            Resumo de {format(selectedMonth, 'MMMM yyyy', { locale: ptBR })}
+            Resumo Mensal
           </CardTitle>
         </div>
-      </CardHeader>
-      <CardContent className="pt-0"> {/* Ajuste no padding */}
-        {/* ✨ Melhoria no layout da grid para mobile */}
-        <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-center"> {/* Garante 2 colunas e adiciona gap vertical */}
+        
+        {/* Controles de navegação de período */}
+        <div className="flex items-center gap-2 mt-4 flex-wrap">
+          {/* Navegação rápida */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToPreviousMonth}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToNextMonth}
+              disabled={!canGoToNextMonth()}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
 
+          {/* Seletores de mês e ano */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Select
+              value={selectedMonthIndex.toString()}
+              onValueChange={(value) => setSelectedMonthIndex(parseInt(value))}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {months.map((month) => (
+                  <SelectItem key={month.value} value={month.value.toString()}>
+                    {month.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={selectedYear.toString()}
+              onValueChange={(value) => setSelectedYear(parseInt(value))}
+            >
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((year) => (
+                  <SelectItem key={year.value} value={year.value.toString()}>
+                    {year.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Mostrar período selecionado */}
+        <div className="text-sm text-gray-600 mt-2">
+          {format(currentSelectedDate, 'MMMM yyyy', { locale: ptBR })}
+        </div>
+      </CardHeader>
+      
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-center">
           {/* Dias Trabalhados */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm"> {/* Adicionado fundo e sombra */}
+          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
             <p className="text-xs text-gray-500 font-medium uppercase">Dias Trabalhados</p>
             <p className="text-2xl font-bold text-primary-700 mt-1">
               {summary.workingDays}
@@ -240,52 +362,38 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
           </div>
 
           {/* Horas Normais */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm"> {/* Adicionado fundo e sombra */}
+          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
             <p className="text-xs text-gray-500 font-medium uppercase">Horas Normais</p>
-            <p className="text-2xl font-bold text-green-600 mt-1"> {/* Cor para horas normais */}
-              {formatHoursAsTime(summary.normalHours)} {/* ✨ Aplicado formato HH:MM */}
+            <p className="text-2xl font-bold text-green-600 mt-1">
+              {formatHoursAsTime(summary.normalHours)}
             </p>
-            <p className="text-sm text-gray-700 mt-1"> {/* Cor para o valor */}
+            <p className="text-sm text-gray-700 mt-1">
               {formatCurrency(summary.normalPay)}
             </p>
           </div>
 
           {/* Horas Extras */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm"> {/* Adicionado fundo e sombra */}
+          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
             <p className="text-xs text-gray-500 font-medium uppercase">Horas Extras</p>
-            <p className="text-2xl font-bold text-orange-600 mt-1"> {/* Cor para horas extras */}
-              {formatHoursAsTime(summary.overtimeHours)} {/* ✨ Aplicado formato HH:MM */}
+            <p className="text-2xl font-bold text-orange-600 mt-1">
+              {formatHoursAsTime(summary.overtimeHours)}
             </p>
-            <p className="text-sm text-gray-700 mt-1"> {/* Cor para o valor */}
+            <p className="text-sm text-gray-700 mt-1">
               {formatCurrency(summary.overtimePay)}
             </p>
           </div>
 
-          {/* Total (Horas + Pagamento) */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm"> {/* Adicionado fundo e sombra */}
+          {/* Total */}
+          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
             <p className="text-xs text-gray-500 font-medium uppercase">Total</p>
-             {/* ✨ Exibindo horas e valor total separadamente para clareza */}
             <p className="text-2xl font-bold text-primary-700 mt-1">
-              {formatHoursAsTime(summary.totalHours)}h {/* ✨ Aplicado formato HH:MM */}
+              {formatHoursAsTime(summary.totalHours)}h
             </p>
-            <p className="text-sm text-indigo-700 font-bold mt-1"> {/* Cor e negrito para o valor total */}
+            <p className="text-sm text-indigo-700 font-bold mt-1">
               {formatCurrency(summary.totalPay)}
             </p>
           </div>
-
         </div>
-
-        {/* ❌ REMOVIDO: Botão "Ver Relatório Detalhado" */}
-        {/*
-        <Button
-          onClick={onShowDetailedReport}
-          variant="outline"
-          className="w-full mt-4" // Adicionado margin-top para separar da grid
-        >
-          <FileText className="w-4 h-4 mr-2" />
-          Ver Relatório Detalhado
-        </Button>
-        */}
       </CardContent>
     </Card>
   );

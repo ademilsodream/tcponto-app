@@ -662,6 +662,53 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_expected_hours: {
+        Row: {
+          created_at: string
+          employee_id: string
+          expected_hours: number
+          id: string
+          last_updated: string
+          month: number
+          updated_at: string
+          working_days_elapsed: number
+          working_days_in_month: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          expected_hours?: number
+          id?: string
+          last_updated?: string
+          month: number
+          updated_at?: string
+          working_days_elapsed?: number
+          working_days_in_month?: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          expected_hours?: number
+          id?: string
+          last_updated?: string
+          month?: number
+          updated_at?: string
+          working_days_elapsed?: number
+          working_days_in_month?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_expected_hours_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_logs: {
         Row: {
           created_at: string | null
@@ -756,6 +803,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payroll_calculation_settings: {
+        Row: {
+          applies_to: string
+          created_at: string
+          id: string
+          is_enabled: boolean
+          setting_description: string | null
+          setting_name: string
+          updated_at: string
+        }
+        Insert: {
+          applies_to?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          setting_description?: string | null
+          setting_name: string
+          updated_at?: string
+        }
+        Update: {
+          applies_to?: string
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          setting_description?: string | null
+          setting_name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -1381,6 +1458,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      count_working_days_elapsed: {
+        Args: { target_year: number; target_month: number }
+        Returns: number
+      }
+      count_working_days_in_month: {
+        Args: { target_year: number; target_month: number }
+        Returns: number
+      }
       expire_old_hour_bank_hours: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1440,6 +1525,10 @@ export type Database = {
       }
       send_scheduled_push_notifications: {
         Args: { notification_type: string; check_time: string }
+        Returns: undefined
+      }
+      update_monthly_expected_hours: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
     }
