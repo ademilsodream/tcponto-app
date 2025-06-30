@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "432387947736",
+    "project_id": "tcponto-9841b",
+    "storage_bucket": "tcponto-9841b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:432387947736:android:1aeebe502eadbae39d6bad",
+        "android_client_info": {
+          "package_name": "com.tcponto.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDFFYheM5RwiVWaNI7ddDAgNg1FkuYR_rM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
