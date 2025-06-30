@@ -91,7 +91,13 @@ const SalaryAdvanceRequest: React.FC = () => {
         return;
       }
 
-      setRequests(data || []);
+      // Safely cast the status field to the expected type
+      const typedData = (data || []).map(item => ({
+        ...item,
+        status: item.status as 'pending' | 'approved' | 'rejected'
+      }));
+
+      setRequests(typedData);
     } catch (error) {
       console.error('Error loading requests:', error);
     } finally {
