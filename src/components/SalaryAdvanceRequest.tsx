@@ -116,7 +116,6 @@ const SalaryAdvanceRequest: React.FC = () => {
     if (amount < minAmount || amount > maxAmount) {
       toast({
         title: "Valor inválido",
-        description: `O valor deve estar entre ${formatCurrency(minAmount)} e ${formatCurrency(maxAmount)}.`,
         variant: "destructive"
       });
       return;
