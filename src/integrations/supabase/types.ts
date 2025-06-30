@@ -954,6 +954,92 @@ export type Database = {
           },
         ]
       }
+      salary_advance_history: {
+        Row: {
+          action: string
+          action_at: string
+          action_by: string | null
+          id: string
+          new_amount: number | null
+          notes: string | null
+          previous_amount: number | null
+          salary_advance_id: string
+        }
+        Insert: {
+          action: string
+          action_at?: string
+          action_by?: string | null
+          id?: string
+          new_amount?: number | null
+          notes?: string | null
+          previous_amount?: number | null
+          salary_advance_id: string
+        }
+        Update: {
+          action?: string
+          action_at?: string
+          action_by?: string | null
+          id?: string
+          new_amount?: number | null
+          notes?: string | null
+          previous_amount?: number | null
+          salary_advance_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salary_advance_history_salary_advance_id_fkey"
+            columns: ["salary_advance_id"]
+            isOneToOne: false
+            referencedRelation: "salary_advance_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      salary_advance_requests: {
+        Row: {
+          admin_notes: string | null
+          approved_amount: number | null
+          created_at: string
+          employee_id: string
+          id: string
+          payment_date: string | null
+          reason: string
+          requested_amount: number
+          requested_at: string
+          reviewed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          approved_amount?: number | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          payment_date?: string | null
+          reason: string
+          requested_amount: number
+          requested_at?: string
+          reviewed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          approved_amount?: number | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          payment_date?: string | null
+          reason?: string
+          requested_amount?: number
+          requested_at?: string
+          reviewed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_alerts: {
         Row: {
           alert_type: string

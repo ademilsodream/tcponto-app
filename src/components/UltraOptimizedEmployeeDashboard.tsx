@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { useState, useCallback, useMemo } from 'react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -13,6 +14,7 @@ const IncompleteRecordsProfile = React.lazy(() => import('@/components/Incomplet
 const AdjustPreviousDays = React.lazy(() => import('@/components/AdjustPreviousDays'));
 const VacationRequest = React.lazy(() => import('@/components/VacationRequest'));
 const EmployeeDocuments = React.lazy(() => import('@/components/EmployeeDocuments'));
+const SalaryAdvanceRequest = React.lazy(() => import('@/components/SalaryAdvanceRequest'));
 
 // Loading simples e rápido
 const QuickLoadingSpinner = React.memo(() => (
@@ -84,6 +86,12 @@ const UltraOptimizedEmployeeDashboard = React.memo(() => {
         return (
           <React.Suspense fallback={<QuickLoadingSpinner />}>
             <EmployeeDocuments />
+          </React.Suspense>
+        );
+      case 'salaryAdvance':
+        return (
+          <React.Suspense fallback={<QuickLoadingSpinner />}>
+            <SalaryAdvanceRequest />
           </React.Suspense>
         );
       default:
