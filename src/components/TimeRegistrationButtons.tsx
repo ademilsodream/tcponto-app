@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Clock } from 'lucide-react';
+import { Clock, Compass } from 'lucide-react';
 import { CooldownDisplay } from './CooldownDisplay';
+import { useEnhancedLocation } from '@/hooks/useEnhancedLocation';
 
 interface AllowedButtons {
   clock_in: boolean;
@@ -33,6 +34,16 @@ export const TimeRegistrationButtons: React.FC<TimeRegistrationButtonsProps> = (
   remainingCooldown,
   formatRemainingTime
 }) => {
+  const { startCalibration, calibration } = useEnhancedLocation();
+
+  const handleCalibrateGPS = async () => {
+    try {
+      await startCalibration();
+    } catch (error) {
+      console.error('Erro na calibração:', error);
+    }
+  };
+
   if (!nextAction) return null;
 
   const isAllowedByShift = shiftValidation.allowedButtons[nextAction as keyof AllowedButtons];
@@ -52,6 +63,16 @@ export const TimeRegistrationButtons: React.FC<TimeRegistrationButtonsProps> = (
         {submitting ? 'Registrando...' : 
          !isAllowedByShift ? 'Fora do Horário' :
          'Registrar'}
+      </Button>
+
+      <Button
+        onClick={handleCalibrateGPS}
+        disabled={calibration.isCalibrating}
+        variant="outline"
+        className="w-full h-12 sm:h-14 text-base sm:text-lg font-semibold touch-manipulation mt-3"
+      >
+        <Compass className="w-5 h-5 mr-2" />
+        {calibration.isCalibrating ? 'Calibrando GPS...' : 'Calibrar GPS'}
       </Button>
       
       <CooldownDisplay 
