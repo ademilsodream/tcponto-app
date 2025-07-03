@@ -1,10 +1,14 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
+import { useMobileWorkerLocation } from './useMobileWorkerLocation';
+import { 
+  validateLocationForMobileWorker,
+  saveLastRegistrationLocation 
+} from '@/utils/smartLocationValidation';
 
 interface TimeRecord {
   id: string;
@@ -43,6 +47,9 @@ export const useTimeRegistrationLogic = () => {
   const { user, hasAccess } = useOptimizedAuth();
   const { toast } = useToast();
   const shiftValidation = useWorkShiftValidation();
+  
+  // Adicionar suporte para funcionário móvel
+  const mobileWorkerLocation = useMobileWorkerLocation(allowedLocations);
 
   const fieldNames = {
     clock_in: 'Entrada',
@@ -230,22 +237,39 @@ export const useTimeRegistrationLogic = () => {
         return;
       }
 
-      console.log(`🏢 Validando contra ${allowedLocations.length} localizações permitidas`);
-      console.log('📋 Validação de localização: GPS deve estar DENTRO DO RANGE de uma localização permitida');
+      console.log(`🏢 Validando com suporte a funcionário móvel contra ${allowedLocations.length} localizações`);
 
-      const locationValidation = await validateLocationForTimeRecord(allowedLocations);
+      // Usar validação inteligente para funcionários móveis
+      const locationValidation = await validateLocationForMobileWorker(allowedLocations, 0.7);
 
       if (!locationValidation.valid) {
         console.error('❌ Localização não autorizada:', locationValidation.message);
+        
+        // Melhor feedback para funcionários móveis
+        let errorMessage = locationValidation.message;
+        if (locationValidation.locationChanged) {
+          errorMessage += '\n\nTente calibrar o GPS ou entre em contato com o RH se continuar com problemas.';
+        }
+        
         toast({
           title: "Localização não autorizada",
-          description: locationValidation.message,
+          description: errorMessage,
           variant: "destructive"
         });
         return;
       }
 
-      console.log('✅ Localização validada - GPS dentro do range permitido, registrando ponto...');
+      // Notificar sobre mudança de local se detectada
+      if (locationValidation.locationChanged) {
+        console.log('📍 Mudança de local detectada:', locationValidation.message);
+        toast({
+          title: "Local Alterado",
+          description: locationValidation.message,
+          duration: 5000
+        });
+      }
+
+      console.log('✅ Localização validada - registrando ponto...');
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -264,7 +288,9 @@ export const useTimeRegistrationLogic = () => {
             timestamp: now.toISOString(),
             address: locationValidation.closestLocation?.address || 'Localização autorizada',
             locationName: locationValidation.closestLocation?.name || 'Local permitido',
-            distance: Math.round(locationValidation.distance || 0)
+            distance: Math.round(locationValidation.distance || 0),
+            locationChanged: locationValidation.locationChanged || false,
+            previousLocation: locationValidation.previousLocation
           }
         };
 
@@ -294,6 +320,11 @@ export const useTimeRegistrationLogic = () => {
         if (error) throw error;
       }
 
+      // Salvar local atual para próximas validações
+      if (locationValidation.closestLocation) {
+        saveLastRegistrationLocation(locationValidation.closestLocation.id);
+      }
+
       await loadTodayRecord();
 
       const actionNames = {
@@ -303,9 +334,14 @@ export const useTimeRegistrationLogic = () => {
         clock_out: 'Saída'
       };
 
+      let successMessage = `${actionNames[action]} registrada às ${currentTime}`;
+      if (locationValidation.locationChanged) {
+        successMessage += ` em ${locationValidation.closestLocation?.name}`;
+      }
+
       toast({
         title: "Sucesso",
-        description: `${actionNames[action]} registrada às ${currentTime}`,
+        description: successMessage,
       });
 
       const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
@@ -437,6 +473,7 @@ export const useTimeRegistrationLogic = () => {
     formatRemainingTime,
     setEditField,
     setEditValue,
-    setEditReason
+    setEditReason,
+    mobileWorkerLocation
   };
 };
