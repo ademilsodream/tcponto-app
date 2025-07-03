@@ -130,16 +130,29 @@ export const validateLocationForMobileWorker = async (
           
           if (flexibleResult.valid) {
             return {
-              ...flexibleResult,
+              valid: flexibleResult.valid,
+              message: `Localização alterada de ${locationChange.previousLocation?.name} para ${flexibleResult.closestLocation?.name}`,
+              location: flexibleResult.location,
+              closestLocation: flexibleResult.closestLocation,
+              distance: flexibleResult.distance,
+              gpsAccuracy: flexibleResult.gpsAccuracy,
+              confidence: flexibleResult.confidence,
               locationChanged: true,
-              previousLocation: locationChange.previousLocation?.name,
-              message: `Localização alterada de ${locationChange.previousLocation?.name} para ${flexibleResult.closestLocation?.name}`
+              previousLocation: locationChange.previousLocation?.name
             };
           }
         }
       }
       
-      return baseResult;
+      return {
+        valid: baseResult.valid,
+        message: baseResult.message,
+        location: baseResult.location,
+        closestLocation: baseResult.closestLocation,
+        distance: baseResult.distance,
+        gpsAccuracy: baseResult.gpsAccuracy,
+        confidence: baseResult.confidence
+      };
     }
     
     // Passou na validação - verificar se houve mudança de local
@@ -152,15 +165,28 @@ export const validateLocationForMobileWorker = async (
       
       if (locationChange.changed) {
         return {
-          ...baseResult,
+          valid: baseResult.valid,
+          message: `Localização alterada para ${baseResult.closestLocation.name}`,
+          location: baseResult.location,
+          closestLocation: baseResult.closestLocation,
+          distance: baseResult.distance,
+          gpsAccuracy: baseResult.gpsAccuracy,
+          confidence: baseResult.confidence,
           locationChanged: true,
-          previousLocation: locationChange.previousLocation?.name,
-          message: `Localização alterada para ${baseResult.closestLocation.name}`
+          previousLocation: locationChange.previousLocation?.name
         };
       }
     }
     
-    return baseResult;
+    return {
+      valid: baseResult.valid,
+      message: baseResult.message,
+      location: baseResult.location,
+      closestLocation: baseResult.closestLocation,
+      distance: baseResult.distance,
+      gpsAccuracy: baseResult.gpsAccuracy,
+      confidence: baseResult.confidence
+    };
     
   } catch (error) {
     console.error('Erro na validação inteligente:', error);
