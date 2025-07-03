@@ -1600,6 +1600,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      is_month_closed: {
+        Args: { check_date: string }
+        Returns: boolean
+      }
       process_hour_bank: {
         Args: {
           p_employee_id: string

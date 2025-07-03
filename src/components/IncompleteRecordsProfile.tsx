@@ -167,16 +167,20 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
       setLoading(true);
       setError(null);
       
-      // Obter data atual e data limite (ontem)
+      // Obter data atual
       const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+      
+      // Primeiro dia do mês atual
+      const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+      
+      // Data limite: ontem OU último dia do mês atual (o que for menor)
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
       
-      // Primeiro dia do mês atual
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      
-      // Data limite: ontem (não incluir hoje)
-      const endDate = yesterday;
+      const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+      const endDate = yesterday <= lastDayOfMonth ? yesterday : lastDayOfMonth;
 
       console.log('IncompleteRecordsProfile: Fetching records from', 
         firstDayOfMonth.toISOString().split('T')[0], 
@@ -184,9 +188,17 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         endDate.toISOString().split('T')[0]
       );
 
-      // Se o primeiro dia do mês for depois de ontem, não há dias para verificar
+      // Se o primeiro dia do mês for depois da data limite, não há dias para verificar
       if (firstDayOfMonth > endDate) {
         console.log('IncompleteRecordsProfile: No days to check in current month yet');
+        setIncompleteRecords([]);
+        setLoading(false);
+        return;
+      }
+
+      // Se estamos no dia 1º do mês e ontem era do mês anterior, não mostrar nada
+      if (yesterday.getMonth() !== currentMonth) {
+        console.log('IncompleteRecordsProfile: Yesterday was from previous month, showing no records');
         setIncompleteRecords([]);
         setLoading(false);
         return;
@@ -197,7 +209,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         .select('date, clock_in, lunch_start, lunch_end, clock_out')
         .eq('user_id', user.id)
         .gte('date', firstDayOfMonth.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0]) // Até ontem apenas
+        .lte('date', endDate.toISOString().split('T')[0])
         .eq('status', 'active')
         .order('date', { ascending: false });
 
@@ -208,38 +220,44 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
 
       console.log('IncompleteRecordsProfile: Fetched records:', records?.length || 0);
 
-      // Obter apenas dias úteis do mês até ontem
-      const allWorkingDaysInMonth = getWorkingDaysInMonth(today.getFullYear(), today.getMonth());
-      const workingDaysUntilYesterday = allWorkingDaysInMonth.filter(date => {
+      // Obter apenas dias úteis do mês atual até a data limite
+      const allWorkingDaysInMonth = getWorkingDaysInMonth(currentYear, currentMonth);
+      const workingDaysUntilEndDate = allWorkingDaysInMonth.filter(date => {
         const dayDate = new Date(date + 'T00:00:00');
-        return dayDate <= endDate; // Apenas até ontem
+        return dayDate <= endDate && dayDate.getMonth() === currentMonth; // Garantir que está no mês atual
       });
 
-      console.log('IncompleteRecordsProfile: Working days until yesterday:', workingDaysUntilYesterday.length);
+      console.log('IncompleteRecordsProfile: Working days in current month until end date:', workingDaysUntilEndDate.length);
 
       // Processar registros incompletos
       const incomplete: IncompleteRecord[] = [];
       
-      // Verificar cada dia útil até ontem
-      const allDaysToCheck = [...workingDaysUntilYesterday];
+      // Verificar cada dia útil do mês atual
+      const allDaysToCheck = [...workingDaysUntilEndDate];
       
-      // Adicionar fins de semana que têm registros (também até ontem)
+      // Adicionar fins de semana que têm registros (apenas do mês atual)
       for (let d = new Date(firstDayOfMonth); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dateString = d.toISOString().split('T')[0];
         const isWeekendDay = !isWorkingDay(d);
         
-        if (isWeekendDay && records?.find(r => r.date === dateString)) {
+        // Garantir que a data está no mês atual
+        if (d.getMonth() === currentMonth && isWeekendDay && records?.find(r => r.date === dateString)) {
           allDaysToCheck.push(dateString);
         }
       }
 
-      console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records) until yesterday');
+      console.log('IncompleteRecordsProfile: Processing', allDaysToCheck.length, 'days (working days + weekends with records) in current month');
 
       // Verificar cada dia
       allDaysToCheck.forEach(date => {
         const record = records?.find(r => r.date === date);
         const dateObj = new Date(date + 'T00:00:00');
         const isWeekendDay = !isWorkingDay(dateObj);
+        
+        // Verificar novamente se a data está no mês atual
+        if (dateObj.getMonth() !== currentMonth) {
+          return; // Pular se não for do mês atual
+        }
         
         if (!record) {
           // Dia sem nenhum registro (apenas dias úteis aparecem aqui)
@@ -279,7 +297,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         }
       });
 
-      console.log('IncompleteRecordsProfile: Found', incomplete.length, 'incomplete records until yesterday');
+      console.log('IncompleteRecordsProfile: Found', incomplete.length, 'incomplete records in current month');
       setIncompleteRecords(incomplete);
     } catch (error) {
       console.error('IncompleteRecordsProfile: Error loading incomplete records:', error);
@@ -584,7 +602,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
         <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
           <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
           <div className="text-lg">Carregando registros...</div>
-          <div className="text-sm text-gray-600">Verificando registros até ontem</div>
+          <div className="text-sm text-gray-600">Verificando registros do mês atual</div>
         </CardContent>
       </Card>
     );
@@ -628,7 +646,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
-              Registros Incompletos
+              Registros Incompletos - Mês Atual
             </CardTitle>
           </div>
         </CardHeader>
@@ -637,10 +655,10 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             <div className="text-center py-8">
               <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
               <p className="text-lg text-green-600 font-medium">
-                Parabéns! Todos os registros estão completos até ontem.
+                Parabéns! Todos os registros do mês atual estão completos.
               </p>
               <p className="text-sm text-gray-600 mt-2">
-                Você tem todos os 4 registros diários preenchidos nos dias úteis até o dia anterior.
+                Você tem todos os 4 registros diários preenchidos nos dias úteis do mês atual.
               </p>
             </div>
           ) : (
@@ -648,7 +666,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
               <Alert className="border-amber-200 bg-amber-50">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-amber-800">
-                  Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos até ontem
+                  Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos no mês atual
                   {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
                 </AlertDescription>
               </Alert>
