@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { AllowedLocation } from '@/types/index';
@@ -21,7 +20,10 @@ interface MobileWorkerLocationState {
   needsCalibration: boolean;
 }
 
-export const useMobileWorkerLocation = (allowedLocations: AllowedLocation[]) => {
+// Tipo simplificado para locais permitidos sem campos de timestamp
+type SimpleAllowedLocation = Omit<AllowedLocation, 'created_at' | 'updated_at'>;
+
+export const useMobileWorkerLocation = (allowedLocations: SimpleAllowedLocation[]) => {
   const [state, setState] = useState<MobileWorkerLocationState>({
     isValidating: false,
     canRegister: false,
@@ -35,6 +37,15 @@ export const useMobileWorkerLocation = (allowedLocations: AllowedLocation[]) => 
   const { location, startCalibration, calibration } = useEnhancedLocation();
   const { toast } = useToast();
 
+  // Converter locais simples para o formato completo esperado pela validação
+  const convertToFullLocations = useCallback((locations: SimpleAllowedLocation[]): AllowedLocation[] => {
+    return locations.map(loc => ({
+      ...loc,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+  }, []);
+
   // Validar localização automaticamente
   const validateCurrentLocation = useCallback(async () => {
     if (!location || allowedLocations.length === 0) return;
@@ -42,7 +53,8 @@ export const useMobileWorkerLocation = (allowedLocations: AllowedLocation[]) => 
     setState(prev => ({ ...prev, isValidating: true }));
 
     try {
-      const result = await validateLocationForMobileWorker(allowedLocations, 0.7);
+      const fullLocations = convertToFullLocations(allowedLocations);
+      const result = await validateLocationForMobileWorker(fullLocations, 0.7);
 
       setState(prev => ({
         ...prev,
@@ -72,7 +84,7 @@ export const useMobileWorkerLocation = (allowedLocations: AllowedLocation[]) => 
         validationMessage: 'Erro ao validar localização'
       }));
     }
-  }, [location, allowedLocations, toast]);
+  }, [location, allowedLocations, toast, convertToFullLocations]);
 
   // Calibrar GPS para local específico
   const calibrateForCurrentLocation = useCallback(async () => {

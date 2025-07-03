@@ -8,7 +8,7 @@ interface LocationValidationResult {
   location?: {
     latitude: number;
     longitude: number;
-    accuracy: number;
+    accuracy?: number; // Tornar opcional para compatibilidade
   };
   closestLocation?: AllowedLocation;
   distance?: number;
@@ -132,7 +132,11 @@ export const validateLocationForMobileWorker = async (
             return {
               valid: flexibleResult.valid,
               message: `Localização alterada de ${locationChange.previousLocation?.name} para ${flexibleResult.closestLocation?.name}`,
-              location: flexibleResult.location,
+              location: flexibleResult.location ? {
+                latitude: flexibleResult.location.latitude,
+                longitude: flexibleResult.location.longitude,
+                accuracy: flexibleResult.gpsAccuracy || undefined
+              } : undefined,
               closestLocation: flexibleResult.closestLocation,
               distance: flexibleResult.distance,
               gpsAccuracy: flexibleResult.gpsAccuracy,
@@ -147,7 +151,11 @@ export const validateLocationForMobileWorker = async (
       return {
         valid: baseResult.valid,
         message: baseResult.message,
-        location: baseResult.location,
+        location: baseResult.location ? {
+          latitude: baseResult.location.latitude,
+          longitude: baseResult.location.longitude,
+          accuracy: baseResult.gpsAccuracy || undefined
+        } : undefined,
         closestLocation: baseResult.closestLocation,
         distance: baseResult.distance,
         gpsAccuracy: baseResult.gpsAccuracy,
@@ -167,7 +175,11 @@ export const validateLocationForMobileWorker = async (
         return {
           valid: baseResult.valid,
           message: `Localização alterada para ${baseResult.closestLocation.name}`,
-          location: baseResult.location,
+          location: {
+            latitude: baseResult.location.latitude,
+            longitude: baseResult.location.longitude,
+            accuracy: baseResult.gpsAccuracy || undefined
+          },
           closestLocation: baseResult.closestLocation,
           distance: baseResult.distance,
           gpsAccuracy: baseResult.gpsAccuracy,
@@ -181,7 +193,11 @@ export const validateLocationForMobileWorker = async (
     return {
       valid: baseResult.valid,
       message: baseResult.message,
-      location: baseResult.location,
+      location: baseResult.location ? {
+        latitude: baseResult.location.latitude,
+        longitude: baseResult.location.longitude,
+        accuracy: baseResult.gpsAccuracy || undefined
+      } : undefined,
       closestLocation: baseResult.closestLocation,
       distance: baseResult.distance,
       gpsAccuracy: baseResult.gpsAccuracy,

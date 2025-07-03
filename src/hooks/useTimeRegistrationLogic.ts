@@ -152,10 +152,13 @@ export const useTimeRegistrationLogic = () => {
       if (error) throw error;
 
       const processedLocations = (data || []).map(location => ({
-        ...location,
+        id: location.id,
+        name: location.name,
+        address: location.address,
         latitude: Number(location.latitude),
         longitude: Number(location.longitude),
-        range_meters: Number(location.range_meters)
+        range_meters: Number(location.range_meters),
+        is_active: location.is_active
       }));
 
       setAllowedLocations(processedLocations);
@@ -239,8 +242,15 @@ export const useTimeRegistrationLogic = () => {
 
       console.log(`🏢 Validando com suporte a funcionário móvel contra ${allowedLocations.length} localizações`);
 
+      // Converter para o formato completo esperado pela validação
+      const fullAllowedLocations = allowedLocations.map(loc => ({
+        ...loc,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+
       // Usar validação inteligente para funcionários móveis
-      const locationValidation = await validateLocationForMobileWorker(allowedLocations, 0.7);
+      const locationValidation = await validateLocationForMobileWorker(fullAllowedLocations, 0.7);
 
       if (!locationValidation.valid) {
         console.error('❌ Localização não autorizada:', locationValidation.message);
