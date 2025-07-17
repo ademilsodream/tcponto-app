@@ -177,7 +177,7 @@ const Login = () => {
         </Card>
 
         <div className="text-center mt-6">
-          <p className="text-white text-sm opacity-75">V-2.0</p>
+          <p className="text-white text-sm opacity-75">V-2.1</p>
         </div>
       </div>
     </div>
