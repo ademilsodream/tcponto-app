@@ -9,7 +9,8 @@ import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useEnhancedLocation } from '@/hooks/useEnhancedLocation';
 import { GPSStatus } from '@/components/GPSStatus';
 import { PushNotificationService } from '@/services/PushNotificationService';
-import { validateLocationWithConfidence, clearLocationCache } from '@/utils/enhancedLocationValidation';
+import { AdvancedLocationControls } from './AdvancedLocationControls';
+import { useAdvancedLocationSystem } from '@/hooks/useAdvancedLocationSystem';
 import { format } from 'date-fns';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { AllowedLocation } from '@/types/index';
@@ -259,7 +260,8 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     }
 
     try {
-      const locationValidation = await validateLocationWithConfidence(
+      const { AdvancedLocationSystem } = await import('@/utils/advancedLocationSystem');
+      const locationValidation = await AdvancedLocationSystem.validateLocation(
         allowedLocations,
         isLowAccuracy ? 0.5 : 0.7
       );
@@ -456,7 +458,8 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         console.warn('Erro ao enviar notificação push:', pushError);
       }
 
-      clearLocationCache();
+      const { AdvancedLocationSystem } = await import('@/utils/advancedLocationSystem');
+      AdvancedLocationSystem.resetForNewRegistration();
 
       toast({
         title: "Sucesso",

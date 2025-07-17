@@ -4,11 +4,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
-import { useMobileWorkerLocation } from './useMobileWorkerLocation';
-import { 
-  validateLocationForMobileWorker,
-  saveLastRegistrationLocation 
-} from '@/utils/smartLocationValidation';
+
+import { AdvancedLocationSystem } from '@/utils/advancedLocationSystem';
+import { useAdvancedLocationSystem } from './useAdvancedLocationSystem';
 
 interface TimeRecord {
   id: string;
@@ -48,8 +46,8 @@ export const useTimeRegistrationLogic = () => {
   const { toast } = useToast();
   const shiftValidation = useWorkShiftValidation();
   
-  // Adicionar suporte para funcionário móvel
-  const mobileWorkerLocation = useMobileWorkerLocation(allowedLocations);
+  // Sistema avançado de localização
+  const advancedLocationSystem = useAdvancedLocationSystem(allowedLocations);
 
   const fieldNames = {
     clock_in: 'Entrada',
@@ -240,7 +238,7 @@ export const useTimeRegistrationLogic = () => {
         return;
       }
 
-      console.log(`🏢 Validando com suporte a funcionário móvel contra ${allowedLocations.length} localizações`);
+      console.log(`🏢 Validando com sistema avançado contra ${allowedLocations.length} localizações`);
 
       // Converter para o formato completo esperado pela validação
       const fullAllowedLocations = allowedLocations.map(loc => ({
@@ -249,8 +247,8 @@ export const useTimeRegistrationLogic = () => {
         updated_at: new Date().toISOString()
       }));
 
-      // Usar validação inteligente para funcionários móveis
-      const locationValidation = await validateLocationForMobileWorker(fullAllowedLocations, 0.7);
+      // Usar sistema avançado de validação
+      const locationValidation = await AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
 
       if (!locationValidation.valid) {
         console.error('❌ Localização não autorizada:', locationValidation.message);
@@ -330,10 +328,8 @@ export const useTimeRegistrationLogic = () => {
         if (error) throw error;
       }
 
-      // Salvar local atual para próximas validações
-      if (locationValidation.closestLocation) {
-        saveLastRegistrationLocation(locationValidation.closestLocation.id);
-      }
+      // Reset sistema para próximo registro
+      AdvancedLocationSystem.resetForNewRegistration();
 
       await loadTodayRecord();
 
@@ -484,6 +480,6 @@ export const useTimeRegistrationLogic = () => {
     setEditField,
     setEditValue,
     setEditReason,
-    mobileWorkerLocation
+    advancedLocationSystem
   };
 };
