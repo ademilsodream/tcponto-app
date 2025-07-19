@@ -4,6 +4,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
+import { reverseGeocode } from '@/utils/geocoding';
 
 import { AdvancedLocationSystem } from '@/utils/advancedLocationSystem';
 import { useAdvancedLocationSystem } from './useAdvancedLocationSystem';
@@ -31,6 +32,34 @@ interface AllowedLocation {
 
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
+// Função para obter posição atual do GPS
+const getCurrentPosition = (): Promise<{ latitude: number; longitude: number; accuracy: number }> => {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('Geolocation não é suportado pelo navegador'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        });
+      },
+      (error) => {
+        reject(error);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+  });
+};
+
 export const useTimeRegistrationLogic = () => {
   const [timeRecord, setTimeRecord] = useState<TimeRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +71,7 @@ export const useTimeRegistrationLogic = () => {
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
 
-  const { user, hasAccess } = useOptimizedAuth();
+  const { user, hasAccess, profile } = useOptimizedAuth();
   const { toast } = useToast();
   const shiftValidation = useWorkShiftValidation();
   
@@ -225,59 +254,7 @@ export const useTimeRegistrationLogic = () => {
 
     try {
       setSubmitting(true);
-
       console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
-
-      if (!allowedLocations || allowedLocations.length === 0) {
-        console.error('❌ Nenhuma localização permitida carregada');
-        toast({
-          title: "Erro de Configuração",
-          description: "Nenhuma localização permitida configurada. Entre em contato com o RH.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      console.log(`🏢 Validando com sistema avançado contra ${allowedLocations.length} localizações`);
-
-      // Converter para o formato completo esperado pela validação
-      const fullAllowedLocations = allowedLocations.map(loc => ({
-        ...loc,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
-      // Usar sistema avançado de validação
-      const locationValidation = await AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
-
-      if (!locationValidation.valid) {
-        console.error('❌ Localização não autorizada:', locationValidation.message);
-        
-        // Melhor feedback para funcionários móveis
-        let errorMessage = locationValidation.message;
-        if (locationValidation.locationChanged) {
-          errorMessage += '\n\nTente calibrar o GPS ou entre em contato com o RH se continuar com problemas.';
-        }
-        
-        toast({
-          title: "Localização não autorizada",
-          description: errorMessage,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Notificar sobre mudança de local se detectada
-      if (locationValidation.locationChanged) {
-        console.log('📍 Mudança de local detectada:', locationValidation.message);
-        toast({
-          title: "Local Alterado",
-          description: locationValidation.message,
-          duration: 5000
-        });
-      }
-
-      console.log('✅ Localização validada - registrando ponto...');
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -288,27 +265,128 @@ export const useTimeRegistrationLogic = () => {
         updated_at: new Date().toISOString()
       };
 
-      if (locationValidation.location) {
-        const locationData = {
-          [action]: {
-            latitude: locationValidation.location.latitude,
-            longitude: locationValidation.location.longitude,
-            timestamp: now.toISOString(),
-            address: locationValidation.closestLocation?.address || 'Localização autorizada',
-            locationName: locationValidation.closestLocation?.name || 'Local permitido',
-            distance: Math.round(locationValidation.distance || 0),
-            locationChanged: locationValidation.locationChanged || false,
-            previousLocation: locationValidation.previousLocation
-          }
-        };
+      // Verificar se o funcionário usa o sistema de localização
+      if (profile?.use_location_tracking === false) {
+        // Modo remoto - não validar localização, apenas capturar GPS
+        console.log('🏠 FUNCIONÁRIO REMOTO - pulando validação de localização');
+        
+        try {
+          const currentPosition = await getCurrentPosition();
+          console.log('📍 GPS capturado para funcionário remoto:', currentPosition);
+          
+          // Fazer geocodificação reversa para obter endereço
+          const geocodeResult = await reverseGeocode(currentPosition.latitude, currentPosition.longitude);
+          
+          const locationData = {
+            [action]: {
+              latitude: currentPosition.latitude,
+              longitude: currentPosition.longitude,
+              timestamp: now.toISOString(),
+              address: geocodeResult.address,
+              locationName: 'Remoto',
+              distance: 0,
+              locationChanged: false,
+              isRemoteWork: true,
+              gpsAccuracy: currentPosition.accuracy
+            }
+          };
 
-        if (timeRecord?.locations) {
-          updateData.locations = { ...timeRecord.locations, ...locationData };
-        } else {
-          updateData.locations = locationData;
+          if (timeRecord?.locations) {
+            updateData.locations = { ...timeRecord.locations, ...locationData };
+          } else {
+            updateData.locations = locationData;
+          }
+
+          console.log('✅ Dados de localização remota preparados');
+          
+        } catch (error) {
+          console.error('❌ Erro ao capturar GPS para funcionário remoto:', error);
+          toast({
+            title: "Erro",
+            description: "Não foi possível obter a localização GPS.",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+      } else {
+        // Modo com validação de localização (lógica atual)
+        console.log('🏢 FUNCIONÁRIO COM VALIDAÇÃO DE LOCALIZAÇÃO');
+        
+        if (!allowedLocations || allowedLocations.length === 0) {
+          console.error('❌ Nenhuma localização permitida carregada');
+          toast({
+            title: "Erro de Configuração",
+            description: "Nenhuma localização permitida configurada. Entre em contato com o RH.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        console.log(`🏢 Validando com sistema avançado contra ${allowedLocations.length} localizações`);
+
+        // Converter para o formato completo esperado pela validação
+        const fullAllowedLocations = allowedLocations.map(loc => ({
+          ...loc,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+
+        // Usar sistema avançado de validação
+        const locationValidation = await AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
+
+        if (!locationValidation.valid) {
+          console.error('❌ Localização não autorizada:', locationValidation.message);
+          
+          // Melhor feedback para funcionários móveis
+          let errorMessage = locationValidation.message;
+          if (locationValidation.locationChanged) {
+            errorMessage += '\n\nTente calibrar o GPS ou entre em contato com o RH se continuar com problemas.';
+          }
+          
+          toast({
+            title: "Localização não autorizada",
+            description: errorMessage,
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Notificar sobre mudança de local se detectada
+        if (locationValidation.locationChanged) {
+          console.log('📍 Mudança de local detectada:', locationValidation.message);
+          toast({
+            title: "Local Alterado",
+            description: locationValidation.message,
+            duration: 5000
+          });
+        }
+
+        console.log('✅ Localização validada - registrando ponto...');
+
+        if (locationValidation.location) {
+          const locationData = {
+            [action]: {
+              latitude: locationValidation.location.latitude,
+              longitude: locationValidation.location.longitude,
+              timestamp: now.toISOString(),
+              address: locationValidation.closestLocation?.address || 'Localização autorizada',
+              locationName: locationValidation.closestLocation?.name || 'Local permitido',
+              distance: Math.round(locationValidation.distance || 0),
+              locationChanged: locationValidation.locationChanged || false,
+              previousLocation: locationValidation.previousLocation
+            }
+          };
+
+          if (timeRecord?.locations) {
+            updateData.locations = { ...timeRecord.locations, ...locationData };
+          } else {
+            updateData.locations = locationData;
+          }
         }
       }
 
+      // Salvar o registro no banco de dados
       if (timeRecord) {
         const { error } = await supabase
           .from('time_records')
@@ -328,8 +406,10 @@ export const useTimeRegistrationLogic = () => {
         if (error) throw error;
       }
 
-      // Reset sistema para próximo registro
-      AdvancedLocationSystem.resetForNewRegistration();
+      // Reset sistema para próximo registro apenas se usar validação de localização
+      if (profile?.use_location_tracking !== false) {
+        AdvancedLocationSystem.resetForNewRegistration();
+      }
 
       await loadTodayRecord();
 
@@ -341,8 +421,8 @@ export const useTimeRegistrationLogic = () => {
       };
 
       let successMessage = `${actionNames[action]} registrada às ${currentTime}`;
-      if (locationValidation.locationChanged) {
-        successMessage += ` em ${locationValidation.closestLocation?.name}`;
+      if (profile?.use_location_tracking === false) {
+        successMessage += ` (Remoto)`;
       }
 
       toast({

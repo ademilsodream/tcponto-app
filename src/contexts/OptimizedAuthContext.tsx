@@ -15,6 +15,7 @@ interface Profile {
   department_id?: string;
   job_function_id?: string;
   can_register_time: boolean;
+  use_location_tracking: boolean;
   departments?: { id: string; name: string };
   job_functions?: { id: string; name: string };
 }
@@ -60,6 +61,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           department_id,
           job_function_id,
           can_register_time,
+          use_location_tracking,
           departments:department_id(id, name),
           job_functions:job_function_id(id, name)
         `)
@@ -73,7 +75,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        console.log('✅ Perfil carregado:', { name: data.name, status: data.status, can_register_time: data.can_register_time });
+        console.log('✅ Perfil carregado:', { name: data.name, status: data.status, can_register_time: data.can_register_time, use_location_tracking: data.use_location_tracking });
         setProfile(data);
       } else {
         console.log('⚠️ Nenhum perfil encontrado');
@@ -228,5 +230,6 @@ export const useAuthPermissions = () => {
     isActive: profile?.status === 'active',
     hasShift: !!profile?.shift_id,
     hasDepartment: !!profile?.department_id,
+    useLocationTracking: profile?.use_location_tracking ?? true,
   };
 };
