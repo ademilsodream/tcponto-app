@@ -75,7 +75,12 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        console.log('✅ Perfil carregado:', { name: data.name, status: data.status, can_register_time: data.can_register_time, use_location_tracking: data.use_location_tracking });
+        console.log('✅ Perfil carregado:', { 
+          name: data.name, 
+          status: data.status, 
+          can_register_time: data.can_register_time, 
+          use_location_tracking: data.use_location_tracking 
+        });
         setProfile(data);
       } else {
         console.log('⚠️ Nenhum perfil encontrado');
