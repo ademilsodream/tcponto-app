@@ -61,7 +61,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           department_id,
           job_function_id,
           can_register_time,
-          use_location_tracking,
           departments:department_id(id, name),
           job_functions:job_function_id(id, name)
         `)
@@ -78,10 +77,15 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         console.log('✅ Perfil carregado:', { 
           name: data.name, 
           status: data.status, 
-          can_register_time: data.can_register_time,
-          use_location_tracking: data.use_location_tracking
+          can_register_time: data.can_register_time
         });
-        setProfile(data);
+        
+        // Aplicar valor padrão para use_location_tracking baseado no schema do banco
+        const profileWithDefaults = {
+          ...data,
+          use_location_tracking: true // Valor padrão do banco de dados
+        };
+        setProfile(profileWithDefaults);
       } else {
         console.log('⚠️ Nenhum perfil encontrado');
         setProfile(null);
