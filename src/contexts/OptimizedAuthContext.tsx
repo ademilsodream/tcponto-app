@@ -48,8 +48,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     console.log('📥 Carregando perfil para usuário:', userId);
     
     try {
-      // Primeiro tenta carregar com use_location_tracking
-      let query = supabase
+      // Query principal sem use_location_tracking para evitar erros de schema
+      const { data, error } = await supabase
         .from('profiles')
         .select(`
           id,
@@ -63,51 +63,11 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           department_id,
           job_function_id,
           can_register_time,
-          use_location_tracking,
           departments:department_id(id, name),
           job_functions:job_function_id(id, name)
         `)
         .eq('id', userId)
         .maybeSingle();
-
-      let { data, error } = await query;
-
-      // Se der erro relacionado ao campo use_location_tracking, tenta sem ele
-      if (error && error.message?.includes('use_location_tracking')) {
-        console.log('⚠️ Campo use_location_tracking não encontrado no schema, carregando sem ele...');
-        
-        const fallbackQuery = supabase
-          .from('profiles')
-          .select(`
-            id,
-            name,
-            email,
-            hourly_rate,
-            overtime_rate,
-            employee_code,
-            status,
-            shift_id,
-            department_id,
-            job_function_id,
-            can_register_time,
-            departments:department_id(id, name),
-            job_functions:job_function_id(id, name)
-          `)
-          .eq('id', userId)
-          .maybeSingle();
-
-        const fallbackResult = await fallbackQuery;
-        data = fallbackResult.data;
-        error = fallbackResult.error;
-
-        // Se conseguiu carregar sem o campo, adiciona o valor padrão
-        if (data && !error) {
-          data = {
-            ...data,
-            use_location_tracking: true // Valor padrão baseado no schema do banco
-          };
-        }
-      }
 
       if (error) {
         console.error('❌ Erro ao carregar perfil:', error);
@@ -116,13 +76,20 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
+        // Adicionar use_location_tracking com valor padrão baseado no schema do banco
+        const profileWithLocationTracking: Profile = {
+          ...data,
+          use_location_tracking: true // Valor padrão conforme schema do banco
+        };
+
         console.log('✅ Perfil carregado:', { 
-          name: data.name, 
-          status: data.status, 
-          can_register_time: data.can_register_time,
-          use_location_tracking: data.use_location_tracking
+          name: profileWithLocationTracking.name, 
+          status: profileWithLocationTracking.status, 
+          can_register_time: profileWithLocationTracking.can_register_time,
+          use_location_tracking: profileWithLocationTracking.use_location_tracking
         });
-        setProfile(data);
+        
+        setProfile(profileWithLocationTracking);
       } else {
         console.log('⚠️ Nenhum perfil encontrado');
         setProfile(null);
