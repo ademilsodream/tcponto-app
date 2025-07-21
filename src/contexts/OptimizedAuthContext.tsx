@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -47,7 +48,8 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     console.log('📥 Carregando perfil para usuário:', userId);
     
     try {
-      const { data, error } = await supabase
+      // Primeiro tenta carregar com use_location_tracking
+      let query = supabase
         .from('profiles')
         .select(`
           id,
@@ -67,6 +69,45 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         `)
         .eq('id', userId)
         .maybeSingle();
+
+      let { data, error } = await query;
+
+      // Se der erro relacionado ao campo use_location_tracking, tenta sem ele
+      if (error && error.message?.includes('use_location_tracking')) {
+        console.log('⚠️ Campo use_location_tracking não encontrado no schema, carregando sem ele...');
+        
+        const fallbackQuery = supabase
+          .from('profiles')
+          .select(`
+            id,
+            name,
+            email,
+            hourly_rate,
+            overtime_rate,
+            employee_code,
+            status,
+            shift_id,
+            department_id,
+            job_function_id,
+            can_register_time,
+            departments:department_id(id, name),
+            job_functions:job_function_id(id, name)
+          `)
+          .eq('id', userId)
+          .maybeSingle();
+
+        const fallbackResult = await fallbackQuery;
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+
+        // Se conseguiu carregar sem o campo, adiciona o valor padrão
+        if (data && !error) {
+          data = {
+            ...data,
+            use_location_tracking: true // Valor padrão baseado no schema do banco
+          };
+        }
+      }
 
       if (error) {
         console.error('❌ Erro ao carregar perfil:', error);
