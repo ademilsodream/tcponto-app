@@ -69,6 +69,11 @@ const Login = () => {
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
+  // Handler para o checkbox com conversão de tipo
+  const handleRememberMeChange = (checked: boolean | "indeterminate") => {
+    setRememberMe(checked === true);
+  };
+
   // Mostrar loading enquanto verifica autenticação
   if (authLoading) {
     return (
@@ -157,7 +162,7 @@ const Login = () => {
                   <Checkbox
                     id="remember-me"
                     checked={rememberMe}
-                    onCheckedChange={setRememberMe}
+                    onCheckedChange={handleRememberMeChange}
                     disabled={isLoading}
                   />
                   <Label 

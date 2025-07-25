@@ -72,42 +72,38 @@ export const useSessionManager = () => {
     }
   }, []);
 
-  // Criar sessão personalizada
+  // Criar preferências de sessão no localStorage
   const createUserSession = useCallback(async (user: User, rememberMe: boolean = false) => {
     try {
-      const deviceInfo = {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        timestamp: new Date().toISOString()
+      const sessionData = {
+        userId: user.id,
+        rememberMe,
+        createdAt: new Date().toISOString(),
+        expiresAt: rememberMe ? 
+          new Date(Date.now() + (sessionSettings.sessionDurationDays * 24 * 60 * 60 * 1000)).toISOString() : 
+          new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString(), // 24 horas padrão
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          language: navigator.language,
+          timestamp: new Date().toISOString()
+        }
       };
 
-      const sessionDuration = rememberMe ? 
-        sessionSettings.sessionDurationDays * 24 * 60 * 60 * 1000 : // Dias para millisegundos
-        24 * 60 * 60 * 1000; // 24 horas padrão
+      // Salvar preferências no localStorage
+      localStorage.setItem('tcponto_session_prefs', JSON.stringify(sessionData));
+      localStorage.setItem('tcponto_remember_me', rememberMe.toString());
 
-      const expiresAt = new Date(Date.now() + sessionDuration);
-
-      const { error } = await supabase
-        .from('user_sessions')
-        .insert({
-          user_id: user.id,
-          device_info: deviceInfo,
-          expires_at: expiresAt.toISOString(),
-          is_permanent: rememberMe && sessionSettings.permanentSessionEnabled
-        });
-
-      if (error) {
-        console.error('❌ Erro ao criar sessão personalizada:', error);
-        return;
-      }
-
-      setSessionExpiry(expiresAt);
+      const expiryDate = new Date(sessionData.expiresAt);
+      setSessionExpiry(expiryDate);
+      
       console.log('✅ Sessão personalizada criada:', {
         userId: user.id,
-        expiresAt: expiresAt.toISOString(),
+        expiresAt: sessionData.expiresAt,
         rememberMe,
-        duration: sessionDuration / (1000 * 60 * 60) + ' horas'
+        duration: rememberMe ? 
+          `${sessionSettings.sessionDurationDays} dias` : 
+          '24 horas'
       });
     } catch (error) {
       console.error('❌ Erro inesperado ao criar sessão:', error);
@@ -117,14 +113,11 @@ export const useSessionManager = () => {
   // Atualizar atividade da sessão
   const updateSessionActivity = useCallback(async (userId: string) => {
     try {
-      const { error } = await supabase
-        .from('user_sessions')
-        .update({ last_activity: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('is_permanent', false);
-
-      if (error) {
-        console.error('❌ Erro ao atualizar atividade da sessão:', error);
+      const sessionPrefs = localStorage.getItem('tcponto_session_prefs');
+      if (sessionPrefs) {
+        const sessionData = JSON.parse(sessionPrefs);
+        sessionData.lastActivity = new Date().toISOString();
+        localStorage.setItem('tcponto_session_prefs', JSON.stringify(sessionData));
       }
     } catch (error) {
       console.error('❌ Erro inesperado ao atualizar atividade:', error);
@@ -159,6 +152,15 @@ export const useSessionManager = () => {
 
       if (data.session) {
         console.log('✅ Token renovado com sucesso');
+        
+        // Atualizar dados da sessão no localStorage
+        const sessionPrefs = localStorage.getItem('tcponto_session_prefs');
+        if (sessionPrefs) {
+          const sessionData = JSON.parse(sessionPrefs);
+          sessionData.lastActivity = new Date().toISOString();
+          localStorage.setItem('tcponto_session_prefs', JSON.stringify(sessionData));
+        }
+        
         return true;
       }
     } catch (error) {
