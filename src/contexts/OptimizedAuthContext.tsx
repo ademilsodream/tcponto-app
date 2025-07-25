@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { PushNotificationService } from '@/services/PushNotificationService';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 interface Profile {
   id: string;
@@ -26,8 +26,13 @@ interface AuthContextType {
   profile: Profile | null;
   isLoading: boolean;
   hasAccess: boolean;
+  sessionSettings: any;
+  sessionWarning: boolean;
   refreshProfile: () => Promise<void>;
   logout: () => Promise<void>;
+  loginWithRememberMe: (email: string, password: string, rememberMe: boolean) => Promise<{ error: any }>;
+  renewSession: () => Promise<boolean>;
+  dismissSessionWarning: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +41,18 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionWarningDismissed, setSessionWarningDismissed] = useState(false);
+
+  const {
+    sessionSettings,
+    sessionWarning,
+    sessionExpiry,
+    createUserSession,
+    updateSessionActivity,
+    checkSessionExpiry,
+    renewToken,
+    cleanupExpiredSessions
+  } = useSessionManager();
 
   const hasAccess = !!(profile && profile.can_register_time === true);
 
@@ -48,7 +65,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     console.log('📥 Carregando perfil para usuário:', userId);
     
     try {
-      // Query principal sem use_location_tracking para evitar erros de schema
       const { data, error } = await supabase
         .from('profiles')
         .select(`
@@ -76,7 +92,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        // Adicionar use_location_tracking com valor padrão baseado no schema do banco
         const profileWithLocationTracking: Profile = {
           ...data,
           use_location_tracking: true // Valor padrão conforme schema do banco
@@ -90,6 +105,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         });
         
         setProfile(profileWithLocationTracking);
+        
+        // Atualizar atividade da sessão
+        await updateSessionActivity(userId);
       } else {
         console.log('⚠️ Nenhum perfil encontrado');
         setProfile(null);
@@ -98,7 +116,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       console.error('❌ Erro inesperado ao carregar perfil:', error);
       setProfile(null);
     }
-  }, []);
+  }, [updateSessionActivity]);
 
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
@@ -110,38 +128,90 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     console.log('🔐 Iniciando logout...');
     try {
       setIsLoading(true);
+      
+      // Limpar sessões personalizadas
+      if (user?.id) {
+        await supabase
+          .from('user_sessions')
+          .delete()
+          .eq('user_id', user.id);
+      }
+      
       await supabase.auth.signOut();
       console.log('✅ Logout realizado com sucesso');
     } catch (error) {
       console.error('❌ Erro durante logout:', error);
     }
+  }, [user?.id]);
+
+  const loginWithRememberMe = useCallback(async (email: string, password: string, rememberMe: boolean) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        return { error };
+      }
+
+      if (data.user) {
+        // Criar sessão personalizada
+        await createUserSession(data.user, rememberMe);
+        
+        // Salvar preferência de "lembrar-me"
+        localStorage.setItem('tcponto_remember_me', rememberMe.toString());
+        
+        console.log('✅ Login com sessão personalizada realizado:', {
+          userId: data.user.id,
+          rememberMe,
+          sessionDuration: rememberMe ? `${sessionSettings.sessionDurationDays} dias` : '24 horas'
+        });
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error };
+    }
+  }, [createUserSession, sessionSettings.sessionDurationDays]);
+
+  const renewSession = useCallback(async () => {
+    const success = await renewToken();
+    if (success) {
+      setSessionWarningDismissed(false);
+    }
+    return success;
+  }, [renewToken]);
+
+  const dismissSessionWarning = useCallback(() => {
+    setSessionWarningDismissed(true);
   }, []);
 
   useEffect(() => {
     let mounted = true;
-    console.log('🚀 Inicializando sistema de autenticação...');
+    console.log('🚀 Inicializando sistema de autenticação com sessões longas...');
 
-    // 1. Configurar listener de mudanças de auth PRIMEIRO
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       console.log('🔄 Auth state change:', event, session?.user?.email || 'sem usuário');
 
-      // Atualizar estado do usuário imediatamente
       const newUser = session?.user ?? null;
       setUser(newUser);
 
-      // Processar mudanças de estado
+      // Verificar expiração da sessão
+      checkSessionExpiry(session);
+
       if (event === 'SIGNED_OUT' || !session) {
         console.log('👋 Usuário deslogado');
         setProfile(null);
         setIsLoading(false);
+        setSessionWarningDismissed(false);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (newUser) {
           console.log('👤 Usuário logado:', newUser.email);
           setIsLoading(true);
           
-          // Usar setTimeout para evitar problemas de deadlock
           setTimeout(() => {
             if (mounted) {
               loadProfile(newUser.id).finally(() => {
@@ -155,7 +225,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
     });
 
-    // 2. Verificar sessão existente DEPOIS de configurar o listener
     const initializeSession = async () => {
       try {
         console.log('🔍 Verificando sessão existente...');
@@ -172,7 +241,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           setUser(session.user);
           setIsLoading(true);
           
-          // Carregar perfil da sessão existente
+          // Verificar expiração da sessão
+          checkSessionExpiry(session);
+          
           loadProfile(session.user.id).finally(() => {
             if (mounted) {
               setIsLoading(false);
@@ -192,16 +263,14 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
     };
 
-    // Executar inicialização
     initializeSession();
 
-    // Cleanup
     return () => {
       console.log('🧹 Limpando auth context...');
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []); // Sem dependências para evitar re-execução
+  }, [checkSessionExpiry, loadProfile]);
 
   useEffect(() => {
     if (user && user.id) {
@@ -209,13 +278,31 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     }
   }, [user]);
 
+  // Verificação periódica de sessão
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        checkSessionExpiry(session);
+      });
+    }, 5 * 60 * 1000); // Verificar a cada 5 minutos
+
+    return () => clearInterval(interval);
+  }, [user, checkSessionExpiry]);
+
   const value = {
     user,
     profile,
     isLoading,
     hasAccess,
+    sessionSettings,
+    sessionWarning: sessionWarning && !sessionWarningDismissed,
     refreshProfile,
     logout,
+    loginWithRememberMe,
+    renewSession,
+    dismissSessionWarning,
   };
 
   return (
