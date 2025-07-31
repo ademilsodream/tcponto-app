@@ -32,7 +32,11 @@ interface AllowedLocation {
 
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
-// Função para obter posição atual do GPS
+// Cache para geocodificação (evita chamadas repetidas)
+const geocodeCache = new Map<string, string>();
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutos
+
+// Função otimizada para obter posição atual do GPS
 const getCurrentPosition = (): Promise<{ latitude: number; longitude: number; accuracy: number }> => {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -40,24 +44,76 @@ const getCurrentPosition = (): Promise<{ latitude: number; longitude: number; ac
       return;
     }
 
+    // Timeout mais agressivo para resposta rápida
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Timeout ao obter localização GPS'));
+    }, 8000); // Reduzido de 10s para 8s
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        clearTimeout(timeoutId);
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy
+          accuracy: position.coords.accuracy || 100
         });
       },
       (error) => {
+        clearTimeout(timeoutId);
         reject(error);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
+        timeout: 7000, // Reduzido para resposta mais rápida
+        maximumAge: 30000 // 30 segundos - mais permissivo
       }
     );
   });
+};
+
+// Função otimizada para geocodificação com cache
+const getCachedGeocode = async (latitude: number, longitude: number): Promise<string> => {
+  const key = `${latitude.toFixed(4)},${longitude.toFixed(4)}`;
+  const now = Date.now();
+  
+  // Verificar cache
+  const cached = geocodeCache.get(key);
+  if (cached) {
+    const [address, timestamp] = cached.split('|');
+    if (now - parseInt(timestamp) < CACHE_DURATION) {
+      console.log('📍 Usando endereço em cache:', address);
+      return address;
+    }
+  }
+
+  try {
+    // Timeout para geocodificação
+    const geocodePromise = reverseGeocode(latitude, longitude);
+    const timeoutPromise = new Promise<string>((_, reject) => {
+      setTimeout(() => reject(new Error('Geocodificação timeout')), 3000);
+    });
+
+    const result = await Promise.race([geocodePromise, timeoutPromise]) as any;
+    const address = result.address || `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+    
+    // Salvar no cache
+    geocodeCache.set(key, `${address}|${now}`);
+    
+    // Limpar cache antigo (manter apenas últimos 50)
+    if (geocodeCache.size > 50) {
+      const entries = Array.from(geocodeCache.entries());
+      entries.sort((a, b) => parseInt(b[1].split('|')[1]) - parseInt(a[1].split('|')[1]));
+      geocodeCache.clear();
+      entries.slice(0, 50).forEach(([key, value]) => geocodeCache.set(key, value));
+    }
+    
+    return address;
+  } catch (error) {
+    console.warn('⚠️ Erro na geocodificação, usando coordenadas:', error);
+    const fallbackAddress = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+    geocodeCache.set(key, `${fallbackAddress}|${now}`);
+    return fallbackAddress;
+  }
 };
 
 export const useTimeRegistrationLogic = () => {
@@ -254,7 +310,14 @@ export const useTimeRegistrationLogic = () => {
 
     try {
       setSubmitting(true);
-      console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
+      
+      // Logs otimizados
+      const isRemoteWorker = profile?.use_location_tracking === false;
+      console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`, {
+        user: user.email,
+        isRemote: isRemoteWorker,
+        action
+      });
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -265,29 +328,44 @@ export const useTimeRegistrationLogic = () => {
         updated_at: new Date().toISOString()
       };
 
-      // Verificar se o funcionário usa o sistema de localização
-      if (profile?.use_location_tracking === false) {
-        // Modo remoto - não validar localização, apenas capturar GPS
-        console.log('🏠 FUNCIONÁRIO REMOTO - pulando validação de localização');
+      // 🔄 LÓGICA OTIMIZADA: Processamento paralelo quando possível
+      if (isRemoteWorker) {
+        // 🏠 MODO REMOTO OTIMIZADO
+        console.log('🏠 FUNCIONÁRIO REMOTO - capturando GPS...');
         
         try {
-          const currentPosition = await getCurrentPosition();
-          console.log('📍 GPS capturado para funcionário remoto:', currentPosition);
-          
-          // Fazer geocodificação reversa para obter endereço
-          const geocodeResult = await reverseGeocode(currentPosition.latitude, currentPosition.longitude);
+          // Capturar GPS e geocodificar em paralelo
+          const [currentPosition, geocodeResult] = await Promise.allSettled([
+            getCurrentPosition(),
+            getCurrentPosition().then(pos => getCachedGeocode(pos.latitude, pos.longitude))
+          ]);
+
+          if (currentPosition.status === 'rejected') {
+            throw currentPosition.reason;
+          }
+
+          const position = currentPosition.value;
+          const address = geocodeResult.status === 'fulfilled' ? geocodeResult.value : 
+            `Lat: ${position.latitude.toFixed(6)}, Lng: ${position.longitude.toFixed(6)}`;
+
+          console.log('📍 GPS capturado rapidamente:', { 
+            lat: position.latitude, 
+            lng: position.longitude, 
+            accuracy: position.accuracy 
+          });
           
           const locationData = {
             [action]: {
-              latitude: currentPosition.latitude,
-              longitude: currentPosition.longitude,
+              latitude: position.latitude,
+              longitude: position.longitude,
               timestamp: now.toISOString(),
-              address: geocodeResult.address,
+              address: address,
               locationName: 'Remoto',
               distance: 0,
               locationChanged: false,
               isRemoteWork: true,
-              gpsAccuracy: currentPosition.accuracy
+              gpsAccuracy: position.accuracy,
+              geocoded: geocodeResult.status === 'fulfilled'
             }
           };
 
@@ -297,21 +375,39 @@ export const useTimeRegistrationLogic = () => {
             updateData.locations = locationData;
           }
 
-          console.log('✅ Dados de localização remota preparados');
+          console.log('✅ Dados remotos preparados rapidamente');
           
         } catch (error) {
-          console.error('❌ Erro ao capturar GPS para funcionário remoto:', error);
-          toast({
-            title: "Erro",
-            description: "Não foi possível obter a localização GPS.",
-            variant: "destructive"
-          });
-          return;
+          console.error('❌ Erro ao capturar GPS:', error);
+          
+          // Fallback: continuar sem localização para funcionários remotos
+          const locationData = {
+            [action]: {
+              latitude: 0,
+              longitude: 0,
+              timestamp: now.toISOString(),
+              address: 'Localização não disponível',
+              locationName: 'Remoto',
+              distance: 0,
+              locationChanged: false,
+              isRemoteWork: true,
+              gpsAccuracy: 0,
+              error: 'GPS não disponível'
+            }
+          };
+
+          if (timeRecord?.locations) {
+            updateData.locations = { ...timeRecord.locations, ...locationData };
+          } else {
+            updateData.locations = locationData;
+          }
+          
+          console.log('⚠️ Continuando sem GPS para funcionário remoto');
         }
         
       } else {
-        // Modo com validação de localização (lógica atual)
-        console.log('🏢 FUNCIONÁRIO COM VALIDAÇÃO DE LOCALIZAÇÃO');
+        // 🏢 MODO VALIDAÇÃO OTIMIZADO
+        console.log('🏢 FUNCIONÁRIO COM VALIDAÇÃO - verificando localização...');
         
         if (!allowedLocations || allowedLocations.length === 0) {
           console.error('❌ Nenhuma localização permitida carregada');
@@ -323,22 +419,26 @@ export const useTimeRegistrationLogic = () => {
           return;
         }
 
-        console.log(`🏢 Validando com sistema avançado contra ${allowedLocations.length} localizações`);
+        console.log(`🏢 Validando contra ${allowedLocations.length} localizações...`);
 
-        // Converter para o formato completo esperado pela validação
+        // Converter localizações uma vez só
         const fullAllowedLocations = allowedLocations.map(loc => ({
           ...loc,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }));
 
-        // Usar sistema avançado de validação
-        const locationValidation = await AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
+        // Validação com timeout
+        const validationPromise = AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout na validação de localização')), 10000);
+        });
+
+        const locationValidation = await Promise.race([validationPromise, timeoutPromise]) as any;
 
         if (!locationValidation.valid) {
           console.error('❌ Localização não autorizada:', locationValidation.message);
           
-          // Melhor feedback para funcionários móveis
           let errorMessage = locationValidation.message;
           if (locationValidation.locationChanged) {
             errorMessage += '\n\nTente calibrar o GPS ou entre em contato com o RH se continuar com problemas.';
@@ -358,11 +458,11 @@ export const useTimeRegistrationLogic = () => {
           toast({
             title: "Local Alterado",
             description: locationValidation.message,
-            duration: 5000
+            duration: 3000 // Reduzido para 3s
           });
         }
 
-        console.log('✅ Localização validada - registrando ponto...');
+        console.log('✅ Localização validada rapidamente');
 
         if (locationValidation.location) {
           const locationData = {
@@ -374,7 +474,8 @@ export const useTimeRegistrationLogic = () => {
               locationName: locationValidation.closestLocation?.name || 'Local permitido',
               distance: Math.round(locationValidation.distance || 0),
               locationChanged: locationValidation.locationChanged || false,
-              previousLocation: locationValidation.previousLocation
+              previousLocation: locationValidation.previousLocation,
+              validated: true
             }
           };
 
@@ -386,7 +487,9 @@ export const useTimeRegistrationLogic = () => {
         }
       }
 
-      // Salvar o registro no banco de dados
+      // 💾 SALVAMENTO OTIMIZADO
+      console.log('💾 Salvando registro no banco...');
+      
       if (timeRecord) {
         const { error } = await supabase
           .from('time_records')
@@ -406,12 +509,13 @@ export const useTimeRegistrationLogic = () => {
         if (error) throw error;
       }
 
-      // Reset sistema para próximo registro apenas se usar validação de localização
-      if (profile?.use_location_tracking !== false) {
+      // Reset sistema apenas se necessário
+      if (!isRemoteWorker) {
         AdvancedLocationSystem.resetForNewRegistration();
       }
 
-      await loadTodayRecord();
+      // Recarregar dados em background
+      loadTodayRecord().catch(console.error);
 
       const actionNames = {
         clock_in: 'Entrada',
@@ -421,13 +525,14 @@ export const useTimeRegistrationLogic = () => {
       };
 
       let successMessage = `${actionNames[action]} registrada às ${currentTime}`;
-      if (profile?.use_location_tracking === false) {
-        successMessage += ` (Remoto)`;
+      if (isRemoteWorker) {
+        successMessage += ' (Remoto)';
       }
 
       toast({
         title: "Sucesso",
         description: successMessage,
+        duration: 2000 // Reduzido para 2s
       });
 
       const newCooldownEndTime = Date.now() + COOLDOWN_DURATION_MS;
