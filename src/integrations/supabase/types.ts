@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      allowances: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string
+          employee_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description: string
+          employee_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string
+          employee_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "allowances_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "allowances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       allowed_locations: {
         Row: {
           address: string
@@ -907,6 +955,7 @@ export type Database = {
           status: Database["public"]["Enums"]["employee_status"] | null
           termination_date: string | null
           updated_at: string
+          use_location_tracking: boolean
         }
         Insert: {
           address?: string | null
@@ -934,6 +983,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["employee_status"] | null
           termination_date?: string | null
           updated_at?: string
+          use_location_tracking?: boolean
         }
         Update: {
           address?: string | null
@@ -961,6 +1011,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["employee_status"] | null
           termination_date?: string | null
           updated_at?: string
+          use_location_tracking?: boolean
         }
         Relationships: [
           {

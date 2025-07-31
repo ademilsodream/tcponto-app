@@ -3,16 +3,15 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { Outlet } from 'react-router-dom';
-import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
+import SessionWarning from '@/components/SessionWarning';
 
 interface EmployeeLayoutProps {}
 
 const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
-  const { user, profile } = useOptimizedAuth();
+  const { user, profile, sessionWarning, renewSession, dismissSessionWarning } = useOptimizedAuth();
 
   const handleLogout = async () => {
     try {
-      // Usando o método nativo do Supabase para logout
       const { supabase } = await import('@/integrations/supabase/client');
       await supabase.auth.signOut();
     } catch (error) {
@@ -20,15 +19,29 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
     }
   };
 
+  const handleRenewSession = async () => {
+    const success = await renewSession();
+    if (success) {
+      console.log('✅ Sessão renovada com sucesso');
+    } else {
+      console.error('❌ Falha ao renovar sessão');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
+      {/* Aviso de sessão */}
+      <SessionWarning
+        isVisible={sessionWarning}
+        onRenew={handleRenewSession}
+        onDismiss={dismissSessionWarning}
+      />
+
       <header className="bg-white shadow-sm border-b w-full">
         <div className="w-full px-4 py-3">
           <div className="grid grid-cols-3 items-center w-full">
-            {/* Espaço vazio à esquerda para manter o equilíbrio */}
             <div></div>
             
-            {/* Logo e nome centralizados */}
             <div className="flex items-center justify-center space-x-3">
               <img 
                 src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
@@ -40,7 +53,6 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
               </div>
             </div>
       
-            {/* Informações do usuário e botão de logout à direita */}
             <div className="flex items-center justify-end space-x-2">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">{profile?.name || user?.email}</p>

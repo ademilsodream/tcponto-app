@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { LogIn, Clock, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -13,20 +13,28 @@ import { useNavigate } from 'react-router-dom';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const { user, profile, isLoading: authLoading, hasAccess } = useOptimizedAuth();
+  const { user, profile, isLoading: authLoading, hasAccess, loginWithRememberMe, sessionSettings } = useOptimizedAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Só redirecionar quando tiver terminado o loading e houver acesso
     if (!authLoading && user && profile && hasAccess) {
       console.log('✅ Redirecionando usuário autenticado para /employee');
       navigate('/employee', { replace: true });
     }
   }, [authLoading, user, profile, hasAccess, navigate]);
+
+  useEffect(() => {
+    // Carregar preferência salva de "lembrar-me"
+    const savedRememberMe = localStorage.getItem('tcponto_remember_me');
+    if (savedRememberMe === 'true') {
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,13 +46,10 @@ const Login = () => {
     }
     
     setIsLoading(true);
-    console.log('🔐 Tentando fazer login com:', email);
+    console.log('🔐 Tentando fazer login com:', { email, rememberMe });
 
     try {
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({ 
-        email: email.trim(), 
-        password 
-      });
+      const { error: loginError } = await loginWithRememberMe(email.trim(), password, rememberMe);
       
       if (loginError) {
         console.error('❌ Erro de login:', loginError.message);
@@ -53,10 +58,8 @@ const Login = () => {
         return;
       }
 
-      if (data?.user) {
-        console.log('✅ Login realizado com sucesso para:', data.user.email);
-        // O redirecionamento será feito pelo useEffect quando o estado for atualizado
-      }
+      console.log('✅ Login realizado com sucesso com sessão personalizada');
+      // O redirecionamento será feito pelo useEffect quando o estado for atualizado
     } catch (error: any) {
       console.error('❌ Erro inesperado ao fazer login:', error);
       setError('Erro inesperado ao fazer login');
@@ -65,6 +68,11 @@ const Login = () => {
   };
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
+
+  // Handler para o checkbox com conversão de tipo
+  const handleRememberMeChange = (checked: boolean | "indeterminate") => {
+    setRememberMe(checked === true);
+  };
 
   // Mostrar loading enquanto verifica autenticação
   if (authLoading) {
@@ -148,6 +156,23 @@ const Login = () => {
                   </Button>
                 </div>
               </div>
+
+              {sessionSettings.rememberMeEnabled && (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="remember-me"
+                    checked={rememberMe}
+                    onCheckedChange={handleRememberMeChange}
+                    disabled={isLoading}
+                  />
+                  <Label 
+                    htmlFor="remember-me" 
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Lembrar-me por {sessionSettings.sessionDurationDays} dias
+                  </Label>
+                </div>
+              )}
 
               {error && (
                 <Alert variant="destructive">

@@ -1,20 +1,19 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 import { OptimizedAuthProvider } from '@/contexts/OptimizedAuthContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
+import { UltraOptimizedQueryProvider } from '@/providers/UltraOptimizedQueryProvider';
 import Login from '@/pages/Login';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import EmployeeLayout from '@/components/EmployeeLayout';
 import OptimizedTimeRegistration from '@/components/OptimizedTimeRegistration';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import UltraOptimizedEmployeeDashboard from '@/components/UltraOptimizedEmployeeDashboard';
-
-const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <UltraOptimizedQueryProvider>
       <OptimizedAuthProvider>
         <CurrencyProvider>
           <Router>
@@ -36,7 +35,7 @@ function App() {
           <Toaster />
         </CurrencyProvider>
       </OptimizedAuthProvider>
-    </QueryClientProvider>
+    </UltraOptimizedQueryProvider>
   );
 }
 
