@@ -29,6 +29,12 @@ interface AllowedLocation {
   is_active: boolean;
 }
 
+interface UserProfile {
+  id: string;
+  name?: string;
+  use_location_tracking?: boolean;
+}
+
 const COOLDOWN_DURATION_MS = 20 * 60 * 1000;
 
 export const useTimeRegistrationLogic = () => {
@@ -36,6 +42,7 @@ export const useTimeRegistrationLogic = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [editField, setEditField] = useState<'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editReason, setEditReason] = useState('');
@@ -124,6 +131,7 @@ export const useTimeRegistrationLogic = () => {
   const initializeData = async () => {
     try {
       setLoading(true);
+      await loadUserProfile();
       await loadAllowedLocations();
       await loadTodayRecord();
     } catch (error) {
@@ -135,6 +143,30 @@ export const useTimeRegistrationLogic = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name, use_location_tracking')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      setUserProfile(data);
+      console.log('👤 Perfil carregado:', { 
+        name: data.name, 
+        use_location_tracking: data.use_location_tracking 
+      });
+    } catch (error) {
+      console.error('❌ Erro ao carregar perfil:', error);
+      // Definir padrão como true se não conseguir carregar
+      setUserProfile({ id: user.id, use_location_tracking: true });
     }
   };
 
@@ -228,56 +260,139 @@ export const useTimeRegistrationLogic = () => {
 
       console.log(`🕐 INICIANDO REGISTRO DE ${action.toUpperCase()}...`);
 
-      if (!allowedLocations || allowedLocations.length === 0) {
-        console.error('❌ Nenhuma localização permitida carregada');
-        toast({
-          title: "Erro de Configuração",
-          description: "Nenhuma localização permitida configurada. Entre em contato com o RH.",
-          variant: "destructive"
-        });
-        return;
-      }
+      // 🔄 NOVA LÓGICA: Verificar configuração de localização do usuário
+      const requiresLocationValidation = userProfile?.use_location_tracking !== false;
+      
+      console.log(`📍 Configuração de localização: ${requiresLocationValidation ? 'VALIDAR' : 'APENAS CAPTURAR'}`);
 
-      console.log(`🏢 Validando com sistema avançado contra ${allowedLocations.length} localizações`);
+      let locationData = null;
+      let locationValidation = null;
 
-      // Converter para o formato completo esperado pela validação
-      const fullAllowedLocations = allowedLocations.map(loc => ({
-        ...loc,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
-      // Usar sistema avançado de validação
-      const locationValidation = await AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
-
-      if (!locationValidation.valid) {
-        console.error('❌ Localização não autorizada:', locationValidation.message);
-        
-        // Melhor feedback para funcionários móveis
-        let errorMessage = locationValidation.message;
-        if (locationValidation.locationChanged) {
-          errorMessage += '\n\nTente calibrar o GPS ou entre em contato com o RH se continuar com problemas.';
+      if (requiresLocationValidation) {
+        // 🔒 MODO VALIDAÇÃO: Verificar se está em localização permitida
+        if (!allowedLocations || allowedLocations.length === 0) {
+          console.error('❌ Nenhuma localização permitida carregada');
+          toast({
+            title: "Erro de Configuração",
+            description: "Nenhuma localização permitida configurada. Entre em contato com o RH.",
+            variant: "destructive"
+          });
+          return;
         }
+
+        console.log(`🏢 Validando com sistema avançado contra ${allowedLocations.length} localizações`);
+
+        // Converter para o formato completo esperado pela validação
+        const fullAllowedLocations = allowedLocations.map(loc => ({
+          ...loc,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+
+        // Usar sistema avançado de validação
+        locationValidation = await AdvancedLocationSystem.validateLocation(fullAllowedLocations, 0.7);
+
+        if (!locationValidation.valid) {
+          console.error('❌ Localização não autorizada:', locationValidation.message);
+          
+          // Melhor feedback para funcionários móveis
+          let errorMessage = locationValidation.message;
+          if (locationValidation.locationChanged) {
+            errorMessage += '\n\nTente calibrar o GPS ou entre em contato com o RH se continuar com problemas.';
+          }
+          
+          toast({
+            title: "Localização não autorizada",
+            description: errorMessage,
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Notificar sobre mudança de local se detectada
+        if (locationValidation.locationChanged) {
+          console.log('📍 Mudança de local detectada:', locationValidation.message);
+          toast({
+            title: "Local Alterado",
+            description: locationValidation.message,
+            duration: 5000
+          });
+        }
+
+        // Preparar dados de localização validada
+        if (locationValidation.location) {
+          locationData = {
+            [action]: {
+              latitude: locationValidation.location.latitude,
+              longitude: locationValidation.location.longitude,
+              timestamp: new Date().toISOString(),
+              address: locationValidation.closestLocation?.address || 'Localização autorizada',
+              locationName: locationValidation.closestLocation?.name || 'Local permitido',
+              distance: Math.round(locationValidation.distance || 0),
+              locationChanged: locationValidation.locationChanged || false,
+              previousLocation: locationValidation.previousLocation,
+              validated: true
+            }
+          };
+        }
+
+      } else {
+        // 📍 MODO CAPTURA: Apenas capturar localização atual sem validação
+        console.log('📍 Modo captura: obtendo localização atual sem validação...');
         
-        toast({
-          title: "Localização não autorizada",
-          description: errorMessage,
-          variant: "destructive"
-        });
-        return;
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) {
+              reject(new Error('Geolocalização não suportada'));
+              return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+              resolve,
+              reject,
+              {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 0
+              }
+            );
+          });
+
+          locationData = {
+            [action]: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              timestamp: new Date().toISOString(),
+              address: 'Localização capturada',
+              locationName: 'Local atual',
+              distance: 0,
+              locationChanged: false,
+              validated: false,
+              accuracy: position.coords.accuracy || 100
+            }
+          };
+
+          console.log('✅ Localização capturada com sucesso:', locationData[action]);
+        } catch (locationError) {
+          console.warn('⚠️ Erro ao capturar localização:', locationError);
+          // Continuar sem localização se não conseguir capturar
+          locationData = {
+            [action]: {
+              latitude: 0,
+              longitude: 0,
+              timestamp: new Date().toISOString(),
+              address: 'Localização não disponível',
+              locationName: 'Local não capturado',
+              distance: 0,
+              locationChanged: false,
+              validated: false,
+              error: 'Erro ao capturar localização'
+            }
+          };
+        }
       }
 
-      // Notificar sobre mudança de local se detectada
-      if (locationValidation.locationChanged) {
-        console.log('📍 Mudança de local detectada:', locationValidation.message);
-        toast({
-          title: "Local Alterado",
-          description: locationValidation.message,
-          duration: 5000
-        });
-      }
-
-      console.log('✅ Localização validada - registrando ponto...');
+      console.log('✅ Processando registro de ponto...');
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -288,20 +403,8 @@ export const useTimeRegistrationLogic = () => {
         updated_at: new Date().toISOString()
       };
 
-      if (locationValidation.location) {
-        const locationData = {
-          [action]: {
-            latitude: locationValidation.location.latitude,
-            longitude: locationValidation.location.longitude,
-            timestamp: now.toISOString(),
-            address: locationValidation.closestLocation?.address || 'Localização autorizada',
-            locationName: locationValidation.closestLocation?.name || 'Local permitido',
-            distance: Math.round(locationValidation.distance || 0),
-            locationChanged: locationValidation.locationChanged || false,
-            previousLocation: locationValidation.previousLocation
-          }
-        };
-
+      // Adicionar dados de localização se disponíveis
+      if (locationData) {
         if (timeRecord?.locations) {
           updateData.locations = { ...timeRecord.locations, ...locationData };
         } else {
@@ -328,8 +431,10 @@ export const useTimeRegistrationLogic = () => {
         if (error) throw error;
       }
 
-      // Reset sistema para próximo registro
-      AdvancedLocationSystem.resetForNewRegistration();
+      // Reset sistema para próximo registro (apenas se validação foi usada)
+      if (requiresLocationValidation && locationValidation) {
+        AdvancedLocationSystem.resetForNewRegistration();
+      }
 
       await loadTodayRecord();
 
@@ -341,8 +446,11 @@ export const useTimeRegistrationLogic = () => {
       };
 
       let successMessage = `${actionNames[action]} registrada às ${currentTime}`;
-      if (locationValidation.locationChanged) {
+      
+      if (requiresLocationValidation && locationValidation?.locationChanged) {
         successMessage += ` em ${locationValidation.closestLocation?.name}`;
+      } else if (!requiresLocationValidation) {
+        successMessage += ' (localização capturada)';
       }
 
       toast({
@@ -474,6 +582,7 @@ export const useTimeRegistrationLogic = () => {
     nextAction,
     isRegistrationButtonDisabled,
     hasAccess,
+    userProfile,
     handleTimeAction,
     handleEditSubmit,
     formatRemainingTime,
