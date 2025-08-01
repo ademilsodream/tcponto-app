@@ -41,8 +41,8 @@ const SalaryAdvanceRequest: React.FC = () => {
   const [reason, setReason] = useState('');
   
   // System settings
-  const [minAmount, setMinAmount] = useState(100);
-  const [maxAmount, setMaxAmount] = useState(2000);
+  const [minAmount, setMinAmount] = useState(10);
+  const [maxAmount, setMaxAmount] = useState(150);
 
   // Load system settings
   const loadSettings = async () => {
