@@ -109,3 +109,14 @@ export interface HourBankSummary {
   currentBalance: number;
   transactions: HourBankTransaction[];
 }
+
+// Interface para Períodos Bloqueados
+export interface BlockedPeriod {
+  id: string;
+  name: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+  created_by: string | null;
+  created_at: string;
+}
