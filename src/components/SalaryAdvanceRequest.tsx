@@ -39,6 +39,7 @@ const SalaryAdvanceRequest: React.FC = () => {
   // Form states
   const [requestedAmount, setRequestedAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [requestedDate, setRequestedDate] = useState('');
   
   // System settings
   const [minAmount, setMinAmount] = useState(100);
@@ -130,6 +131,15 @@ const SalaryAdvanceRequest: React.FC = () => {
       return;
     }
 
+    if (!requestedDate) {
+      toast({
+        title: "Data obrigatória",
+        description: "Por favor, selecione a data desejada para o vale.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Check if user has pending request
     const hasPendingRequest = requests.some(req => req.status === 'pending');
     if (hasPendingRequest) {
@@ -143,12 +153,17 @@ const SalaryAdvanceRequest: React.FC = () => {
 
     setSubmitting(true);
     try {
+      // Converter a data escolhida para timestamp
+      const selectedDate = new Date(requestedDate);
+      const timestamp = selectedDate.toISOString();
+
       const { error } = await supabase
         .from('salary_advance_requests')
         .insert({
           employee_id: user.id,
           requested_amount: amount,
-          reason: reason.trim()
+          reason: reason.trim(),
+          requested_at: timestamp
         });
 
       if (error) {
@@ -169,6 +184,7 @@ const SalaryAdvanceRequest: React.FC = () => {
       // Reset form and reload requests
       setRequestedAmount('');
       setReason('');
+      setRequestedDate('');
       setShowForm(false);
       loadRequests();
 
@@ -273,6 +289,20 @@ const SalaryAdvanceRequest: React.FC = () => {
                   />
                   <p className="text-sm text-gray-600 mt-1">
                     Valor mínimo: {formatCurrency(minAmount)} | Máximo: {formatCurrency(maxAmount)}
+                  </p>
+                </div>
+                
+                <div>
+                  <Label htmlFor="requestedDate">Data Desejada</Label>
+                  <Input
+                    id="requestedDate"
+                    type="date"
+                    value={requestedDate}
+                    onChange={(e) => setRequestedDate(e.target.value)}
+                    required
+                  />
+                  <p className="text-sm text-gray-600 mt-1">
+                    Selecione a data em que você gostaria de receber o vale salarial.
                   </p>
                 </div>
                 
