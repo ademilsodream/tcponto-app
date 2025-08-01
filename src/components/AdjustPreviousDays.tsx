@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3, Lock, Unlock } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subDays, isAfter, isBefore, subMonths, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -112,7 +112,6 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]);
   const [editedDates, setEditedDates] = useState<Set<string>>(new Set());
-  const [showEditModal, setShowEditModal] = useState(false);
 
   const { user, profile } = useOptimizedAuth();
   const { toast } = useToast();
@@ -498,365 +497,207 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     }
   };
 
+  const hasAnyTimeChanged = timeRecord ? (
+    editForm.clock_in !== (timeRecord.clock_in || '') ||
+    editForm.lunch_start !== (timeRecord.lunch_start || '') ||
+    editForm.lunch_end !== (timeRecord.lunch_end || '') ||
+    editForm.clock_out !== (timeRecord.clock_out || '')
+  ) : false;
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onBack}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Voltar
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Ajustar Dias Anteriores</h1>
-          <p className="text-muted-foreground">
-            Selecione uma data para solicitar alterações nos registros de ponto
-          </p>
-        </div>
-      </div>
-
-      {/* Alerta sobre períodos bloqueados */}
-      {blockedPeriods.length > 0 && (
-        <Alert className="mb-6">
-          <Lock className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Períodos Bloqueados:</strong> Alguns períodos estão bloqueados para edições. 
-            Apenas dias não editados podem ser modificados em períodos bloqueados.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
+    <div className="space-y-6 p-4 md:p-6">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="w-5 h-5" />
-              Selecionar Data
+              Ajuste de Registros
             </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              disabled={isDateDisabled}
-              className="rounded-md border"
-              locale={ptBR}
-              fromDate={subMonths(new Date(), 1)}
-              toDate={subDays(new Date(), 1)}
-            />
-            
-            {/* Legenda de status */}
-            <div className="mt-4 space-y-2">
-              <h4 className="font-medium text-sm">Legenda:</h4>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+          </div>
+        </CardHeader>
+        <CardContent>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Selecione o dia para ajustar</h3>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                disabled={isDateDisabled}
+                locale={ptBR}
+                className="rounded-md border w-full max-w-sm mx-auto md:mx-0"
+              />
+
+              <div className="mt-4 space-y-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <Unlock className="w-3 h-3 text-green-600" />
-                  <span>Disponível</span>
+                  <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
+                  <span>Dias disponíveis para edição</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Edit3 className="w-3 h-3 text-green-600" />
-                  <span>Editado</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-3 h-3 text-orange-600" />
-                  <span>Mês Bloqueado</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="w-3 h-3 text-red-600" />
-                  <span>Período Bloqueado</span>
+                  <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
+                  <span>Dias já editados ou não disponíveis</span>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Detalhes do Registro
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selectedDate ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">
-                      {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(selectedDate, 'EEEE', { locale: ptBR })}
-                    </p>
-                  </div>
-                  {(() => {
-                    const { canEdit, reason } = canEditDate(selectedDate);
-                    const dateString = format(selectedDate, 'yyyy-MM-dd');
-                    const isEdited = editedDates.has(dateString);
-                    const isBlocked = isDateInBlockedPeriod(selectedDate);
-                    const monthBlocked = isMonthBlocked(selectedDate);
+            <div>
+              {selectedDate && timeRecord ? (
+                <div>
+                  <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
+                    <Edit3 className="w-5 h-5" />
+                    Editar {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+                  </h3>
 
-                    if (isEdited) {
-                      return (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Edit3 className="w-4 h-4 text-green-600" />
-                          <span className="text-green-600">Editado</span>
-                        </div>
-                      );
-                    }
-                    
-                    if (isBlocked) {
-                      return (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Lock className="w-4 h-4 text-red-600" />
-                          <span className="text-red-600">Período Bloqueado</span>
-                        </div>
-                      );
-                    }
-                    
-                    if (monthBlocked) {
-                      return (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Lock className="w-4 h-4 text-orange-600" />
-                          <span className="text-orange-600">Mês Bloqueado</span>
-                        </div>
-                      );
-                    }
-                    
-                    if (canEdit) {
-                      return (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Unlock className="w-4 h-4 text-green-600" />
-                          <span className="text-green-600">Disponível</span>
-                        </div>
-                      );
-                    }
-                    
-                    return (
-                      <div className="flex items-center gap-2 text-sm">
-                        <AlertTriangle className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-400">Indisponível</span>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {timeRecord ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Entrada</Label>
-                        <Input
-                          value={timeRecord.clock_in || ''}
-                          disabled
-                          className="bg-muted"
-                        />
-                      </div>
-                      <div>
-                        <Label>Saída</Label>
-                        <Input
-                          value={timeRecord.clock_out || ''}
-                          disabled
-                          className="bg-muted"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Início Almoço</Label>
-                        <Input
-                          value={timeRecord.lunch_start || ''}
-                          disabled
-                          className="bg-muted"
-                        />
-                      </div>
-                      <div>
-                        <Label>Fim Almoço</Label>
-                        <Input
-                          value={timeRecord.lunch_end || ''}
-                          disabled
-                          className="bg-muted"
-                        />
-                      </div>
-                    </div>
+                  <div className="space-y-4">
                     <div>
-                      <Label>Total de Horas</Label>
-                      <Input
-                        value={`${timeRecord.total_hours || 0}h`}
-                        disabled
-                        className="bg-muted"
+                      <Label htmlFor="location">Localização *</Label>
+                      {allowedLocations.length > 0 ? (
+                        <Select
+                          value={editForm.locationName}
+                          onValueChange={(value) => handleInputChange('locationName', value)}
+                          disabled={submitting}
+                        >
+                          <SelectTrigger id="location">
+                            <SelectValue placeholder="Selecione a localização" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allowedLocations.map((location) => (
+                              <SelectItem key={location.id} value={location.name}>
+                                {location.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-red-500">Nenhuma localização ativa disponível.</p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="clock_in">Entrada</Label>
+                        <Input
+                          id="clock_in"
+                          type="time"
+                          value={editForm.clock_in}
+                          onChange={(e) => handleInputChange('clock_in', e.target.value)}
+                          disabled={submitting}
+                        />
+                        <div className="text-xs text-gray-500 mt-1">
+                          Atual: {timeRecord.clock_in || 'Não registrado'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="lunch_start">Início Almoço</Label>
+                        <Input
+                          id="lunch_start"
+                          type="time"
+                          value={editForm.lunch_start}
+                          onChange={(e) => handleInputChange('lunch_start', e.target.value)}
+                          disabled={submitting}
+                        />
+                        <div className="text-xs text-gray-500 mt-1">
+                          Atual: {timeRecord.lunch_start || 'Não registrado'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="lunch_end">Fim Almoço</Label>
+                        <Input
+                          id="lunch_end"
+                          type="time"
+                          value={editForm.lunch_end}
+                          onChange={(e) => handleInputChange('lunch_end', e.target.value)}
+                          disabled={submitting}
+                        />
+                        <div className="text-xs text-gray-500 mt-1">
+                          Atual: {timeRecord.lunch_end || 'Não registrado'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="clock_out">Saída</Label>
+                        <Input
+                          id="clock_out"
+                          type="time"
+                          value={editForm.clock_out}
+                          onChange={(e) => handleInputChange('clock_out', e.target.value)}
+                          disabled={submitting}
+                        />
+                        <div className="text-xs text-gray-500 mt-1">
+                          Atual: {timeRecord.clock_out || 'Não registrado'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="reason">Motivo da Alteração *</Label>
+                      <Textarea
+                        id="reason"
+                        value={editForm.reason}
+                        onChange={(e) => handleInputChange('reason', e.target.value)}
+                        placeholder="Descreva o motivo da solicitação de alteração..."
+                        required
+                        disabled={submitting}
+                        className="min-h-[80px]"
                       />
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">
-                      Nenhum registro encontrado para esta data
+
+                    <Button
+                      onClick={handleSubmitEdit}
+                      className="w-full"
+                      disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
+                    >
+                      {submitting ? (
+                        <>
+                          <Clock className="w-4 h-4 mr-2 animate-spin" />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Enviar Solicitação
+                        </>
+                      )}
+                    </Button>
+
+                    <p className="text-xs text-gray-500">
+                      * A solicitação será enviada para aprovação do RH.
+                      Você será notificado quando for processada.
                     </p>
                   </div>
-                )}
-
-                {(() => {
-                  const { canEdit, reason } = canEditDate(selectedDate);
-                  if (!canEdit) {
-                    return (
-                      <Alert>
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>{reason}</AlertDescription>
-                      </Alert>
-                    );
-                  }
-                  return null;
-                })()}
-
-                <Button
-                  onClick={() => setShowEditModal(true)}
-                  disabled={!timeRecord || (() => {
-                    const { canEdit } = canEditDate(selectedDate);
-                    return !canEdit;
-                  })()}
-                  className="w-full"
-                >
-                  <Edit3 className="w-4 h-4 mr-2" />
-                  Solicitar Alteração
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <CalendarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  Selecione uma data para ver os detalhes
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Modal de Edição */}
-      {showEditModal && selectedDate && timeRecord && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-background rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">
-                Solicitar Alteração - {format(selectedDate, 'dd/MM/yyyy')}
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowEditModal(false)}
-              >
-                ×
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Entrada</Label>
-                  <Input
-                    type="time"
-                    value={editForm.clock_in}
-                    onChange={(e) => handleInputChange('clock_in', e.target.value)}
-                    disabled={submitting}
-                  />
                 </div>
-                <div>
-                  <Label>Saída</Label>
-                  <Input
-                    type="time"
-                    value={editForm.clock_out}
-                    onChange={(e) => handleInputChange('clock_out', e.target.value)}
-                    disabled={submitting}
-                  />
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <CalendarIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>Selecione um dia no calendário para editar os registros</p>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Início Almoço</Label>
-                  <Input
-                    type="time"
-                    value={editForm.lunch_start}
-                    onChange={(e) => handleInputChange('lunch_start', e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-                <div>
-                  <Label>Fim Almoço</Label>
-                  <Input
-                    type="time"
-                    value={editForm.lunch_end}
-                    onChange={(e) => handleInputChange('lunch_end', e.target.value)}
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
+              )}
 
-              <div>
-                <Label>Localização *</Label>
-                <Select
-                  value={editForm.locationName}
-                  onValueChange={(value) => handleInputChange('locationName', value)}
-                  disabled={submitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a localização" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allowedLocations.map((location) => (
-                      <SelectItem key={location.id} value={location.name}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Motivo da Alteração *</Label>
-                <Textarea
-                  value={editForm.reason}
-                  onChange={(e) => handleInputChange('reason', e.target.value)}
-                  placeholder="Descreva o motivo da solicitação de alteração..."
-                  required
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowEditModal(false)}
-                  disabled={submitting}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleSubmitEdit}
-                  disabled={submitting || !editForm.reason.trim() || !editForm.locationName}
-                >
-                  {submitting ? (
-                    <>
-                      <Save className="w-4 h-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Enviar Solicitação
-                    </>
-                  )}
-                </Button>
-              </div>
+              {selectedDate && timeRecord && allowedLocations.length === 0 && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
