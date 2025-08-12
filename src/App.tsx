@@ -12,6 +12,11 @@ import UnifiedTimeRecordPage from '@/pages/UnifiedTimeRecordPage';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import DebugPanel from '@/components/DebugPanel';
 
+// Placeholders simples
+const Placeholder = ({ title }: { title: string }) => (
+  <div className="p-8 text-center text-gray-600">{title}</div>
+);
+
 function App() {
   return (
     <UltraOptimizedQueryProvider>
@@ -32,8 +37,78 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                {/* Alias para compatibilidade com redirecionamentos antigos */}
                 <Route path="/employee" element={<Navigate to="/" replace />} />
+                {/* Rotas de menu */}
+                <Route
+                  path="/monthly-summary"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Resumo Mensal (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/detailed-report"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Relatório Detalhado (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/incomplete-records"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Registros Incompletos (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/adjust-previous-days"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Ajustar dias anteriores (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vacation-request"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Solicitar Férias (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/documents"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Meus Documentos (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/salary-advance"
+                  element={
+                    <ProtectedRoute>
+                      <EmployeeLayout>
+                        <Placeholder title="Vale Salarial (em breve)" />
+                      </EmployeeLayout>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/404" element={<NotFound />} />
                 <Route path="*" element={<Navigate to="/404" replace />} />
               </Routes>
