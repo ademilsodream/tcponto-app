@@ -1,24 +1,62 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { CardContent } from '@/components/ui/card';
+import { CardHeader } from '@/components/ui/card';
+import { CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useUnifiedLocation } from '@/hooks/useUnifiedLocation';
 import { supabase } from '@/integrations/supabase/client';
-import { Clock, MapPin, Wifi, WifiOff, Battery, Signal } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { UnifiedGPSStatus } from './UnifiedGPSStatus';
 import { TimeDisplay } from './TimeDisplay';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
+import { AllowedLocation } from '@/types/index';
 
 const UnifiedTimeRegistration: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [lastRegistration, setLastRegistration] = useState<TimeRegistration | null>(null);
+  const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
+  const [loadingLocations, setLoadingLocations] = useState<boolean>(true);
   const { user, profile } = useOptimizedAuth();
   const { toast } = useToast();
+
+  // Carregar localizações permitidas reais do Supabase
+  useEffect(() => {
+    const loadAllowed = async () => {
+      try {
+        setLoadingLocations(true);
+        const { data, error } = await supabase
+          .from('allowed_locations')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
+
+        if (error) throw error;
+
+        const formatted = (data || []).map((loc: any) => ({
+          ...loc,
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude),
+          range_meters: Number(loc.range_meters)
+        }));
+        setAllowedLocations(formatted);
+      } catch (err) {
+        console.error('Erro ao carregar localizações permitidas:', err);
+        toast({ title: 'Erro', description: 'Falha ao carregar localizações permitidas.', variant: 'destructive' });
+        setAllowedLocations([]);
+      } finally {
+        setLoadingLocations(false);
+      }
+    };
+
+    loadAllowed();
+  }, [toast]);
 
   const {
     location,
@@ -33,17 +71,7 @@ const UnifiedTimeRegistration: React.FC = () => {
     clearCalibration,
     gpsQuality,
     debug
-  } = useUnifiedLocation(profile?.departments ? [{
-    id: profile.department_id || 'any',
-    name: profile.departments?.name || 'Anywhere',
-    address: 'Endereço padrão',
-    latitude: 0,
-    longitude: 0,
-    range_meters: 500,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }] : []);
+  } = useUnifiedLocation(allowedLocations, true);
 
   const fetchLastRegistration = useCallback(async () => {
     if (!profile?.id) return;
@@ -58,7 +86,7 @@ const UnifiedTimeRegistration: React.FC = () => {
         .maybeSingle();
 
       if (error) {
-        console.error("Erro ao buscar último registro:", error);
+        console.error('Erro ao buscar último registro:', error);
         return;
       }
 
@@ -66,7 +94,7 @@ const UnifiedTimeRegistration: React.FC = () => {
         setLastRegistration(data as TimeRegistration);
       }
     } catch (err) {
-      console.error("Erro inesperado ao buscar último registro:", err);
+      console.error('Erro inesperado ao buscar último registro:', err);
     }
   }, [profile?.id]);
 
@@ -76,11 +104,7 @@ const UnifiedTimeRegistration: React.FC = () => {
 
   const handleTimeRegistration = async () => {
     if (!location || !profile) {
-      toast({
-        title: "Erro",
-        description: "Localização não disponível. Tente novamente.",
-        variant: "destructive"
-      });
+      toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
       return;
     }
 
@@ -109,30 +133,19 @@ const UnifiedTimeRegistration: React.FC = () => {
         .maybeSingle();
 
       if (error) {
-        console.error("Erro ao registrar ponto:", error);
-        toast({
-          title: "Erro",
-          description: "Falha ao registrar o ponto. Tente novamente.",
-          variant: "destructive"
-        });
+        console.error('Erro ao registrar ponto:', error);
+        toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' });
         return;
       }
 
       if (data) {
         setLastRegistration(data as TimeRegistration);
-        toast({
-          title: "Sucesso",
-          description: "Ponto registrado com sucesso!",
-        });
+        toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' });
         fetchLastRegistration();
       }
     } catch (err) {
-      console.error("Erro inesperado ao registrar ponto:", err);
-      toast({
-        title: "Erro",
-        description: "Erro inesperado ao registrar o ponto.",
-        variant: "destructive"
-      });
+      console.error('Erro inesperado ao registrar ponto:', err);
+      toast({ title: 'Erro', description: 'Erro inesperado ao registrar o ponto.', variant: 'destructive' });
     } finally {
       setIsRegistering(false);
     }
@@ -143,17 +156,15 @@ const UnifiedTimeRegistration: React.FC = () => {
   };
 
   const handleClearCalibration = () => {
-    clearCalibration('any'); // Provide a default locationId
+    // Limpa calibração e cache
+    clearCalibration('any');
   };
 
   return (
     <div className="space-y-6 p-4">
-      {/* Header and Status Section */}
       <div className="text-center">
         <h2 className="text-2xl font-semibold">Registro de Ponto</h2>
-        <p className="text-gray-500">
-          {profile?.name} - {profile?.departments?.name}
-        </p>
+        <p className="text-gray-500">{profile?.name} - {profile?.departments?.name}</p>
       </div>
 
       <Card>
@@ -162,7 +173,7 @@ const UnifiedTimeRegistration: React.FC = () => {
         </CardHeader>
         <CardContent>
           <UnifiedGPSStatus
-            loading={loading}
+            loading={loading || loadingLocations}
             error={error}
             location={location}
             gpsQuality={gpsQuality}
@@ -177,8 +188,7 @@ const UnifiedTimeRegistration: React.FC = () => {
           />
         </CardContent>
       </Card>
-      
-      {/* Registration Button */}
+
       <Card>
         <CardContent className="p-6">
           <Button
@@ -189,9 +199,7 @@ const UnifiedTimeRegistration: React.FC = () => {
             className="w-full h-16 text-lg font-semibold"
           >
             {isRegistering ? (
-              <>
-                Registrando...
-              </>
+              <>Registrando...</>
             ) : (
               <>
                 <Clock className="mr-2 h-5 w-5" />
@@ -199,37 +207,18 @@ const UnifiedTimeRegistration: React.FC = () => {
               </>
             )}
           </Button>
-          
-          {/* Validation Messages */}
+
           {validationResult && !canRegister && (
-            <div className="mt-4 text-red-500">
-              {validationResult.message}
-            </div>
+            <div className="mt-4 text-red-500">{validationResult.message}</div>
           )}
 
-          {/* Last Registration Info */}
           {lastRegistration && (
             <div className="mt-4">
               <Separator className="my-2" />
               <p className="text-sm text-gray-500">
                 Último registro: {format(new Date(lastRegistration.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
               </p>
-              <p className="text-sm text-gray-500">
-                Local: {lastRegistration.locations ? 'Registrado' : 'Sem localização'}
-              </p>
-            </div>
-          )}
-
-          {/* Debug Info */}
-          {debug && process.env.NODE_ENV === 'development' && (
-            <div className="mt-4">
-              <Separator className="my-2" />
-              <details>
-                <summary className="text-sm text-gray-500 cursor-pointer">
-                  Informações de Debug
-                </summary>
-                <pre className="text-xs">{JSON.stringify(debug, null, 2)}</pre>
-              </details>
+              <p className="text-sm text-gray-500">Local: {lastRegistration.locations ? 'Registrado' : 'Sem localização'}</p>
             </div>
           )}
         </CardContent>
