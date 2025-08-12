@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { CardContent } from '@/components/ui/card';
-import { CardHeader } from '@/components/ui/card';
-import { CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -12,7 +8,6 @@ import { useUnifiedLocation } from '@/hooks/useUnifiedLocation';
 import { supabase } from '@/integrations/supabase/client';
 import { Clock } from 'lucide-react';
 import { UnifiedGPSStatus } from './UnifiedGPSStatus';
-import { TimeDisplay } from './TimeDisplay';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
@@ -26,25 +21,13 @@ const UnifiedTimeRegistration: React.FC = () => {
   const { user, profile } = useOptimizedAuth();
   const { toast } = useToast();
 
-  // Carregar localizações permitidas reais do Supabase
   useEffect(() => {
     const loadAllowed = async () => {
       try {
         setLoadingLocations(true);
-        const { data, error } = await supabase
-          .from('allowed_locations')
-          .select('*')
-          .eq('is_active', true)
-          .order('name');
-
+        const { data, error } = await supabase.from('allowed_locations').select('*').eq('is_active', true).order('name');
         if (error) throw error;
-
-        const formatted = (data || []).map((loc: any) => ({
-          ...loc,
-          latitude: Number(loc.latitude),
-          longitude: Number(loc.longitude),
-          range_meters: Number(loc.range_meters)
-        }));
+        const formatted = (data || []).map((loc: any) => ({ ...loc, latitude: Number(loc.latitude), longitude: Number(loc.longitude), range_meters: Number(loc.range_meters) }));
         setAllowedLocations(formatted);
       } catch (err) {
         console.error('Erro ao carregar localizações permitidas:', err);
@@ -54,175 +37,119 @@ const UnifiedTimeRegistration: React.FC = () => {
         setLoadingLocations(false);
       }
     };
-
     loadAllowed();
   }, [toast]);
 
-  const {
-    location,
-    loading,
-    error,
-    validationResult,
-    canRegister,
-    calibration,
-    validateLocation,
-    calibrateForCurrentLocation,
-    refreshLocation,
-    clearCalibration,
-    gpsQuality,
-    debug
-  } = useUnifiedLocation(allowedLocations, true);
+  const { location, loading, error, validationResult, canRegister, calibration, validateLocation, calibrateForCurrentLocation, refreshLocation, clearCalibration, gpsQuality, debug } = useUnifiedLocation(allowedLocations, true);
 
   const fetchLastRegistration = useCallback(async () => {
     if (!profile?.id) return;
-
     try {
-      const { data, error } = await supabase
-        .from('time_records')
-        .select('*')
-        .eq('user_id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Erro ao buscar último registro:', error);
-        return;
-      }
-
-      if (data) {
-        setLastRegistration(data as TimeRegistration);
-      }
-    } catch (err) {
-      console.error('Erro inesperado ao buscar último registro:', err);
-    }
+      const { data, error } = await supabase.from('time_records').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (error) return;
+      if (data) setLastRegistration(data as TimeRegistration);
+    } catch {}
   }, [profile?.id]);
 
-  useEffect(() => {
-    fetchLastRegistration();
-  }, [fetchLastRegistration]);
+  useEffect(() => { fetchLastRegistration(); }, [fetchLastRegistration]);
 
   const handleTimeRegistration = async () => {
     if (!location || !profile) {
       toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
       return;
     }
-
     setIsRegistering(true);
-
     try {
       const { data, error } = await supabase
         .from('time_records')
-        .insert([
-          {
-            user_id: profile.id,
-            date: new Date().toISOString().split('T')[0],
-            clock_in: new Date().toTimeString().split(' ')[0],
-            locations: {
-              clock_in: {
-                latitude: location.latitude,
-                longitude: location.longitude,
-                accuracy: location.accuracy,
-                timestamp: new Date(location.timestamp).toISOString(),
-                locationName: validationResult?.closestLocation?.name || 'Desconhecido'
-              }
-            }
-          }
-        ])
+        .insert([{ user_id: profile.id, date: new Date().toISOString().split('T')[0], clock_in: new Date().toTimeString().split(' ')[0], locations: { clock_in: { latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, timestamp: new Date(location.timestamp).toISOString(), locationName: validationResult?.closestLocation?.name || 'Desconhecido' } } }])
         .select('*')
         .maybeSingle();
-
-      if (error) {
-        console.error('Erro ao registrar ponto:', error);
-        toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' });
-        return;
-      }
-
-      if (data) {
-        setLastRegistration(data as TimeRegistration);
-        toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' });
-        fetchLastRegistration();
-      }
+      if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' }); return; }
+      if (data) { setLastRegistration(data as TimeRegistration); toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' }); fetchLastRegistration(); }
     } catch (err) {
-      console.error('Erro inesperado ao registrar ponto:', err);
       toast({ title: 'Erro', description: 'Erro inesperado ao registrar o ponto.', variant: 'destructive' });
-    } finally {
-      setIsRegistering(false);
-    }
+    } finally { setIsRegistering(false); }
   };
 
-  const handleValidateLocation = () => {
-    validateLocation();
-  };
-
-  const handleClearCalibration = () => {
-    // Limpa calibração e cache
-    clearCalibration('any');
-  };
+  const handleValidateLocation = () => validateLocation();
+  const handleClearCalibration = () => clearCalibration('any');
 
   return (
-    <div className="space-y-6 p-4">
-      <div className="text-center">
-        <h2 className="text-2xl font-semibold">Registro de Ponto</h2>
-        <p className="text-gray-500">{profile?.name} - {profile?.departments?.name}</p>
+    <div className="flex flex-col min-h-[100dvh] p-3 sm:p-4">
+      {/* Header */}
+      <div className="text-center mb-2 sm:mb-4">
+        <h2 className="text-xl sm:text-2xl font-semibold leading-tight">Registro de Ponto</h2>
+        <p className="text-xs sm:text-sm text-gray-500 truncate">{profile?.name} - {profile?.departments?.name}</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Status do GPS</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <UnifiedGPSStatus
-            loading={loading || loadingLocations}
-            error={error}
-            location={location}
-            gpsQuality={gpsQuality}
-            validationResult={validationResult}
-            canRegister={canRegister}
-            calibration={calibration}
-            validateLocation={handleValidateLocation}
-            calibrateForCurrentLocation={calibrateForCurrentLocation}
-            refreshLocation={refreshLocation}
-            clearCalibration={handleClearCalibration}
-            debug={debug}
-          />
-        </CardContent>
-      </Card>
+      {/* Conteúdo scrollável */}
+      <div className="flex-1 overflow-auto space-y-3 sm:space-y-6">
+        <Card>
+          <CardHeader className="py-3 sm:py-4">
+            <CardTitle className="text-base sm:text-lg">Status do GPS</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6">
+            <UnifiedGPSStatus
+              loading={loading || loadingLocations}
+              error={error}
+              location={location}
+              gpsQuality={gpsQuality}
+              validationResult={validationResult}
+              canRegister={canRegister}
+              calibration={calibration}
+              validateLocation={handleValidateLocation}
+              calibrateForCurrentLocation={calibrateForCurrentLocation}
+              refreshLocation={refreshLocation}
+              clearCalibration={handleClearCalibration}
+              debug={debug}
+            />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardContent className="p-6">
-          <Button
-            onClick={handleTimeRegistration}
-            disabled={isRegistering || !canRegister}
-            size="lg"
-            variant="default"
-            className="w-full h-16 text-lg font-semibold"
-          >
-            {isRegistering ? (
-              <>Registrando...</>
-            ) : (
-              <>
-                <Clock className="mr-2 h-5 w-5" />
-                Registrar Ponto
-              </>
-            )}
-          </Button>
-
-          {validationResult && !canRegister && (
-            <div className="mt-4 text-red-500">{validationResult.message}</div>
-          )}
-
-          {lastRegistration && (
-            <div className="mt-4">
+        {/* Último registro */}
+        {lastRegistration && (
+          <Card>
+            <CardContent className="p-3 sm:p-6">
               <Separator className="my-2" />
-              <p className="text-sm text-gray-500">
+              <p className="text-xs sm:text-sm text-gray-500">
                 Último registro: {format(new Date(lastRegistration.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
               </p>
-              <p className="text-sm text-gray-500">Local: {lastRegistration.locations ? 'Registrado' : 'Sem localização'}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              <p className="text-xs sm:text-sm text-gray-500">Local: {lastRegistration.locations ? 'Registrado' : 'Sem localização'}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Espaço para o botão sticky não sobrepor conteúdo */}
+        <div className="h-20 sm:h-0" />
+      </div>
+
+      {/* Botão sticky no rodapé para mobile */}
+      <div className="sticky bottom-3 sm:static sm:bottom-auto">
+        <Card className="shadow-lg">
+          <CardContent className="p-2 sm:p-6">
+            <Button
+              onClick={handleTimeRegistration}
+              disabled={isRegistering || !canRegister}
+              size="lg"
+              variant="default"
+              className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold"
+            >
+              {isRegistering ? (
+                <>Registrando...</>
+              ) : (
+                <>
+                  <Clock className="mr-2 h-5 w-5" />
+                  Registrar Ponto
+                </>
+              )}
+            </Button>
+            {validationResult && !canRegister && (
+              <div className="mt-2 sm:mt-4 text-red-500 text-xs sm:text-sm">{validationResult.message}</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
