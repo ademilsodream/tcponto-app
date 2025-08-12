@@ -42,3 +42,27 @@ export interface TimeRecord {
   approved_by?: string;
   approved_at?: string;
 }
+
+// Interface correta para a tabela time_records
+export interface TimeRegistration {
+  id: string;
+  user_id: string; // Não profile_id
+  date: string;
+  clock_in?: string;
+  lunch_start?: string;
+  lunch_end?: string;
+  clock_out?: string;
+  total_hours: number;
+  normal_hours: number;
+  overtime_hours: number;
+  normal_pay: number;
+  overtime_pay: number;
+  total_pay: number;
+  locations?: Json | null;
+  created_at: string;
+  updated_at: string;
+  status?: string;
+  is_pending_approval?: boolean;
+  approved_by?: string;
+  approved_at?: string;
+}

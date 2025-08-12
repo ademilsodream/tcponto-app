@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,17 +13,7 @@ import { UnifiedGPSStatus } from './UnifiedGPSStatus';
 import { TimeDisplay } from './TimeDisplay';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-interface TimeRegistration {
-  id: string;
-  created_at: string;
-  profile_id: string;
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  timestamp: string;
-  location_name: string;
-}
+import { TimeRegistration } from '@/types/timeRegistration';
 
 const UnifiedTimeRegistration: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -35,7 +26,6 @@ const UnifiedTimeRegistration: React.FC = () => {
     loading,
     error,
     validationResult,
-    isValidating,
     canRegister,
     calibration,
     validateLocation,
@@ -49,7 +39,7 @@ const UnifiedTimeRegistration: React.FC = () => {
     name: profile.departments?.name || 'Anywhere',
     latitude: 0,
     longitude: 0,
-    radius: 500
+    range_meters: 500 // Usar range_meters ao invés de radius
   }] : []);
 
   const fetchLastRegistration = useCallback(async () => {
@@ -57,19 +47,21 @@ const UnifiedTimeRegistration: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('time_registrations')
+        .from('time_records') // Usar time_records ao invés de time_registrations
         .select('*')
-        .eq('profile_id', profile.id)
+        .eq('user_id', profile.id) // Usar user_id ao invés de profile_id
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle(); // Usar maybeSingle ao invés de single
 
       if (error) {
         console.error("Erro ao buscar último registro:", error);
         return;
       }
 
-      setLastRegistration(data || null);
+      if (data) {
+        setLastRegistration(data as TimeRegistration);
+      }
     } catch (err) {
       console.error("Erro inesperado ao buscar último registro:", err);
     }
@@ -93,19 +85,25 @@ const UnifiedTimeRegistration: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('time_registrations')
+        .from('time_records') // Usar time_records
         .insert([
           {
-            profile_id: profile.id,
-            latitude: location.latitude,
-            longitude: location.longitude,
-            accuracy: location.accuracy,
-            timestamp: new Date(location.timestamp).toISOString(),
-            location_name: validationResult?.closestLocation?.name || 'Desconhecido'
+            user_id: profile.id, // Usar user_id
+            date: new Date().toISOString().split('T')[0], // Adicionar data
+            clock_in: new Date().toTimeString().split(' ')[0], // Adicionar horário de entrada
+            locations: {
+              clock_in: {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+                timestamp: new Date(location.timestamp).toISOString(),
+                locationName: validationResult?.closestLocation?.name || 'Desconhecido'
+              }
+            }
           }
         ])
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("Erro ao registrar ponto:", error);
@@ -117,12 +115,14 @@ const UnifiedTimeRegistration: React.FC = () => {
         return;
       }
 
-      setLastRegistration(data);
-      toast({
-        title: "Sucesso",
-        description: "Ponto registrado com sucesso!",
-      });
-      fetchLastRegistration();
+      if (data) {
+        setLastRegistration(data as TimeRegistration);
+        toast({
+          title: "Sucesso",
+          description: "Ponto registrado com sucesso!",
+        });
+        fetchLastRegistration();
+      }
     } catch (err) {
       console.error("Erro inesperado ao registrar ponto:", err);
       toast({
@@ -156,7 +156,6 @@ const UnifiedTimeRegistration: React.FC = () => {
             location={location}
             gpsQuality={gpsQuality}
             validationResult={validationResult}
-            isValidating={isValidating}
             canRegister={canRegister}
             calibration={calibration}
             validateLocation={validateLocation}
@@ -205,7 +204,7 @@ const UnifiedTimeRegistration: React.FC = () => {
                 Último registro: {format(new Date(lastRegistration.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
               </p>
               <p className="text-sm text-gray-500">
-                Local: {lastRegistration.location_name}
+                Local: {lastRegistration.locations ? 'Registrado' : 'Sem localização'}
               </p>
             </div>
           )}

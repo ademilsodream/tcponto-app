@@ -1,3 +1,4 @@
+
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
@@ -5,7 +6,11 @@ const config: CapacitorConfig = {
   appName: 'TCPonto',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    allowNavigation: [
+      'https://cyapqtyrefkdemhxryvs.supabase.co',
+      'https://dc666f76-3293-4845-8214-7797aed7f618.lovableproject.com'
+    ]
   },
   plugins: {
     SplashScreen: {
@@ -24,7 +29,10 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
+    CapacitorHttp: {
+      enabled: true,
+    },
   },
 };
 
-export default config; 
+export default config;

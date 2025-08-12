@@ -1,10 +1,11 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, Building2 } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import UnifiedTimeRegistration from '@/components/UnifiedTimeRegistration';
-import { SessionWarning } from '@/components/SessionWarning';
+import SessionWarning from '@/components/SessionWarning'; // Import padrão
 
 const UnifiedTimeRecordPage: React.FC = () => {
   const { user, profile, isLoading, hasAccess, sessionWarning, dismissSessionWarning } = useOptimizedAuth();
@@ -33,7 +34,7 @@ const UnifiedTimeRecordPage: React.FC = () => {
           {sessionWarning && (
             <SessionWarning
               onDismiss={dismissSessionWarning}
-              minutesToExpire={5} // Tempo de expiração da sessão em minutos
+              minutesToExpire={5}
             />
           )}
           <div className="grid gap-4">
