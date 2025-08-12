@@ -230,112 +230,95 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
 
   // Render: Cabeçalho de filtros e toggle de visualização
   const FiltersHeader = (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="text-lg">Selecionar Período</span>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === 'calendar' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('calendar')}
-              className="flex items-center gap-1"
-            >
-              <GridIcon className="w-4 h-4" /> Calendário
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className="flex items-center gap-1"
-            >
-              <ListIcon className="w-4 h-4" /> Lista
-            </Button>
-          </div>
-        </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Seletor de Data Inicial */}
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Data Inicial</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="startDate"
-                      variant="outline"
-                  className={cn("w-full justify-start text-left font-normal")}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                  {startDate ? format(startDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={startDate}
-                  onSelect={(d) => {
-                    if (d) {
-                      setStartDate(startOfMonth(d));
-                      setEndDate(endOfMonth(d));
-                    }
-                  }}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+    <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-lg font-semibold text-gray-900">Selecionar Período</span>
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'calendar' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('calendar')}
+            className="flex items-center gap-1"
+          >
+            <GridIcon className="w-4 h-4" /> Calendário
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+            className="flex items-center gap-1"
+          >
+            <ListIcon className="w-4 h-4" /> Lista
+          </Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Seletor de Data Inicial */}
+        <div className="space-y-2">
+          <Label htmlFor="startDate">Data Inicial</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button id="startDate" variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {startDate ? format(startDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={startDate}
+                onSelect={(d) => {
+                  if (d) {
+                    setStartDate(startOfMonth(d));
+                    setEndDate(endOfMonth(d));
+                  }
+                }}
+                initialFocus
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
 
-          {/* Seletor de Data Final */}
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Data Final</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="endDate"
-                      variant="outline"
-                  className={cn("w-full justify-start text-left font-normal")}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                  {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={endDate}
-                  onSelect={(d) => {
-                    if (d) setEndDate(endOfMonth(d));
-                  }}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Seletor de Data Final */}
+        <div className="space-y-2">
+          <Label htmlFor="endDate">Data Final</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button id="endDate" variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={endDate}
+                onSelect={(d) => { if (d) setEndDate(endOfMonth(d)); }}
+                initialFocus
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+    </div>
   );
 
   // Render: Calendário mensal com registros
   const CalendarGrid = (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <CalendarIconLucide className="w-5 h-5" />
-          {startDate ? format(startDate, 'MMMM yyyy', { locale: ptBR }) : ''}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="p-4 bg-white rounded-xl shadow-sm border">
+      <div className="text-lg font-semibold flex items-center gap-2 mb-3">
+        <CalendarIconLucide className="w-5 h-5" />
+        {startDate ? format(startDate, 'MMMM yyyy', { locale: ptBR }) : ''}
+      </div>
         {/* Cabeçalho dos dias da semana */}
         <div className="grid grid-cols-7 text-xs sm:text-sm font-medium text-gray-600 mb-2">
           {WEEKDAYS.map((d) => (
             <div key={d} className="p-1 text-center">{d}</div>
           ))}
         </div>
-
+ 
         {/* Grade de dias */}
         <div className="grid grid-cols-7 gap-[2px] bg-gray-200 rounded-md overflow-hidden">
           {monthGrid.map((day, idx) => {
@@ -344,7 +327,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
             const inMonth = startDate ? isSameMonth(day, startDate) : false;
             const totals = totalsByDate.get(key);
             const hasRecords = !!recordsByDate.get(key);
-
+ 
             return (
               <button
                 key={idx}
@@ -363,7 +346,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                     </span>
                   )}
                 </div>
-
+ 
                 {/* Registros resumidos */}
                 {hasRecords && (
                   <div className="mt-1 space-y-0.5">
@@ -381,17 +364,13 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 
   // Render: Lista já existente (mantida como alternativa)
   const ListView = (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Registros</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="p-4 bg-white rounded-xl shadow-sm border">
+      <div className="text-lg font-semibold mb-3">Registros</div>
         {loading ? (
           <div className="p-6 text-center">
               <Clock className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
@@ -434,33 +413,22 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
         ) : (
           <div className="p-6 text-center text-gray-600">Nenhum registro encontrado para o período selecionado.</div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 
   // Conteúdo principal
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Relatório Detalhado
-                </h1>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-primary-800 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-primary-600" />
+          Relatório Detalhado
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
         {FiltersHeader}
-
         {viewMode === 'calendar' ? CalendarGrid : ListView}
-      </div>
+      </CardContent>
 
       {/* Dialog de detalhes do dia (mobile friendly) */}
       <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
@@ -498,7 +466,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   );
 };
 
