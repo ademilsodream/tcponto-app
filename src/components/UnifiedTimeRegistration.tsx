@@ -17,6 +17,32 @@ import { TimeRegistrationProgress } from './TimeRegistrationProgress';
 
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutos
 
+// Helper para obter GPS diretamente caso o hook não tenha fornecido
+const getCurrentGPS = (): Promise<{ latitude: number; longitude: number; accuracy?: number; timestamp: number } | null> => {
+  if (!navigator.geolocation) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 8000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(timer);
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          timestamp: pos.timestamp,
+        });
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
+    );
+  });
+};
+
 const UnifiedTimeRegistration: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [lastRegistration, setLastRegistration] = useState<TimeRegistration | null>(null);
@@ -58,7 +84,7 @@ const UnifiedTimeRegistration: React.FC = () => {
     loadAllowed();
   }, [toast]);
 
-  // Cooldown: carregar de storage e cronômetro
+  // Cooldown
   useEffect(() => {
     const stored = localStorage.getItem('timeRegistrationCooldown');
     if (stored) {
@@ -71,17 +97,15 @@ const UnifiedTimeRegistration: React.FC = () => {
       }
     }
     const interval = setInterval(() => {
-      setRemainingCooldown(prev => {
-        if (cooldownEndTime === null) return null;
-        const left = cooldownEndTime - Date.now();
-        if (left <= 0) {
-          setCooldownEndTime(null);
-          localStorage.removeItem('timeRegistrationCooldown');
-          return null;
-        }
-        return left;
-      });
-      return undefined as any;
+      if (cooldownEndTime === null) return;
+      const left = cooldownEndTime - Date.now();
+      if (left <= 0) {
+        setCooldownEndTime(null);
+        setRemainingCooldown(null);
+        localStorage.removeItem('timeRegistrationCooldown');
+      } else {
+        setRemainingCooldown(left);
+      }
     }, 1000);
     return () => clearInterval(interval);
   }, [cooldownEndTime]);
@@ -122,17 +146,24 @@ const UnifiedTimeRegistration: React.FC = () => {
     }
     const now = new Date();
 
+    // Coletar localização atual de forma resiliente
+    let lat = location?.latitude ?? 0;
+    let lon = location?.longitude ?? 0;
+    let ts = location ? new Date(location.timestamp) : now;
+
+    if (!lat || !lon) {
+      const gps = await getCurrentGPS();
+      if (gps) {
+        lat = gps.latitude;
+        lon = gps.longitude;
+        ts = new Date(gps.timestamp);
+      }
+    }
+
     // Modo REMOTO
     if (isRemote) {
       try {
         setIsRegistering(true);
-        let loc = location;
-        if (!loc) {
-          try { await validateLocation(); } catch {}
-          loc = location;
-        }
-        const lat = loc?.latitude ?? 0;
-        const lon = loc?.longitude ?? 0;
         let address = 'Remoto';
         try {
           if (lat && lon) {
@@ -150,7 +181,7 @@ const UnifiedTimeRegistration: React.FC = () => {
               distance: 10,
               latitude: lat || null,
               longitude: lon || null,
-              timestamp: (loc ? new Date(loc.timestamp) : now).toISOString(),
+              timestamp: ts.toISOString(),
               locationName: 'Remoto'
             }
           }
@@ -174,13 +205,13 @@ const UnifiedTimeRegistration: React.FC = () => {
     }
 
     // Modo padrão
-    if (!location) {
+    if (!lat || !lon) {
       toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
       return;
     }
     setIsRegistering(true);
     try {
-      const addr = (await reverseGeocode(location.latitude, location.longitude)).address;
+      const addr = (await reverseGeocode(lat, lon)).address;
       const payload: any = {
         user_id: profile.id,
         date: now.toISOString().split('T')[0],
@@ -189,9 +220,9 @@ const UnifiedTimeRegistration: React.FC = () => {
           clock_in: {
             address: addr,
             distance: Math.round(validationResult?.distance ?? 0) || undefined,
-            latitude: location.latitude,
-            longitude: location.longitude,
-            timestamp: new Date(location.timestamp).toISOString(),
+            latitude: lat,
+            longitude: lon,
+            timestamp: ts.toISOString(),
             locationName: validationResult?.closestLocation?.name || 'Desconhecido'
           }
         }
@@ -246,7 +277,6 @@ const UnifiedTimeRegistration: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Progresso dos registros do dia */}
         <Card>
           <CardContent className="p-3 sm:p-6">
             <TimeRegistrationProgress timeRecord={lastRegistration as any} onEditRequest={() => {}} />
