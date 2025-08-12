@@ -1,13 +1,15 @@
+
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
-import { Outlet } from 'react-router-dom';
 import SessionWarning from '@/components/SessionWarning';
 
-interface EmployeeLayoutProps {}
+interface EmployeeLayoutProps {
+  children: React.ReactNode;
+}
 
-const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
+const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
   const { user, profile, sessionWarning, renewSession, dismissSessionWarning } = useOptimizedAuth();
 
   const handleLogout = async () => {
@@ -72,7 +74,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = () => {
       </header>
 
       <main className="w-full">
-        <Outlet />
+        {children}
       </main>
     </div>
   );
