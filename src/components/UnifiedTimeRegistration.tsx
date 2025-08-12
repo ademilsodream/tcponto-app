@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useUnifiedLocation } from '@/hooks/useUnifiedLocation';
 import { supabase } from '@/integrations/supabase/client';
 import { Clock } from 'lucide-react';
-import { UnifiedGPSStatus } from './UnifiedGPSStatus';
+import UnifiedGPSStatus from './UnifiedGPSStatus';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
@@ -263,18 +262,17 @@ const UnifiedTimeRegistration: React.FC = () => {
   const buttonDisabled = isRegistering || (!isRemote && !canRegister) || (cooldownEndTime !== null && cooldownEndTime > Date.now());
 
   return (
-    <div className="flex flex-col min-h-[100dvh] p-3 sm:p-4">
-      <div className="text-center mb-2 sm:mb-4">
+    <div className="flex flex-col min-h-[100dvh] p-0 sm:p-0">
+      {/* Título */}
+      <div className="text-center py-3">
         <h2 className="text-xl sm:text-2xl font-semibold leading-tight">Registro de Ponto</h2>
       </div>
 
-      <div className="flex-1 overflow-auto space-y-3 sm:space-y-6">
-        {/* Card único: mapa + status + informações */}
-        <Card>
-          <CardContent className="p-0">
-            <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={320} />
-          </CardContent>
-          <CardContent className="p-3 sm:p-6">
+      <div className="flex-1 overflow-auto space-y-0">
+        {/* Bloco único sem borda: mapa + status + informação */}
+        <div className="w-full">
+          <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={320} />
+          <div className="px-4 py-3">
             <UnifiedGPSStatus
               loading={loading || loadingLocations}
               error={error}
@@ -290,8 +288,9 @@ const UnifiedTimeRegistration: React.FC = () => {
               debug={debug}
               hideDetails={true}
               showCalibrate={false}
+              showStatus={false}
             />
-            <div className="mt-4">
+            <div className="mt-2">
               <div className="text-sm text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
               <div className="text-2xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
               <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600 mt-2">
@@ -301,34 +300,24 @@ const UnifiedTimeRegistration: React.FC = () => {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Botão Registrar imediatamente abaixo do card */}
-        <Card className="shadow-lg">
-          <CardContent className="p-2 sm:p-6">
-            <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" variant="default" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold">
-              {isRegistering ? 'Registrando...' : `Registrar Ponto${isRemote ? ' (Remoto)' : ''}`}
-            </Button>
+            {/* Linha de botões lado a lado */}
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" className="h-14 sm:h-16 text-base sm:text-lg font-semibold">
+                {isRegistering ? 'Registrando...' : `Registrar Ponto${isRemote ? ' (Remoto)' : ''}`}
+              </Button>
+              <Button variant="outline" onClick={calibrateForCurrentLocation} className="h-14 sm:h-16 text-base sm:text-lg">Calibrar GPS</Button>
+            </div>
             {remainingCooldown !== null && (
               <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Botão Calibrar abaixo do Registrar */}
-        <Card>
-          <CardContent className="p-2 sm:p-4">
-            <Button variant="outline" className="w-full" onClick={calibrateForCurrentLocation}>Calibrar GPS</Button>
-          </CardContent>
-        </Card>
-
-        {/* Trilha abaixo */}
-        <Card>
-          <CardContent className="p-3 sm:p-6">
-            <TimeRegistrationProgress timeRecord={lastRegistration as any} />
-          </CardContent>
-        </Card>
+        {/* Trilha abaixo - largura total sem borda */}
+        <div className="px-4 py-3">
+          <TimeRegistrationProgress timeRecord={lastRegistration as any} />
+        </div>
 
         <div className="h-6" />
       </div>
