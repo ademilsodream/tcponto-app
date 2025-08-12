@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { PushNotificationService } from '@/services/PushNotificationService';
 import { useSessionManager } from '@/hooks/useSessionManager';
+import { debugLog, isMobile, checkConnectivity } from '@/utils/debugLogger';
+import { mobileSupabase, mobileLogin, getMobileSession, checkSupabaseConnectivity } from '@/integrations/supabase/mobileClient';
 
 interface Profile {
   id: string;
@@ -58,14 +60,21 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!userId) {
-      console.log('❌ Tentativa de carregar perfil sem userId');
+      debugLog('ERROR', 'Tentativa de carregar perfil sem userId');
       return;
     }
     
-    console.log('📥 Carregando perfil para usuário:', userId);
+    debugLog('INFO', 'Carregando perfil para usuário', { userId, isMobile: isMobile() });
+    
+    // Verificar conectividade primeiro
+    const isConnected = await checkConnectivity();
+    if (!isConnected) {
+      debugLog('ERROR', 'Sem conectividade com o servidor');
+      return;
+    }
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await mobileSupabase
         .from('profiles')
         .select(`
           id,
@@ -86,7 +95,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         .maybeSingle();
 
       if (error) {
-        console.error('❌ Erro ao carregar perfil:', error);
+        debugLog('ERROR', 'Erro ao carregar perfil', { error: error.message, code: error.code });
         setProfile(null);
         return;
       }
@@ -97,7 +106,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           use_location_tracking: true // Valor padrão conforme schema do banco
         };
 
-        console.log('✅ Perfil carregado:', { 
+        debugLog('INFO', 'Perfil carregado com sucesso', { 
           name: profileWithLocationTracking.name, 
           status: profileWithLocationTracking.status, 
           can_register_time: profileWithLocationTracking.can_register_time,
@@ -109,11 +118,11 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
         // Atualizar atividade da sessão
         await updateSessionActivity(userId);
       } else {
-        console.log('⚠️ Nenhum perfil encontrado');
+        debugLog('WARN', 'Nenhum perfil encontrado');
         setProfile(null);
       }
     } catch (error) {
-      console.error('❌ Erro inesperado ao carregar perfil:', error);
+      debugLog('ERROR', 'Erro inesperado ao carregar perfil', { error });
       setProfile(null);
     }
   }, [updateSessionActivity]);
@@ -137,7 +146,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           .eq('user_id', user.id);
       }
       
-      await supabase.auth.signOut();
+      await mobileSupabase.auth.signOut();
       console.log('✅ Logout realizado com sucesso');
     } catch (error) {
       console.error('❌ Erro durante logout:', error);
@@ -145,11 +154,18 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   }, [user?.id]);
 
   const loginWithRememberMe = useCallback(async (email: string, password: string, rememberMe: boolean) => {
+    debugLog('INFO', 'Tentativa de login', { email, rememberMe, isMobile: isMobile() });
+    
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      // Verificar conectividade primeiro
+      const isConnected = await checkSupabaseConnectivity();
+      if (!isConnected) {
+        debugLog('ERROR', 'Sem conectividade para login');
+        return { error: { message: 'Sem conectividade com o servidor' } };
+      }
+      
+      // Usar cliente mobile se estivermos no ambiente mobile
+      const { data, error } = await mobileLogin(email, password);
 
       if (error) {
         return { error };
@@ -189,9 +205,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   useEffect(() => {
     let mounted = true;
-    console.log('🚀 Inicializando sistema de autenticação com sessões longas...');
+    debugLog('INFO', 'Inicializando sistema de autenticação', { isMobile: isMobile() });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = mobileSupabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       console.log('🔄 Auth state change:', event, session?.user?.email || 'sem usuário');
@@ -228,7 +244,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     const initializeSession = async () => {
       try {
         console.log('🔍 Verificando sessão existente...');
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await getMobileSession();
         
         if (error) {
           console.error('❌ Erro ao obter sessão:', error);
