@@ -13,23 +13,39 @@ import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
 import { AllowedLocation } from '@/types/index';
 import { reverseGeocode } from '@/utils/geocoding';
+import { TimeRegistrationProgress } from './TimeRegistrationProgress';
+
+const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutos
 
 const UnifiedTimeRegistration: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [lastRegistration, setLastRegistration] = useState<TimeRegistration | null>(null);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loadingLocations, setLoadingLocations] = useState<boolean>(true);
+  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
+  const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
   const { user, profile } = useOptimizedAuth();
-  const isRemote = profile?.use_location_tracking === false;
   const { toast } = useToast();
 
+  const isRemote = profile?.use_location_tracking === false;
+
+  // Carregar localizações ativas
   useEffect(() => {
     const loadAllowed = async () => {
       try {
         setLoadingLocations(true);
-        const { data, error } = await supabase.from('allowed_locations').select('*').eq('is_active', true).order('name');
+        const { data, error } = await supabase
+          .from('allowed_locations')
+          .select('*')
+          .eq('is_active', true)
+          .order('name');
         if (error) throw error;
-        const formatted = (data || []).map((loc: any) => ({ ...loc, latitude: Number(loc.latitude), longitude: Number(loc.longitude), range_meters: Number(loc.range_meters) }));
+        const formatted = (data || []).map((loc: any) => ({
+          ...loc,
+          latitude: Number(loc.latitude),
+          longitude: Number(loc.longitude),
+          range_meters: Number(loc.range_meters)
+        }));
         setAllowedLocations(formatted);
       } catch (err) {
         console.error('Erro ao carregar localizações permitidas:', err);
@@ -42,15 +58,59 @@ const UnifiedTimeRegistration: React.FC = () => {
     loadAllowed();
   }, [toast]);
 
+  // Cooldown: carregar de storage e cronômetro
+  useEffect(() => {
+    const stored = localStorage.getItem('timeRegistrationCooldown');
+    if (stored) {
+      const end = Number(stored);
+      if (!Number.isNaN(end) && end > Date.now()) {
+        setCooldownEndTime(end);
+        setRemainingCooldown(end - Date.now());
+      } else {
+        localStorage.removeItem('timeRegistrationCooldown');
+      }
+    }
+    const interval = setInterval(() => {
+      setRemainingCooldown(prev => {
+        if (cooldownEndTime === null) return null;
+        const left = cooldownEndTime - Date.now();
+        if (left <= 0) {
+          setCooldownEndTime(null);
+          localStorage.removeItem('timeRegistrationCooldown');
+          return null;
+        }
+        return left;
+      });
+      return undefined as any;
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownEndTime]);
+
+  const formatRemaining = (ms: number) => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const { location, loading, error, validationResult, canRegister, calibration, validateLocation, calibrateForCurrentLocation, refreshLocation, clearCalibration, gpsQuality, debug } = useUnifiedLocation(allowedLocations, true);
 
   const fetchLastRegistration = useCallback(async () => {
     if (!profile?.id) return;
     try {
-      const { data, error } = await supabase.from('time_records').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (error) return;
-      if (data) setLastRegistration(data as TimeRegistration);
-    } catch {}
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('time_records')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('date', today)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!error && data) setLastRegistration(data as TimeRegistration);
+    } catch (err) {
+      console.error('Erro ao buscar último registro:', err);
+    }
   }, [profile?.id]);
 
   useEffect(() => { fetchLastRegistration(); }, [fetchLastRegistration]);
@@ -60,21 +120,17 @@ const UnifiedTimeRegistration: React.FC = () => {
       toast({ title: 'Erro', description: 'Perfil não disponível.', variant: 'destructive' });
       return;
     }
-
     const now = new Date();
 
-    // Modo REMOTO: não comparar com localizações permitidas, apenas gravar
-    if (profile && profile.use_location_tracking === false) {
+    // Modo REMOTO
+    if (isRemote) {
       try {
         setIsRegistering(true);
-
-        // Obter localização atual do hook (pode estar nula). Se nula, tentamos validar uma vez.
         let loc = location;
         if (!loc) {
           try { await validateLocation(); } catch {}
           loc = location;
         }
-
         const lat = loc?.latitude ?? 0;
         const lon = loc?.longitude ?? 0;
         let address = 'Remoto';
@@ -84,8 +140,7 @@ const UnifiedTimeRegistration: React.FC = () => {
             address = geo.address || 'Remoto';
           }
         } catch {}
-
-        const payload = {
+        const payload: any = {
           user_id: profile.id,
           date: now.toISOString().split('T')[0],
           clock_in: now.toTimeString().split(' ')[0],
@@ -99,11 +154,17 @@ const UnifiedTimeRegistration: React.FC = () => {
               locationName: 'Remoto'
             }
           }
-        } as any;
-
+        };
         const { data, error } = await supabase.from('time_records').insert([payload]).select('*').maybeSingle();
         if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto.', variant: 'destructive' }); return; }
-        if (data) { setLastRegistration(data as TimeRegistration); toast({ title: 'Sucesso', description: 'Ponto registrado (Remoto).' }); fetchLastRegistration(); }
+        if (data) {
+          setLastRegistration(data as TimeRegistration);
+          toast({ title: 'Sucesso', description: 'Ponto registrado (Remoto).' });
+          fetchLastRegistration();
+          const end = Date.now() + COOLDOWN_MS;
+          setCooldownEndTime(end);
+          localStorage.setItem('timeRegistrationCooldown', String(end));
+        }
       } catch {
         toast({ title: 'Erro', description: 'Erro inesperado ao registrar.', variant: 'destructive' });
       } finally {
@@ -117,40 +178,33 @@ const UnifiedTimeRegistration: React.FC = () => {
       toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
       return;
     }
-
     setIsRegistering(true);
     try {
-      const { data, error } = await supabase
-        .from('time_records')
-        .insert([
-          {
-            user_id: profile.id,
-            date: now.toISOString().split('T')[0],
-            clock_in: now.toTimeString().split(' ')[0],
-            locations: {
-              clock_in: {
-                address: (await reverseGeocode(location.latitude, location.longitude)).address,
-                distance: Math.round(validationResult?.distance ?? 0) || undefined,
-                latitude: location.latitude,
-                longitude: location.longitude,
-                accuracy: location.accuracy,
-                timestamp: new Date(location.timestamp).toISOString(),
-                locationName: validationResult?.closestLocation?.name || 'Desconhecido'
-              }
-            }
+      const addr = (await reverseGeocode(location.latitude, location.longitude)).address;
+      const payload: any = {
+        user_id: profile.id,
+        date: now.toISOString().split('T')[0],
+        clock_in: now.toTimeString().split(' ')[0],
+        locations: {
+          clock_in: {
+            address: addr,
+            distance: Math.round(validationResult?.distance ?? 0) || undefined,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            timestamp: new Date(location.timestamp).toISOString(),
+            locationName: validationResult?.closestLocation?.name || 'Desconhecido'
           }
-        ])
-        .select('*')
-        .maybeSingle();
-
-      if (error) {
-        toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' });
-        return;
-      }
+        }
+      };
+      const { data, error } = await supabase.from('time_records').insert([payload]).select('*').maybeSingle();
+      if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' }); return; }
       if (data) {
         setLastRegistration(data as TimeRegistration);
         toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' });
         fetchLastRegistration();
+        const end = Date.now() + COOLDOWN_MS;
+        setCooldownEndTime(end);
+        localStorage.setItem('timeRegistrationCooldown', String(end));
       }
     } catch {
       toast({ title: 'Erro', description: 'Erro inesperado ao registrar o ponto.', variant: 'destructive' });
@@ -159,8 +213,7 @@ const UnifiedTimeRegistration: React.FC = () => {
     }
   };
 
-  const handleValidateLocation = () => validateLocation();
-  const handleClearCalibration = () => clearCalibration('any');
+  const buttonDisabled = isRegistering || (!isRemote && !canRegister) || (cooldownEndTime !== null && cooldownEndTime > Date.now());
 
   return (
     <div className="flex flex-col min-h-[100dvh] p-3 sm:p-4">
@@ -170,7 +223,6 @@ const UnifiedTimeRegistration: React.FC = () => {
         <p className="text-xs sm:text-sm text-gray-500 truncate">{profile?.name} - {profile?.departments?.name}</p>
       </div>
 
-      {/* Conteúdo scrollável */}
       <div className="flex-1 overflow-auto space-y-3 sm:space-y-6">
         <Card>
           <CardHeader className="py-3 sm:py-4">
@@ -185,16 +237,22 @@ const UnifiedTimeRegistration: React.FC = () => {
               validationResult={validationResult}
               canRegister={isRemote ? true : canRegister}
               calibration={calibration}
-              validateLocation={handleValidateLocation}
+              validateLocation={validateLocation}
               calibrateForCurrentLocation={calibrateForCurrentLocation}
               refreshLocation={refreshLocation}
-              clearCalibration={handleClearCalibration}
+              clearCalibration={clearCalibration}
               debug={debug}
             />
           </CardContent>
         </Card>
 
-        {/* Último registro */}
+        {/* Progresso dos registros do dia */}
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <TimeRegistrationProgress timeRecord={lastRegistration as any} onEditRequest={() => {}} />
+          </CardContent>
+        </Card>
+
         {lastRegistration && (
           <Card>
             <CardContent className="p-3 sm:p-6">
@@ -207,21 +265,13 @@ const UnifiedTimeRegistration: React.FC = () => {
           </Card>
         )}
 
-        {/* Espaço para o botão sticky não sobrepor conteúdo */}
         <div className="h-20 sm:h-0" />
       </div>
 
-      {/* Botão sticky no rodapé para mobile */}
       <div className="sticky bottom-3 sm:static sm:bottom-auto">
         <Card className="shadow-lg">
           <CardContent className="p-2 sm:p-6">
-            <Button
-              onClick={handleTimeRegistration}
-              disabled={isRegistering || (!isRemote && !canRegister)}
-              size="lg"
-              variant="default"
-              className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold"
-            >
+            <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" variant="default" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold">
               {isRegistering ? (
                 <>Registrando...</>
               ) : (
@@ -231,6 +281,9 @@ const UnifiedTimeRegistration: React.FC = () => {
                 </>
               )}
             </Button>
+            {remainingCooldown !== null && (
+              <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
+            )}
             {!isRemote && validationResult && !canRegister && (
               <div className="mt-2 sm:mt-4 text-red-500 text-xs sm:text-sm">{validationResult.message}</div>
             )}
