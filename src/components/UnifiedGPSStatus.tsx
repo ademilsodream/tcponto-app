@@ -104,16 +104,15 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
 
       {/* Controles (apenas Calibrar GPS) */}
       <div className="flex flex-wrap gap-2">
-        {!loading && location && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={calibrateForCurrentLocation}
-          >
-            <Signal className="w-4 h-4 mr-2" />
-            Calibrar GPS
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={calibrateForCurrentLocation}
+          disabled={loading}
+        >
+          <Signal className="w-4 h-4 mr-2" />
+          Calibrar GPS
+        </Button>
       </div>
 
       {/* Debug Info (só em desenvolvimento) */}
