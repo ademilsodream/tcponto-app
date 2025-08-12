@@ -246,7 +246,7 @@ const UnifiedTimeRegistration: React.FC = () => {
         lunch_start: 'Início do almoço',
         lunch_end: 'Volta do almoço',
         clock_out: 'Saída'
-      }[action]} registrada${isRemote ? ' (Remoto)' : ''}.` });
+      }[action]} registrada.` });
 
       const end = Date.now() + COOLDOWN_MS;
       setCooldownEndTime(end);
@@ -262,17 +262,17 @@ const UnifiedTimeRegistration: React.FC = () => {
   const buttonDisabled = isRegistering || (!isRemote && !canRegister) || (cooldownEndTime !== null && cooldownEndTime > Date.now());
 
   return (
-    <div className="flex flex-col min-h-[100dvh] p-0 sm:p-0">
+    <div className="flex flex-col min-h-[100dvh] w-full p-0">
       {/* Título */}
-      <div className="text-center py-3">
+      <div className="text-center py-2">
         <h2 className="text-xl sm:text-2xl font-semibold leading-tight">Registro de Ponto</h2>
       </div>
 
-      <div className="flex-1 overflow-auto space-y-0">
+      <div className="flex-1 overflow-auto space-y-0 w-full">
         {/* Bloco único sem borda: mapa + status + informação */}
-        <div className="w-full">
-          <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={320} />
-          <div className="px-4 py-3">
+        <div className="w-full bg-white/90 rounded-xl shadow-sm">
+          <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={420} />
+          <div className="px-3 py-3">
             <UnifiedGPSStatus
               loading={loading || loadingLocations}
               error={error}
@@ -304,7 +304,7 @@ const UnifiedTimeRegistration: React.FC = () => {
             {/* Linha de botões lado a lado */}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" className="h-14 sm:h-16 text-base sm:text-lg font-semibold">
-                {isRegistering ? 'Registrando...' : `Registrar Ponto${isRemote ? ' (Remoto)' : ''}`}
+                {isRegistering ? 'Registrando...' : 'Registrar Ponto'}
               </Button>
               <Button variant="outline" onClick={calibrateForCurrentLocation} className="h-14 sm:h-16 text-base sm:text-lg">Calibrar GPS</Button>
             </div>
@@ -315,7 +315,7 @@ const UnifiedTimeRegistration: React.FC = () => {
         </div>
 
         {/* Trilha abaixo - largura total sem borda */}
-        <div className="px-4 py-3">
+        <div className="px-0 py-3">
           <TimeRegistrationProgress timeRecord={lastRegistration as any} />
         </div>
 

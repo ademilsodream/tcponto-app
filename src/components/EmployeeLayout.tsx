@@ -37,7 +37,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 w-full">
       {/* Drawer/Menu fixo no topo esquerdo */}
       <EmployeeDrawer activeScreen={'timeRegistration'} onScreenChange={handleScreenChange} />
 
@@ -82,7 +82,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
         </div>
       </header>
 
-      <main className="w-full">
+      <main className="w-full px-4 py-4">
         {children}
       </main>
     </div>

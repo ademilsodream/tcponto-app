@@ -69,12 +69,12 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
         <Button 
           variant="outline" 
           size="icon" 
-          className="fixed top-4 left-4 z-50 bg-white shadow-lg"
+          className="fixed top-4 left-4 z-[2000] bg-white shadow-lg"
         >
           <Menu className="h-5 w-5" />
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="h-full w-80 rounded-none">
+      <DrawerContent className="h-full w-80 rounded-none z-[2000]">
         <div className="flex flex-col h-full p-6">
           <div className="flex items-center mb-8">
             <img 

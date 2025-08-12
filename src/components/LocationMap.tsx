@@ -82,8 +82,8 @@ export const LocationMap: React.FC<LocationMapProps> = ({ latitude, longitude, z
   return (
     <div
       ref={containerRef}
-      className={className}
-      style={{ width: '100%', height }}
+      className={`${className ?? ''} relative z-0`}
+      style={{ width: '100%', height, pointerEvents: 'auto' }}
     />
   );
 };
