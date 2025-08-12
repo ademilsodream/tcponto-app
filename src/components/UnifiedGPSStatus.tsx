@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Wifi, WifiOff, Battery, Signal, RefreshCw } from 'lucide-react';
+import { Signal } from 'lucide-react';
 
 export interface UnifiedGPSStatusProps {
   loading: boolean;
@@ -65,9 +65,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
         <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
         <span className="font-medium">{getStatusText()}</span>
         {gpsQuality && (
-          <Badge variant="outline">
-            {gpsQuality.quality}
-          </Badge>
+          <Badge variant="outline">{gpsQuality.quality}</Badge>
         )}
       </div>
 
@@ -95,9 +93,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
 
       {/* Mensagens de Erro ou Validação */}
       {error && (
-        <div className="text-red-600 text-sm bg-red-50 p-3 rounded">
-          {error}
-        </div>
+        <div className="text-red-600 text-sm bg-red-50 p-3 rounded">{error}</div>
       )}
 
       {validationResult && !canRegister && (
@@ -106,28 +102,8 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
         </div>
       )}
 
-      {/* Controles */}
+      {/* Controles (apenas Calibrar GPS) */}
       <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={refreshLocation}
-          disabled={loading}
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar GPS
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={validateLocation}
-          disabled={loading}
-        >
-          <MapPin className="w-4 h-4 mr-2" />
-          Validar Local
-        </Button>
-
         {!loading && location && (
           <Button
             variant="outline"
@@ -135,17 +111,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
             onClick={calibrateForCurrentLocation}
           >
             <Signal className="w-4 h-4 mr-2" />
-            Calibrar
-          </Button>
-        )}
-
-        {calibration && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearCalibration}
-          >
-            Limpar Calibração
+            Calibrar GPS
           </Button>
         )}
       </div>
@@ -153,9 +119,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
       {/* Debug Info (só em desenvolvimento) */}
       {debug && process.env.NODE_ENV === 'development' && (
         <details className="text-xs">
-          <summary className="cursor-pointer text-gray-500">
-            Debug Info
-          </summary>
+          <summary className="cursor-pointer text-gray-500">Debug Info</summary>
           <pre className="mt-2 p-2 bg-gray-100 rounded overflow-auto">
             {JSON.stringify(debug, null, 2)}
           </pre>
