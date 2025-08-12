@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Button } from '@/components/ui/button';
 import { LogIn, Coffee, LogOut } from 'lucide-react';
 
 export type TimeRecordKey = 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out';
@@ -29,7 +28,7 @@ interface TimeRecord {
 
 interface TimeRegistrationProgressProps {
   timeRecord: TimeRecord | null;
-  onEditRequest: (field: TimeRecordKey, value: string) => void;
+  onEditRequest?: (field: TimeRecordKey, value: string) => void; // opcional e não usado
 }
 
 const steps = [
@@ -39,10 +38,7 @@ const steps = [
   { key: 'clock_out' as TimeRecordKey, label: 'Saída', icon: LogOut, color: 'bg-red-500' },
 ];
 
-export const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> = ({
-  timeRecord,
-  onEditRequest
-}) => {
+export const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> = ({ timeRecord }) => {
   const getValue = (key: TimeRecordKey) => timeRecord?.[key];
   const completedCount = steps.filter(step => getValue(step.key)).length;
 
@@ -58,34 +54,14 @@ export const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> =
             <div key={step.key} className="flex flex-col items-center flex-1">
               <div
                 className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 transition-all ${
-                  isCompleted
-                    ? `${step.color} text-white`
-                    : isNext
-                      ? 'bg-blue-100 border-2 border-blue-600 text-blue-600'
-                      : 'bg-gray-100 text-gray-400'
+                  isCompleted ? `${step.color} text-white` : isNext ? 'bg-blue-100 border-2 border-blue-600 text-blue-600' : 'bg-gray-100 text-gray-400'
                 }`}
               >
                 <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <span className={`text-xs text-center ${
-                isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'
-              }`}>
-                {step.label}
-              </span>
+              <span className={`text-xs text-center ${isCompleted ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>{step.label}</span>
               {isCompleted && (
-                <span className="text-xs text-blue-600 mt-1 font-medium">
-                  {getValue(step.key)}
-                </span>
-              )}
-              {isCompleted && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="text-xs text-blue-500 hover:text-blue-700 p-0 h-auto"
-                  onClick={() => onEditRequest(step.key, getValue(step.key) || '')}
-                >
-                  Editar
-                </Button>
+                <span className="text-xs text-blue-600 mt-1 font-medium">{getValue(step.key)}</span>
               )}
             </div>
           );
@@ -97,7 +73,7 @@ export const TimeRegistrationProgress: React.FC<TimeRegistrationProgressProps> =
           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
           style={{
             width: `${(completedCount / 4) * 100}%`,
-            background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6'
+            background: completedCount > 0 ? 'linear-gradient(to right, #22c55e, #f97316, #f97316, #ef4444)' : '#3b82f6',
           }}
         />
       </div>
