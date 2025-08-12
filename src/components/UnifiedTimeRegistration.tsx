@@ -213,19 +213,19 @@ const UnifiedTimeRegistration: React.FC = () => {
     try {
       const addr = (await reverseGeocode(lat, lon)).address;
       const payload: any = {
-        user_id: profile.id,
+            user_id: profile.id,
         date: now.toISOString().split('T')[0],
         clock_in: now.toTimeString().split(' ')[0],
-        locations: {
-          clock_in: {
+            locations: {
+              clock_in: {
             address: addr,
             distance: Math.round(validationResult?.distance ?? 0) || undefined,
             latitude: lat,
             longitude: lon,
             timestamp: ts.toISOString(),
-            locationName: validationResult?.closestLocation?.name || 'Desconhecido'
-          }
-        }
+                locationName: validationResult?.closestLocation?.name || 'Desconhecido'
+              }
+            }
       };
       const { data, error } = await supabase.from('time_records').insert([payload]).select('*').maybeSingle();
       if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' }); return; }
@@ -255,45 +255,35 @@ const UnifiedTimeRegistration: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-auto space-y-3 sm:space-y-6">
-        <Card>
+      <Card>
           <CardHeader className="py-3 sm:py-4">
             <CardTitle className="text-base sm:text-lg">Status do GPS</CardTitle>
-          </CardHeader>
+        </CardHeader>
           <CardContent className="p-3 sm:p-6">
-            <UnifiedGPSStatus
+          <UnifiedGPSStatus
               loading={loading || loadingLocations}
-              error={error}
-              location={location}
-              gpsQuality={gpsQuality}
-              validationResult={validationResult}
+            error={error}
+            location={location}
+            gpsQuality={gpsQuality}
+            validationResult={validationResult}
               canRegister={isRemote ? true : canRegister}
-              calibration={calibration}
+            calibration={calibration}
               validateLocation={validateLocation}
-              calibrateForCurrentLocation={calibrateForCurrentLocation}
-              refreshLocation={refreshLocation}
+            calibrateForCurrentLocation={calibrateForCurrentLocation}
+            refreshLocation={refreshLocation}
               clearCalibration={clearCalibration}
-              debug={debug}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
+            debug={debug}
+          />
+        </CardContent>
+      </Card>
+      
+      <Card>
           <CardContent className="p-3 sm:p-6">
             <TimeRegistrationProgress timeRecord={lastRegistration as any} onEditRequest={() => {}} />
           </CardContent>
         </Card>
 
-        {lastRegistration && (
-          <Card>
-            <CardContent className="p-3 sm:p-6">
-              <Separator className="my-2" />
-              <p className="text-xs sm:text-sm text-gray-500">
-                Último registro: {format(new Date(lastRegistration.created_at), "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
-              </p>
-              <p className="text-xs sm:text-sm text-gray-500">Local: {lastRegistration.locations ? 'Registrado' : 'Sem localização'}</p>
-            </CardContent>
-          </Card>
-        )}
+        {/* Removido: Card de "Último registro" e "Local" */}
 
         <div className="h-20 sm:h-0" />
       </div>
@@ -302,23 +292,23 @@ const UnifiedTimeRegistration: React.FC = () => {
         <Card className="shadow-lg">
           <CardContent className="p-2 sm:p-6">
             <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" variant="default" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold">
-              {isRegistering ? (
+            {isRegistering ? (
                 <>Registrando...</>
-              ) : (
-                <>
-                  <Clock className="mr-2 h-5 w-5" />
+            ) : (
+              <>
+                <Clock className="mr-2 h-5 w-5" />
                   Registrar Ponto{isRemote ? ' (Remoto)' : ''}
-                </>
-              )}
-            </Button>
+              </>
+            )}
+          </Button>
             {remainingCooldown !== null && (
               <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
             )}
             {!isRemote && validationResult && !canRegister && (
               <div className="mt-2 sm:mt-4 text-red-500 text-xs sm:text-sm">{validationResult.message}</div>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
       </div>
     </div>
   );
