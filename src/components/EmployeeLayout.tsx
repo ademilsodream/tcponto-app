@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import SessionWarning from '@/components/SessionWarning';
+import EmployeeDrawer from '@/components/EmployeeDrawer';
 
 interface EmployeeLayoutProps {
   children: React.ReactNode;
@@ -30,8 +31,16 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
     }
   };
 
+  // Handler no-op para o menu (futuras telas)
+  const handleScreenChange = React.useCallback((_screen: string) => {
+    // Navegação futura pode ser adicionada aqui
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-accent-50 w-full">
+      {/* Drawer/Menu fixo no topo esquerdo */}
+      <EmployeeDrawer activeScreen={'timeRegistration'} onScreenChange={handleScreenChange} />
+
       {/* Aviso de sessão */}
       <SessionWarning
         isVisible={sessionWarning}
