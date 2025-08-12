@@ -23,8 +23,8 @@ const Login = () => {
 
   useEffect(() => {
     if (!authLoading && user && profile && hasAccess) {
-      console.log('✅ Redirecionando usuário autenticado para /employee');
-      navigate('/employee', { replace: true });
+      console.log('✅ Redirecionando usuário autenticado para /');
+      navigate('/', { replace: true });
     }
   }, [authLoading, user, profile, hasAccess, navigate]);
 
