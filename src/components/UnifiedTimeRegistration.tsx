@@ -14,6 +14,7 @@ import { TimeRegistration } from '@/types/timeRegistration';
 import { AllowedLocation } from '@/types/index';
 import { reverseGeocode } from '@/utils/geocoding';
 import { TimeRegistrationProgress } from './TimeRegistrationProgress';
+import LocationMap from './LocationMap';
 
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutos
 
@@ -263,42 +264,68 @@ const UnifiedTimeRegistration: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-[100dvh] p-3 sm:p-4">
-      {/* Header */}
+      {/* Header minimal */}
       <div className="text-center mb-2 sm:mb-4">
         <h2 className="text-xl sm:text-2xl font-semibold leading-tight">Registro de Ponto</h2>
-        <p className="text-xs sm:text-sm text-gray-500 truncate">{profile?.name} - {profile?.departments?.name}</p>
       </div>
 
       <div className="flex-1 overflow-auto space-y-3 sm:space-y-6">
-      <Card>
-          <CardHeader className="py-3 sm:py-4">
-            <CardTitle className="text-base sm:text-lg">Status do GPS</CardTitle>
-        </CardHeader>
-          <CardContent className="p-3 sm:p-6">
-          <UnifiedGPSStatus
-              loading={loading || loadingLocations}
-            error={error}
-            location={location}
-            gpsQuality={gpsQuality}
-            validationResult={validationResult}
-              canRegister={isRemote ? true : canRegister}
-            calibration={calibration}
-              validateLocation={validateLocation}
-            calibrateForCurrentLocation={calibrateForCurrentLocation}
-            refreshLocation={refreshLocation}
-              clearCalibration={clearCalibration}
-            debug={debug}
-          />
-        </CardContent>
-      </Card>
-      
-      <Card>
-          <CardContent className="p-3 sm:p-6">
-            <TimeRegistrationProgress timeRecord={lastRegistration as any} onEditRequest={() => {}} />
+        {/* Mapa */}
+        <Card>
+          <CardContent className="p-0">
+            <LocationMap
+              latitude={location?.latitude ?? 0}
+              longitude={location?.longitude ?? 0}
+              height={320}
+            />
           </CardContent>
         </Card>
 
-        {/* Removido: Card de "Último registro" e "Local" */}
+        {/* Status do GPS + info */}
+        <Card>
+          <CardHeader className="py-3 sm:py-4">
+            <CardTitle className="text-base sm:text-lg">Status do GPS</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-6">
+            <UnifiedGPSStatus
+              loading={loading || loadingLocations}
+              error={error}
+              location={location}
+              gpsQuality={gpsQuality}
+              validationResult={validationResult}
+              canRegister={isRemote ? true : canRegister}
+              calibration={calibration}
+              validateLocation={validateLocation}
+              calibrateForCurrentLocation={calibrateForCurrentLocation}
+              refreshLocation={refreshLocation}
+              clearCalibration={clearCalibration}
+              debug={debug}
+            />
+
+            {/* Linha com data/hora e identificação (estilo do mock) */}
+            <div className="mt-4">
+              <div className="text-sm text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
+              <div className="text-2xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600 mt-2">
+                <div>
+                  <div className="uppercase text-[10px] text-gray-500">Nome</div>
+                  <div>{profile?.name || user?.email}</div>
+                </div>
+                <div className="text-right">
+                  <div className="uppercase text-[10px] text-gray-500">Empresa</div>
+                  <div>—</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Progresso dos registros do dia */}
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <TimeRegistrationProgress timeRecord={lastRegistration as any} />
+          </CardContent>
+        </Card>
 
         <div className="h-20 sm:h-0" />
       </div>
@@ -307,23 +334,20 @@ const UnifiedTimeRegistration: React.FC = () => {
         <Card className="shadow-lg">
           <CardContent className="p-2 sm:p-6">
             <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" variant="default" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold">
-            {isRegistering ? (
+              {isRegistering ? (
                 <>Registrando...</>
-            ) : (
-              <>
-                <Clock className="mr-2 h-5 w-5" />
-                  Registrar Ponto{isRemote ? ' (Remoto)' : ''}
-              </>
-            )}
-          </Button>
+              ) : (
+                <>Registrar Ponto{isRemote ? ' (Remoto)' : ''}</>
+              )}
+            </Button>
             {remainingCooldown !== null && (
               <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
             )}
             {!isRemote && validationResult && !canRegister && (
               <div className="mt-2 sm:mt-4 text-red-500 text-xs sm:text-sm">{validationResult.message}</div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
