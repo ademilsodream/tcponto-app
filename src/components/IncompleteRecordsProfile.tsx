@@ -640,6 +640,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const weekendRecords = incompleteRecords.filter(record => record.isWeekend);
 
   return (
+    <>
     <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -833,7 +834,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                     id="clock_in"
                     type="time"
                     value={editForm.clock_in}
-                    onChange={(e) => handleInputChange('clock_in', e.target.value)}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, clock_in: e.target.value }))}
                     disabled={submitting}
                   />
                   <div className="text-xs text-gray-500 mt-1">
@@ -847,7 +848,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                     id="lunch_start"
                     type="time"
                     value={editForm.lunch_start}
-                    onChange={(e) => handleInputChange('lunch_start', e.target.value)}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, lunch_start: e.target.value }))}
                     disabled={submitting}
                   />
                   <div className="text-xs text-gray-500 mt-1">
@@ -861,7 +862,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                     id="lunch_end"
                     type="time"
                     value={editForm.lunch_end}
-                    onChange={(e) => handleInputChange('lunch_end', e.target.value)}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, lunch_end: e.target.value }))}
                     disabled={submitting}
                   />
                   <div className="text-xs text-gray-500 mt-1">
@@ -875,7 +876,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                     id="clock_out"
                     type="time"
                     value={editForm.clock_out}
-                    onChange={(e) => handleInputChange('clock_out', e.target.value)}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, clock_out: e.target.value }))}
                     disabled={submitting}
                   />
                   <div className="text-xs text-gray-500 mt-1">
@@ -889,7 +890,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                 <Textarea
                   id="reason"
                   value={editForm.reason}
-                  onChange={(e) => handleInputChange('reason', e.target.value)}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, reason: e.target.value }))}
                   placeholder="Descreva o motivo da solicitação de alteração..."
                   required
                   disabled={submitting}
@@ -941,7 +942,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
           )}
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 };
 

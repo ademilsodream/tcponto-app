@@ -105,10 +105,9 @@ const TimeRegistration = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 pt-8">
-      <TimeRegistrationHeader currentTime={currentTime} />
-      <Card className="w-full max-w-md bg-white shadow-lg">
-        <CardContent className="p-4 sm:p-6">
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full max-w-3xl">
+      <CardContent className="p-4 sm:p-6">
+        <TimeRegistrationHeader currentTime={currentTime} />
           <ShiftValidationInfo currentShiftMessage={shiftValidation.currentShiftMessage} nextButtonAvailable={shiftValidation.nextButtonAvailable} timeUntilNext={shiftValidation.timeUntilNext} />
           <TimeRegistrationProgress timeRecord={timeRecord} onEditRequest={handleEditRequest} />
           <TimeRegistrationButtons
@@ -122,7 +121,7 @@ const TimeRegistration = () => {
           />
           {!nextAction && <CompletionMessage />}
         </CardContent>
-      </Card>
+    </Card>
 
       {unreadAnnouncements.length > 0 ? (
         <div className="w-full max-w-md mt-4">
@@ -155,7 +154,7 @@ const TimeRegistration = () => {
       </Dialog>
 
       <AnnouncementModal announcement={selectedAnnouncement} isOpen={isAnnouncementModalOpen} onClose={handleCloseAnnouncementModal} onMarkAsRead={handleMarkAnnouncementAsRead} />
-    </div>
+    </Card>
   );
 };
 
