@@ -108,7 +108,6 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
           variant="outline"
           size="sm"
           onClick={calibrateForCurrentLocation}
-          disabled={loading}
         >
           <Signal className="w-4 h-4 mr-2" />
           Calibrar GPS

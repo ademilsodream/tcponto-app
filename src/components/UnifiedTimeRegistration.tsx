@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
 import { AllowedLocation } from '@/types/index';
+import { reverseGeocode } from '@/utils/geocoding';
 
 const UnifiedTimeRegistration: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -60,41 +61,49 @@ const UnifiedTimeRegistration: React.FC = () => {
       return;
     }
 
+    const now = new Date();
+
     // Modo REMOTO: não comparar com localizações permitidas, apenas gravar
     if (profile && profile.use_location_tracking === false) {
       try {
         setIsRegistering(true);
-        const now = new Date();
-        const { data, error } = await supabase
-          .from('time_records')
-          .insert([
-            {
-              user_id: profile.id,
-              date: now.toISOString().split('T')[0],
-              clock_in: now.toTimeString().split(' ')[0],
-              locations: {
-                clock_in: {
-                  latitude: location?.latitude ?? null,
-                  longitude: location?.longitude ?? null,
-                  accuracy: location?.accuracy ?? null,
-                  timestamp: location ? new Date(location.timestamp).toISOString() : new Date().toISOString(),
-                  locationName: 'Remoto'
-                }
-              }
-            }
-          ])
-          .select('*')
-          .maybeSingle();
 
-        if (error) {
-          toast({ title: 'Erro', description: 'Falha ao registrar o ponto.', variant: 'destructive' });
-          return;
+        // Obter localização atual do hook (pode estar nula). Se nula, tentamos validar uma vez.
+        let loc = location;
+        if (!loc) {
+          try { await validateLocation(); } catch {}
+          loc = location;
         }
-        if (data) {
-          setLastRegistration(data as TimeRegistration);
-          toast({ title: 'Sucesso', description: 'Ponto registrado (Remoto).' });
-          fetchLastRegistration();
-        }
+
+        const lat = loc?.latitude ?? 0;
+        const lon = loc?.longitude ?? 0;
+        let address = 'Remoto';
+        try {
+          if (lat && lon) {
+            const geo = await reverseGeocode(lat, lon);
+            address = geo.address || 'Remoto';
+          }
+        } catch {}
+
+        const payload = {
+          user_id: profile.id,
+          date: now.toISOString().split('T')[0],
+          clock_in: now.toTimeString().split(' ')[0],
+          locations: {
+            clock_in: {
+              address,
+              distance: 10,
+              latitude: lat || null,
+              longitude: lon || null,
+              timestamp: (loc ? new Date(loc.timestamp) : now).toISOString(),
+              locationName: 'Remoto'
+            }
+          }
+        } as any;
+
+        const { data, error } = await supabase.from('time_records').insert([payload]).select('*').maybeSingle();
+        if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto.', variant: 'destructive' }); return; }
+        if (data) { setLastRegistration(data as TimeRegistration); toast({ title: 'Sucesso', description: 'Ponto registrado (Remoto).' }); fetchLastRegistration(); }
       } catch {
         toast({ title: 'Erro', description: 'Erro inesperado ao registrar.', variant: 'destructive' });
       } finally {
@@ -103,7 +112,7 @@ const UnifiedTimeRegistration: React.FC = () => {
       return;
     }
 
-    // Modo padrão: comparar com localizações permitidas
+    // Modo padrão
     if (!location) {
       toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
       return;
@@ -116,10 +125,12 @@ const UnifiedTimeRegistration: React.FC = () => {
         .insert([
           {
             user_id: profile.id,
-            date: new Date().toISOString().split('T')[0],
-            clock_in: new Date().toTimeString().split(' ')[0],
+            date: now.toISOString().split('T')[0],
+            clock_in: now.toTimeString().split(' ')[0],
             locations: {
               clock_in: {
+                address: (await reverseGeocode(location.latitude, location.longitude)).address,
+                distance: Math.round(validationResult?.distance ?? 0) || undefined,
                 latitude: location.latitude,
                 longitude: location.longitude,
                 accuracy: location.accuracy,
