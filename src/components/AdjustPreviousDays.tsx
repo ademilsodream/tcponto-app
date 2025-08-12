@@ -515,29 +515,27 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5" />
-              Ajuste de Registros
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-primary-800">
+          <CalendarIcon className="w-5 h-5 text-primary-600" />
+          Ajuste de Registros
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-lg font-medium mb-4">Selecione o dia para ajustar</h3>
-              <Calendar
+              <div className="p-4 bg-white rounded-xl shadow-sm border mb-4 text-lg font-medium">Selecione o dia para ajustar</div>
+              <div className="p-4 bg-white rounded-xl shadow-sm border">
+                <Calendar
                 mode="single"
                 selected={selectedDate}
                 onSelect={handleDateSelect}
                 disabled={isDateDisabled}
                 locale={ptBR}
                 className="rounded-md border w-full max-w-sm mx-auto md:mx-0"
-              />
+                />
 
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex items-center gap-2">
@@ -549,15 +547,15 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                   <span>Dias já editados ou não disponíveis</span>
                 </div>
               </div>
+              </div>
             </div>
 
             <div>
               {selectedDate && timeRecord ? (
-                <div>
-                  <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
-                    <Edit3 className="w-5 h-5" />
-                    Editar {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
-                  </h3>
+                <div className="p-4 bg-white rounded-xl shadow-sm border">
+                  <div className="text-lg font-medium mb-4 flex items-center gap-2">
+                    <Edit3 className="w-5 h-5" /> Editar {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+                  </div>
 
                   <div className="space-y-4">
                     <div>
@@ -697,8 +695,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
             </div>
           </div>
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   );
 };
 

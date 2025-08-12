@@ -112,13 +112,12 @@ export default function EmployeeDocuments() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto w-full mt-8 space-y-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center gap-3">
-          <Folder className="w-8 h-8 text-blue-600" />
-          <CardTitle className="text-lg">Meus Documentos</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
+      <CardHeader className="flex flex-row items-center gap-3">
+        <Folder className="w-8 h-8 text-primary-600" />
+        <CardTitle className="text-lg text-primary-800">Meus Documentos</CardTitle>
+      </CardHeader>
+      <CardContent>
           <div className="flex flex-col lg:flex-row items-center gap-2 mb-4">
             <Input
               placeholder="Buscar documento..."
@@ -192,8 +191,7 @@ export default function EmployeeDocuments() {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
