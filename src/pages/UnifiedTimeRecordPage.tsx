@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Clock, User, Building2 } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import UnifiedTimeRegistration from '@/components/UnifiedTimeRegistration';
-import SessionWarning from '@/components/SessionWarning'; // Import padrão
+import SessionWarning from '@/components/SessionWarning';
 
 const UnifiedTimeRecordPage: React.FC = () => {
   const { user, profile, isLoading, hasAccess, sessionWarning, dismissSessionWarning } = useOptimizedAuth();
@@ -17,6 +17,11 @@ const UnifiedTimeRecordPage: React.FC = () => {
   if (!user) {
     return <div className="text-center p-4">Não autenticado.</div>;
   }
+
+  const handleRenewSession = async () => {
+    // Implement session renewal logic here
+    console.log('Renovando sessão...');
+  };
 
   return (
     <div className="container mx-auto py-10">
@@ -33,6 +38,8 @@ const UnifiedTimeRecordPage: React.FC = () => {
         <CardContent className="py-4">
           {sessionWarning && (
             <SessionWarning
+              isVisible={true}
+              onRenew={handleRenewSession}
               onDismiss={dismissSessionWarning}
               minutesToExpire={5}
             />

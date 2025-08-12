@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -143,6 +142,10 @@ const UnifiedTimeRegistration: React.FC = () => {
     validateLocation();
   };
 
+  const handleClearCalibration = () => {
+    clearCalibration('any'); // Provide a default locationId
+  };
+
   return (
     <div className="space-y-6 p-4">
       {/* Header and Status Section */}
@@ -169,7 +172,7 @@ const UnifiedTimeRegistration: React.FC = () => {
             validateLocation={handleValidateLocation}
             calibrateForCurrentLocation={calibrateForCurrentLocation}
             refreshLocation={refreshLocation}
-            clearCalibration={clearCalibration}
+            clearCalibration={handleClearCalibration}
             debug={debug}
           />
         </CardContent>
