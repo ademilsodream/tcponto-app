@@ -8,7 +8,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useEnhancedLocation } from '@/hooks/useEnhancedLocation';
 import { GPSStatus } from '@/components/GPSStatus';
-import { PushNotificationService } from '@/services/PushNotificationService';
 import { AdvancedLocationControls } from './AdvancedLocationControls';
 import { useAdvancedLocationSystem } from '@/hooks/useAdvancedLocationSystem';
 import { format } from 'date-fns';

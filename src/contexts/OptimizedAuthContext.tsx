@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { PushNotificationService } from '@/services/PushNotificationService';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { debugLog, isMobile, checkConnectivity } from '@/utils/debugLogger';
 import { mobileSupabase, mobileLogin, getMobileSession, checkSupabaseConnectivity } from '@/integrations/supabase/mobileClient';
@@ -309,7 +308,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   useEffect(() => {
     if (user && user.id) {
-      PushNotificationService.getInstance().initialize(user.id);
+      // Removido: inicialização de notificações push
     }
   }, [user]);
 
