@@ -54,22 +54,97 @@ const UnifiedTimeRegistration: React.FC = () => {
   useEffect(() => { fetchLastRegistration(); }, [fetchLastRegistration]);
 
   const handleTimeRegistration = async () => {
-    if (!location || !profile) {
+    if (!profile) {
+      toast({ title: 'Erro', description: 'Perfil não disponível.', variant: 'destructive' });
+      return;
+    }
+
+    // Modo REMOTO: não comparar com localizações permitidas, apenas gravar
+    if (profile && profile.use_location_tracking === false) {
+      try {
+        setIsRegistering(true);
+        const now = new Date();
+        const { data, error } = await supabase
+          .from('time_records')
+          .insert([
+            {
+              user_id: profile.id,
+              date: now.toISOString().split('T')[0],
+              clock_in: now.toTimeString().split(' ')[0],
+              locations: {
+                clock_in: {
+                  latitude: location?.latitude ?? null,
+                  longitude: location?.longitude ?? null,
+                  accuracy: location?.accuracy ?? null,
+                  timestamp: location ? new Date(location.timestamp).toISOString() : new Date().toISOString(),
+                  locationName: 'Remoto'
+                }
+              }
+            }
+          ])
+          .select('*')
+          .maybeSingle();
+
+        if (error) {
+          toast({ title: 'Erro', description: 'Falha ao registrar o ponto.', variant: 'destructive' });
+          return;
+        }
+        if (data) {
+          setLastRegistration(data as TimeRegistration);
+          toast({ title: 'Sucesso', description: 'Ponto registrado (Remoto).' });
+          fetchLastRegistration();
+        }
+      } catch {
+        toast({ title: 'Erro', description: 'Erro inesperado ao registrar.', variant: 'destructive' });
+      } finally {
+        setIsRegistering(false);
+      }
+      return;
+    }
+
+    // Modo padrão: comparar com localizações permitidas
+    if (!location) {
       toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
       return;
     }
+
     setIsRegistering(true);
     try {
       const { data, error } = await supabase
         .from('time_records')
-        .insert([{ user_id: profile.id, date: new Date().toISOString().split('T')[0], clock_in: new Date().toTimeString().split(' ')[0], locations: { clock_in: { latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, timestamp: new Date(location.timestamp).toISOString(), locationName: validationResult?.closestLocation?.name || 'Desconhecido' } } }])
+        .insert([
+          {
+            user_id: profile.id,
+            date: new Date().toISOString().split('T')[0],
+            clock_in: new Date().toTimeString().split(' ')[0],
+            locations: {
+              clock_in: {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+                timestamp: new Date(location.timestamp).toISOString(),
+                locationName: validationResult?.closestLocation?.name || 'Desconhecido'
+              }
+            }
+          }
+        ])
         .select('*')
         .maybeSingle();
-      if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' }); return; }
-      if (data) { setLastRegistration(data as TimeRegistration); toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' }); fetchLastRegistration(); }
-    } catch (err) {
+
+      if (error) {
+        toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' });
+        return;
+      }
+      if (data) {
+        setLastRegistration(data as TimeRegistration);
+        toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' });
+        fetchLastRegistration();
+      }
+    } catch {
       toast({ title: 'Erro', description: 'Erro inesperado ao registrar o ponto.', variant: 'destructive' });
-    } finally { setIsRegistering(false); }
+    } finally {
+      setIsRegistering(false);
+    }
   };
 
   const handleValidateLocation = () => validateLocation();

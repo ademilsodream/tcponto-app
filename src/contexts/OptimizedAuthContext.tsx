@@ -85,6 +85,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
           department_id,
           job_function_id,
           can_register_time,
+          use_location_tracking,
           departments:department_id(id, name),
           job_functions:job_function_id(id, name)
         `)
@@ -98,7 +99,10 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        const profileWithLocationTracking: Profile = { ...data, use_location_tracking: true };
+        const profileWithLocationTracking: Profile = {
+          ...data,
+          use_location_tracking: (data as any).use_location_tracking ?? true,
+        };
         debugLog('INFO', 'Perfil carregado com sucesso', {
           name: profileWithLocationTracking.name,
           status: profileWithLocationTracking.status,
