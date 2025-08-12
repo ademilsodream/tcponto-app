@@ -12,10 +12,14 @@ import UnifiedTimeRecordPage from '@/pages/UnifiedTimeRecordPage';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import DebugPanel from '@/components/DebugPanel';
 
-// Placeholders simples
-const Placeholder = ({ title }: { title: string }) => (
-  <div className="p-8 text-center text-gray-600">{title}</div>
-);
+// Páginas/Componentes reais
+import EmployeeMonthlySummary from '@/components/EmployeeMonthlySummary';
+import EmployeeDetailedReport from '@/components/EmployeeDetailedReport';
+import IncompleteRecordsProfile from '@/components/IncompleteRecordsProfile';
+import AdjustPreviousDays from '@/components/AdjustPreviousDays';
+import VacationRequest from '@/components/VacationRequest';
+import EmployeeDocuments from '@/components/EmployeeDocuments';
+import SalaryAdvanceRequest from '@/components/SalaryAdvanceRequest';
 
 function App() {
   return (
@@ -38,13 +42,14 @@ function App() {
                   }
                 />
                 <Route path="/employee" element={<Navigate to="/" replace />} />
-                {/* Rotas de menu */}
+
+                {/* Rotas reais do menu */}
                 <Route
                   path="/monthly-summary"
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Resumo Mensal (em breve)" />
+                        <EmployeeMonthlySummary selectedMonth={new Date()} />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
@@ -54,7 +59,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Relatório Detalhado (em breve)" />
+                        <EmployeeDetailedReport selectedMonth={new Date()} onBack={() => {}} />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
@@ -64,7 +69,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Registros Incompletos (em breve)" />
+                        <IncompleteRecordsProfile />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
@@ -74,7 +79,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Ajustar dias anteriores (em breve)" />
+                        <AdjustPreviousDays />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
@@ -84,7 +89,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Solicitar Férias (em breve)" />
+                        <VacationRequest />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
@@ -94,7 +99,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Meus Documentos (em breve)" />
+                        <EmployeeDocuments />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
@@ -104,7 +109,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <EmployeeLayout>
-                        <Placeholder title="Vale Salarial (em breve)" />
+                        <SalaryAdvanceRequest />
                       </EmployeeLayout>
                     </ProtectedRoute>
                   }
