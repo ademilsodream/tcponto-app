@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Signal } from 'lucide-react';
@@ -28,6 +27,8 @@ export interface UnifiedGPSStatusProps {
   refreshLocation: () => void;
   clearCalibration: () => void;
   debug?: any;
+  hideDetails?: boolean;
+  showCalibrate?: boolean;
 }
 
 export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
@@ -42,7 +43,9 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
   calibrateForCurrentLocation,
   refreshLocation,
   clearCalibration,
-  debug
+  debug,
+  hideDetails = false,
+  showCalibrate = true,
 }) => {
   const getStatusColor = () => {
     if (loading) return 'bg-yellow-500';
@@ -59,7 +62,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Status Principal */}
       <div className="flex items-center space-x-3">
         <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
@@ -69,8 +72,8 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
         )}
       </div>
 
-      {/* Informações de Localização */}
-      {location && (
+      {/* Informações de Localização (opcional) */}
+      {!hideDetails && location && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-500">Latitude:</span>
@@ -102,17 +105,15 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
         </div>
       )}
 
-      {/* Controles (apenas Calibrar GPS) */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={calibrateForCurrentLocation}
-        >
-          <Signal className="w-4 h-4 mr-2" />
-          Calibrar GPS
-        </Button>
-      </div>
+      {/* Botão Calibrar (opcional) */}
+      {showCalibrate && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={calibrateForCurrentLocation}>
+            <Signal className="w-4 h-4 mr-2" />
+            Calibrar GPS
+          </Button>
+        </div>
+      )}
 
       {/* Debug Info (só em desenvolvimento) */}
       {debug && process.env.NODE_ENV === 'development' && (

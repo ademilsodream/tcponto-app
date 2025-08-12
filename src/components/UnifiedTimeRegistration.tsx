@@ -264,28 +264,16 @@ const UnifiedTimeRegistration: React.FC = () => {
 
   return (
     <div className="flex flex-col min-h-[100dvh] p-3 sm:p-4">
-      {/* Header minimal */}
       <div className="text-center mb-2 sm:mb-4">
         <h2 className="text-xl sm:text-2xl font-semibold leading-tight">Registro de Ponto</h2>
       </div>
 
       <div className="flex-1 overflow-auto space-y-3 sm:space-y-6">
-        {/* Mapa */}
+        {/* Card único: mapa + status + informações */}
         <Card>
           <CardContent className="p-0">
-            <LocationMap
-              latitude={location?.latitude ?? 0}
-              longitude={location?.longitude ?? 0}
-              height={320}
-            />
+            <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={320} />
           </CardContent>
-        </Card>
-
-        {/* Status do GPS + info */}
-        <Card>
-          <CardHeader className="py-3 sm:py-4">
-            <CardTitle className="text-base sm:text-lg">Status do GPS</CardTitle>
-          </CardHeader>
           <CardContent className="p-3 sm:p-6">
             <UnifiedGPSStatus
               loading={loading || loadingLocations}
@@ -300,9 +288,9 @@ const UnifiedTimeRegistration: React.FC = () => {
               refreshLocation={refreshLocation}
               clearCalibration={clearCalibration}
               debug={debug}
+              hideDetails={true}
+              showCalibrate={false}
             />
-
-            {/* Linha com data/hora e identificação (estilo do mock) */}
             <div className="mt-4">
               <div className="text-sm text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
               <div className="text-2xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
@@ -311,43 +299,38 @@ const UnifiedTimeRegistration: React.FC = () => {
                   <div className="uppercase text-[10px] text-gray-500">Nome</div>
                   <div>{profile?.name || user?.email}</div>
                 </div>
-                <div className="text-right">
-                  <div className="uppercase text-[10px] text-gray-500">Empresa</div>
-                  <div>—</div>
-                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Progresso dos registros do dia */}
+        {/* Botão Registrar imediatamente abaixo do card */}
+        <Card className="shadow-lg">
+          <CardContent className="p-2 sm:p-6">
+            <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" variant="default" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold">
+              {isRegistering ? 'Registrando...' : `Registrar Ponto${isRemote ? ' (Remoto)' : ''}`}
+            </Button>
+            {remainingCooldown !== null && (
+              <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Botão Calibrar abaixo do Registrar */}
+        <Card>
+          <CardContent className="p-2 sm:p-4">
+            <Button variant="outline" className="w-full" onClick={calibrateForCurrentLocation}>Calibrar GPS</Button>
+          </CardContent>
+        </Card>
+
+        {/* Trilha abaixo */}
         <Card>
           <CardContent className="p-3 sm:p-6">
             <TimeRegistrationProgress timeRecord={lastRegistration as any} />
           </CardContent>
         </Card>
 
-        <div className="h-20 sm:h-0" />
-      </div>
-
-      <div className="sticky bottom-3 sm:static sm:bottom-auto">
-        <Card className="shadow-lg">
-          <CardContent className="p-2 sm:p-6">
-            <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" variant="default" className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold">
-              {isRegistering ? (
-                <>Registrando...</>
-              ) : (
-                <>Registrar Ponto{isRemote ? ' (Remoto)' : ''}</>
-              )}
-            </Button>
-            {remainingCooldown !== null && (
-              <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
-            )}
-            {!isRemote && validationResult && !canRegister && (
-              <div className="mt-2 sm:mt-4 text-red-500 text-xs sm:text-sm">{validationResult.message}</div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="h-6" />
       </div>
     </div>
   );
