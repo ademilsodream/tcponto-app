@@ -3,8 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { debugLog, isMobile, checkConnectivity } from '@/utils/debugLogger';
-import { mobileSupabase, mobileLogin, getMobileSession, checkSupabaseConnectivity } from '@/integrations/supabase/mobileClient';
-import { Capacitor } from '@capacitor/core';
 
 interface Profile {
   id: string;
@@ -45,12 +43,6 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [isLoading, setIsLoading] = useState(true);
   const [sessionWarningDismissed, setSessionWarningDismissed] = useState(false);
 
-  // Detectar plataforma para escolher o client correto
-  const isNative = typeof Capacitor !== 'undefined' && typeof (Capacitor as any).isNativePlatform === 'function' 
-    ? Capacitor.isNativePlatform() 
-    : false;
-  const authClient = isNative ? mobileSupabase : supabase;
-
   const {
     sessionSettings,
     sessionWarning,
@@ -69,18 +61,17 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       debugLog('ERROR', 'Tentativa de carregar perfil sem userId');
       return;
     }
-    
+
     debugLog('INFO', 'Carregando perfil para usuário', { userId, isMobile: isMobile() });
-    
-    // Verificar conectividade primeiro
-    const isConnected = isNative ? await checkSupabaseConnectivity() : await checkConnectivity();
+
+    const isConnected = await checkConnectivity();
     if (!isConnected) {
       debugLog('ERROR', 'Sem conectividade com o servidor');
       return;
     }
-    
+
     try {
-      const { data, error } = await authClient
+      const { data, error } = await supabase
         .from('profiles')
         .select(`
           id,
@@ -107,21 +98,14 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       }
 
       if (data) {
-        const profileWithLocationTracking: Profile = {
-          ...data,
-          use_location_tracking: true // Valor padrão conforme schema do banco
-        };
-
-        debugLog('INFO', 'Perfil carregado com sucesso', { 
-          name: profileWithLocationTracking.name, 
-          status: profileWithLocationTracking.status, 
+        const profileWithLocationTracking: Profile = { ...data, use_location_tracking: true };
+        debugLog('INFO', 'Perfil carregado com sucesso', {
+          name: profileWithLocationTracking.name,
+          status: profileWithLocationTracking.status,
           can_register_time: profileWithLocationTracking.can_register_time,
-          use_location_tracking: profileWithLocationTracking.use_location_tracking
+          use_location_tracking: profileWithLocationTracking.use_location_tracking,
         });
-        
         setProfile(profileWithLocationTracking);
-        
-        // Atualizar atividade da sessão
         await updateSessionActivity(userId);
       } else {
         debugLog('WARN', 'Nenhum perfil encontrado');
@@ -131,7 +115,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       debugLog('ERROR', 'Erro inesperado ao carregar perfil', { error });
       setProfile(null);
     }
-  }, [updateSessionActivity, authClient, isNative]);
+  }, [updateSessionActivity]);
 
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
@@ -140,224 +124,122 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   }, [user?.id, loadProfile]);
 
   const logout = useCallback(async () => {
-    console.log('🔐 Iniciando logout...');
     try {
       setIsLoading(true);
-      
-      // Limpar sessões personalizadas
       if (user?.id) {
-        await authClient
-          .from('user_sessions')
-          .delete()
-          .eq('user_id', user.id);
+        await supabase.from('user_sessions').delete().eq('user_id', user.id);
       }
-      
-      await authClient.auth.signOut();
-      console.log('✅ Logout realizado com sucesso');
+      await supabase.auth.signOut();
     } catch (error) {
-      console.error('❌ Erro durante logout:', error);
+      console.error('Erro durante logout:', error);
     }
-  }, [user?.id, authClient]);
+  }, [user?.id]);
 
   const loginWithRememberMe = useCallback(async (email: string, password: string, rememberMe: boolean) => {
-    debugLog('INFO', 'Tentativa de login', { email, rememberMe, isMobile: isMobile(), isNative });
-    
+    debugLog('INFO', 'Tentativa de login', { email, rememberMe, isMobile: isMobile() });
+
     try {
-      // Verificar conectividade primeiro
-      const isConnected = isNative ? await checkSupabaseConnectivity() : await checkConnectivity();
+      const isConnected = await checkConnectivity();
       if (!isConnected) {
         debugLog('ERROR', 'Sem conectividade para login');
         return { error: { message: 'Sem conectividade com o servidor' } };
       }
-      
-      let data: any = null;
-      let error: any = null;
 
-      if (isNative) {
-        const result = await mobileLogin(email, password);
-        data = result.data;
-        error = result.error;
-      } else {
-        const result = await supabase.auth.signInWithPassword({ email, password });
-        data = result.data;
-        error = result.error;
-      }
-
-      if (error) {
-        return { error };
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return { error };
 
       if (data.user) {
-        // Criar sessão personalizada
         await createUserSession(data.user, rememberMe);
-        
-        // Salvar preferência de "lembrar-me"
         localStorage.setItem('tcponto_remember_me', rememberMe.toString());
-        
-        console.log('✅ Login com sessão personalizada realizado:', {
-          userId: data.user.id,
-          rememberMe,
-          sessionDuration: rememberMe ? `${sessionSettings.sessionDurationDays} dias` : '24 horas'
-        });
       }
 
       return { error: null };
     } catch (error) {
       return { error };
     }
-  }, [createUserSession, sessionSettings.sessionDurationDays, isNative]);
+  }, [createUserSession]);
 
   const renewSession = useCallback(async () => {
     const success = await renewToken();
-    if (success) {
-      setSessionWarningDismissed(false);
-    }
+    if (success) setSessionWarningDismissed(false);
     return success;
   }, [renewToken]);
 
-  const dismissSessionWarning = useCallback(() => {
-    setSessionWarningDismissed(true);
-  }, []);
+  const dismissSessionWarning = useCallback(() => setSessionWarningDismissed(true), []);
 
   useEffect(() => {
     let mounted = true;
-    debugLog('INFO', 'Inicializando sistema de autenticação', { isMobile: isMobile(), isNative });
+    debugLog('INFO', 'Inicializando sistema de autenticação', { isMobile: isMobile() });
 
-    const { data: { subscription } } = authClient.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-
-      console.log('🔄 Auth state change:', event, session?.user?.email || 'sem usuário');
-
       const newUser = session?.user ?? null;
       setUser(newUser);
-
-      // Verificar expiração da sessão
       checkSessionExpiry(session);
 
       if (event === 'SIGNED_OUT' || !session) {
-        console.log('👋 Usuário deslogado');
         setProfile(null);
         setIsLoading(false);
         setSessionWarningDismissed(false);
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (newUser) {
-          console.log('👤 Usuário logado:', newUser.email);
-          setIsLoading(true);
-          
-          setTimeout(() => {
-            if (mounted) {
-              loadProfile(newUser.id).finally(() => {
-                if (mounted) {
-                  setIsLoading(false);
-                }
-              });
-            }
-          }, 0);
-        }
+      } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && newUser) {
+        setIsLoading(true);
+        setTimeout(() => {
+          if (mounted) {
+            loadProfile(newUser.id).finally(() => mounted && setIsLoading(false));
+          }
+        }, 0);
       }
     });
 
     const initializeSession = async () => {
       try {
-        console.log('🔍 Verificando sessão existente...');
-        const { data: { session }, error } = isNative 
-          ? await getMobileSession() 
-          : await supabase.auth.getSession();
-        
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
-          console.error('❌ Erro ao obter sessão:', error);
           setIsLoading(false);
           return;
         }
-
         if (session?.user && mounted) {
-          console.log('✅ Sessão existente encontrada:', session.user.email);
           setUser(session.user);
           setIsLoading(true);
-          
-          // Verificar expiração da sessão
           checkSessionExpiry(session);
-          
-          loadProfile(session.user.id).finally(() => {
-            if (mounted) {
-              setIsLoading(false);
-            }
-          });
+          loadProfile(session.user.id).finally(() => mounted && setIsLoading(false));
         } else {
-          console.log('ℹ️ Nenhuma sessão ativa');
           setUser(null);
           setProfile(null);
           setIsLoading(false);
         }
-      } catch (error) {
-        console.error('❌ Erro durante inicialização:', error);
-        if (mounted) {
-          setIsLoading(false);
-        }
+      } catch {
+        if (mounted) setIsLoading(false);
       }
     };
 
     initializeSession();
+    return () => { mounted = false; subscription.unsubscribe(); };
+  }, [checkSessionExpiry, loadProfile]);
 
-    return () => {
-      console.log('🧹 Limpando auth context...');
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [checkSessionExpiry, loadProfile, authClient, isNative]);
+  useEffect(() => { /* no-op without push */ }, [user]);
 
-  useEffect(() => {
-    if (user && user.id) {
-      // Removido: inicialização de notificações push
-    }
-  }, [user]);
-
-  // Verificação periódica de sessão
   useEffect(() => {
     if (!user) return;
-
     const interval = setInterval(() => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        checkSessionExpiry(session);
-      });
-    }, 5 * 60 * 1000); // Verificar a cada 5 minutos
-
+      supabase.auth.getSession().then(({ data: { session } }) => { checkSessionExpiry(session); });
+    }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [user, checkSessionExpiry]);
 
-  const value = {
-    user,
-    profile,
-    isLoading,
-    hasAccess,
-    sessionSettings,
-    sessionWarning: sessionWarning && !sessionWarningDismissed,
-    refreshProfile,
-    logout,
-    loginWithRememberMe,
-    renewSession,
-    dismissSessionWarning,
-  };
+  const value = { user, profile, isLoading, hasAccess, sessionSettings, sessionWarning: sessionWarning && !sessionWarningDismissed, refreshProfile, logout, loginWithRememberMe, renewSession, dismissSessionWarning };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useOptimizedAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useOptimizedAuth must be used within an OptimizedAuthProvider');
-  }
+  if (context === undefined) throw new Error('useOptimizedAuth must be used within an OptimizedAuthProvider');
   return context;
 };
 
-// Hook adicional para verificar permissões
 export const useAuthPermissions = () => {
   const { profile } = useOptimizedAuth();
-  
   return {
     canRegisterTime: profile?.can_register_time ?? false,
     hasProfile: !!profile,
