@@ -5,6 +5,7 @@ import { PushNotificationService } from '@/services/PushNotificationService';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { debugLog, isMobile, checkConnectivity } from '@/utils/debugLogger';
 import { mobileSupabase, mobileLogin, getMobileSession, checkSupabaseConnectivity } from '@/integrations/supabase/mobileClient';
+import { Capacitor } from '@capacitor/core';
 
 interface Profile {
   id: string;
@@ -45,6 +46,12 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
   const [isLoading, setIsLoading] = useState(true);
   const [sessionWarningDismissed, setSessionWarningDismissed] = useState(false);
 
+  // Detectar plataforma para escolher o client correto
+  const isNative = typeof Capacitor !== 'undefined' && typeof (Capacitor as any).isNativePlatform === 'function' 
+    ? Capacitor.isNativePlatform() 
+    : false;
+  const authClient = isNative ? mobileSupabase : supabase;
+
   const {
     sessionSettings,
     sessionWarning,
@@ -67,14 +74,14 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     debugLog('INFO', 'Carregando perfil para usuário', { userId, isMobile: isMobile() });
     
     // Verificar conectividade primeiro
-    const isConnected = await checkConnectivity();
+    const isConnected = isNative ? await checkSupabaseConnectivity() : await checkConnectivity();
     if (!isConnected) {
       debugLog('ERROR', 'Sem conectividade com o servidor');
       return;
     }
     
     try {
-      const { data, error } = await mobileSupabase
+      const { data, error } = await authClient
         .from('profiles')
         .select(`
           id,
@@ -125,7 +132,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       debugLog('ERROR', 'Erro inesperado ao carregar perfil', { error });
       setProfile(null);
     }
-  }, [updateSessionActivity]);
+  }, [updateSessionActivity, authClient, isNative]);
 
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
@@ -140,32 +147,42 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       
       // Limpar sessões personalizadas
       if (user?.id) {
-        await supabase
+        await authClient
           .from('user_sessions')
           .delete()
           .eq('user_id', user.id);
       }
       
-      await mobileSupabase.auth.signOut();
+      await authClient.auth.signOut();
       console.log('✅ Logout realizado com sucesso');
     } catch (error) {
       console.error('❌ Erro durante logout:', error);
     }
-  }, [user?.id]);
+  }, [user?.id, authClient]);
 
   const loginWithRememberMe = useCallback(async (email: string, password: string, rememberMe: boolean) => {
-    debugLog('INFO', 'Tentativa de login', { email, rememberMe, isMobile: isMobile() });
+    debugLog('INFO', 'Tentativa de login', { email, rememberMe, isMobile: isMobile(), isNative });
     
     try {
       // Verificar conectividade primeiro
-      const isConnected = await checkSupabaseConnectivity();
+      const isConnected = isNative ? await checkSupabaseConnectivity() : await checkConnectivity();
       if (!isConnected) {
         debugLog('ERROR', 'Sem conectividade para login');
         return { error: { message: 'Sem conectividade com o servidor' } };
       }
       
-      // Usar cliente mobile se estivermos no ambiente mobile
-      const { data, error } = await mobileLogin(email, password);
+      let data: any = null;
+      let error: any = null;
+
+      if (isNative) {
+        const result = await mobileLogin(email, password);
+        data = result.data;
+        error = result.error;
+      } else {
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         return { error };
@@ -189,7 +206,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     } catch (error) {
       return { error };
     }
-  }, [createUserSession, sessionSettings.sessionDurationDays]);
+  }, [createUserSession, sessionSettings.sessionDurationDays, isNative]);
 
   const renewSession = useCallback(async () => {
     const success = await renewToken();
@@ -205,9 +222,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
 
   useEffect(() => {
     let mounted = true;
-    debugLog('INFO', 'Inicializando sistema de autenticação', { isMobile: isMobile() });
+    debugLog('INFO', 'Inicializando sistema de autenticação', { isMobile: isMobile(), isNative });
 
-    const { data: { subscription } } = mobileSupabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = authClient.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       console.log('🔄 Auth state change:', event, session?.user?.email || 'sem usuário');
@@ -244,7 +261,9 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
     const initializeSession = async () => {
       try {
         console.log('🔍 Verificando sessão existente...');
-        const { data: { session }, error } = await getMobileSession();
+        const { data: { session }, error } = isNative 
+          ? await getMobileSession() 
+          : await supabase.auth.getSession();
         
         if (error) {
           console.error('❌ Erro ao obter sessão:', error);
@@ -286,7 +305,7 @@ export const OptimizedAuthProvider: React.FC<{ children: ReactNode }> = ({ child
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [checkSessionExpiry, loadProfile]);
+  }, [checkSessionExpiry, loadProfile, authClient, isNative]);
 
   useEffect(() => {
     if (user && user.id) {
