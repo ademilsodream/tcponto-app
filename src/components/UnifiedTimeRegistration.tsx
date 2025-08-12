@@ -6,7 +6,7 @@ import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useUnifiedLocation } from '@/hooks/useUnifiedLocation';
 import { supabase } from '@/integrations/supabase/client';
 import { Clock } from 'lucide-react';
-import UnifiedGPSStatus from './UnifiedGPSStatus';
+import { UnifiedGPSStatus } from './UnifiedGPSStatus';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
