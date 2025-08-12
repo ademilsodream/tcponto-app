@@ -29,6 +29,7 @@ export interface UnifiedGPSStatusProps {
   debug?: any;
   hideDetails?: boolean;
   showCalibrate?: boolean;
+  showStatus?: boolean;
 }
 
 export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
@@ -46,6 +47,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
   debug,
   hideDetails = false,
   showCalibrate = true,
+  showStatus = true,
 }) => {
   const getStatusColor = () => {
     if (loading) return 'bg-yellow-500';
@@ -64,13 +66,15 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
   return (
     <div className="space-y-3">
       {/* Status Principal */}
-      <div className="flex items-center space-x-3">
-        <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
-        <span className="font-medium">{getStatusText()}</span>
-        {gpsQuality && (
-          <Badge variant="outline">{gpsQuality.quality}</Badge>
-        )}
-      </div>
+      {showStatus && (
+        <div className="flex items-center space-x-3">
+          <div className={`w-3 h-3 rounded-full ${getStatusColor()}`} />
+          <span className="font-medium">{getStatusText()}</span>
+          {gpsQuality && (
+            <Badge variant="outline">{gpsQuality.quality}</Badge>
+          )}
+        </div>
+      )}
 
       {/* Informações de Localização (opcional) */}
       {!hideDetails && location && (
@@ -108,7 +112,7 @@ export const UnifiedGPSStatus: React.FC<UnifiedGPSStatusProps> = ({
       {/* Botão Calibrar (opcional) */}
       {showCalibrate && (
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={calibrateForCurrentLocation}>
+          <Button variant="outline" size="sm" onClick={calibrateForCurrentLocation}> 
             <Signal className="w-4 h-4 mr-2" />
             Calibrar GPS
           </Button>
