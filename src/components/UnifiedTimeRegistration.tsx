@@ -37,9 +37,13 @@ const UnifiedTimeRegistration: React.FC = () => {
   } = useUnifiedLocation(profile?.departments ? [{
     id: profile.department_id || 'any',
     name: profile.departments?.name || 'Anywhere',
+    address: 'Endereço padrão',
     latitude: 0,
     longitude: 0,
-    range_meters: 500 // Usar range_meters ao invés de radius
+    range_meters: 500,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   }] : []);
 
   const fetchLastRegistration = useCallback(async () => {
@@ -47,12 +51,12 @@ const UnifiedTimeRegistration: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('time_records') // Usar time_records ao invés de time_registrations
+        .from('time_records')
         .select('*')
-        .eq('user_id', profile.id) // Usar user_id ao invés de profile_id
+        .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle(); // Usar maybeSingle ao invés de single
+        .maybeSingle();
 
       if (error) {
         console.error("Erro ao buscar último registro:", error);
@@ -85,12 +89,12 @@ const UnifiedTimeRegistration: React.FC = () => {
 
     try {
       const { data, error } = await supabase
-        .from('time_records') // Usar time_records
+        .from('time_records')
         .insert([
           {
-            user_id: profile.id, // Usar user_id
-            date: new Date().toISOString().split('T')[0], // Adicionar data
-            clock_in: new Date().toTimeString().split(' ')[0], // Adicionar horário de entrada
+            user_id: profile.id,
+            date: new Date().toISOString().split('T')[0],
+            clock_in: new Date().toTimeString().split(' ')[0],
             locations: {
               clock_in: {
                 latitude: location.latitude,
@@ -135,6 +139,10 @@ const UnifiedTimeRegistration: React.FC = () => {
     }
   };
 
+  const handleValidateLocation = () => {
+    validateLocation();
+  };
+
   return (
     <div className="space-y-6 p-4">
       {/* Header and Status Section */}
@@ -158,7 +166,7 @@ const UnifiedTimeRegistration: React.FC = () => {
             validationResult={validationResult}
             canRegister={canRegister}
             calibration={calibration}
-            validateLocation={validateLocation}
+            validateLocation={handleValidateLocation}
             calibrateForCurrentLocation={calibrateForCurrentLocation}
             refreshLocation={refreshLocation}
             clearCalibration={clearCalibration}
