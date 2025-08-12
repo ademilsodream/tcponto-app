@@ -14,6 +14,7 @@ import { AllowedLocation } from '@/types/index';
 import { reverseGeocode } from '@/utils/geocoding';
 import { TimeRegistrationProgress } from './TimeRegistrationProgress';
 import LocationMap from './LocationMap';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutos
 
@@ -262,14 +263,14 @@ const UnifiedTimeRegistration: React.FC = () => {
   const buttonDisabled = isRegistering || (!isRemote && !canRegister) || (cooldownEndTime !== null && cooldownEndTime > Date.now());
 
   return (
-    <div className="flex flex-col min-h-[100dvh] w-full p-0">
-      {/* Título */}
-      <div className="text-center py-2">
-        <h2 className="text-xl sm:text-2xl font-semibold leading-tight">Registro de Ponto</h2>
-      </div>
-
-      <div className="flex-1 overflow-auto space-y-0 w-full">
-        {/* Bloco único sem borda: mapa + status + informação */}
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-primary-800 flex items-center gap-2 text-lg sm:text-xl">
+          <Clock className="w-5 h-5 text-primary-600" />
+          Registro de Ponto
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
         <div className="w-full bg-white/90 rounded-xl shadow-sm">
           <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={420} />
           <div className="px-3 py-3">
@@ -318,10 +319,9 @@ const UnifiedTimeRegistration: React.FC = () => {
         <div className="px-0 py-3">
           <TimeRegistrationProgress timeRecord={lastRegistration as any} />
         </div>
-
-        <div className="h-6" />
-      </div>
-    </div>
+        <div className="h-2" />
+      </CardContent>
+    </Card>
   );
 };
 
