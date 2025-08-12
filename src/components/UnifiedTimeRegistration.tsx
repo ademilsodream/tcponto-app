@@ -19,6 +19,7 @@ const UnifiedTimeRegistration: React.FC = () => {
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [loadingLocations, setLoadingLocations] = useState<boolean>(true);
   const { user, profile } = useOptimizedAuth();
+  const isRemote = profile?.use_location_tracking === false;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -171,7 +172,7 @@ const UnifiedTimeRegistration: React.FC = () => {
               location={location}
               gpsQuality={gpsQuality}
               validationResult={validationResult}
-              canRegister={canRegister}
+              canRegister={isRemote ? true : canRegister}
               calibration={calibration}
               validateLocation={handleValidateLocation}
               calibrateForCurrentLocation={calibrateForCurrentLocation}
@@ -205,7 +206,7 @@ const UnifiedTimeRegistration: React.FC = () => {
           <CardContent className="p-2 sm:p-6">
             <Button
               onClick={handleTimeRegistration}
-              disabled={isRegistering || !canRegister}
+              disabled={isRegistering || (!isRemote && !canRegister)}
               size="lg"
               variant="default"
               className="w-full h-14 sm:h-16 text-base sm:text-lg font-semibold"
@@ -215,11 +216,11 @@ const UnifiedTimeRegistration: React.FC = () => {
               ) : (
                 <>
                   <Clock className="mr-2 h-5 w-5" />
-                  Registrar Ponto
+                  Registrar Ponto{isRemote ? ' (Remoto)' : ''}
                 </>
               )}
             </Button>
-            {validationResult && !canRegister && (
+            {!isRemote && validationResult && !canRegister && (
               <div className="mt-2 sm:mt-4 text-red-500 text-xs sm:text-sm">{validationResult.message}</div>
             )}
           </CardContent>
