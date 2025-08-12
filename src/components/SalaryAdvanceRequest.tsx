@@ -219,23 +219,14 @@ const SalaryAdvanceRequest: React.FC = () => {
   const hasPendingRequest = requests.some(req => req.status === 'pending');
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
-                  Vale Salarial
-                </h1>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
+      <CardHeader>
+        <CardTitle className="text-primary-800 flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-primary-600" />
+          Vale Salarial
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
         {/* Nova Solicitação */}
         <Card className="mb-6">
           <CardHeader>
@@ -397,8 +388,8 @@ const SalaryAdvanceRequest: React.FC = () => {
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
