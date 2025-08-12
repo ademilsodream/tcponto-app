@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format } from 'date-fns';
+import { Calendar, ChevronLeft, ChevronRight, Briefcase, Clock9, AlarmClock, Utensils } from 'lucide-react';
+import { format, isSameMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { calculateWorkingHours } from '@/utils/timeCalculations';
+import { Progress } from '@/components/ui/progress';
 
 interface MonthlySummary {
   totalHours: number;
@@ -19,6 +20,8 @@ interface MonthlySummary {
   normalPay: number;
   overtimePay: number;
   workingDays: number;
+  lunchHours: number; // novo
+  plannedHours: number; // novo
 }
 
 interface EmployeeMonthlySummaryProps {
@@ -41,13 +44,10 @@ const formatHoursAsTime = (hours: number) => {
 
 // Gerar lista de meses para o seletor
 const generateMonths = () => {
-  const months = [];
+  const months = [] as { value: number; label: string }[];
   for (let i = 0; i < 12; i++) {
     const date = new Date(2024, i, 1);
-    months.push({
-      value: i,
-      label: format(date, 'MMMM', { locale: ptBR })
-    });
+    months.push({ value: i, label: format(date, 'MMMM', { locale: ptBR }) });
   }
   return months;
 };
@@ -55,21 +55,30 @@ const generateMonths = () => {
 // Gerar lista de anos (últimos 5 anos)
 const generateYears = () => {
   const currentYear = new Date().getFullYear();
-  const years = [];
+  const years = [] as { value: number; label: string }[];
   for (let i = 0; i < 5; i++) {
     const year = currentYear - i;
-    years.push({
-      value: year,
-      label: year.toString()
-    });
+    years.push({ value: year, label: year.toString() });
   }
   return years;
 };
 
-const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
-  selectedMonth: initialMonth,
-  onBack
-}) => {
+// Contar dias úteis (seg-sex) entre duas datas, inclusivo
+const countBusinessDays = (start: Date, end: Date) => {
+  let count = 0;
+  const d = new Date(start);
+  d.setHours(0, 0, 0, 0);
+  const last = new Date(end);
+  last.setHours(0, 0, 0, 0);
+  while (d <= last) {
+    const day = d.getDay();
+    if (day >= 1 && day <= 5) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+};
+
+const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selectedMonth: initialMonth }) => {
   // Estado interno para período selecionado
   const [selectedYear, setSelectedYear] = useState(initialMonth.getFullYear());
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(initialMonth.getMonth());
@@ -81,7 +90,9 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     totalPay: 0,
     normalPay: 0,
     overtimePay: 0,
-    workingDays: 0
+    workingDays: 0,
+    lunchHours: 0,
+    plannedHours: 0,
   });
   const [loading, setLoading] = useState(true);
   const [hourlyRate, setHourlyRate] = useState(50);
@@ -89,8 +100,8 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
   const { formatCurrency } = useCurrency();
   const { user } = useOptimizedAuth();
 
-  // Criar data atual baseada na seleção
-  const currentSelectedDate = new Date(selectedYear, selectedMonthIndex, 1);
+  // Data base do período selecionado (primeiro dia do mês)
+  const baseDate = new Date(selectedYear, selectedMonthIndex, 1);
 
   // Carregar perfil do usuário primeiro
   useEffect(() => {
@@ -110,47 +121,28 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('hourly_rate')
         .eq('id', user.id)
         .single();
 
-      if (error) {
-        console.error('Erro ao carregar perfil:', error);
-      }
-
-      if (data) {
-        const rate = Number(data.hourly_rate);
-        if (!isNaN(rate)) {
-           setHourlyRate(rate);
-        } else {
-           console.warn('Hourly rate inválido no perfil, usando valor padrão.');
-           setHourlyRate(50);
-        }
-      } else {
-         console.warn('Perfil do usuário não encontrado ou sem hourly_rate.');
-         setHourlyRate(50);
-      }
-    } catch (error) {
-      console.error('Error loading user profile:', error);
+      const rate = Number(data?.hourly_rate);
+      setHourlyRate(!isNaN(rate) ? rate : 50);
+    } catch {
       setHourlyRate(50);
     } finally {
       setProfileLoaded(true);
     }
   };
 
-  // Função para calcular valores
-  const calculatePay = (normalHours: number, overtimeHours: number, rate: number) => {
-    const normalPay = normalHours * rate;
-    const overtimePay = overtimeHours * rate;
-
-    const validNormalPay = typeof normalPay === 'number' && !isNaN(normalPay) ? normalPay : 0;
-    const validOvertimePay = typeof overtimePay === 'number' && !isNaN(overtimePay) ? overtimePay : 0;
-
-    const totalPay = validNormalPay + validOvertimePay;
-
-    return { normalPay: validNormalPay, overtimePay: validOvertimePay, totalPay };
+  // Auxiliar para somar almoço do dia
+  const getLunchHours = (lunchStart?: string, lunchEnd?: string) => {
+    if (!lunchStart || !lunchEnd) return 0;
+    const [sh, sm] = lunchStart.split(':').map(Number);
+    const [eh, em] = lunchEnd.split(':').map(Number);
+    const minutes = (eh * 60 + em) - (sh * 60 + sm);
+    return Math.max(0, minutes) / 60;
   };
 
   const loadMonthlySummary = async () => {
@@ -158,10 +150,13 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
 
     setLoading(true);
     try {
-      const startDate = format(currentSelectedDate, 'yyyy-MM-01');
-      const endDate = format(new Date(selectedYear, selectedMonthIndex + 1, 0), 'yyyy-MM-dd');
+      const periodStart = new Date(selectedYear, selectedMonthIndex, 1);
+      const periodEnd = endOfMonth(periodStart);
 
-      const { data: records, error } = await supabase
+      const startDate = format(periodStart, 'yyyy-MM-01');
+      const endDate = format(periodEnd, 'yyyy-MM-dd');
+
+      const { data: records } = await supabase
         .from('time_records')
         .select('*')
         .eq('user_id', user.id)
@@ -169,12 +164,25 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
         .lte('date', endDate)
         .eq('status', 'active');
 
-      if (error) {
-         console.error('Erro ao carregar registros de ponto:', error);
-         throw error;
-      }
+      // Calcular horas previstas: 8h por dia útil do primeiro dia do mês até hoje (se for mês atual) ou até o fim do mês se passado/futuro limitado
+      const today = new Date();
+      const untilDate = isSameMonth(today, periodStart) ? today : periodEnd;
+      const businessDays = countBusinessDays(periodStart, untilDate);
+      const plannedHours = businessDays * 8; // 8h/dia útil
 
-      const summary = records.reduce((acc, record) => {
+      const initial = {
+        totalHours: 0,
+        normalHours: 0,
+        overtimeHours: 0,
+        totalPay: 0,
+        normalPay: 0,
+        overtimePay: 0,
+        workingDays: 0,
+        lunchHours: 0,
+        plannedHours,
+      } as MonthlySummary;
+
+      const result = (records || []).reduce((acc, record) => {
         const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
           record.clock_in || '',
           record.lunch_start || '',
@@ -182,43 +190,23 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
           record.clock_out || ''
         );
 
-        const { normalPay, overtimePay, totalPay } = calculatePay(
-          normalHours,
-          overtimeHours,
-          hourlyRate
-        );
+        const lunch = getLunchHours(record.lunch_start, record.lunch_end);
+        const hasWorked = totalHours > 0;
 
         return {
+          ...acc,
           totalHours: acc.totalHours + totalHours,
           normalHours: acc.normalHours + normalHours,
           overtimeHours: acc.overtimeHours + overtimeHours,
-          totalPay: acc.totalPay + totalPay,
-          normalPay: acc.normalPay + normalPay,
-          overtimePay: acc.overtimePay + overtimePay,
-          workingDays: acc.workingDays + (totalHours > 0 ? 1 : 0)
+          workingDays: acc.workingDays + (hasWorked ? 1 : 0),
+          lunchHours: acc.lunchHours + lunch,
         };
-      }, {
-        totalHours: 0,
-        normalHours: 0,
-        overtimeHours: 0,
-        totalPay: 0,
-        normalPay: 0,
-        overtimePay: 0,
-        workingDays: 0
-      });
+      }, initial);
 
-      setSummary(summary);
+      setSummary(result);
     } catch (error) {
       console.error('Error loading monthly summary:', error);
-      setSummary({
-        totalHours: 0,
-        normalHours: 0,
-        overtimeHours: 0,
-        totalPay: 0,
-        normalPay: 0,
-        overtimePay: 0,
-        workingDays: 0
-      });
+      setSummary(prev => ({ ...prev, totalHours: 0, normalHours: 0, overtimeHours: 0, workingDays: 0, lunchHours: 0 }));
     } finally {
       setLoading(false);
     }
@@ -238,34 +226,25 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
     const currentDate = new Date();
     const nextMonth = selectedMonthIndex === 11 ? 0 : selectedMonthIndex + 1;
     const nextYear = selectedMonthIndex === 11 ? selectedYear + 1 : selectedYear;
-    
-    // Não permitir ir para meses futuros
-    if (nextYear > currentDate.getFullYear() || 
-        (nextYear === currentDate.getFullYear() && nextMonth > currentDate.getMonth())) {
-      return;
-    }
-
+    if (nextYear > currentDate.getFullYear() || (nextYear === currentDate.getFullYear() && nextMonth > currentDate.getMonth())) return;
     setSelectedMonthIndex(nextMonth);
     setSelectedYear(nextYear);
   };
 
-  // Verificar se pode ir para o próximo mês
   const canGoToNextMonth = () => {
     const currentDate = new Date();
     const nextMonth = selectedMonthIndex === 11 ? 0 : selectedMonthIndex + 1;
     const nextYear = selectedMonthIndex === 11 ? selectedYear + 1 : selectedYear;
-    
-    return !(nextYear > currentDate.getFullYear() || 
-             (nextYear === currentDate.getFullYear() && nextMonth > currentDate.getMonth()));
+    return !(nextYear > currentDate.getFullYear() || (nextYear === currentDate.getFullYear() && nextMonth > currentDate.getMonth()));
   };
 
   if (loading || !profileLoaded) {
     return (
       <Card>
         <CardContent className="p-6 text-center text-gray-600">
-           <div className="flex items-center justify-center mb-2">
-             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
-           </div>
+          <div className="flex items-center justify-center mb-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
+          </div>
           Carregando resumo mensal...
         </CardContent>
       </Card>
@@ -275,8 +254,10 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
   const months = generateMonths();
   const years = generateYears();
 
+  const progress = Math.min(100, Math.round((summary.totalHours / Math.max(1, summary.plannedHours)) * 100));
+
   return (
-    <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 shadow-lg border-none">
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-primary-800 flex items-center gap-2 text-lg sm:text-xl">
@@ -284,105 +265,94 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({
             Resumo Mensal
           </CardTitle>
         </div>
-        
-        {/* Controles de navegação de período */}
+        {/* Controles de período */}
         <div className="flex items-center gap-2 mt-4 flex-wrap">
-          {/* Navegação rápida */}
           <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToPreviousMonth}
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="outline" size="sm" onClick={goToPreviousMonth} className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToNextMonth}
-              disabled={!canGoToNextMonth()}
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="outline" size="sm" onClick={goToNextMonth} disabled={!canGoToNextMonth()} className="h-8 w-8 p-0">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* Seletores de mês e ano */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Select
-              value={selectedMonthIndex.toString()}
-              onValueChange={(value) => setSelectedMonthIndex(parseInt(value))}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={selectedMonthIndex.toString()} onValueChange={(v) => setSelectedMonthIndex(parseInt(v))}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {months.map((month) => (
-                  <SelectItem key={month.value} value={month.value.toString()}>
-                    {month.label}
-                  </SelectItem>
-                ))}
+                {months.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
               </SelectContent>
             </Select>
-
-            <Select
-              value={selectedYear.toString()}
-              onValueChange={(value) => setSelectedYear(parseInt(value))}
-            >
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+              <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {years.map((year) => (
-                  <SelectItem key={year.value} value={year.value.toString()}>
-                    {year.label}
-                  </SelectItem>
-                ))}
+                {years.map(y => <SelectItem key={y.value} value={y.value.toString()}>{y.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
         </div>
-
-        {/* Mostrar período selecionado */}
-        <div className="text-sm text-gray-600 mt-2">
-          {format(currentSelectedDate, 'MMMM yyyy', { locale: ptBR })}
-        </div>
+        <div className="text-sm text-gray-600 mt-2">{format(baseDate, 'MMMM yyyy', { locale: ptBR })}</div>
       </CardHeader>
-      
+
       <CardContent className="pt-0">
-        <div className="grid grid-cols-2 gap-y-6 gap-x-4 text-center">
-          {/* Dias Trabalhados */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
-            <p className="text-xs text-gray-500 font-medium uppercase">Dias Trabalhados</p>
-            <p className="text-2xl font-bold text-primary-700 mt-1">
-              {summary.workingDays}
-            </p>
+        {/* Barra de progresso Trabalhadas vs Previstas */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between text-sm text-gray-700 mb-1">
+            <span>Progresso do mês</span>
+            <span>{formatHoursAsTime(summary.totalHours)} / {formatHoursAsTime(summary.plannedHours)}</span>
+          </div>
+          <Progress value={progress} className="h-3" />
+        </div>
+
+        {/* Cards de métricas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-indigo-50 text-indigo-600"><Briefcase className="w-5 h-5" /></div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Dias trabalhados</p>
+                <p className="text-2xl font-bold text-gray-900">{summary.workingDays}</p>
+              </div>
+            </div>
           </div>
 
-          {/* Horas Normais */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
-            <p className="text-xs text-gray-500 font-medium uppercase">Horas Normais</p>
-            <p className="text-2xl font-bold text-green-600 mt-1">
-              {formatHoursAsTime(summary.normalHours)}
-            </p>
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-green-50 text-green-600"><Clock9 className="w-5 h-5" /></div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Horas trabalhadas</p>
+                <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.totalHours)}</p>
+              </div>
+            </div>
           </div>
 
-          {/* Horas Extras */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
-            <p className="text-xs text-gray-500 font-medium uppercase">Horas Extras</p>
-            <p className="text-2xl font-bold text-orange-600 mt-1">
-              {formatHoursAsTime(summary.overtimeHours)}
-            </p>
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-blue-50 text-blue-600"><AlarmClock className="w-5 h-5" /></div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Horas previstas</p>
+                <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.plannedHours)}</p>
+              </div>
+            </div>
           </div>
 
-          {/* Total */}
-          <div className="flex flex-col items-center justify-center p-2 bg-white rounded-md shadow-sm">
-            <p className="text-xs text-gray-500 font-medium uppercase">Total</p>
-            <p className="text-2xl font-bold text-primary-700 mt-1">
-              {formatHoursAsTime(summary.totalHours)}h
-            </p>
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-orange-50 text-orange-600"><AlarmClock className="w-5 h-5" /></div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Horas extras</p>
+                <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.overtimeHours)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-pink-50 text-pink-600"><Utensils className="w-5 h-5" /></div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Total em almoço</p>
+                <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.lunchHours)}</p>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
