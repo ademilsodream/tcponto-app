@@ -640,17 +640,16 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const weekendRecords = incompleteRecords.filter(record => record.isWeekend);
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Registros Incompletos - Mês Atual
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-primary-800">
+            <Calendar className="w-5 h-5 text-primary-600" />
+            Registros Incompletos - Mês Atual
+          </CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
           {incompleteRecords.length === 0 ? (
             <div className="text-center py-8">
               <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
@@ -942,7 +941,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </Card>
   );
 };
 

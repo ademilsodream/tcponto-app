@@ -157,123 +157,121 @@ export default function VacationRequest() {
   };
 
   return (
-    <div className="max-w-xl mx-auto p-4">
-      <Card className="shadow-md mb-4">
-        <CardHeader>
-          <CardTitle>Solicitar Férias</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Data de início</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal mt-1",
-                      !startDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {getDateLabel(startDate, "Selecionar data de início")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDate ?? undefined}
-                    onSelect={setStartDate}
-                    disabled={date =>
-                      false
-                    }
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                    fromDate={new Date()}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Data de término</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal mt-1",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {getDateLabel(endDate, "Selecionar data de término")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate ?? undefined}
-                    onSelect={setEndDate}
-                    disabled={date =>
-                      startDate
-                        ? isBefore(date, startDate)
-                        : false
-                    }
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                    fromDate={startDate ?? new Date()}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Dias solicitados</Label>
-              <Input
-                type="text"
-                disabled
-                value={
-                  startDate && endDate
-                    ? differenceInCalendarDays(endDate, startDate) + 1
-                    : ""
-                }
-              />
-            </div>
-            <div>
-              <Label>Saldo disponível</Label>
-              <Input
-                type="text"
-                disabled
-                value={
-                  balance === null
-                    ? "..."
-                    : `${balance} dia${balance === 1 ? "" : "s"}`
-                }
-                className={balance === 0 ? "border-destructive font-bold text-destructive" : ""}
-              />
-              {renderBalanceHint()}
-            </div>
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            {success && (
-              <Alert variant="default">
-                <AlertDescription className="text-green-700">{success}</AlertDescription>
-              </Alert>
-            )}
-            <Button
-              type="submit"
-              className="w-full bg-primary"
-              disabled={isLoading || (balance !== null && balance === 0)}
-            >
-              {isLoading ? "Enviando..." : "Solicitar Férias"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full max-w-3xl">
+      <CardHeader>
+        <CardTitle className="text-primary-800">Solicitar Férias</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label>Data de início</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal mt-1",
+                    !startDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {getDateLabel(startDate, "Selecionar data de início")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={startDate ?? undefined}
+                  onSelect={setStartDate}
+                  disabled={date =>
+                    false
+                  }
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                  fromDate={new Date()}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <Label>Data de término</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal mt-1",
+                    !endDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {getDateLabel(endDate, "Selecionar data de término")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={endDate ?? undefined}
+                  onSelect={setEndDate}
+                  disabled={date =>
+                    startDate
+                      ? isBefore(date, startDate)
+                      : false
+                  }
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                  fromDate={startDate ?? new Date()}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <Label>Dias solicitados</Label>
+            <Input
+              type="text"
+              disabled
+              value={
+                startDate && endDate
+                  ? differenceInCalendarDays(endDate, startDate) + 1
+                  : ""
+              }
+            />
+          </div>
+          <div>
+            <Label>Saldo disponível</Label>
+            <Input
+              type="text"
+              disabled
+              value={
+                balance === null
+                  ? "..."
+                  : `${balance} dia${balance === 1 ? "" : "s"}`
+              }
+              className={balance === 0 ? "border-destructive font-bold text-destructive" : ""}
+            />
+            {renderBalanceHint()}
+          </div>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {success && (
+            <Alert variant="default">
+              <AlertDescription className="text-green-700">{success}</AlertDescription>
+            </Alert>
+          )}
+          <Button
+            type="submit"
+            className="w-full bg-primary"
+            disabled={isLoading || (balance !== null && balance === 0)}
+          >
+            {isLoading ? "Enviando..." : "Solicitar Férias"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
