@@ -43,6 +43,15 @@ const getCurrentGPS = (): Promise<{ latitude: number; longitude: number; accurac
   });
 };
 
+// Determinar próxima ação baseado no registro do dia
+const getNextActionFromRecord = (rec: any | null): 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out' | null => {
+  if (!rec || !rec.clock_in) return 'clock_in';
+  if (!rec.lunch_start) return 'lunch_start';
+  if (!rec.lunch_end) return 'lunch_end';
+  if (!rec.clock_out) return 'clock_out';
+  return null;
+};
+
 const UnifiedTimeRegistration: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [lastRegistration, setLastRegistration] = useState<TimeRegistration | null>(null);
@@ -144,101 +153,107 @@ const UnifiedTimeRegistration: React.FC = () => {
       toast({ title: 'Erro', description: 'Perfil não disponível.', variant: 'destructive' });
       return;
     }
+
+    const today = new Date().toISOString().split('T')[0];
     const now = new Date();
 
-    // Coletar localização atual de forma resiliente
+    // garantir que temos o registro do dia mais recente
+    let existing = lastRegistration;
+    if (!existing || existing.date !== today) {
+      try {
+        const { data } = await supabase
+          .from('time_records')
+          .select('*')
+          .eq('user_id', profile.id)
+          .eq('date', today)
+          .eq('status', 'active')
+          .maybeSingle();
+        if (data) existing = data as any;
+      } catch {}
+    }
+
+    const action = getNextActionFromRecord(existing);
+    if (!action) {
+      toast({ title: 'Concluído', description: 'Todas as marcações do dia já foram registradas.' });
+      return;
+    }
+
+    // Coletar localização atual (resiliente)
     let lat = location?.latitude ?? 0;
     let lon = location?.longitude ?? 0;
     let ts = location ? new Date(location.timestamp) : now;
-
     if (!lat || !lon) {
       const gps = await getCurrentGPS();
       if (gps) {
-        lat = gps.latitude;
-        lon = gps.longitude;
-        ts = new Date(gps.timestamp);
+        lat = gps.latitude; lon = gps.longitude; ts = new Date(gps.timestamp);
       }
     }
 
-    // Modo REMOTO
-    if (isRemote) {
-      try {
-        setIsRegistering(true);
-        let address = 'Remoto';
-        try {
-          if (lat && lon) {
-            const geo = await reverseGeocode(lat, lon);
-            address = geo.address || 'Remoto';
-          }
-        } catch {}
-        const payload: any = {
-          user_id: profile.id,
-          date: now.toISOString().split('T')[0],
-          clock_in: now.toTimeString().split(' ')[0],
-          locations: {
-            clock_in: {
-              address,
-              distance: 10,
-              latitude: lat || null,
-              longitude: lon || null,
-              timestamp: ts.toISOString(),
-              locationName: 'Remoto'
-            }
-          }
-        };
-        const { data, error } = await supabase.from('time_records').insert([payload]).select('*').maybeSingle();
-        if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto.', variant: 'destructive' }); return; }
-        if (data) {
-          setLastRegistration(data as TimeRegistration);
-          toast({ title: 'Sucesso', description: 'Ponto registrado (Remoto).' });
-          fetchLastRegistration();
-          const end = Date.now() + COOLDOWN_MS;
-          setCooldownEndTime(end);
-          localStorage.setItem('timeRegistrationCooldown', String(end));
-        }
-      } catch {
-        toast({ title: 'Erro', description: 'Erro inesperado ao registrar.', variant: 'destructive' });
-      } finally {
-        setIsRegistering(false);
-      }
-      return;
-    }
-
-    // Modo padrão
-    if (!lat || !lon) {
-      toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' });
-      return;
-    }
     setIsRegistering(true);
+
     try {
-      const addr = (await reverseGeocode(lat, lon)).address;
-      const payload: any = {
-            user_id: profile.id,
-        date: now.toISOString().split('T')[0],
-        clock_in: now.toTimeString().split(' ')[0],
-            locations: {
-              clock_in: {
-            address: addr,
-            distance: Math.round(validationResult?.distance ?? 0) || undefined,
-            latitude: lat,
-            longitude: lon,
-            timestamp: ts.toISOString(),
-                locationName: validationResult?.closestLocation?.name || 'Desconhecido'
-              }
-            }
-      };
-      const { data, error } = await supabase.from('time_records').insert([payload]).select('*').maybeSingle();
-      if (error) { toast({ title: 'Erro', description: 'Falha ao registrar o ponto. Tente novamente.', variant: 'destructive' }); return; }
-      if (data) {
-        setLastRegistration(data as TimeRegistration);
-        toast({ title: 'Sucesso', description: 'Ponto registrado com sucesso!' });
-        fetchLastRegistration();
-        const end = Date.now() + COOLDOWN_MS;
-        setCooldownEndTime(end);
-        localStorage.setItem('timeRegistrationCooldown', String(end));
+      // Montar entrada locations[action]
+      let entry: any = {};
+      if (isRemote) {
+        let address = 'Remoto';
+        try { if (lat && lon) { const geo = await reverseGeocode(lat, lon); address = geo.address || 'Remoto'; } } catch {}
+        entry = { address, distance: 10, latitude: lat || null, longitude: lon || null, timestamp: ts.toISOString(), locationName: 'Remoto' };
+      } else {
+        if (!lat || !lon) { toast({ title: 'Erro', description: 'Localização não disponível. Tente novamente.', variant: 'destructive' }); setIsRegistering(false); return; }
+        const addr = (await reverseGeocode(lat, lon)).address;
+        const dist = Math.round(validationResult?.distance ?? 0);
+        entry = {
+          address: addr,
+          distance: Number.isFinite(dist) ? dist : 0,
+          latitude: lat,
+          longitude: lon,
+          timestamp: ts.toISOString(),
+          locationName: validationResult?.closestLocation?.name || 'Desconhecido',
+        };
       }
-    } catch {
-      toast({ title: 'Erro', description: 'Erro inesperado ao registrar o ponto.', variant: 'destructive' });
+
+      // Construir objeto locations mesclado
+      const mergedLocations = {
+        ...(existing?.locations || {}),
+        [action]: entry,
+      };
+
+      // Valor do campo de tempo
+      const actionTime = now.toTimeString().split(' ')[0];
+
+      if (existing?.id) {
+        // UPDATE
+        const updateData: any = { locations: mergedLocations, updated_at: now.toISOString() };
+        updateData[action] = actionTime;
+        const { error } = await supabase.from('time_records').update(updateData).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        // INSERT novo registro do dia
+        const insertData: any = {
+          user_id: profile.id,
+          date: today,
+          status: 'active',
+          locations: mergedLocations,
+        };
+        insertData[action] = actionTime;
+        const { error } = await supabase.from('time_records').insert(insertData);
+        if (error) throw error;
+      }
+
+      await fetchLastRegistration();
+      toast({ title: 'Sucesso', description: `${{
+        clock_in: 'Entrada',
+        lunch_start: 'Início do almoço',
+        lunch_end: 'Volta do almoço',
+        clock_out: 'Saída'
+      }[action]} registrada${isRemote ? ' (Remoto)' : ''}.` });
+
+      const end = Date.now() + COOLDOWN_MS;
+      setCooldownEndTime(end);
+      localStorage.setItem('timeRegistrationCooldown', String(end));
+    } catch (e: any) {
+      console.error('Falha ao registrar:', e);
+      toast({ title: 'Erro', description: 'Falha ao registrar o ponto.', variant: 'destructive' });
     } finally {
       setIsRegistering(false);
     }
