@@ -25,7 +25,7 @@ export interface UnifiedGPSStatusProps {
   validateLocation: () => void;
   calibrateForCurrentLocation: () => void;
   refreshLocation: () => void;
-  clearCalibration: () => void;
+  clearCalibration: (locationId: string) => void;
   debug?: any;
   hideDetails?: boolean;
   showCalibrate?: boolean;

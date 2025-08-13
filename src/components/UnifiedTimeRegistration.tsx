@@ -215,7 +215,7 @@ const UnifiedTimeRegistration: React.FC = () => {
 
       // Construir objeto locations mesclado
       const mergedLocations = {
-        ...(existing?.locations || {}),
+        ...(existing?.locations as Record<string, any> || {}),
         [action]: entry,
       };
 
@@ -263,17 +263,22 @@ const UnifiedTimeRegistration: React.FC = () => {
   const buttonDisabled = isRegistering || (!isRemote && !canRegister) || (cooldownEndTime !== null && cooldownEndTime > Date.now());
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-primary-800 flex items-center gap-2 text-lg sm:text-xl">
-          <Clock className="w-5 h-5 text-primary-600" />
-          Registro de Ponto
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Clock className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Registro de Ponto</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-4">
         <div className="w-full bg-white/90 rounded-xl shadow-sm">
           <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={420} />
-          <div className="px-3 py-3">
+          <div className="px-4 py-4">
             <UnifiedGPSStatus
               loading={loading || loadingLocations}
               error={error}
@@ -291,26 +296,39 @@ const UnifiedTimeRegistration: React.FC = () => {
               showCalibrate={false}
               showStatus={false}
             />
-            <div className="mt-2">
-              <div className="text-sm text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
-              <div className="text-2xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600 mt-2">
+            <div className="mt-3">
+              <div className="text-base text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
+              <div className="text-3xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
+              <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 mt-3">
                 <div>
-                  <div className="uppercase text-[10px] text-gray-500">Nome</div>
-                  <div>{profile?.name || user?.email}</div>
+                  <div className="uppercase text-xs text-gray-500 font-medium">Nome</div>
+                  <div className="text-base">{profile?.name || user?.email}</div>
                 </div>
               </div>
             </div>
 
             {/* Linha de botões lado a lado */}
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button onClick={handleTimeRegistration} disabled={buttonDisabled} size="lg" className="h-14 sm:h-16 text-base sm:text-lg font-semibold">
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <Button 
+                onClick={handleTimeRegistration} 
+                disabled={buttonDisabled} 
+                size="lg" 
+                className="h-16 text-lg font-semibold"
+              >
                 {isRegistering ? 'Registrando...' : 'Registrar Ponto'}
               </Button>
-              <Button variant="outline" onClick={calibrateForCurrentLocation} className="h-14 sm:h-16 text-base sm:text-lg">Calibrar GPS</Button>
+              <Button 
+                variant="outline" 
+                onClick={calibrateForCurrentLocation} 
+                className="h-16 text-lg"
+              >
+                Calibrar GPS
+              </Button>
             </div>
             {remainingCooldown !== null && (
-              <div className="mt-2 text-center text-xs sm:text-sm text-gray-600">Aguarde {formatRemaining(remainingCooldown)} para novo registro</div>
+              <div className="mt-3 text-center text-sm text-gray-600">
+                Aguarde {formatRemaining(remainingCooldown)} para novo registro
+              </div>
             )}
           </div>
         </div>
@@ -319,9 +337,8 @@ const UnifiedTimeRegistration: React.FC = () => {
         <div className="px-0 py-3">
           <TimeRegistrationProgress timeRecord={lastRegistration as any} />
         </div>
-        <div className="h-2" />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 

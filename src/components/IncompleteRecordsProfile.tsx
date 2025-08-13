@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, Edit3, Save, X } from 'lucide-react';
+import { Calendar, AlertTriangle, Clock, CheckCircle, RefreshCw, Edit3, Save, X, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -598,41 +598,41 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-          <div className="text-lg">Carregando registros...</div>
-          <div className="text-sm text-gray-600">Verificando registros do mês atual</div>
-        </CardContent>
-      </Card>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-6">
+          <RefreshCw className="w-12 h-12 animate-spin text-blue-600" />
+          <div className="text-xl font-semibold text-gray-800">Carregando registros...</div>
+          <div className="text-base text-gray-600 text-center">Verificando registros do mês atual</div>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
-          <AlertTriangle className="w-8 h-8 text-red-600" />
-          <div className="text-lg text-red-600">Erro ao carregar dados</div>
-          <div className="text-sm text-gray-600">{error}</div>
-          <Button onClick={() => loadIncompleteRecords()} variant="outline" size="sm">
-            <RefreshCw className="w-4 h-4 mr-2" />
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-6">
+          <AlertTriangle className="w-12 h-12 text-red-600" />
+          <div className="text-xl font-semibold text-red-600">Erro ao carregar dados</div>
+          <div className="text-base text-gray-600 text-center">{error}</div>
+          <Button onClick={() => loadIncompleteRecords()} variant="outline" size="lg" className="text-base px-6 py-3">
+            <RefreshCw className="w-5 h-5 mr-2" />
             Tentar Novamente
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   if (!user) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center h-32 space-y-4">
-          <AlertTriangle className="w-8 h-8 text-amber-600" />
-          <div className="text-lg text-amber-600">Usuário não autenticado</div>
-          <div className="text-sm text-gray-600">Por favor, faça login para ver seus registros</div>
-        </CardContent>
-      </Card>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-6">
+          <AlertTriangle className="w-12 h-12 text-amber-600" />
+          <div className="text-xl font-semibold text-amber-600">Usuário não autenticado</div>
+          <div className="text-base text-gray-600 text-center">Por favor, faça login para ver seus registros</div>
+        </div>
+      </div>
     );
   }
 
@@ -640,253 +640,271 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
   const weekendRecords = incompleteRecords.filter(record => record.isWeekend);
 
   return (
-    <>
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
-      <CardHeader>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-primary-800">
-            <Calendar className="w-5 h-5 text-primary-600" />
-            Registros Incompletos - Mês Atual
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="p-2"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
+            <div className="flex items-center gap-3">
+              <Calendar className="w-6 h-6 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">Registros Incompletos</h1>
+            </div>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent>
-          {incompleteRecords.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
-              <p className="text-lg text-green-600 font-medium">
-                Parabéns! Todos os registros do mês atual estão completos.
-              </p>
-              <p className="text-sm text-gray-600 mt-2">
-                Você tem todos os 4 registros diários preenchidos nos dias úteis do mês atual.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <Alert className="border-amber-200 bg-amber-50">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-amber-800">
-                  Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos no mês atual
-                  {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
-                </AlertDescription>
-              </Alert>
+        <p className="text-sm text-gray-600 mt-1">Mês Atual</p>
+      </div>
 
-              {/* Registros de dias úteis */}
-              {workingDayRecords.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Dias Úteis Incompletos:</h4>
-                  {workingDayRecords.map((record) => (
-                    <div 
-                      key={record.date}
-                      className="border rounded-lg p-4 bg-red-50"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h5 className="font-medium text-gray-900">
-                          {formatDate(record.date)}
-                        </h5>
-                        <div className="flex items-center gap-2">
-                          <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                            <Clock className="w-4 h-4" />
-                            <span className="text-sm font-medium">
-                              {record.completedCount}/4 registros
-                            </span>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditRecord(record.date)}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                          >
-                            <Edit3 className="w-4 h-4 mr-1" />
-                            Editar
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {record.missingFields.map((field) => (
-                            <span 
-                              key={field}
-                              className="inline-block bg-red-100 text-red-800 text-xs px-2 py-1 rounded"
-                            >
-                              {field}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <p className="text-xs text-gray-500 mt-2">
-                        💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+      {/* Content */}
+      <div className="p-4 space-y-4">
+        {incompleteRecords.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <CheckCircle className="w-16 h-16 text-green-600 mb-4" />
+            <h2 className="text-xl font-bold text-green-600 text-center mb-2">
+              Parabéns! Todos os registros do mês atual estão completos.
+            </h2>
+            <p className="text-base text-gray-600 text-center">
+              Você tem todos os 4 registros diários preenchidos nos dias úteis do mês atual.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <Alert className="border-amber-200 bg-amber-50 border-2">
+              <AlertTriangle className="h-5 w-5" />
+              <AlertDescription className="text-amber-800 text-base">
+                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos no mês atual
+                {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
+              </AlertDescription>
+            </Alert>
 
-              {/* Registros de fins de semana */}
-              {weekendRecords.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-900">Fins de Semana com Registros Incompletos:</h4>
-                  {weekendRecords.map((record) => (
-                    <div 
-                      key={record.date}
-                      className="border rounded-lg p-4 bg-blue-50"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h5 className="font-medium text-gray-900">
-                          {formatDate(record.date)} <span className="text-sm text-blue-600">(Fim de semana)</span>
-                        </h5>
-                        <div className="flex items-center gap-2">
-                          <div className={`flex items-center gap-1 ${getProgressColor(record.completedCount)}`}>
-                            <Clock className="w-4 h-4" />
-                            <span className="text-sm font-medium">
-                              {record.completedCount}/4 registros
-                            </span>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEditRecord(record.date)}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                          >
-                            <Edit3 className="w-4 h-4 mr-1" />
-                            Editar
-                          </Button>
+            {/* Registros de dias úteis */}
+            {workingDayRecords.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-gray-900">Dias Úteis Incompletos:</h3>
+                {workingDayRecords.map((record) => (
+                  <div 
+                    key={record.date}
+                    className="bg-red-50 border-2 border-red-200 rounded-xl p-4"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-gray-900 text-base">
+                        {formatDate(record.date)}
+                      </h4>
+                      <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-2 ${getProgressColor(record.completedCount)}`}>
+                          <Clock className="w-5 h-5" />
+                          <span className="text-base font-bold">
+                            {record.completedCount}/4 registros
+                          </span>
                         </div>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm text-gray-600 mb-1">Registros faltantes:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {record.missingFields.map((field) => (
-                            <span 
-                              key={field}
-                              className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
-                            >
-                              {field}
-                            </span>
-                          ))}
-                        </div>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          onClick={() => handleEditRecord(record.date)}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50 px-4 py-2 text-base"
+                        >
+                          <Edit3 className="w-5 h-5 mr-2" />
+                          Editar
+                        </Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    
+                    <div>
+                      <p className="text-base text-gray-700 mb-2 font-medium">Registros faltantes:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {record.missingFields.map((field) => (
+                          <span 
+                            key={field}
+                            className="inline-block bg-red-100 text-red-800 text-sm px-3 py-2 rounded-lg font-medium"
+                          >
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-600 mt-3">
+                      💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Registros de fins de semana */}
+            {weekendRecords.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-gray-900">Fins de Semana com Registros Incompletos:</h3>
+                {weekendRecords.map((record) => (
+                  <div 
+                    key={record.date}
+                    className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-gray-900 text-base">
+                        {formatDate(record.date)} <span className="text-sm text-blue-600 font-medium">(Fim de semana)</span>
+                      </h4>
+                      <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-2 ${getProgressColor(record.completedCount)}`}>
+                          <Clock className="w-5 h-5" />
+                          <span className="text-base font-bold">
+                            {record.completedCount}/4 registros
+                          </span>
+                        </div>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          onClick={() => handleEditRecord(record.date)}
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50 px-4 py-2 text-base"
+                        >
+                          <Edit3 className="w-5 h-5 mr-2" />
+                          Editar
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-base text-gray-700 mb-2 font-medium">Registros faltantes:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {record.missingFields.map((field) => (
+                          <span 
+                            key={field}
+                            className="inline-block bg-blue-100 text-blue-800 text-sm px-3 py-2 rounded-lg font-medium"
+                          >
+                            {field}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Modal de Edição */}
       <Dialog open={showEditModal} onOpenChange={handleCloseEditModal}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit3 className="w-5 h-5" />
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <Edit3 className="w-6 h-6" />
               Editar Registro - {selectedEditDate && formatDateTitle(selectedEditDate)}
             </DialogTitle>
           </DialogHeader>
 
           {loadingModal ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <Alert className="border-amber-200 bg-amber-50">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-amber-800 text-sm">
+            <div className="space-y-6">
+              <Alert className="border-amber-200 bg-amber-50 border-2">
+                <AlertTriangle className="h-5 w-5" />
+                <AlertDescription className="text-amber-800 text-base">
                   A solicitação será enviada para aprovação do RH.
                   Selecione a localização referente ao ajuste.
                 </AlertDescription>
               </Alert>
 
               <div>
-                <Label htmlFor="location">Localização *</Label>
+                <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
                 {allowedLocations.length > 0 ? (
                   <Select
                     value={editForm.locationName}
                     onValueChange={(value) => handleInputChange('locationName', value)}
                     disabled={submitting}
                   >
-                    <SelectTrigger id="location">
+                    <SelectTrigger id="location" className="h-12 text-base">
                       <SelectValue placeholder="Selecione a localização" />
                     </SelectTrigger>
                     <SelectContent>
                       {allowedLocations.map((location) => (
-                        <SelectItem key={location.id} value={location.name}>
+                        <SelectItem key={location.id} value={location.name} className="text-base">
                           {location.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="text-sm text-red-500">Nenhuma localização ativa disponível.</p>
+                  <p className="text-base text-red-500">Nenhuma localização ativa disponível.</p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="clock_in">Entrada</Label>
+                  <Label htmlFor="clock_in" className="text-base font-medium">Entrada</Label>
                   <Input
                     id="clock_in"
                     type="time"
                     value={editForm.clock_in}
                     onChange={(e) => setEditForm(prev => ({ ...prev, clock_in: e.target.value }))}
                     disabled={submitting}
+                    className="h-12 text-base"
                   />
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-sm text-gray-500 mt-1">
                     Atual: {timeRecord?.clock_in || 'Não registrado'}
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="lunch_start">Início Almoço</Label>
+                  <Label htmlFor="lunch_start" className="text-base font-medium">Início Almoço</Label>
                   <Input
                     id="lunch_start"
                     type="time"
                     value={editForm.lunch_start}
                     onChange={(e) => setEditForm(prev => ({ ...prev, lunch_start: e.target.value }))}
                     disabled={submitting}
+                    className="h-12 text-base"
                   />
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-sm text-gray-500 mt-1">
                     Atual: {timeRecord?.lunch_start || 'Não registrado'}
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="lunch_end">Fim Almoço</Label>
+                  <Label htmlFor="lunch_end" className="text-base font-medium">Fim Almoço</Label>
                   <Input
                     id="lunch_end"
                     type="time"
                     value={editForm.lunch_end}
                     onChange={(e) => setEditForm(prev => ({ ...prev, lunch_end: e.target.value }))}
                     disabled={submitting}
+                    className="h-12 text-base"
                   />
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-sm text-gray-500 mt-1">
                     Atual: {timeRecord?.lunch_end || 'Não registrado'}
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="clock_out">Saída</Label>
+                  <Label htmlFor="clock_out" className="text-base font-medium">Saída</Label>
                   <Input
                     id="clock_out"
                     type="time"
                     value={editForm.clock_out}
                     onChange={(e) => setEditForm(prev => ({ ...prev, clock_out: e.target.value }))}
                     disabled={submitting}
+                    className="h-12 text-base"
                   />
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-sm text-gray-500 mt-1">
                     Atual: {timeRecord?.clock_out || 'Não registrado'}
                   </div>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="reason">Motivo da Alteração *</Label>
+                <Label htmlFor="reason" className="text-base font-medium">Motivo da Alteração *</Label>
                 <Textarea
                   id="reason"
                   value={editForm.reason}
@@ -894,55 +912,55 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                   placeholder="Descreva o motivo da solicitação de alteração..."
                   required
                   disabled={submitting}
-                  className="min-h-[60px] resize-none"
+                  className="min-h-[80px] resize-none text-base"
                 />
               </div>
 
               {allowedLocations.length === 0 && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
+                <Alert variant="destructive" className="border-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertDescription className="text-base">
                     Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
                   </AlertDescription>
                 </Alert>
               )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={handleCloseEditModal}
                   disabled={submitting}
-                  className="flex-1"
+                  className="flex-1 h-12 text-base"
                 >
                   Cancelar
                 </Button>
                 <Button
                   onClick={handleSubmitEdit}
                   disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
-                  className="flex-1"
+                  className="flex-1 h-12 text-base"
                 >
                   {submitting ? (
                     <>
-                      <Clock className="w-4 h-4 mr-2 animate-spin" />
+                      <Clock className="w-5 h-5 mr-2 animate-spin" />
                       Enviando...
                     </>
                   ) : (
                     <>
-                      <Save className="w-4 h-4 mr-2" />
+                      <Save className="w-5 h-5 mr-2" />
                       Enviar
                     </>
                   )}
                 </Button>
               </div>
 
-              <p className="text-xs text-gray-500 text-center">
+              <p className="text-sm text-gray-500 text-center">
                 * A solicitação será enviada para aprovação do RH.
               </p>
             </div>
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 };
 

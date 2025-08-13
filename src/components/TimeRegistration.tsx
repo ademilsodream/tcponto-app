@@ -82,79 +82,106 @@ const TimeRegistration = () => {
 
   if (!hasAccess) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white shadow-lg">
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Acesso Negado</h2>
-            <p className="text-gray-600 mb-4">Você não tem permissão para registrar ponto neste sistema.</p>
-            <p className="text-sm text-gray-500">Entre em contato com o RH para mais informações.</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white shadow-lg rounded-xl p-6 text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Acesso Negado</h2>
+          <p className="text-gray-600 mb-4">Você não tem permissão para registrar ponto neste sistema.</p>
+          <p className="text-sm text-gray-500">Entre em contato com o RH para mais informações.</p>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8 min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-2">Carregando...</span>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="text-lg font-medium">Carregando...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full max-w-3xl">
-      <CardContent className="p-4 sm:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      <div className="p-4 space-y-4">
         <TimeRegistrationHeader currentTime={currentTime} />
-          <ShiftValidationInfo currentShiftMessage={shiftValidation.currentShiftMessage} nextButtonAvailable={shiftValidation.nextButtonAvailable} timeUntilNext={shiftValidation.timeUntilNext} />
-          <TimeRegistrationProgress timeRecord={timeRecord} onEditRequest={handleEditRequest} />
-          <TimeRegistrationButtons
-            nextAction={nextAction}
-            onTimeAction={handleTimeAction}
-            isRegistrationButtonDisabled={isRegistrationButtonDisabled}
-            submitting={submitting}
-            shiftValidation={{ allowedButtons: shiftValidation.allowedButtons, timeUntilNext: shiftValidation.timeUntilNext }}
-            remainingCooldown={remainingCooldown}
-            formatRemainingTime={formatRemainingTime}
-          />
-          {!nextAction && <CompletionMessage />}
-        </CardContent>
-    </Card>
+        <ShiftValidationInfo currentShiftMessage={shiftValidation.currentShiftMessage} nextButtonAvailable={shiftValidation.nextButtonAvailable} timeUntilNext={shiftValidation.timeUntilNext} />
+        <TimeRegistrationProgress timeRecord={timeRecord} onEditRequest={handleEditRequest} />
+        <TimeRegistrationButtons
+          nextAction={nextAction}
+          onTimeAction={handleTimeAction}
+          isRegistrationButtonDisabled={isRegistrationButtonDisabled}
+          submitting={submitting}
+          shiftValidation={{ allowedButtons: shiftValidation.allowedButtons, timeUntilNext: shiftValidation.timeUntilNext }}
+          remainingCooldown={remainingCooldown}
+          formatRemainingTime={formatRemainingTime}
+        />
+        {!nextAction && <CompletionMessage />}
+      </div>
 
       {unreadAnnouncements.length > 0 ? (
-        <div className="w-full max-w-md mt-4">
+        <div className="w-full px-4 pb-4">
           <AnnouncementNotification announcements={unreadAnnouncements} onAnnouncementClick={handleAnnouncementClick} />
         </div>
       ) : (
-        <div className="w-full max-w-md mt-4 text-center text-gray-500 text-sm"></div>
+        <div className="w-full px-4 pb-4 text-center text-gray-500 text-sm"></div>
       )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md p-6">
           <DialogHeader>
-            <DialogTitle>Solicitar Alteração - {editField ? fieldNames[editField] : ''}</DialogTitle>
+            <DialogTitle className="text-xl">Solicitar Alteração - {editField ? fieldNames[editField] : ''}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-value">Novo Horário</Label>
-              <Input id="edit-value" type="time" value={editValue} onChange={(e) => setEditValue(e.target.value)} disabled={submitting} />
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Label htmlFor="edit-value" className="text-base font-medium">Novo Horário</Label>
+              <Input 
+                id="edit-value" 
+                type="time" 
+                value={editValue} 
+                onChange={(e) => setEditValue(e.target.value)} 
+                disabled={submitting} 
+                className="h-12 text-base"
+              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
-              <Textarea id="edit-reason" value={editReason} onChange={(e) => setEditReason(e.target.value)} placeholder="Descreva o motivo da solicitação de alteração..." required disabled={submitting} />
+            <div className="space-y-3">
+              <Label htmlFor="edit-reason" className="text-base font-medium">Motivo da Alteração *</Label>
+              <Textarea 
+                id="edit-reason" 
+                value={editReason} 
+                onChange={(e) => setEditReason(e.target.value)} 
+                placeholder="Descreva o motivo da solicitação de alteração..." 
+                required 
+                disabled={submitting} 
+                className="min-h-[80px] text-base resize-none"
+              />
             </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={submitting}>Cancelar</Button>
-              <Button onClick={handleEditDialogSubmit} disabled={submitting || !editValue || !editReason}>{submitting ? 'Enviando...' : 'Enviar Solicitação'}</Button>
+            <div className="flex gap-3 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsEditDialogOpen(false)} 
+                disabled={submitting}
+                className="flex-1 h-12 text-base"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleEditDialogSubmit} 
+                disabled={submitting || !editValue || !editReason}
+                className="flex-1 h-12 text-base"
+              >
+                {submitting ? 'Enviando...' : 'Enviar Solicitação'}
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <AnnouncementModal announcement={selectedAnnouncement} isOpen={isAnnouncementModalOpen} onClose={handleCloseAnnouncementModal} onMarkAsRead={handleMarkAnnouncementAsRead} />
-    </Card>
+    </div>
   );
 };
 

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar as CalendarIconLucide, Clock, DollarSign, ChevronDown, ChevronUp, CalendarIcon, Grid as GridIcon, List as ListIcon } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, parseISO, isValid, startOfWeek, endOfWeek, addDays, isSameMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, isValid, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -418,46 +418,253 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
 
   // Conteúdo principal
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-primary-800 flex items-center gap-2">
-          <Clock className="w-5 h-5 text-primary-600" />
-          Relatório Detalhado
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
-        {FiltersHeader}
-        {viewMode === 'calendar' ? CalendarGrid : ListView}
-      </CardContent>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="p-2"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
+            <div className="flex items-center gap-3">
+              <Clock className="w-6 h-6 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">Relatório Detalhado</h1>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-4">
+        {/* Filters Header */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-lg font-semibold text-gray-900">Selecionar Período</span>
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === 'calendar' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('calendar')}
+                className="flex items-center gap-1 text-sm"
+              >
+                <GridIcon className="w-4 h-4" /> Calendário
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="flex items-center gap-1 text-sm"
+              >
+                <ListIcon className="w-4 h-4" /> Lista
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Seletor de Data Inicial */}
+            <div className="space-y-2">
+              <Label htmlFor="startDate" className="text-base font-medium">Data Inicial</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="startDate" variant="outline" className={cn("w-full justify-start text-left font-normal h-12 text-base")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(d) => {
+                      if (d) {
+                        setStartDate(startOfMonth(d));
+                        setEndDate(endOfMonth(d));
+                      }
+                    }}
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Seletor de Data Final */}
+            <div className="space-y-2">
+              <Label htmlFor="endDate" className="text-base font-medium">Data Final</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="endDate" variant="outline" className={cn("w-full justify-start text-left font-normal h-12 text-base")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(d) => { if (d) setEndDate(endOfMonth(d)); }}
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar or List View */}
+        {viewMode === 'calendar' ? (
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <div className="text-lg font-semibold mb-4">Calendário</div>
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+                <div key={day} className="p-2 text-sm font-medium text-gray-600">
+                  {day}
+                </div>
+              ))}
+              {monthGrid.map((day) => {
+                const key = format(day, 'yyyy-MM-dd');
+                const hasRecords = recordsByDate.has(key);
+                const isCurrentMonth = day.getMonth() === startDate?.getMonth();
+                const isToday = isSameDay(day, new Date());
+                const totals = totalsByDate.get(key);
+                
+                return (
+                  <button
+                    key={day.toISOString()}
+                    onClick={() => openDayDetails(day)}
+                    className={cn(
+                      "p-2 min-h-[60px] text-sm border rounded-lg transition-colors",
+                      !isCurrentMonth && "text-gray-300 bg-gray-50",
+                      isToday && "ring-2 ring-blue-500",
+                      hasRecords && "bg-blue-50 border-blue-200 hover:bg-blue-100",
+                      !hasRecords && isCurrentMonth && "hover:bg-gray-50"
+                    )}
+                  >
+                    <div className="font-medium">{format(day, 'd')}</div>
+                    {hasRecords && totals && (
+                      <div className="text-xs text-blue-600 font-medium">
+                        {formatHoursAsTime(totals.total)}
+                      </div>
+                    )}
+                    {/* Registros resumidos */}
+                    {hasRecords && (
+                      <div className="mt-1 space-y-0.5">
+                        {recordsByDate.get(key)!.slice(0, 3).map((r) => (
+                          <div key={r.id} className="text-[10px] sm:text-xs truncate">
+                            • {r.clock_in || '--:--'} - {r.clock_out || '--:--'}
+                          </div>
+                        ))}
+                        {recordsByDate.get(key)!.length > 3 && (
+                          <div className="text-[10px] sm:text-[11px] text-gray-500">+{recordsByDate.get(key)!.length - 3} mais</div>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <div className="text-lg font-semibold mb-4">Registros</div>
+            {loading ? (
+              <div className="p-6 text-center">
+                <Clock className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                <span className="text-base">Carregando registros...</span>
+              </div>
+            ) : records.length > 0 ? (
+              <div className="space-y-4">
+                {records.map((record) => (
+                  <div key={record.id} className={`p-4 border-2 rounded-xl ${record.isWeekend ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-base font-semibold flex items-center gap-2">
+                          {format(parseISO(record.date), 'dd/MM/yyyy (EEE)', { locale: ptBR })}
+                          {record.isWeekend && (
+                            <span className="text-xs font-medium text-yellow-800 bg-yellow-200 px-2 py-1 rounded-full">Fim de Semana</span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-gray-600 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatHoursAsTime(record.total_hours)} trabalhadas
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => toggleExpand(record.id)} className="p-2">
+                        {expandedRecordId === record.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    {expandedRecordId === record.id && (
+                      <div className="border-t pt-4 mt-4">
+                        <div className="space-y-3 text-sm">
+                          <div className="flex justify-between"><span>Entrada:</span><span className="font-medium">{record.clock_in || '--:--'}</span></div>
+                          <div className="flex justify-between"><span>Início Almoço:</span><span className="font-medium">{record.lunch_start || '--:--'}</span></div>
+                          <div className="flex justify-between"><span>Fim Almoço:</span><span className="font-medium">{record.lunch_end || '--:--'}</span></div>
+                          <div className="flex justify-between"><span>Saída:</span><span className="font-medium">{record.clock_out || '--:--'}</span></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-gray-600 text-base">Nenhum registro encontrado para o período selecionado.</div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Dialog de detalhes do dia (mobile friendly) */}
       <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg p-6">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl">
               {dialogDate ? format(dialogDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : ''}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             {dialogDate ? (
               (() => {
                 const key = format(dialogDate, 'yyyy-MM-dd');
                 const items = recordsByDate.get(key) || [];
                 if (items.length === 0) {
-                  return <div className="text-sm text-gray-500">Sem registros neste dia.</div>;
+                  return <div className="text-base text-gray-500">Sem registros neste dia.</div>;
                 }
                 return (
-                  <div className="space-y-2">
-                    {items.map((r) => (
-                      <Card key={r.id}>
-                        <CardContent className="p-3 text-sm">
-                          <div className="flex justify-between"><span>Entrada:</span><span className="font-medium">{r.clock_in || '--:--'}</span></div>
-                          <div className="flex justify-between"><span>Início Almoço:</span><span className="font-medium">{r.lunch_start || '--:--'}</span></div>
-                          <div className="flex justify-between"><span>Fim Almoço:</span><span className="font-medium">{r.lunch_end || '--:--'}</span></div>
-                          <div className="flex justify-between"><span>Saída:</span><span className="font-medium">{r.clock_out || '--:--'}</span></div>
-                          <div className="flex justify-between text-primary-700 mt-2"><span>Total:</span><span className="font-semibold">{formatHoursAsTime(r.total_hours)}</span></div>
-                        </CardContent>
-                      </Card>
+                  <div className="space-y-4">
+                    {items.map((record) => (
+                      <div key={record.id} className="p-4 border-2 border-gray-200 rounded-xl bg-gray-50">
+                        <div className="space-y-3">
+                          <div className="flex justify-between text-base">
+                            <span>Entrada:</span>
+                            <span className="font-medium">{record.clock_in || '--:--'}</span>
+                          </div>
+                          <div className="flex justify-between text-base">
+                            <span>Início Almoço:</span>
+                            <span className="font-medium">{record.lunch_start || '--:--'}</span>
+                          </div>
+                          <div className="flex justify-between text-base">
+                            <span>Fim Almoço:</span>
+                            <span className="font-medium">{record.lunch_end || '--:--'}</span>
+                          </div>
+                          <div className="flex justify-between text-base">
+                            <span>Saída:</span>
+                            <span className="font-medium">{record.clock_out || '--:--'}</span>
+                          </div>
+                          <div className="border-t pt-3">
+                            <div className="flex justify-between text-base font-semibold">
+                              <span>Total:</span>
+                              <span className="text-blue-600">{formatHoursAsTime(record.total_hours)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 );
@@ -466,7 +673,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };
 

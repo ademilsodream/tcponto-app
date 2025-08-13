@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, ChevronLeft, ChevronRight, Briefcase, Clock9, AlarmClock, Utensils } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Briefcase, Clock9, AlarmClock, Utensils, Coffee, DollarSign } from 'lucide-react';
 import { format, isSameMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -257,59 +257,68 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
   const progress = Math.min(100, Math.round((summary.totalHours / Math.max(1, summary.plannedHours)) * 100));
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-primary-800 flex items-center gap-2 text-lg sm:text-xl">
-            <Calendar className="w-5 h-5 text-primary-600" />
-            Resumo Mensal
-          </CardTitle>
-        </div>
-        {/* Controles de período */}
-        <div className="flex items-center gap-2 mt-4 flex-wrap">
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={goToPreviousMonth} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={goToNextMonth} disabled={!canGoToNextMonth()} className="h-8 w-8 p-0">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Select value={selectedMonthIndex.toString()} onValueChange={(v) => setSelectedMonthIndex(parseInt(v))}>
-              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {months.map(m => <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-              <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {years.map(y => <SelectItem key={y.value} value={y.value.toString()}>{y.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Resumo Mensal</h1>
           </div>
         </div>
-        <div className="text-sm text-gray-600 mt-2">{format(baseDate, 'MMMM yyyy', { locale: ptBR })}</div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="pt-0">
-        {/* Barra de progresso Trabalhadas vs Previstas */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between text-sm text-gray-700 mb-1">
-            <span>Progresso do mês</span>
-            <span>{formatHoursAsTime(summary.totalHours)} / {formatHoursAsTime(summary.plannedHours)}</span>
+      {/* Content */}
+      <div className="p-4 space-y-4">
+        {/* Controles de período */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <Button variant="outline" size="sm" onClick={goToPreviousMonth} className="h-10 w-10 p-0">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-2 flex-1">
+              <Select value={selectedMonthIndex.toString()} onValueChange={(v) => setSelectedMonthIndex(parseInt(v))}>
+                <SelectTrigger className="h-10 text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map(m => <SelectItem key={m.value} value={m.value.toString()} className="text-base">{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                <SelectTrigger className="h-10 w-20 text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map(y => <SelectItem key={y.value} value={y.value.toString()} className="text-base">{y.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="sm" onClick={goToNextMonth} disabled={!canGoToNextMonth()} className="h-10 w-10 p-0">
+              <ChevronRight className="h-5 w-5" />
+            </Button>
           </div>
-          <Progress value={progress} className="h-3" />
+          <div className="text-base text-gray-600 text-center">{format(baseDate, 'MMMM yyyy', { locale: ptBR })}</div>
+        </div>
+
+        {/* Barra de progresso Trabalhadas vs Previstas */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="flex items-center justify-between text-base text-gray-700 mb-2">
+            <span className="font-medium">Progresso do mês</span>
+            <span className="font-bold">{formatHoursAsTime(summary.totalHours)} / {formatHoursAsTime(summary.plannedHours)}</span>
+          </div>
+          <Progress value={progress} className="h-4" />
         </div>
 
         {/* Cards de métricas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="p-4 bg-white rounded-xl shadow-sm border">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-indigo-50 text-indigo-600"><Briefcase className="w-5 h-5" /></div>
+              <div className="p-3 rounded-lg bg-indigo-50 text-indigo-600">
+                <Briefcase className="w-6 h-6" />
+              </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Dias trabalhados</p>
+                <p className="text-sm text-gray-500 uppercase font-medium">Dias trabalhados</p>
                 <p className="text-2xl font-bold text-gray-900">{summary.workingDays}</p>
               </div>
             </div>
@@ -317,9 +326,11 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
 
           <div className="p-4 bg-white rounded-xl shadow-sm border">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-green-50 text-green-600"><Clock9 className="w-5 h-5" /></div>
+              <div className="p-3 rounded-lg bg-green-50 text-green-600">
+                <Clock9 className="w-6 h-6" />
+              </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Horas trabalhadas</p>
+                <p className="text-sm text-gray-500 uppercase font-medium">Horas trabalhadas</p>
                 <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.totalHours)}</p>
               </div>
             </div>
@@ -327,9 +338,11 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
 
           <div className="p-4 bg-white rounded-xl shadow-sm border">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-blue-50 text-blue-600"><AlarmClock className="w-5 h-5" /></div>
+              <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
+                <AlarmClock className="w-6 h-6" />
+              </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Horas previstas</p>
+                <p className="text-sm text-gray-500 uppercase font-medium">Horas previstas</p>
                 <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.plannedHours)}</p>
               </div>
             </div>
@@ -337,9 +350,11 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
 
           <div className="p-4 bg-white rounded-xl shadow-sm border">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-orange-50 text-orange-600"><AlarmClock className="w-5 h-5" /></div>
+              <div className="p-3 rounded-lg bg-orange-50 text-orange-600">
+                <AlarmClock className="w-6 h-6" />
+              </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Horas extras</p>
+                <p className="text-sm text-gray-500 uppercase font-medium">Horas extras</p>
                 <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.overtimeHours)}</p>
               </div>
             </div>
@@ -347,16 +362,49 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
 
           <div className="p-4 bg-white rounded-xl shadow-sm border">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-pink-50 text-pink-600"><Utensils className="w-5 h-5" /></div>
+              <div className="p-3 rounded-lg bg-purple-50 text-purple-600">
+                <Coffee className="w-6 h-6" />
+              </div>
               <div>
-                <p className="text-xs text-gray-500 uppercase">Total em almoço</p>
+                <p className="text-sm text-gray-500 uppercase font-medium">Horas de almoço</p>
                 <p className="text-2xl font-bold text-gray-900">{formatHoursAsTime(summary.lunchHours)}</p>
               </div>
             </div>
           </div>
+
+          <div className="p-4 bg-white rounded-xl shadow-sm border">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-lg bg-emerald-50 text-emerald-600">
+                <DollarSign className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 uppercase font-medium">Total a receber</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.totalPay)}</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Detalhamento de valores */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Detalhamento de Valores</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-base text-gray-700">Horas normais ({formatHoursAsTime(summary.normalHours)})</span>
+              <span className="text-base font-semibold text-gray-900">{formatCurrency(summary.normalPay)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-base text-gray-700">Horas extras ({formatHoursAsTime(summary.overtimeHours)})</span>
+              <span className="text-base font-semibold text-orange-600">{formatCurrency(summary.overtimePay)}</span>
+            </div>
+            <div className="flex justify-between items-center py-3 bg-gray-50 rounded-lg px-3">
+              <span className="text-lg font-bold text-gray-900">Total</span>
+              <span className="text-lg font-bold text-emerald-600">{formatCurrency(summary.totalPay)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
