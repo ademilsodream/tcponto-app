@@ -371,14 +371,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
               </div>
             </div>
           </div>
-
-          <div className="p-4 bg-white rounded-xl shadow-sm border">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-lg bg-emerald-50 text-emerald-600">
-                <DollarSign className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
         </div>
 
 
