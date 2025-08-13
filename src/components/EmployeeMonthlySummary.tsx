@@ -385,24 +385,7 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
           </div>
         </div>
 
-        {/* Detalhamento de valores */}
-        <div className="bg-white rounded-xl shadow-sm border p-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Detalhamento de Valores</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-base text-gray-700">Horas normais ({formatHoursAsTime(summary.normalHours)})</span>
-              <span className="text-base font-semibold text-gray-900">{formatCurrency(summary.normalPay)}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-base text-gray-700">Horas extras ({formatHoursAsTime(summary.overtimeHours)})</span>
-              <span className="text-base font-semibold text-orange-600">{formatCurrency(summary.overtimePay)}</span>
-            </div>
-            <div className="flex justify-between items-center py-3 bg-gray-50 rounded-lg px-3">
-              <span className="text-lg font-bold text-gray-900">Total</span>
-              <span className="text-lg font-bold text-emerald-600">{formatCurrency(summary.totalPay)}</span>
-            </div>
-          </div>
-        </div>
+
       </div>
     </div>
   );

@@ -301,7 +301,7 @@ const UnifiedTimeRegistration: React.FC = () => {
               <div className="text-3xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
               <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 mt-3">
                 <div>
-                  <div className="uppercase text-xs text-gray-500 font-medium">Nome</div>
+                  <div className="uppercase text-xs text-gray-500 font-medium">Funcionário</div>
                   <div className="text-base">{profile?.name || user?.email}</div>
                 </div>
               </div>
@@ -315,7 +315,7 @@ const UnifiedTimeRegistration: React.FC = () => {
                 size="lg" 
                 className="h-16 text-lg font-semibold"
               >
-                {isRegistering ? 'Registrando...' : 'Registrar Ponto'}
+                {isRegistering ? 'Registrando...' : 'Registrar'}
               </Button>
               <Button 
                 variant="outline" 

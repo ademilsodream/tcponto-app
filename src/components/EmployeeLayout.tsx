@@ -67,7 +67,6 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
             <div className="flex items-center justify-end space-x-2">
               <div className="text-right hidden sm:block">
                 <p className="text-base font-medium text-gray-900">{profile?.name || user?.email}</p>
-                <p className="text-sm text-gray-600">Funcionário</p>
               </div>
               <Button
                 variant="ghost"

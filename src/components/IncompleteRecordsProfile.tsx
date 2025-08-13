@@ -673,7 +673,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
               Parabéns! Todos os registros do mês atual estão completos.
             </h2>
             <p className="text-base text-gray-600 text-center">
-              Você tem todos os 4 registros diários preenchidos nos dias úteis do mês atual.
+              Você tem todos os 4 registros diários preenchidos nos dias do mês atual.
             </p>
           </div>
         ) : (
@@ -681,7 +681,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             <Alert className="border-amber-200 bg-amber-50 border-2">
               <AlertTriangle className="h-5 w-5" />
               <AlertDescription className="text-amber-800 text-base">
-                Você tem {workingDayRecords.length} dia(s) úteis com registros incompletos no mês atual
+                Você tem {workingDayRecords.length} dia(s) com registros incompletos no mês atual
                 {weekendRecords.length > 0 && ` e ${weekendRecords.length} dia(s) de fim de semana com registros incompletos`}.
               </AlertDescription>
             </Alert>
@@ -689,7 +689,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
             {/* Registros de dias úteis */}
             {workingDayRecords.length > 0 && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-gray-900">Dias Úteis Incompletos:</h3>
+                <h3 className="text-lg font-bold text-gray-900">Dias Incompletos:</h3>
                 {workingDayRecords.map((record) => (
                   <div 
                     key={record.date}
@@ -813,12 +813,12 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                 <AlertTriangle className="h-5 w-5" />
                 <AlertDescription className="text-amber-800 text-base">
                   A solicitação será enviada para aprovação do RH.
-                  Selecione a localização referente ao ajuste.
+                  Selecione a obra referente ao ajuste.
                 </AlertDescription>
               </Alert>
 
               <div>
-                <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
+                <Label htmlFor="location" className="text-base font-medium">Obra *</Label>
                 {allowedLocations.length > 0 ? (
                   <Select
                     value={editForm.locationName}
@@ -826,7 +826,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                     disabled={submitting}
                   >
                     <SelectTrigger id="location" className="h-12 text-base">
-                      <SelectValue placeholder="Selecione a localização" />
+                      <SelectValue placeholder="Selecione uma obra" />
                     </SelectTrigger>
                     <SelectContent>
                       {allowedLocations.map((location) => (
@@ -837,7 +837,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="text-base text-red-500">Nenhuma localização ativa disponível.</p>
+                  <p className="text-base text-red-500">Nenhuma obra ativa disponível.</p>
                 )}
               </div>
 
@@ -920,7 +920,7 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                 <Alert variant="destructive" className="border-2">
                   <AlertTriangle className="h-5 w-5" />
                   <AlertDescription className="text-base">
-                    Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
+                    Nenhuma obra ativa encontrada. Não é possível solicitar edição sem selecionar uma obra.
                   </AlertDescription>
                 </Alert>
               )}
