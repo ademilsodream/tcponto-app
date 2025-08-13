@@ -167,8 +167,8 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({ onUp
       }
     }}>
       <DialogTrigger asChild>
-        <Button className="h-12 px-6 text-base font-semibold bg-blue-600 hover:bg-blue-700">
-          <Upload className="w-5 h-5 mr-2" />
+        <Button className="h-10 px-4 text-sm font-semibold sm:h-12 sm:px-6 sm:text-base">
+          <Upload className="w-4 h-4 mr-2 sm:w-5 sm:h-5" />
           Enviar Documento
         </Button>
       </DialogTrigger>
@@ -280,7 +280,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({ onUp
             <Button
               onClick={handleUpload}
               disabled={uploading || !selectedFile || !title || !category}
-              className="flex-1 h-12 text-base bg-blue-600 hover:bg-blue-700"
+              className="flex-1 h-12 text-base"
             >
               {uploading ? (
                 <>
