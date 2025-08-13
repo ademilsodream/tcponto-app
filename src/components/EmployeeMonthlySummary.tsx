@@ -377,10 +377,6 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
               <div className="p-3 rounded-lg bg-emerald-50 text-emerald-600">
                 <DollarSign className="w-6 h-6" />
               </div>
-              <div>
-                <p className="text-sm text-gray-500 uppercase font-medium">Total a receber</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(summary.totalPay)}</p>
-              </div>
             </div>
           </div>
         </div>
