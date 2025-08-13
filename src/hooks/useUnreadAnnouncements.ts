@@ -1,237 +1,63 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
+import { supabase } from '../integrations/supabase/client';
 
 interface Announcement {
   id: string;
   title: string;
   content: string;
-  priority: 'low' | 'normal' | 'high';
   created_at: string;
-  expires_at?: string;
+  expires_at: string | null;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  is_active: boolean;
 }
 
-export const useUnreadAnnouncements = () => {
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState<Announcement[]>([]);
+export const useUnreadAnnouncements = (userId: string) => {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useOptimizedAuth();
-
-  const fetchUnreadAnnouncements = async () => {
-    if (!user) {
-      console.log('❌ Usuário não está logado');
-      setUnreadAnnouncements([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      console.log('🔍 INICIANDO BUSCA DE ANÚNCIOS para usuário:', user.id);
-      setLoading(true);
-
-      // Primeiro, buscar os IDs dos anúncios não lidos do usuário
-      const { data: recipientData, error: recipientError } = await supabase
-        .from('announcement_recipients')
-        .select('announcement_id')
-        .eq('employee_id', user.id)
-        .eq('is_read', false);
-
-      if (recipientError) {
-        console.error('❌ Erro ao buscar recipients:', recipientError);
-        setLoading(false);
-        return;
-      }
-
-      console.log('🎯 DEBUG - User ID:', user.id);
-      console.log('📋 Recipients não lidos encontrados:', recipientData?.length || 0, recipientData);
-
-      if (!recipientData || recipientData.length === 0) {
-        console.log('📭 Nenhum recipient não lido encontrado para este usuário');
-        setUnreadAnnouncements([]);
-        setLoading(false);
-        return;
-      }
-
-      // Buscar os anúncios pelos IDs encontrados
-      const announcementIds = recipientData.map(r => r.announcement_id);
-      console.log('🔍 Buscando anúncios pelos IDs:', announcementIds);
-
-      // ✅ QUERY SIMPLIFICADA PARA DEBUG - Remover filtros desnecessários
-      console.log('🔍 EXECUTANDO QUERY SIMPLIFICADA...');
-      const { data: announcementsData, error: announcementsError } = await supabase
-        .from('announcements')
-        .select(`
-          id,
-          title,
-          content,
-          priority,
-          created_at,
-          expires_at,
-          is_active
-        `)
-        .in('id', announcementIds);
-
-      console.log('🔍 QUERY EXECUTADA. Resultado bruto:', {
-        data: announcementsData,
-        error: announcementsError,
-        count: announcementsData?.length || 0
-      });
-
-      if (announcementsError) {
-        console.error('❌ Erro ao buscar anúncios:', announcementsError);
-        setLoading(false);
-        return;
-      }
-
-      console.log('📋 Anúncios RAW encontrados:', announcementsData?.length || 0, announcementsData);
-
-      if (!announcementsData || announcementsData.length === 0) {
-        console.log('📭 Nenhum anúncio encontrado pelos IDs fornecidos');
-        console.log('🔍 DEBUG: IDs buscados vs encontrados:', {
-          buscados: announcementIds,
-          encontrados: []
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Filtrar apenas anúncios ativos e válidos
-      console.log('🔍 APLICANDO FILTROS...');
-      const today = new Date().toISOString().split('T')[0];
-      console.log('📅 Data atual (apenas data):', today);
-
-      const activeAnnouncements = announcementsData
-        .filter(announcement => {
-          console.log(`🔍 Verificando anúncio ${announcement.id}: ${announcement.title}`);
-          console.log('   - is_active:', announcement.is_active);
-          console.log('   - expires_at:', announcement.expires_at);
-          
-          // Verificar se está ativo
-          if (!announcement.is_active) {
-            console.log('   ❌ ANÚNCIO INATIVO - IGNORANDO');
-            return false;
-          }
-
-          // Se não tem data de expiração, sempre ativo
-          if (!announcement.expires_at) {
-            console.log('   ✅ SEM DATA DE EXPIRAÇÃO - SEMPRE ATIVO');
-            return true;
-          }
-
-          // Extrair apenas a data da expiração (YYYY-MM-DD)
-          const expirationDate = announcement.expires_at.split('T')[0];
-          console.log('   - expirationDate (apenas data):', expirationDate);
-          console.log('   - today:', today);
-
-          // Comparação: anúncio é válido se expira hoje ou depois de hoje
-          const isValid = expirationDate >= today;
-          console.log('   - isValid:', isValid);
-
-          if (!isValid) {
-            console.log('   ❌ ANÚNCIO EXPIRADO - IGNORANDO');
-            return false;
-          }
-
-          console.log('   ✅ ANÚNCIO VÁLIDO - INCLUINDO');
-          return true;
-        })
-        .map(announcement => ({
-          ...announcement,
-          priority: (announcement.priority || 'normal') as 'low' | 'normal' | 'high'
-        }));
-
-      console.log('✅ RESULTADO FINAL - Anúncios válidos:', activeAnnouncements.length, activeAnnouncements);
-      setUnreadAnnouncements(activeAnnouncements);
-
-    } catch (error) {
-      console.error('❌ Erro inesperado ao buscar anúncios:', error);
-      setUnreadAnnouncements([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const markAsRead = async (announcementId: string) => {
-    if (!user) return;
-
-    try {
-      console.log('📖 Marcando anúncio como lido:', announcementId);
-
-      const { error } = await supabase
-        .from('announcement_recipients')
-        .update({ 
-          is_read: true,
-          read_at: new Date().toISOString()
-        })
-        .eq('employee_id', user.id)
-        .eq('announcement_id', announcementId);
-
-      if (error) {
-        console.error('❌ Erro ao marcar anúncio como lido:', error);
-        return;
-      }
-
-      console.log('✅ Anúncio marcado como lido com sucesso');
-
-      // Atualizar estado local
-      setUnreadAnnouncements(prev => {
-        const newList = prev.filter(announcement => announcement.id !== announcementId);
-        console.log('📝 Atualizando lista local: nova lista:', newList.length);
-        return newList;
-      });
-    } catch (error) {
-      console.error('❌ Erro ao marcar anúncio como lido:', error);
-    }
-  };
 
   useEffect(() => {
-    if (user) {
-      console.log('👤 Usuário logado detectado, carregando anúncios...');
-      fetchUnreadAnnouncements();
-    } else {
-      console.log('👤 Usuário não logado, aguardando...');
-      setLoading(false);
-    }
-  }, [user]);
+    if (!userId) return;
 
-  // Configurar listener para novos anúncios
-  useEffect(() => {
-    if (!user) return;
+    const loadUnreadAnnouncements = async () => {
+      try {
+        setLoading(true);
+        const now = new Date().toISOString();
+        
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .eq('is_active', true)
+          .or(`expires_at.is.null,expires_at.gt.${now}`)
+          .order('priority', { ascending: false })
+          .order('created_at', { ascending: false });
 
-    console.log('🔄 Configurando listener para novos anúncios');
-
-    const channel = supabase
-      .channel('announcement_recipients_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'announcement_recipients',
-          filter: `employee_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('🔔 Novo anúncio recebido:', payload);
-          fetchUnreadAnnouncements();
+        if (error) {
+          console.error('Error loading unread announcements:', error);
+          return;
         }
-      )
-      .subscribe();
 
-    return () => {
-      console.log('🛑 Removendo listener de anúncios');
-      supabase.removeChannel(channel);
+        setAnnouncements(data || []);
+        setUnreadCount(data?.length || 0);
+      } catch (error) {
+        console.error('Error loading unread announcements:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [user]);
 
-  console.log('🏠 Hook useUnreadAnnouncements retornando:', { 
-    unreadAnnouncements: unreadAnnouncements.length, 
-    loading,
-    userId: user?.id
-  });
+    loadUnreadAnnouncements();
+    
+    // Recarregar a cada 2 minutos
+    const interval = setInterval(loadUnreadAnnouncements, 2 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [userId]);
 
   return {
-    unreadAnnouncements,
-    loading,
-    markAsRead
+    unreadCount,
+    announcements,
+    loading
   };
 };
