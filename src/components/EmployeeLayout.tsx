@@ -71,6 +71,20 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
               <div className="text-right hidden sm:block">
                 <p className="text-base font-medium text-gray-900">{profile?.name || user?.email}</p>
               </div>
+              
+              {/* Indicador de Anúncios */}
+              {unreadCount > 0 && (
+                <div className="relative">
+                  <Bell className="w-5 h-5 text-blue-600" />
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Badge>
+                </div>
+              )}
+              
               <Button
                 variant="ghost"
                 size="sm"
