@@ -239,7 +239,7 @@ const SalaryAdvanceRequest: React.FC = () => {
             {!showForm && !hasPendingRequest && (
               <Button onClick={() => setShowForm(true)} className="flex items-center gap-2 h-10">
                 <Plus className="w-4 h-4" />
-                Solicitar Vale
+                Solicitar
               </Button>
             )}
           </div>
@@ -266,9 +266,7 @@ const SalaryAdvanceRequest: React.FC = () => {
                   required
                   className="h-12 text-base"
                 />
-                <p className="text-sm text-gray-600 mt-2">
-                  Valor mínimo: {formatCurrency(minAmount)} | Máximo: {formatCurrency(maxAmount)}
-                </p>
+                
               </div>
               
               <div>
@@ -298,7 +296,7 @@ const SalaryAdvanceRequest: React.FC = () => {
                   disabled={submitting}
                   className="flex-1 h-12 text-base"
                 >
-                  {submitting ? 'Enviando...' : 'Enviar Solicitação'}
+                  {submitting ? 'Enviando...' : 'Enviar'}
                 </Button>
               </div>
             </form>
@@ -310,7 +308,7 @@ const SalaryAdvanceRequest: React.FC = () => {
               </p>
               <Button onClick={() => setShowForm(true)} className="flex items-center gap-2 mx-auto h-12 text-base">
                 <Plus className="w-5 h-5" />
-                Fazer Solicitação
+                Solicitar
               </Button>
             </div>
           )}

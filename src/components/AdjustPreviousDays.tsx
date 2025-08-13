@@ -359,7 +359,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     if (!editForm.locationName) {
       toast({
         title: "Erro",
-        description: "Selecione a localização para a solicitação.",
+        description: "Selecione a obra para a solicitação.",
         variant: "destructive",
       });
       return;
@@ -373,7 +373,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       if (!selectedLocationDetails) {
         toast({
           title: "Erro Interno",
-          description: "Detalhes da localização selecionada não encontrados.",
+          description: "Detalhes da obra selecionada não encontrados.",
           variant: "destructive",
         });
         setSubmitting(false);
@@ -573,7 +573,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
             <div className="space-y-6">
               <div>
-                <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
+                <Label htmlFor="location" className="text-base font-medium">Obra *</Label>
                 {allowedLocations.length > 0 ? (
                   <Select
                     value={editForm.locationName}
@@ -581,7 +581,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                     disabled={submitting}
                   >
                     <SelectTrigger id="location" className="h-12 text-base">
-                      <SelectValue placeholder="Selecione a localização" />
+                      <SelectValue placeholder="Selecione uma obra" />
                     </SelectTrigger>
                     <SelectContent>
                       {allowedLocations.map((location) => (
@@ -592,7 +592,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="text-base text-red-500">Nenhuma localização ativa disponível.</p>
+                  <p className="text-base text-red-500">Nenhuma obra ativa disponível.</p>
                 )}
               </div>
 
@@ -706,7 +706,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           <Alert variant="destructive" className="border-2">
             <AlertTriangle className="h-5 w-5" />
             <AlertDescription className="text-base">
-              Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
+              Nenhuma obra ativa encontrada. Não é possível solicitar edição sem selecionar uma obra.
             </AlertDescription>
           </Alert>
         )}
