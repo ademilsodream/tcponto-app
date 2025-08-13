@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -6,8 +6,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, subDays, isAfter, isBefore, subMonths, isWithinInterval } from 'date-fns';
+import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subDays, isAfter, isBefore, subMonths, isWithinInterval, addMonths, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 interface AdjustPreviousDaysProps {
   onBack?: () => void;
@@ -47,48 +48,33 @@ interface EditForm {
 interface AllowedLocation {
   id: string;
   name: string;
-  address: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  range_meters: number | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+  range_meters: number;
   is_active: boolean;
-}
-
-interface LocationDetailsForEdit {
-  address: string | null;
-  distance: number | null;
-  latitude: number | null;
-  longitude: number | null;
-  timestamp: string;
-  locationName: string;
 }
 
 interface BlockedPeriod {
   id: string;
-  name: string;
-  description: string | null;
   start_date: string;
   end_date: string;
-  created_by: string | null;
-  created_at: string;
+  reason: string;
 }
 
-const getUserName = (user: any, profile: any): string => {
-  const possibleNames = [
-    profile?.name,
-    user?.user_metadata?.name,
-    user?.user_metadata?.full_name,
-    user?.user_metadata?.display_name,
-    user?.user_metadata?.user_name,
-    user?.user_metadata?.firstName,
-    user?.user_metadata?.first_name,
-    user?.name,
-    user?.display_name,
-    user?.email?.split('@')[0]?.replace(/[^a-zA-Z0-9]/g, ' ').trim(),
-  ];
+interface LocationDetailsForEdit {
+  address: string;
+  distance: number | null;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  locationName: string;
+}
 
-  for (const name of possibleNames) {
-    if (name && typeof name === 'string' && name.trim().length > 0) {
+const getUserName = (user: any) => {
+  if (user?.user_metadata?.name) {
+    const name = user.user_metadata.name;
+    if (name.trim()) {
       return name.trim();
     }
   }
@@ -112,6 +98,7 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
   const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]);
   const [editedDates, setEditedDates] = useState<Set<string>>(new Set());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const { user, profile } = useOptimizedAuth();
   const { toast } = useToast();
@@ -319,6 +306,37 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
     return !canEdit;
   };
 
+  // ✨ NOVO: Gerar grade do calendário com cores
+  const calendarGrid = useMemo(() => {
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+
+    const days: Array<{
+      date: Date;
+      isCurrentMonth: boolean;
+      isSelected: boolean;
+      canEdit: boolean;
+      isToday: boolean;
+    }> = [];
+
+    let currentDate = calendarStart;
+    while (currentDate <= calendarEnd) {
+      const { canEdit } = canEditDate(currentDate);
+      days.push({
+        date: currentDate,
+        isCurrentMonth: isSameMonth(currentDate, currentMonth),
+        isSelected: selectedDate ? isSameDay(currentDate, selectedDate) : false,
+        canEdit,
+        isToday: isSameDay(currentDate, new Date())
+      });
+      currentDate = addDays(currentDate, 1);
+    }
+
+    return days;
+  }, [currentMonth, selectedDate, editedDates, blockedPeriods]);
+
   const handleInputChange = (field: keyof EditForm, value: string) => {
     setEditForm(prev => ({
       ...prev,
@@ -399,80 +417,57 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       const baseRequest = {
         employee_id: user.id,
-        employee_name: getUserName(user, profile),
         date: format(selectedDate, 'yyyy-MM-dd'),
-        reason: editForm.reason.trim(),
+        reason: editForm.reason,
         status: 'pending',
+        location_details: locationDetailsForEdit,
+        department_id: profile?.department_id,
+        job_function_id: profile?.job_function_id,
       };
 
-      // Verificar alterações e criar solicitações
-      if (editForm.clock_in !== (timeRecord.clock_in || '')) {
-        requests.push({
-          ...baseRequest,
-          field: fieldColumnMapping.clock_in,
-          old_value: timeRecord.clock_in || null,
-          new_value: editForm.clock_in,
-          location: { clock_in: locationDetailsForEdit },
-        });
-      }
+      // Criar solicitações para cada campo alterado
+      Object.entries(fieldColumnMapping).forEach(([formField, dbField]) => {
+        const currentValue = timeRecord[formField as keyof TimeRecord];
+        const newValue = editForm[formField as keyof EditForm];
 
-      if (editForm.lunch_start !== (timeRecord.lunch_start || '')) {
-        requests.push({
-          ...baseRequest,
-          field: fieldColumnMapping.lunch_start,
-          old_value: timeRecord.lunch_start || null,
-          new_value: editForm.lunch_start,
-          location: { lunch_start: locationDetailsForEdit },
-        });
-      }
-
-      if (editForm.lunch_end !== (timeRecord.lunch_end || '')) {
-        requests.push({
-          ...baseRequest,
-          field: fieldColumnMapping.lunch_end,
-          old_value: timeRecord.lunch_end || null,
-          new_value: editForm.lunch_end,
-          location: { lunch_end: locationDetailsForEdit },
-        });
-      }
-
-      if (editForm.clock_out !== (timeRecord.clock_out || '')) {
-        requests.push({
-          ...baseRequest,
-          field: fieldColumnMapping.clock_out,
-          old_value: timeRecord.clock_out || null,
-          new_value: editForm.clock_out,
-          location: { clock_out: locationDetailsForEdit },
-        });
-      }
+        if (newValue && newValue !== currentValue) {
+          requests.push({
+            ...baseRequest,
+            field_name: dbField,
+            current_value: currentValue,
+            new_value: newValue,
+          });
+        }
+      });
 
       if (requests.length === 0) {
         toast({
           title: "Nenhuma Alteração",
-          description: "Nenhuma alteração foi feita nos horários.",
+          description: "Nenhum campo foi alterado.",
           variant: "default",
         });
         setSubmitting(false);
         return;
       }
 
-      // Inserir todas as solicitações
       const { error: insertError } = await supabase
         .from('edit_requests')
         .insert(requests);
 
-      if (insertError) throw insertError;
-
-      // Marcar data como editada
-      const dateString = format(selectedDate, 'yyyy-MM-dd');
-      setEditedDates(prev => new Set([...prev, dateString]));
+      if (insertError) {
+        throw insertError;
+      }
 
       toast({
-        title: "Sucesso",
-        description: `${requests.length} solicitação(ões) de alteração enviada(s) para aprovação.`,
+        title: "Solicitação Enviada",
+        description: "Sua solicitação de edição foi enviada com sucesso e está aguardando aprovação.",
+        variant: "default",
       });
 
-      // Reset form
+      // Recarregar datas disponíveis para atualizar o estado
+      await loadAvailableDates();
+      
+      // Limpar formulário
       setEditForm({
         clock_in: '',
         lunch_start: '',
@@ -481,15 +476,14 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         reason: '',
         locationName: ''
       });
-
       setSelectedDate(undefined);
       setTimeRecord(null);
 
     } catch (error) {
-      console.error('Erro ao enviar solicitações:', error);
+      console.error('Erro ao enviar solicitação:', error);
       toast({
         title: "Erro",
-        description: "Erro ao enviar solicitações de alteração.",
+        description: "Não foi possível enviar a solicitação. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -541,19 +535,75 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       {/* Content */}
       <div className="p-4 space-y-6">
-        {/* Calendário */}
-        <div className="bg-white rounded-xl shadow-sm border p-2">
+        {/* Calendário Customizado */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
           <div className="text-lg font-medium mb-4 text-center">Selecione o dia para ajustar</div>
-          <div className="w-full">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              disabled={isDateDisabled}
-              locale={ptBR}
-              className="rounded-md border w-full"
-            />
+          
+          {/* Navegação do mês */}
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h2 className="text-lg font-semibold">
+              {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
+
+          {/* Cabeçalho dos dias da semana */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
+              <div key={day} className="text-center text-sm font-medium text-gray-600 py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Grade do calendário */}
+          <div className="grid grid-cols-7 gap-1">
+            {calendarGrid.map((day, index) => (
+              <button
+                key={index}
+                onClick={() => day.canEdit && handleDateSelect(day.date)}
+                disabled={!day.canEdit}
+                className={cn(
+                  "h-12 rounded-lg text-sm font-medium transition-colors relative",
+                  // Cores baseadas na disponibilidade
+                  day.canEdit 
+                    ? "bg-green-50 border border-green-200 hover:bg-green-100 text-green-800" 
+                    : "bg-red-50 border border-red-200 text-red-600 cursor-not-allowed",
+                  // Destaque para mês atual
+                  day.isCurrentMonth 
+                    ? "opacity-100" 
+                    : "opacity-40",
+                  // Destaque para data selecionada
+                  day.isSelected 
+                    ? "ring-2 ring-blue-500 bg-blue-100" 
+                    : "",
+                  // Destaque para hoje
+                  day.isToday 
+                    ? "ring-1 ring-blue-300" 
+                    : ""
+                )}
+              >
+                {format(day.date, 'd')}
+              </button>
+            ))}
+          </div>
+
+          {/* Legenda */}
           <div className="mt-6 space-y-3 text-sm">
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>

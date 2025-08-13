@@ -164,7 +164,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
         const { data, error } = await supabase
           .from('time_records')
           .select('*')
-          .eq('employee_id', user.id)
+          .eq('user_id', user.id)
           .gte('date', format(startDate, 'yyyy-MM-dd'))
           .lte('date', format(endDate, 'yyyy-MM-dd'))
           .order('date', { ascending: true });
@@ -176,12 +176,10 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
 
         // ✨ NOVO: Calcular horas e pagamentos em tempo real
         const processedRecords = (data || []).map(record => {
-          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-            record.clock_in,
-            record.clock_out,
-            record.lunch_start,
-            record.lunch_end
-          );
+          // Usar o total_hours do banco se disponível, senão calcular
+          const totalHours = record.total_hours || 0;
+          const normalHours = record.normal_hours || totalHours;
+          const overtimeHours = record.overtime_hours || 0;
 
           const normalPay = normalHours * (userProfile?.hourly_rate || 0);
           const overtimePay = overtimeHours * (userProfile?.overtime_rate || 0);
