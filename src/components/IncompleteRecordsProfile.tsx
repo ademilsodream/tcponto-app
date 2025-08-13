@@ -732,9 +732,6 @@ const IncompleteRecordsProfile: React.FC<IncompleteRecordsProfileProps> = ({ onB
                       </div>
                     </div>
                     
-                    <p className="text-sm text-gray-600 mt-3">
-                      💡 Para dias anteriores, você pode solicitar edição através da tela de registro de ponto.
-                    </p>
                   </div>
                 ))}
               </div>
