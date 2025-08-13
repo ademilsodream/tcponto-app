@@ -156,6 +156,15 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
       const startDate = format(periodStart, 'yyyy-MM-01');
       const endDate = format(periodEnd, 'yyyy-MM-dd');
 
+      // Carregar configurações do sistema para jornada padrão
+      const { data: systemSettings } = await supabase
+        .from('system_settings')
+        .select('setting_key, setting_value')
+        .eq('setting_key', 'jornada_padrao_horas')
+        .single();
+
+      const jornadaPadrao = systemSettings ? Number(systemSettings.setting_value) : 8;
+
       const { data: records } = await supabase
         .from('time_records')
         .select('*')
@@ -164,11 +173,25 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
         .lte('date', endDate)
         .eq('status', 'active');
 
-      // Calcular horas previstas: 8h por dia útil do primeiro dia do mês até hoje (se for mês atual) ou até o fim do mês se passado/futuro limitado
+      // Calcular horas previstas: jornada padrão por dia útil + fins de semana apenas se houver registro
       const today = new Date();
       const untilDate = isSameMonth(today, periodStart) ? today : periodEnd;
+      
+      // Contar dias úteis no período
       const businessDays = countBusinessDays(periodStart, untilDate);
-      const plannedHours = businessDays * 8; // 8h/dia útil
+      
+      // Identificar fins de semana com registros
+      const weekendDaysWithRecords = new Set();
+      (records || []).forEach(record => {
+        const recordDate = new Date(record.date);
+        const dayOfWeek = recordDate.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) { // Domingo ou Sábado
+          weekendDaysWithRecords.add(record.date);
+        }
+      });
+
+      // Calcular horas previstas: dias úteis + fins de semana com registros
+      const plannedHours = (businessDays * jornadaPadrao) + (weekendDaysWithRecords.size * jornadaPadrao);
 
       const initial = {
         totalHours: 0,
@@ -183,27 +206,30 @@ const EmployeeMonthlySummary: React.FC<EmployeeMonthlySummaryProps> = ({ selecte
       } as MonthlySummary;
 
       const result = (records || []).reduce((acc, record) => {
-        const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
-          record.clock_in || '',
-          record.lunch_start || '',
-          record.lunch_end || '',
-          record.clock_out || ''
-        );
-
+        // Somar TODAS as horas trabalhadas (sem calcular normal/extras aqui)
+        const totalHours = Number(record.total_hours || 0);
         const lunch = getLunchHours(record.lunch_start, record.lunch_end);
         const hasWorked = totalHours > 0;
 
         return {
           ...acc,
           totalHours: acc.totalHours + totalHours,
-          normalHours: acc.normalHours + normalHours,
-          overtimeHours: acc.overtimeHours + overtimeHours,
           workingDays: acc.workingDays + (hasWorked ? 1 : 0),
           lunchHours: acc.lunchHours + lunch,
         };
       }, initial);
 
-      setSummary(result);
+      // Calcular horas extras: apenas se total trabalhado > previsto
+      const overtimeHours = Math.max(0, result.totalHours - result.plannedHours);
+      const normalHours = result.totalHours - overtimeHours;
+
+      const finalResult = {
+        ...result,
+        normalHours,
+        overtimeHours,
+      };
+
+      setSummary(finalResult);
     } catch (error) {
       console.error('Error loading monthly summary:', error);
       setSummary(prev => ({ ...prev, totalHours: 0, normalHours: 0, overtimeHours: 0, workingDays: 0, lunchHours: 0 }));
