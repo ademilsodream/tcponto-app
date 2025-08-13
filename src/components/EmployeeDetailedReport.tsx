@@ -268,7 +268,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
             )}
             <div className="flex items-center gap-3">
               <Clock className="w-6 h-6 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Relatório Detalhado</h1>
+              <h1 className="text-xl font-bold text-gray-900">Espelho Ponto</h1>
             </div>
           </div>
         </div>
