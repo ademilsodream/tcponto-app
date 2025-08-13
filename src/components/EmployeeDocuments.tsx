@@ -118,7 +118,7 @@ export default function EmployeeDocuments() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Folder className="w-6 h-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900">Meus Documentos</h1>
+            <h1 className="text-xl font-bold text-gray-900">Documentos</h1>
           </div>
         </div>
       </div>
