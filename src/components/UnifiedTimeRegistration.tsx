@@ -277,6 +277,9 @@ const UnifiedTimeRegistration: React.FC = () => {
 
       {/* Content */}
       <div className="p-4 space-y-4">
+        {/* Anúncios */}
+        {user && <AnnouncementNotification userId={user.id} />}
+        
         <div className="w-full bg-white/90 rounded-xl shadow-sm">
           <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={420} />
           <div className="px-4 py-4">
