@@ -542,16 +542,18 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       {/* Content */}
       <div className="p-4 space-y-6">
         {/* Calendário */}
-        <div className="bg-white rounded-xl shadow-sm border p-4">
+        <div className="bg-white rounded-xl shadow-sm border p-2">
           <div className="text-lg font-medium mb-4 text-center">Selecione o dia para ajustar</div>
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={handleDateSelect}
-            disabled={isDateDisabled}
-            locale={ptBR}
-            className="rounded-md border w-full mx-auto"
-          />
+          <div className="w-full">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleDateSelect}
+              disabled={isDateDisabled}
+              locale={ptBR}
+              className="rounded-md border w-full"
+            />
+          </div>
           <div className="mt-6 space-y-3 text-sm">
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
