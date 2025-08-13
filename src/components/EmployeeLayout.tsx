@@ -1,10 +1,12 @@
 
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { LogOut, Bell } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import SessionWarning from '@/components/SessionWarning';
 import EmployeeDrawer from '@/components/EmployeeDrawer';
+import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
+import { Badge } from '@/components/ui/badge';
 
 interface EmployeeLayoutProps {
   children: React.ReactNode;
@@ -12,6 +14,7 @@ interface EmployeeLayoutProps {
 
 const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
   const { user, profile, sessionWarning, renewSession, dismissSessionWarning } = useOptimizedAuth();
+  const { unreadCount } = useUnreadAnnouncements(user?.id || '');
 
   const handleLogout = async () => {
     try {
