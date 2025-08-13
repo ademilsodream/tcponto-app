@@ -369,7 +369,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                               </span>
                             )}
                           </h3>
-                                                  <div className="flex items-center gap-4 mt-2">
+                          <div className="flex items-center gap-4 mt-2">
                           {hasRecords ? (
                             <>
                               <p className="text-sm text-gray-600 flex items-center gap-1">
@@ -390,7 +390,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                               {dayInfo.isWeekend ? 'Sem trabalho' : 'Sem registros'}
                             </p>
                           )}
-                        </div>
                         </div>
                         
                         {hasRecords && (
