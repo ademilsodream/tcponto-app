@@ -15,6 +15,7 @@ import { reverseGeocode } from '@/utils/geocoding';
 import { TimeRegistrationProgress } from './TimeRegistrationProgress';
 import LocationMap from './LocationMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AnnouncementNotification } from './AnnouncementNotification';
 
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutos
 
