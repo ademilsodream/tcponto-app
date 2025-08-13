@@ -9,6 +9,7 @@ import { useEmployeeDocuments } from "@/hooks/useEmployeeDocuments";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { DocumentUploadDialog } from "./DocumentUploadDialog";
 
 const iconsByType: Record<string, React.ReactNode> = {
   pdf: <FileText className="w-6 h-6 text-red-600" />,
@@ -120,6 +121,7 @@ export default function EmployeeDocuments() {
             <Folder className="w-6 h-6 text-blue-600" />
             <h1 className="text-xl font-bold text-gray-900">Documentos</h1>
           </div>
+          <DocumentUploadDialog onUploadSuccess={refetch} />
         </div>
       </div>
 
