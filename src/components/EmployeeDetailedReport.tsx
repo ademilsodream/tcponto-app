@@ -340,36 +340,35 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
               <span className="text-base">Carregando registros...</span>
             </div>
           ) : allDaysInPeriod.length > 0 ? (
-            <>
-              <div className="space-y-3">
-                {allDaysInPeriod.map((dayInfo) => {
-                  const dayRecords = recordsByDate.get(dayInfo.dateKey) || [];
-                  const dayTotals = totalsByDate.get(dayInfo.dateKey);
-                  const hasRecords = dayRecords.length > 0;
-                  
-                  return (
-                    <div 
-                      key={dayInfo.dateKey} 
-                      className={cn(
-                        "p-4 border-2 rounded-xl transition-colors",
-                        dayInfo.isWeekend 
-                          ? "border-orange-300 bg-orange-50" 
-                          : hasRecords 
-                            ? "border-blue-200 bg-blue-50" 
-                            : "border-gray-200 bg-gray-50"
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="text-base font-semibold flex items-center gap-2">
-                            {format(dayInfo.date, 'dd/MM/yyyy (EEE)', { locale: ptBR })}
-                            {dayInfo.isWeekend && (
-                              <span className="text-xs font-medium text-orange-800 bg-orange-200 px-2 py-1 rounded-full">
-                                Fim de Semana
-                              </span>
-                            )}
-                          </h3>
-                          <div className="flex items-center gap-4 mt-2">
+            <div className="space-y-3">
+              {allDaysInPeriod.map((dayInfo) => {
+                const dayRecords = recordsByDate.get(dayInfo.dateKey) || [];
+                const dayTotals = totalsByDate.get(dayInfo.dateKey);
+                const hasRecords = dayRecords.length > 0;
+                
+                return (
+                  <div 
+                    key={dayInfo.dateKey} 
+                    className={cn(
+                      "p-4 border-2 rounded-xl transition-colors",
+                      dayInfo.isWeekend 
+                        ? "border-orange-300 bg-orange-50" 
+                        : hasRecords 
+                          ? "border-blue-200 bg-blue-50" 
+                          : "border-gray-200 bg-gray-50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold flex items-center gap-2">
+                          {format(dayInfo.date, 'dd/MM/yyyy (EEE)', { locale: ptBR })}
+                          {dayInfo.isWeekend && (
+                            <span className="text-xs font-medium text-orange-800 bg-orange-200 px-2 py-1 rounded-full">
+                              Fim de Semana
+                            </span>
+                          )}
+                        </h3>
+                        <div className="flex items-center gap-4 mt-2">
                           {hasRecords ? (
                             <>
                               <p className="text-sm text-gray-600 flex items-center gap-1">
@@ -391,62 +390,60 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                             </p>
                           )}
                         </div>
-                        
-                        {hasRecords && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => toggleExpand(dayInfo.dateKey)} 
-                            className="p-2"
-                          >
-                            {expandedRecordId === dayInfo.dateKey ? 
-                              <ChevronUp className="w-4 h-4" /> : 
-                              <ChevronDown className="w-4 h-4" />
-                            }
-                          </Button>
-                        )}
                       </div>
-
-                      {/* Detalhes expandidos */}
-                      {expandedRecordId === dayInfo.dateKey && hasRecords && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div className="space-y-3">
-                            {dayRecords.map((record) => (
-                              <div key={record.id} className="bg-white rounded-lg p-3 border">
-                                <div className="space-y-2 text-sm">
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Entrada:</span>
-                                    <span className="font-medium">{record.clock_in || '--:--'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Início Almoço:</span>
-                                    <span className="font-medium">{record.lunch_start || '--:--'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Fim Almoço:</span>
-                                    <span className="font-medium">{record.lunch_end || '--:--'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-600">Saída:</span>
-                                    <span className="font-medium">{record.clock_out || '--:--'}</span>
-                                  </div>
-                                  <div className="flex justify-between pt-2 border-t border-gray-100">
-                                    <span className="font-medium text-gray-700">Total:</span>
-                                    <span className="font-bold text-blue-600">{formatHoursAsTime(record.total_hours)}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                      
+                      {hasRecords && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => toggleExpand(dayInfo.dateKey)} 
+                          className="p-2"
+                        >
+                          {expandedRecordId === dayInfo.dateKey ? 
+                            <ChevronUp className="w-4 h-4" /> : 
+                            <ChevronDown className="w-4 h-4" />
+                          }
+                        </Button>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-              
-              
-            </>
+
+                    {/* Detalhes expandidos */}
+                    {expandedRecordId === dayInfo.dateKey && hasRecords && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="space-y-3">
+                          {dayRecords.map((record) => (
+                            <div key={record.id} className="bg-white rounded-lg p-3 border">
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Entrada:</span>
+                                  <span className="font-medium">{record.clock_in || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Início Almoço:</span>
+                                  <span className="font-medium">{record.lunch_start || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Fim Almoço:</span>
+                                  <span className="font-medium">{record.lunch_end || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Saída:</span>
+                                  <span className="font-medium">{record.clock_out || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between pt-2 border-t border-gray-100">
+                                  <span className="font-medium text-gray-700">Total:</span>
+                                  <span className="font-bold text-blue-600">{formatHoursAsTime(record.total_hours)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="p-6 text-center text-gray-600">
               <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-400" />
