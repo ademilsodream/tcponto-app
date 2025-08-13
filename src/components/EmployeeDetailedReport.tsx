@@ -379,11 +379,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                               <p className="text-sm text-gray-600">
                                 <span className="font-medium">{dayRecords.length}</span> registro(s)
                               </p>
-                              {dayTotals && dayTotals.overtime > 0 && (
-                                <p className="text-sm text-orange-600 flex items-center gap-1">
-                                  <span className="font-medium">{formatHoursAsTime(dayTotals.overtime)}</span> extras
-                                </p>
-                              )}
                             </>
                           ) : (
                             <p className="text-sm text-gray-500">
