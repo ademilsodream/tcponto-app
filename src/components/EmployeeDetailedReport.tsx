@@ -247,7 +247,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
       loadUserProfile();
       loadSystemSettings();
     }
-  }, [user, startDate, endDate, userProfile]);
+  }, [user, startDate, endDate]);
 
   // Conteúdo principal
   return (
