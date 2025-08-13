@@ -256,16 +256,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
       <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {onBack && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBack}
-                className="p-2"
-              >
-                <ArrowLeft className="w-6 h-6" />
-              </Button>
-            )}
             <div className="flex items-center gap-3">
               <Clock className="w-6 h-6 text-blue-600" />
               <h1 className="text-xl font-bold text-gray-900">Espelho Ponto</h1>
@@ -452,7 +442,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
               </div>
               
               {/* Resumo de horas extras */}
-              {systemSettings && allDaysInPeriod.length > 0 && (
+              {allDaysInPeriod.length > 0 && (
                 <div className="mt-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg">
                   <h4 className="text-lg font-semibold text-orange-800 mb-3 flex items-center gap-2">
                     <Clock className="w-5 h-5" />
@@ -485,7 +475,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                     </div>
                   </div>
                   <div className="mt-3 text-xs text-orange-600 text-center">
-                    * Horas extras calculadas considerando jornada de {systemSettings.jornada_padrao_horas}h + tolerância de {systemSettings.shift_tolerance_minutes}min
+                    * Horas extras calculadas considerando jornada de {systemSettings?.jornada_padrao_horas || 8}h + tolerância de {systemSettings?.shift_tolerance_minutes || 15}min
                   </div>
                 </div>
               )}
