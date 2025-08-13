@@ -39,26 +39,27 @@ export const EditRequestDialog: React.FC<EditRequestDialogProps> = ({
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-md p-6">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-xl">
             Solicitar Alteração - {editField ? fieldNames[editField] : ''}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-value">Novo Horário</Label>
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <Label htmlFor="edit-value" className="text-base font-medium">Novo Horário</Label>
             <Input
               id="edit-value"
               type="time"
               value={editValue}
               onChange={(e) => onValueChange(e.target.value)}
               disabled={submitting}
+              className="h-12 text-base"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-reason">Motivo da Alteração *</Label>
+          <div className="space-y-3">
+            <Label htmlFor="edit-reason" className="text-base font-medium">Motivo da Alteração *</Label>
             <Textarea
               id="edit-reason"
               value={editReason}
@@ -66,20 +67,23 @@ export const EditRequestDialog: React.FC<EditRequestDialogProps> = ({
               placeholder="Descreva o motivo da solicitação de alteração..."
               required
               disabled={submitting}
+              className="min-h-[100px] text-base resize-none"
             />
           </div>
 
-          <div className="flex justify-end space-x-2">
+          <div className="flex gap-3 pt-4">
             <Button
               variant="outline"
               onClick={onClose}
               disabled={submitting}
+              className="flex-1 h-12 text-base"
             >
               Cancelar
             </Button>
             <Button
               onClick={onSubmit}
               disabled={submitting || !editValue || !editReason}
+              className="flex-1 h-12 text-base"
             >
               {submitting ? 'Enviando...' : 'Enviar Solicitação'}
             </Button>

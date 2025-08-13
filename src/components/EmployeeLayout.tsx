@@ -49,7 +49,7 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
       />
 
       <header className="bg-white shadow-sm border-b w-full">
-        <div className="w-full px-4 py-3">
+        <div className="w-full px-4 py-4">
           <div className="grid grid-cols-3 items-center w-full">
             <div></div>
             
@@ -57,32 +57,32 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
               <img 
                 src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
                 alt="TCPonto Logo" 
-                className="w-10 h-10 rounded-full" 
+                className="w-12 h-12 rounded-full" 
               />
               <div>
-                <h1 className="text-lg font-bold text-gray-900">TCPonto</h1>
+                <h1 className="text-xl font-bold text-gray-900">TCPonto</h1>
               </div>
             </div>
       
             <div className="flex items-center justify-end space-x-2">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{profile?.name || user?.email}</p>
-                <p className="text-xs text-gray-600">Funcionário</p>
+                <p className="text-base font-medium text-gray-900">{profile?.name || user?.email}</p>
+                <p className="text-sm text-gray-600">Funcionário</p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
-                className="p-2"
+                className="p-3 h-12 w-12"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-5 h-5" />
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="w-full px-4 py-4">
+      <main className="w-full">
         {children}
       </main>
     </div>

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useOptimizedAuth } from "@/contexts/OptimizedAuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { format, differenceInCalendarDays, isAfter, isBefore, isSameDay } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Umbrella } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -146,8 +145,8 @@ export default function VacationRequest() {
     }
     if (balance === 0) {
       return (
-        <Alert variant="destructive" className="mb-2">
-          <AlertDescription>
+        <Alert variant="destructive" className="mb-4 border-2">
+          <AlertDescription className="text-base">
             Você está sem saldo de férias disponível no momento. Caso acredite que deveria ter saldo, por favor entre em contato com o RH para regularizar.
           </AlertDescription>
         </Alert>
@@ -157,121 +156,147 @@ export default function VacationRequest() {
   };
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full max-w-3xl">
-      <CardHeader>
-        <CardTitle className="text-primary-800">Solicitar Férias</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label>Data de início</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal mt-1",
-                    !startDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {getDateLabel(startDate, "Selecionar data de início")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={startDate ?? undefined}
-                  onSelect={setStartDate}
-                  disabled={date =>
-                    false
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Umbrella className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Solicitar Férias</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">Data de início</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal mt-2 h-12 text-base",
+                        !startDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-5 w-5" />
+                      {getDateLabel(startDate, "Selecionar data de início")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={startDate ?? undefined}
+                      onSelect={setStartDate}
+                      disabled={date =>
+                        false
+                      }
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                      fromDate={new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              
+              <div>
+                <Label className="text-base font-medium">Data de término</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal mt-2 h-12 text-base",
+                        !endDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-5 w-5" />
+                      {getDateLabel(endDate, "Selecionar data de término")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={endDate ?? undefined}
+                      onSelect={setEndDate}
+                      disabled={date =>
+                        startDate
+                          ? isBefore(date, startDate)
+                          : false
+                      }
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                      fromDate={startDate ?? new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">Dias solicitados</Label>
+                <Input
+                  type="text"
+                  disabled
+                  value={
+                    startDate && endDate
+                      ? differenceInCalendarDays(endDate, startDate) + 1
+                      : ""
                   }
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                  fromDate={new Date()}
+                  className="h-12 text-base"
                 />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div>
-            <Label>Data de término</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal mt-1",
-                    !endDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {getDateLabel(endDate, "Selecionar data de término")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={endDate ?? undefined}
-                  onSelect={setEndDate}
-                  disabled={date =>
-                    startDate
-                      ? isBefore(date, startDate)
-                      : false
+              </div>
+              
+              <div>
+                <Label className="text-base font-medium">Saldo disponível</Label>
+                <Input
+                  type="text"
+                  disabled
+                  value={
+                    balance === null
+                      ? "..."
+                      : `${balance} dia${balance === 1 ? "" : "s"}`
                   }
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                  fromDate={startDate ?? new Date()}
+                  className={cn(
+                    "h-12 text-base",
+                    balance === 0 ? "border-destructive font-bold text-destructive" : ""
+                  )}
                 />
-              </PopoverContent>
-            </Popover>
+                {renderBalanceHint()}
+              </div>
+            </div>
           </div>
-          <div>
-            <Label>Dias solicitados</Label>
-            <Input
-              type="text"
-              disabled
-              value={
-                startDate && endDate
-                  ? differenceInCalendarDays(endDate, startDate) + 1
-                  : ""
-              }
-            />
-          </div>
-          <div>
-            <Label>Saldo disponível</Label>
-            <Input
-              type="text"
-              disabled
-              value={
-                balance === null
-                  ? "..."
-                  : `${balance} dia${balance === 1 ? "" : "s"}`
-              }
-              className={balance === 0 ? "border-destructive font-bold text-destructive" : ""}
-            />
-            {renderBalanceHint()}
-          </div>
+
           {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant="destructive" className="border-2">
+              <AlertDescription className="text-base">{error}</AlertDescription>
             </Alert>
           )}
+          
           {success && (
-            <Alert variant="default">
-              <AlertDescription className="text-green-700">{success}</AlertDescription>
+            <Alert variant="default" className="border-2">
+              <AlertDescription className="text-base text-green-700">{success}</AlertDescription>
             </Alert>
           )}
+          
           <Button
             type="submit"
-            className="w-full bg-primary"
+            className="w-full h-14 text-lg font-semibold bg-blue-600 hover:bg-blue-700"
             disabled={isLoading || (balance !== null && balance === 0)}
           >
             {isLoading ? "Enviando..." : "Solicitar Férias"}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

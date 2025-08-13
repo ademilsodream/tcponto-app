@@ -506,196 +506,212 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </CardContent>
-      </Card>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="text-lg font-medium">Carregando...</span>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-primary-800">
-          <CalendarIcon className="w-5 h-5 text-primary-600" />
-          Ajuste de Registros
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="p-4 bg-white rounded-xl shadow-sm border mb-4 text-lg font-medium">Selecione o dia para ajustar</div>
-              <div className="p-4 bg-white rounded-xl shadow-sm border">
-                <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleDateSelect}
-                disabled={isDateDisabled}
-                locale={ptBR}
-                className="rounded-md border w-full max-w-sm mx-auto md:mx-0"
-                />
-
-              <div className="mt-4 space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-100 border border-green-300 rounded"></div>
-                  <span>Dias disponíveis para edição</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-100 border border-red-300 rounded"></div>
-                  <span>Dias já editados ou não disponíveis</span>
-                </div>
-              </div>
-              </div>
-            </div>
-
-            <div>
-              {selectedDate && timeRecord ? (
-                <div className="p-4 bg-white rounded-xl shadow-sm border">
-                  <div className="text-lg font-medium mb-4 flex items-center gap-2">
-                    <Edit3 className="w-5 h-5" /> Editar {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="location">Localização *</Label>
-                      {allowedLocations.length > 0 ? (
-                        <Select
-                          value={editForm.locationName}
-                          onValueChange={(value) => handleInputChange('locationName', value)}
-                          disabled={submitting}
-                        >
-                          <SelectTrigger id="location">
-                            <SelectValue placeholder="Selecione a localização" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allowedLocations.map((location) => (
-                              <SelectItem key={location.id} value={location.name}>
-                                {location.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <p className="text-sm text-red-500">Nenhuma localização ativa disponível.</p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="clock_in">Entrada</Label>
-                        <Input
-                          id="clock_in"
-                          type="time"
-                          value={editForm.clock_in}
-                          onChange={(e) => handleInputChange('clock_in', e.target.value)}
-                          disabled={submitting}
-                        />
-                        <div className="text-xs text-gray-500 mt-1">
-                          Atual: {timeRecord.clock_in || 'Não registrado'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="lunch_start">Início Almoço</Label>
-                        <Input
-                          id="lunch_start"
-                          type="time"
-                          value={editForm.lunch_start}
-                          onChange={(e) => handleInputChange('lunch_start', e.target.value)}
-                          disabled={submitting}
-                        />
-                        <div className="text-xs text-gray-500 mt-1">
-                          Atual: {timeRecord.lunch_start || 'Não registrado'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="lunch_end">Fim Almoço</Label>
-                        <Input
-                          id="lunch_end"
-                          type="time"
-                          value={editForm.lunch_end}
-                          onChange={(e) => handleInputChange('lunch_end', e.target.value)}
-                          disabled={submitting}
-                        />
-                        <div className="text-xs text-gray-500 mt-1">
-                          Atual: {timeRecord.lunch_end || 'Não registrado'}
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="clock_out">Saída</Label>
-                        <Input
-                          id="clock_out"
-                          type="time"
-                          value={editForm.clock_out}
-                          onChange={(e) => handleInputChange('clock_out', e.target.value)}
-                          disabled={submitting}
-                        />
-                        <div className="text-xs text-gray-500 mt-1">
-                          Atual: {timeRecord.clock_out || 'Não registrado'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="reason">Motivo da Alteração *</Label>
-                      <Textarea
-                        id="reason"
-                        value={editForm.reason}
-                        onChange={(e) => handleInputChange('reason', e.target.value)}
-                        placeholder="Descreva o motivo da solicitação de alteração..."
-                        required
-                        disabled={submitting}
-                        className="min-h-[80px]"
-                      />
-                    </div>
-
-                    <Button
-                      onClick={handleSubmitEdit}
-                      className="w-full"
-                      disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
-                    >
-                      {submitting ? (
-                        <>
-                          <Clock className="w-4 h-4 mr-2 animate-spin" />
-                          Enviando...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4 mr-2" />
-                          Enviar Solicitação
-                        </>
-                      )}
-                    </Button>
-
-                    <p className="text-xs text-gray-500">
-                      * A solicitação será enviada para aprovação do RH.
-                      Você será notificado quando for processada.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <CalendarIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p>Selecione um dia no calendário para editar os registros</p>
-                </div>
-              )}
-
-              {selectedDate && timeRecord && allowedLocations.length === 0 && (
-                <Alert variant="destructive" className="mt-4">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
-                  </AlertDescription>
-                </Alert>
-              )}
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="p-2"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
+            <div className="flex items-center gap-3">
+              <CalendarIcon className="w-6 h-6 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">Ajuste de Registros</h1>
             </div>
           </div>
-        </CardContent>
-    </Card>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-6">
+        {/* Calendário */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="text-lg font-medium mb-4 text-center">Selecione o dia para ajustar</div>
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={handleDateSelect}
+            disabled={isDateDisabled}
+            locale={ptBR}
+            className="rounded-md border w-full mx-auto"
+          />
+          <div className="mt-6 space-y-3 text-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+              <span className="text-base">Dias disponíveis para edição</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+              <span className="text-base">Dias já editados ou não disponíveis</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Formulário de Edição */}
+        {selectedDate && timeRecord ? (
+          <div className="bg-white rounded-xl shadow-sm border p-4">
+            <div className="text-lg font-medium mb-4 flex items-center gap-2">
+              <Edit3 className="w-5 h-5" /> Editar {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <Label htmlFor="location" className="text-base font-medium">Localização *</Label>
+                {allowedLocations.length > 0 ? (
+                  <Select
+                    value={editForm.locationName}
+                    onValueChange={(value) => handleInputChange('locationName', value)}
+                    disabled={submitting}
+                  >
+                    <SelectTrigger id="location" className="h-12 text-base">
+                      <SelectValue placeholder="Selecione a localização" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allowedLocations.map((location) => (
+                        <SelectItem key={location.id} value={location.name} className="text-base">
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-base text-red-500">Nenhuma localização ativa disponível.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="clock_in" className="text-base font-medium">Entrada</Label>
+                  <Input
+                    id="clock_in"
+                    type="time"
+                    value={editForm.clock_in}
+                    onChange={(e) => handleInputChange('clock_in', e.target.value)}
+                    disabled={submitting}
+                    className="h-12 text-base"
+                  />
+                  <div className="text-sm text-gray-500 mt-1">
+                    Atual: {timeRecord.clock_in || 'Não registrado'}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="lunch_start" className="text-base font-medium">Início Almoço</Label>
+                  <Input
+                    id="lunch_start"
+                    type="time"
+                    value={editForm.lunch_start}
+                    onChange={(e) => handleInputChange('lunch_start', e.target.value)}
+                    disabled={submitting}
+                    className="h-12 text-base"
+                  />
+                  <div className="text-sm text-gray-500 mt-1">
+                    Atual: {timeRecord.lunch_start || 'Não registrado'}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="lunch_end" className="text-base font-medium">Fim Almoço</Label>
+                  <Input
+                    id="lunch_end"
+                    type="time"
+                    value={editForm.lunch_end}
+                    onChange={(e) => handleInputChange('lunch_end', e.target.value)}
+                    disabled={submitting}
+                    className="h-12 text-base"
+                  />
+                  <div className="text-sm text-gray-500 mt-1">
+                    Atual: {timeRecord.lunch_end || 'Não registrado'}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="clock_out" className="text-base font-medium">Saída</Label>
+                  <Input
+                    id="clock_out"
+                    type="time"
+                    value={editForm.clock_out}
+                    onChange={(e) => handleInputChange('clock_out', e.target.value)}
+                    disabled={submitting}
+                    className="h-12 text-base"
+                  />
+                  <div className="text-sm text-gray-500 mt-1">
+                    Atual: {timeRecord.clock_out || 'Não registrado'}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="reason" className="text-base font-medium">Motivo da Alteração *</Label>
+                <Textarea
+                  id="reason"
+                  value={editForm.reason}
+                  onChange={(e) => handleInputChange('reason', e.target.value)}
+                  placeholder="Descreva o motivo da solicitação de alteração..."
+                  required
+                  disabled={submitting}
+                  className="min-h-[100px] text-base resize-none"
+                />
+              </div>
+
+              <Button
+                onClick={handleSubmitEdit}
+                className="w-full h-14 text-lg font-semibold"
+                disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
+              >
+                {submitting ? (
+                  <>
+                    <Clock className="w-5 h-5 mr-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5 mr-2" />
+                    Enviar Solicitação
+                  </>
+                )}
+              </Button>
+
+              <p className="text-sm text-gray-500 text-center">
+                * A solicitação será enviada para aprovação do RH.
+                Você será notificado quando for processada.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+            <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-base">Selecione um dia no calendário para editar os registros</p>
+          </div>
+        )}
+
+        {selectedDate && timeRecord && allowedLocations.length === 0 && (
+          <Alert variant="destructive" className="border-2">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertDescription className="text-base">
+              Nenhuma localização ativa encontrada. Não é possível solicitar edição sem selecionar uma localização.
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+    </div>
   );
 };
 

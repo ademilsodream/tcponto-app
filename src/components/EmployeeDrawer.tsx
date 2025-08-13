@@ -69,9 +69,9 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
         <Button 
           variant="outline" 
           size="icon" 
-          className="fixed top-4 left-4 z-[2000] bg-white shadow-lg"
+          className="fixed top-4 left-4 z-[2000] bg-white shadow-lg h-12 w-12"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-6 w-6" />
         </Button>
       </DrawerTrigger>
       <DrawerContent className="h-full w-80 rounded-none z-[2000]">
@@ -80,15 +80,15 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
             <img 
               src="/lovable-uploads/669270b6-ec43-4161-8f51-34a39fc1b06f.png" 
               alt="TCPonto Logo" 
-              className="w-10 h-10 rounded-full mr-3" 
+              className="w-12 h-12 rounded-full mr-4" 
             />
             <div>
-              <h2 className="text-lg font-bold text-gray-900">TCPonto</h2>
+              <h2 className="text-xl font-bold text-gray-900">TCPonto</h2>
             </div>
           </div>
 
           <nav className="flex-1">
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = resolvedActive === item.key;
@@ -97,14 +97,14 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
                     <DrawerClose asChild>
                       <button
                         onClick={() => handleNavigate(item)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+                        className={`w-full flex items-center gap-4 px-4 py-4 text-left rounded-xl transition-colors ${
                           isActive 
-                            ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                            ? 'bg-blue-50 text-blue-600 border-2 border-blue-200' 
                             : 'hover:bg-gray-50 text-gray-700'
                         }`}
                       >
-                        <Icon className="h-5 w-5" />
-                        <span className="font-medium">{item.label}</span>
+                        <Icon className="h-6 w-6" />
+                        <span className="font-medium text-base">{item.label}</span>
                       </button>
                     </DrawerClose>
                   </li>
@@ -118,14 +118,14 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
               <button
                 onClick={handleSignOut}
                 disabled={isLoggingOut}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center gap-4 px-4 py-4 text-left rounded-xl hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoggingOut ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
-                  <LogOut className="h-5 w-5" />
+                  <LogOut className="h-6 w-6" />
                 )}
-                <span className="font-medium">{isLoggingOut ? 'Saindo...' : 'Sair'}</span>
+                <span className="font-medium text-base">{isLoggingOut ? 'Saindo...' : 'Sair'}</span>
               </button>
             </DrawerClose>
           </div>

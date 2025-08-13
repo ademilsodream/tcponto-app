@@ -219,177 +219,183 @@ const SalaryAdvanceRequest: React.FC = () => {
   const hasPendingRequest = requests.some(req => req.status === 'pending');
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
-      <CardHeader>
-        <CardTitle className="text-primary-800 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-primary-600" />
-          Vale Salarial
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {/* Nova Solicitação */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Nova Solicitação</span>
-              {!showForm && !hasPendingRequest && (
-                <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  Solicitar Vale
-                </Button>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {hasPendingRequest ? (
-              <div className="text-center py-4 text-gray-600">
-                <Clock className="w-8 h-8 mx-auto mb-2 text-yellow-500" />
-                <p>Você já possui uma solicitação pendente.</p>
-                <p className="text-sm">Aguarde a análise para fazer uma nova solicitação.</p>
-              </div>
-            ) : showForm ? (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="amount">Valor Solicitado</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min={minAmount}
-                    max={maxAmount}
-                    value={requestedAmount}
-                    onChange={(e) => setRequestedAmount(e.target.value)}
-                    placeholder={`Entre ${formatCurrency(minAmount)} e ${formatCurrency(maxAmount)}`}
-                    required
-                  />
-                  <p className="text-sm text-gray-600 mt-1">
-                    Valor mínimo: {formatCurrency(minAmount)} | Máximo: {formatCurrency(maxAmount)}
-                  </p>
-                </div>
-                
-                <div>
-                  <Label htmlFor="reason">Justificativa</Label>
-                  <Textarea
-                    id="reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Explique o motivo da solicitação do vale salarial..."
-                    rows={3}
-                    required
-                  />
-                </div>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <DollarSign className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Vale Salarial</h1>
+          </div>
+        </div>
+      </div>
 
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={submitting}>
-                    {submitting ? 'Enviando...' : 'Enviar Solicitação'}
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => setShowForm(false)}
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </form>
-            ) : (
-              <div className="text-center py-4">
-                <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-600 mb-4">
-                  Solicite um vale salarial quando precisar de um adiantamento.
+      {/* Content */}
+      <div className="p-4 space-y-6">
+        {/* Nova Solicitação */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Nova Solicitação</h2>
+            {!showForm && !hasPendingRequest && (
+              <Button onClick={() => setShowForm(true)} className="flex items-center gap-2 h-10">
+                <Plus className="w-4 h-4" />
+                Solicitar Vale
+              </Button>
+            )}
+          </div>
+          
+          {hasPendingRequest ? (
+            <div className="text-center py-6">
+              <Clock className="w-12 h-12 mx-auto mb-3 text-yellow-500" />
+              <p className="text-base text-gray-700 mb-2">Você já possui uma solicitação pendente.</p>
+              <p className="text-sm text-gray-600">Aguarde a análise para fazer uma nova solicitação.</p>
+            </div>
+          ) : showForm ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="amount" className="text-base font-medium">Valor Solicitado</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  step="0.01"
+                  min={minAmount}
+                  max={maxAmount}
+                  value={requestedAmount}
+                  onChange={(e) => setRequestedAmount(e.target.value)}
+                  placeholder={`Entre ${formatCurrency(minAmount)} e ${formatCurrency(maxAmount)}`}
+                  required
+                  className="h-12 text-base"
+                />
+                <p className="text-sm text-gray-600 mt-2">
+                  Valor mínimo: {formatCurrency(minAmount)} | Máximo: {formatCurrency(maxAmount)}
                 </p>
-                <Button onClick={() => setShowForm(true)} className="flex items-center gap-2 mx-auto">
-                  <Plus className="w-4 h-4" />
-                  Fazer Solicitação
+              </div>
+              
+              <div>
+                <Label htmlFor="reason" className="text-base font-medium">Justificativa</Label>
+                <Textarea
+                  id="reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Explique o motivo da solicitação do vale salarial..."
+                  rows={4}
+                  required
+                  className="text-base resize-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowForm(false)}
+                  className="flex-1 h-12 text-base"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 h-12 text-base"
+                >
+                  {submitting ? 'Enviando...' : 'Enviar Solicitação'}
                 </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </form>
+          ) : (
+            <div className="text-center py-6">
+              <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <p className="text-base text-gray-700 mb-4">
+                Solicite um vale salarial quando precisar de um adiantamento.
+              </p>
+              <Button onClick={() => setShowForm(true)} className="flex items-center gap-2 mx-auto h-12 text-base">
+                <Plus className="w-5 h-5" />
+                Fazer Solicitação
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Lista de Solicitações */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Minhas Solicitações</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8">
-                <Clock className="w-8 h-8 animate-spin mx-auto mb-2 text-gray-400" />
-                <p className="text-gray-600">Carregando solicitações...</p>
-              </div>
-            ) : requests.length === 0 ? (
-              <div className="text-center py-8 text-gray-600">
-                <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p>Você ainda não fez nenhuma solicitação de vale salarial.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {requests.map(request => (
-                  <div key={request.id} className="border rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-lg">
-                            {formatCurrency(request.requested_amount)}
-                          </span>
-                          <Badge className={`${getStatusColor(request.status)} flex items-center gap-1`}>
-                            {getStatusIcon(request.status)}
-                            {getStatusText(request.status)}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          Solicitado em {format(parseISO(request.requested_at), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR })}
-                        </p>
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Minhas Solicitações</h2>
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <Clock className="w-12 h-12 animate-spin mx-auto mb-3 text-gray-400" />
+              <p className="text-base text-gray-600">Carregando solicitações...</p>
+            </div>
+          ) : requests.length === 0 ? (
+            <div className="text-center py-8 text-gray-600">
+              <DollarSign className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <p className="text-base">Você ainda não fez nenhuma solicitação de vale salarial.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {requests.map(request => (
+                <div key={request.id} className="border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-bold text-xl">
+                          {formatCurrency(request.requested_amount)}
+                        </span>
+                        <Badge className={`${getStatusColor(request.status)} flex items-center gap-1 text-sm`}>
+                          {getStatusIcon(request.status)}
+                          {getStatusText(request.status)}
+                        </Badge>
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-sm font-medium">Justificativa:</span>
-                        <p className="text-sm text-gray-700">{request.reason}</p>
-                      </div>
-
-                      {request.status === 'approved' && request.approved_amount && (
-                        <div>
-                          <span className="text-sm font-medium text-green-600">Valor Aprovado:</span>
-                          <p className="text-sm text-green-700 font-semibold">
-                            {formatCurrency(request.approved_amount)}
-                          </p>
-                        </div>
-                      )}
-
-                      {request.admin_notes && (
-                        <div>
-                          <span className="text-sm font-medium">Observações do Administrador:</span>
-                          <p className="text-sm text-gray-700">{request.admin_notes}</p>
-                        </div>
-                      )}
-
-                      {request.payment_date && request.status === 'approved' && (
-                        <div>
-                          <span className="text-sm font-medium">Data de Pagamento:</span>
-                          <p className="text-sm text-gray-700">
-                            {format(parseISO(request.payment_date), 'dd/MM/yyyy', { locale: ptBR })}
-                          </p>
-                        </div>
-                      )}
-
-                      {request.reviewed_at && (
-                        <p className="text-xs text-gray-500">
-                          Analisado em {format(parseISO(request.reviewed_at), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR })}
-                        </p>
-                      )}
+                      <p className="text-sm text-gray-600 flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        Solicitado em {format(parseISO(request.requested_at), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR })}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </CardContent>
-    </Card>
+
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">Justificativa:</span>
+                      <p className="text-base text-gray-800 mt-1">{request.reason}</p>
+                    </div>
+
+                    {request.status === 'approved' && request.approved_amount && (
+                      <div>
+                        <span className="text-sm font-medium text-green-600">Valor Aprovado:</span>
+                        <p className="text-base text-green-700 font-semibold mt-1">
+                          {formatCurrency(request.approved_amount)}
+                        </p>
+                      </div>
+                    )}
+
+                    {request.admin_notes && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">Observações do Administrador:</span>
+                        <p className="text-base text-gray-800 mt-1">{request.admin_notes}</p>
+                      </div>
+                    )}
+
+                    {request.payment_date && request.status === 'approved' && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">Data de Pagamento:</span>
+                        <p className="text-base text-gray-800 mt-1">
+                          {format(parseISO(request.payment_date), 'dd/MM/yyyy', { locale: ptBR })}
+                        </p>
+                      </div>
+                    )}
+
+                    {request.reviewed_at && (
+                      <p className="text-sm text-gray-500">
+                        Analisado em {format(parseISO(request.reviewed_at), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

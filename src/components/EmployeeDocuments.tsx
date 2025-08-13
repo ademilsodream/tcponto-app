@@ -112,62 +112,84 @@ export default function EmployeeDocuments() {
   };
 
   return (
-    <Card className="bg-gradient-to-br from-indigo-50 to-blue-100 shadow-lg border-none w-full">
-      <CardHeader className="flex flex-row items-center gap-3">
-        <Folder className="w-8 h-8 text-primary-600" />
-        <CardTitle className="text-lg text-primary-800">Meus Documentos</CardTitle>
-      </CardHeader>
-      <CardContent>
-          <div className="flex flex-col lg:flex-row items-center gap-2 mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Folder className="w-6 h-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Meus Documentos</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4 space-y-4">
+        {/* Filtros */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="space-y-4">
             <Input
               placeholder="Buscar documento..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="lg:w-1/2"
+              className="h-12 text-base"
             />
-            <select
-              className="border rounded px-2 py-1 text-sm"
-              value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value as any)}
-            >
-              <option value="all">Todos</option>
-              <option value="unread">Não lidos</option>
-              <option value="read">Lidos</option>
-            </select>
-            {categories.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
               <select
-                className="border rounded px-2 py-1 text-sm"
-                value={filterCategory || ""}
-                onChange={e => setFilterCategory(e.target.value || null)}
+                className="border rounded-lg px-3 py-3 text-base h-12"
+                value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value as any)}
               >
-                <option value="">Todas categorias</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+                <option value="all">Todos</option>
+                <option value="unread">Não lidos</option>
+                <option value="read">Lidos</option>
               </select>
-            )}
+              {categories.length > 0 && (
+                <select
+                  className="border rounded-lg px-3 py-3 text-base h-12"
+                  value={filterCategory || ""}
+                  onChange={e => setFilterCategory(e.target.value || null)}
+                >
+                  <option value="">Todas categorias</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
+        </div>
+
+        {/* Lista de Documentos */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
           {loading && (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="animate-spin w-6 h-6 mr-2" /> Carregando documentos...
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="animate-spin w-8 h-8 mr-3" />
+              <span className="text-base">Carregando documentos...</span>
             </div>
           )}
+          
           {error && (
-            <div className="text-red-500">{error}</div>
+            <div className="text-red-500 text-base text-center py-4">{error}</div>
           )}
+          
           {!loading && filteredDocuments.length === 0 && (
-            <div className="py-6 text-center text-muted-foreground">Nenhum documento encontrado.</div>
+            <div className="py-12 text-center text-gray-600">
+              <Folder className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <p className="text-base">Nenhum documento encontrado.</p>
+            </div>
           )}
-          <div className="grid sm:grid-cols-2 gap-3 mt-2">
+          
+          <div className="space-y-4">
             {filteredDocuments.map((doc) => (
-              <div key={doc.id} className="border p-3 rounded-lg bg-white shadow flex gap-3 items-center">
-                <div>
+              <div key={doc.id} className="border-2 border-gray-200 p-4 rounded-xl bg-gray-50 flex gap-4 items-start">
+                <div className="flex-shrink-0">
                   {iconsByType[getFileExtension(doc.file_name)] ?? iconsByType.default}
                 </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-sm">{doc.title}</div>
-                  <div className="text-xs text-gray-600">{doc.category || "Sem categoria"}</div>
-                  <div className="text-xs text-gray-500">
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-base mb-1">{doc.title}</div>
+                  <div className="text-sm text-gray-600 mb-2">{doc.category || "Sem categoria"}</div>
+                  <div className="text-sm text-gray-500 mb-2">
                     {new Date(doc.uploaded_at).toLocaleDateString()} 
                     {doc.expires_at && (
                       <>
@@ -176,22 +198,30 @@ export default function EmployeeDocuments() {
                       </>
                     )}
                   </div>
-                  <div className="text-xs text-gray-700 line-clamp-2">
+                  <div className="text-sm text-gray-700 line-clamp-2 mb-3">
                     {doc.description}
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  {!doc.is_read && (
-                    <Badge className="bg-blue-500 text-white">Novo</Badge>
-                  )}
-                  <Button size="sm" variant="ghost" onClick={() => handleDownload(doc)} title="Baixar documento">
-                    <Download className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center justify-between">
+                    {!doc.is_read && (
+                      <Badge className="bg-blue-500 text-white text-sm">Novo</Badge>
+                    )}
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleDownload(doc)} 
+                      title="Baixar documento"
+                      className="h-10 px-4"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Baixar
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    </div>
   );
 }
