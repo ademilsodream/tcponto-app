@@ -326,14 +326,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
 
         {/* Lista de todos os dias do período */}
         <div className="bg-white rounded-xl shadow-sm border p-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <div className="text-lg font-semibold">Registros do Período</div>
-            {systemSettings && (
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Jornada:</span> {systemSettings.jornada_padrao_horas}h | 
-                <span className="font-medium ml-2">Tolerância:</span> {systemSettings.shift_tolerance_minutes}min
-              </div>
-            )}
           </div>
           {loading ? (
             <div className="p-6 text-center">
