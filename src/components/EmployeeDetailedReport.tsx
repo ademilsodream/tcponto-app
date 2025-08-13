@@ -134,7 +134,8 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
       return 0; // Dentro da tolerância
     }
 
-    return totalHours - maxNormalHours;
+    // Se passou da tolerância, conta TODAS as horas como extras
+    return totalHours;
   };
 
   // Totais de horas por data
@@ -378,11 +379,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                               <p className="text-sm text-gray-600">
                                 <span className="font-medium">{dayRecords.length}</span> registro(s)
                               </p>
-                              {dayTotals && dayTotals.overtime > 0 && (
-                                <p className="text-sm text-orange-600 flex items-center gap-1">
-                                  <span className="font-medium">{formatHoursAsTime(dayTotals.overtime)}</span> extras
-                                </p>
-                              )}
                             </>
                           ) : (
                             <p className="text-sm text-gray-500">
@@ -390,6 +386,14 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                             </p>
                           )}
                         </div>
+                        {hasRecords && dayTotals && dayTotals.overtime > 0 && (
+                          <div className="mt-2">
+                            <p className="text-sm text-orange-600 flex items-center gap-1">
+                              <span className="font-medium">Horas Extras:</span>
+                              <span className="font-bold">{formatHoursAsTime(dayTotals.overtime)}</span>
+                            </p>
+                          </div>
+                        )}
                       </div>
                       
                       {hasRecords && (
