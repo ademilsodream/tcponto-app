@@ -42,7 +42,7 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
   const menuItems = [
     { key: 'timeRegistration', label: 'Registro de Ponto', icon: Clock, path: '/' },
     { key: 'monthlySummary', label: 'Resumo Mensal', icon: BarChart3, path: '/monthly-summary' },
-    { key: 'detailedReport', label: 'Relatório de Ponto', icon: FileText, path: '/detailed-report' },
+    { key: 'detailedReport', label: 'Espelho Ponto', icon: FileText, path: '/detailed-report' },
     { key: 'incompleteRecords', label: 'Registros Incompletos', icon: Clock, path: '/incomplete-records' },
     { key: 'adjustPreviousDays', label: 'Ajustar Registros', icon: Edit, path: '/adjust-previous-days' },
     { key: 'vacationRequest', label: 'Férias', icon: FileText, path: '/vacation-request' },
