@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Calendar as CalendarIconLucide, Clock, DollarSign, ChevronDown, ChevronUp, CalendarIcon, Grid as GridIcon, List as ListIcon } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, parseISO, isValid, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO, isValid, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, eachDayOfInterval, isWeekend } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -54,8 +54,6 @@ const formatHoursAsTime = (hours: number) => {
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-type ViewMode = 'calendar' | 'list';
-
 const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack }) => {
   const { user } = useOptimizedAuth();
   const { formatCurrency } = useCurrency();
@@ -63,8 +61,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
   // Estados para as datas de início e fim do período (mês atual por padrão)
   const [startDate, setStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date | undefined>(endOfMonth(new Date()));
-
-  const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
   const [records, setRecords] = useState<TimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -103,318 +99,116 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
     return map;
   }, [records]);
 
-  // ✨ NOVO: Função para abrir detalhes do dia
-  const openDayDetails = (day: Date) => {
-    setDialogDate(day);
+  // ✨ NOVO: Gerar todos os dias do período (incluindo fins de semana)
+  const allDaysInPeriod = useMemo(() => {
+    if (!startDate || !endDate) return [];
+    
+    return eachDayOfInterval({ start: startDate, end: endDate }).map(date => ({
+      date,
+      dateKey: format(date, 'yyyy-MM-dd'),
+      isWeekend: isWeekend(date),
+      dayName: format(date, 'EEE', { locale: ptBR }),
+      dayNumber: format(date, 'dd'),
+      month: format(date, 'MM'),
+      year: format(date, 'yyyy')
+    }));
+  }, [startDate, endDate]);
+
+  // ✨ NOVO: Abrir detalhes do dia
+  const openDayDetails = (date: Date) => {
+    setDialogDate(date);
     setDayDialogOpen(true);
   };
 
-  // ✨ NOVO: Geração da grade de calendário do mês selecionado
-  const monthGrid = useMemo(() => {
-    if (!startDate) return [] as Date[];
-    const monthStart = startOfMonth(startDate);
-    const monthEnd = endOfMonth(startDate);
-    const gridStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
-
-    const days: Date[] = [];
-    let cursor = gridStart;
-    while (cursor <= gridEnd) {
-      days.push(cursor);
-      cursor = addDays(cursor, 1);
-    }
-    return days;
-  }, [startDate]);
-
-  // ✨ NOVO: Função para buscar dados do perfil do usuário
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('hourly_rate, overtime_rate')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error loading user profile:', error);
-        return;
-      }
-
-      setUserProfile({ 
-        hourly_rate: Number(data.hourly_rate) || 0,
-        overtime_rate: Number(data.overtime_rate) || 0
-      });
-    } catch (error) {
-      console.error('Unexpected error loading user profile:', error);
-    }
-  };
-
-  const loadRecords = async (userId: string, start: Date, end: Date) => {
-    setLoading(true);
-    setRecords([]); // Limpa registros anteriores
-
-    const startDateStr = format(start, 'yyyy-MM-dd');
-    const endDateStr = format(end, 'yyyy-MM-dd');
-
-    try {
-      const { data, error } = await supabase
-        .from('time_records')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('date', startDateStr)
-        .lte('date', endDateStr)
-        .order('date', { ascending: true });
-
-      if (error) {
-        console.error('Error loading time records:', error);
-        setLoading(false);
-        return;
-      }
-
-      // ✨ Processar os dados com cálculo financeiro em tempo real
-      const processedRecords = (data || []).map(record => {
-        const date = parseISO(record.date);
-        const isWeekendDay = !isWorkingDay(date);
-
-        const totalHours = Number(record.total_hours || 0);
-        const normalHours = Number(record.normal_hours || 0);
-        const overtimeHours = Number(record.overtime_hours || 0);
-
-        const hourlyRate = userProfile?.hourly_rate || 0;
-        const overtimeRate = userProfile?.overtime_rate || 0;
-        const normalPay = normalHours * hourlyRate;
-        const overtimePay = overtimeHours * overtimeRate;
-        const totalPay = normalPay + overtimePay;
-
-        return {
-          ...record,
-          total_hours: totalHours,
-          normal_hours: normalHours,
-          overtime_hours: overtimeHours,
-          normal_pay: normalPay,
-          overtime_pay: overtimePay,
-          total_pay: totalPay,
-          isWeekend: isWeekendDay,
-        } as TimeRecord;
-      });
-
-      setRecords(processedRecords);
-
-    } catch (error) {
-      console.error('Unexpected error loading time records:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Carrega perfil do usuário quando o componente monta
-  useEffect(() => {
-    if (user?.id) {
-      loadUserProfile(user.id);
-    }
-  }, [user?.id]);
-
-  // Carrega os registros quando o perfil do usuário é carregado também
-  useEffect(() => {
-    if (user?.id && startDate && endDate && userProfile) {
-      loadRecords(user.id, startDate, endDate);
-    } else {
-      setRecords([]);
-    }
-  }, [user?.id, startDate, endDate, userProfile]);
-
-  // Alterna a expansão do card (modo lista)
+  // ✨ NOVO: Alternar expansão do registro
   const toggleExpand = (recordId: string) => {
     setExpandedRecordId(expandedRecordId === recordId ? null : recordId);
   };
 
-  // Render: Cabeçalho de filtros e toggle de visualização
-  const FiltersHeader = (
-    <div className="mb-6 p-4 bg-white rounded-xl shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-lg font-semibold text-gray-900">Selecionar Período</span>
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === 'calendar' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('calendar')}
-            className="flex items-center gap-1"
-          >
-            <GridIcon className="w-4 h-4" /> Calendário
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-            className="flex items-center gap-1"
-          >
-            <ListIcon className="w-4 h-4" /> Lista
-          </Button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Seletor de Data Inicial */}
-        <div className="space-y-2">
-          <Label htmlFor="startDate">Data Inicial</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button id="startDate" variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {startDate ? format(startDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={startDate}
-                onSelect={(d) => {
-                  if (d) {
-                    setStartDate(startOfMonth(d));
-                    setEndDate(endOfMonth(d));
-                  }
-                }}
-                initialFocus
-                locale={ptBR}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
+  // ✨ NOVO: Carregar perfil do usuário para cálculos de pagamento
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
 
-        {/* Seletor de Data Final */}
-        <div className="space-y-2">
-          <Label htmlFor="endDate">Data Final</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button id="endDate" variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar data'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={endDate}
-                onSelect={(d) => { if (d) setEndDate(endOfMonth(d)); }}
-                initialFocus
-                locale={ptBR}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-    </div>
-  );
+        if (error) {
+          console.error('Error loading user profile:', error);
+          return;
+        }
 
-  // Render: Calendário mensal com registros
-  const CalendarGrid = (
-    <div className="p-4 bg-white rounded-xl shadow-sm border">
-      <div className="text-lg font-semibold flex items-center gap-2 mb-3">
-        <CalendarIconLucide className="w-5 h-5" />
-        {startDate ? format(startDate, 'MMMM yyyy', { locale: ptBR }) : ''}
-      </div>
-        {/* Cabeçalho dos dias da semana */}
-        <div className="grid grid-cols-7 text-xs sm:text-sm font-medium text-gray-600 mb-2">
-          {WEEKDAYS.map((d) => (
-            <div key={d} className="p-1 text-center">{d}</div>
-          ))}
-        </div>
- 
-        {/* Grade de dias */}
-        <div className="grid grid-cols-7 gap-[2px] bg-gray-200 rounded-md overflow-hidden">
-          {monthGrid.map((day, idx) => {
-            const key = format(day, 'yyyy-MM-dd');
-            const dayNum = format(day, 'd', { locale: ptBR });
-            const inMonth = startDate ? isSameMonth(day, startDate) : false;
-            const totals = totalsByDate.get(key);
-            const hasRecords = !!recordsByDate.get(key);
- 
-            return (
-              <button
-                key={idx}
-                onClick={() => hasRecords && openDayDetails(day)}
-                className={cn(
-                  'relative min-h-[68px] sm:min-h-[86px] bg-white p-1.5 sm:p-2 text-left hover:bg-gray-50 transition-colors',
-                  !inMonth && 'bg-gray-50 text-gray-400',
-                  hasRecords && 'ring-1 ring-blue-200'
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm font-semibold">{dayNum}</span>
-                  {totals && (
-                    <span className="text-[10px] sm:text-xs text-primary-700 font-medium">
-                      {formatHoursAsTime(totals.total)}
-                    </span>
-                  )}
-                </div>
- 
-                {/* Registros resumidos */}
-                {hasRecords && (
-                  <div className="mt-1 space-y-0.5">
-                    {recordsByDate.get(key)!.slice(0, 3).map((r) => (
-                      <div key={r.id} className="text-[10px] sm:text-xs truncate">
-                        • {r.clock_in || '--:--'} - {r.clock_out || '--:--'}
-                      </div>
-                    ))}
-                    {recordsByDate.get(key)!.length > 3 && (
-                      <div className="text-[10px] sm:text-[11px] text-gray-500">+{recordsByDate.get(key)!.length - 3} mais</div>
-                    )}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-    </div>
-  );
+        setUserProfile({
+          hourly_rate: profile?.hourly_rate || 0,
+          overtime_rate: profile?.overtime_rate || 0
+        });
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+      }
+    };
 
-  // Render: Lista já existente (mantida como alternativa)
-  const ListView = (
-    <div className="p-4 bg-white rounded-xl shadow-sm border">
-      <div className="text-lg font-semibold mb-3">Registros</div>
-        {loading ? (
-          <div className="p-6 text-center">
-              <Clock className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-              Carregando registros...
-          </div>
-        ) : records.length > 0 ? (
-          <div className="space-y-4">
-            {records.map((record) => (
-              <Card key={record.id} className={record.isWeekend ? 'border-yellow-300 bg-yellow-50' : ''}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      {format(parseISO(record.date), 'dd/MM/yyyy (EEE)', { locale: ptBR })}
-                       {record.isWeekend && (
-                           <span className="text-xs font-medium text-yellow-800 bg-yellow-200 px-2 py-1 rounded-full">Fim de Semana</span>
-                       )}
-                    </CardTitle>
-                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatHoursAsTime(record.total_hours)} trabalhadas
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => toggleExpand(record.id)}>
-                    {expandedRecordId === record.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </Button>
-                </CardHeader>
-                {expandedRecordId === record.id && (
-                    <CardContent className="border-t pt-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between"><span>Entrada:</span><span className="font-medium">{record.clock_in || '--:--'}</span></div>
-                      <div className="flex justify-between"><span>Início Almoço:</span><span className="font-medium">{record.lunch_start || '--:--'}</span></div>
-                      <div className="flex justify-between"><span>Fim Almoço:</span><span className="font-medium">{record.lunch_end || '--:--'}</span></div>
-                      <div className="flex justify-between"><span>Saída:</span><span className="font-medium">{record.clock_out || '--:--'}</span></div>
-                        </div>
-                    </CardContent>
-                )}
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="p-6 text-center text-gray-600">Nenhum registro encontrado para o período selecionado.</div>
-        )}
-    </div>
-  );
+    loadUserProfile();
+  }, [user]);
+
+  // ✨ NOVO: Carregar registros de ponto
+  useEffect(() => {
+    const loadRecords = async () => {
+      if (!user?.id || !startDate || !endDate) return;
+
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('time_records')
+          .select('*')
+          .eq('employee_id', user.id)
+          .gte('date', format(startDate, 'yyyy-MM-dd'))
+          .lte('date', format(endDate, 'yyyy-MM-dd'))
+          .order('date', { ascending: true });
+
+        if (error) {
+          console.error('Error loading time records:', error);
+          return;
+        }
+
+        // ✨ NOVO: Calcular horas e pagamentos em tempo real
+        const processedRecords = (data || []).map(record => {
+          const { totalHours, normalHours, overtimeHours } = calculateWorkingHours(
+            record.clock_in,
+            record.clock_out,
+            record.lunch_start,
+            record.lunch_end
+          );
+
+          const normalPay = normalHours * (userProfile?.hourly_rate || 0);
+          const overtimePay = overtimeHours * (userProfile?.overtime_rate || 0);
+          const totalPay = normalPay + overtimePay;
+
+          return {
+            ...record,
+            total_hours: totalHours,
+            normal_hours: normalHours,
+            overtime_hours: overtimeHours,
+            normal_pay: normalPay,
+            overtime_pay: overtimePay,
+            total_pay: totalPay,
+            isWeekend: isWeekend(parseISO(record.date))
+          };
+        });
+
+        setRecords(processedRecords);
+      } catch (error) {
+        console.error('Error loading time records:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRecords();
+  }, [user, startDate, endDate, userProfile]);
 
   // Conteúdo principal
   return (
@@ -447,24 +241,6 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
         <div className="bg-white rounded-xl shadow-sm border p-4">
           <div className="flex items-center justify-between mb-4">
             <span className="text-lg font-semibold text-gray-900">Selecionar Período</span>
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === 'calendar' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('calendar')}
-                className="flex items-center gap-1 text-sm"
-              >
-                <GridIcon className="w-4 h-4" /> Calendário
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-                className="flex items-center gap-1 text-sm"
-              >
-                <ListIcon className="w-4 h-4" /> Lista
-              </Button>
-            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Seletor de Data Inicial */}
@@ -518,161 +294,122 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
           </div>
         </div>
 
-        {/* Calendar or List View */}
-        {viewMode === 'calendar' ? (
-          <div className="bg-white rounded-xl shadow-sm border p-4">
-            <div className="text-lg font-semibold mb-4">Calendário</div>
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-                <div key={day} className="p-2 text-sm font-medium text-gray-600">
-                  {day}
-                </div>
-              ))}
-              {monthGrid.map((day) => {
-                const key = format(day, 'yyyy-MM-dd');
-                const hasRecords = recordsByDate.has(key);
-                const isCurrentMonth = day.getMonth() === startDate?.getMonth();
-                const isToday = isSameDay(day, new Date());
-                const totals = totalsByDate.get(key);
+        {/* Lista de todos os dias do período */}
+        <div className="bg-white rounded-xl shadow-sm border p-4">
+          <div className="text-lg font-semibold mb-4">Registros do Período</div>
+          {loading ? (
+            <div className="p-6 text-center">
+              <Clock className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+              <span className="text-base">Carregando registros...</span>
+            </div>
+          ) : allDaysInPeriod.length > 0 ? (
+            <div className="space-y-3">
+              {allDaysInPeriod.map((dayInfo) => {
+                const dayRecords = recordsByDate.get(dayInfo.dateKey) || [];
+                const dayTotals = totalsByDate.get(dayInfo.dateKey);
+                const hasRecords = dayRecords.length > 0;
                 
                 return (
-                  <button
-                    key={day.toISOString()}
-                    onClick={() => openDayDetails(day)}
+                  <div 
+                    key={dayInfo.dateKey} 
                     className={cn(
-                      "p-2 min-h-[60px] text-sm border rounded-lg transition-colors",
-                      !isCurrentMonth && "text-gray-300 bg-gray-50",
-                      isToday && "ring-2 ring-blue-500",
-                      hasRecords && "bg-blue-50 border-blue-200 hover:bg-blue-100",
-                      !hasRecords && isCurrentMonth && "hover:bg-gray-50"
+                      "p-4 border-2 rounded-xl transition-colors",
+                      dayInfo.isWeekend 
+                        ? "border-orange-300 bg-orange-50" 
+                        : hasRecords 
+                          ? "border-blue-200 bg-blue-50" 
+                          : "border-gray-200 bg-gray-50"
                     )}
                   >
-                    <div className="font-medium">{format(day, 'd')}</div>
-                    {hasRecords && totals && (
-                      <div className="text-xs text-blue-600 font-medium">
-                        {formatHoursAsTime(totals.total)}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold flex items-center gap-2">
+                          {format(dayInfo.date, 'dd/MM/yyyy (EEE)', { locale: ptBR })}
+                          {dayInfo.isWeekend && (
+                            <span className="text-xs font-medium text-orange-800 bg-orange-200 px-2 py-1 rounded-full">
+                              Fim de Semana
+                            </span>
+                          )}
+                        </h3>
+                        <div className="flex items-center gap-4 mt-2">
+                          {hasRecords ? (
+                            <>
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span className="font-medium">{formatHoursAsTime(dayTotals?.total || 0)}</span> trabalhadas
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">{dayRecords.length}</span> registro(s)
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-500">
+                              {dayInfo.isWeekend ? 'Sem trabalho' : 'Sem registros'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {hasRecords && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => toggleExpand(dayInfo.dateKey)} 
+                          className="p-2"
+                        >
+                          {expandedRecordId === dayInfo.dateKey ? 
+                            <ChevronUp className="w-4 h-4" /> : 
+                            <ChevronDown className="w-4 h-4" />
+                          }
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Detalhes expandidos */}
+                    {expandedRecordId === dayInfo.dateKey && hasRecords && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="space-y-3">
+                          {dayRecords.map((record) => (
+                            <div key={record.id} className="bg-white rounded-lg p-3 border">
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Entrada:</span>
+                                  <span className="font-medium">{record.clock_in || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Início Almoço:</span>
+                                  <span className="font-medium">{record.lunch_start || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Fim Almoço:</span>
+                                  <span className="font-medium">{record.lunch_end || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Saída:</span>
+                                  <span className="font-medium">{record.clock_out || '--:--'}</span>
+                                </div>
+                                <div className="flex justify-between pt-2 border-t border-gray-100">
+                                  <span className="font-medium text-gray-700">Total:</span>
+                                  <span className="font-bold text-blue-600">{formatHoursAsTime(record.total_hours)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
-                    {/* Registros resumidos */}
-                    {hasRecords && (
-                      <div className="mt-1 space-y-0.5">
-                        {recordsByDate.get(key)!.slice(0, 3).map((r) => (
-                          <div key={r.id} className="text-[10px] sm:text-xs truncate">
-                            • {r.clock_in || '--:--'} - {r.clock_out || '--:--'}
-                          </div>
-                        ))}
-                        {recordsByDate.get(key)!.length > 3 && (
-                          <div className="text-[10px] sm:text-[11px] text-gray-500">+{recordsByDate.get(key)!.length - 3} mais</div>
-                        )}
-                      </div>
-                    )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border p-4">
-            <div className="text-lg font-semibold mb-4">Registros</div>
-            {loading ? (
-              <div className="p-6 text-center">
-                <Clock className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-                <span className="text-base">Carregando registros...</span>
-              </div>
-            ) : records.length > 0 ? (
-              <div className="space-y-4">
-                {records.map((record) => (
-                  <div key={record.id} className={`p-4 border-2 rounded-xl ${record.isWeekend ? 'border-yellow-300 bg-yellow-50' : 'border-gray-200 bg-gray-50'}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold flex items-center gap-2">
-                          {format(parseISO(record.date), 'dd/MM/yyyy (EEE)', { locale: ptBR })}
-                          {record.isWeekend && (
-                            <span className="text-xs font-medium text-yellow-800 bg-yellow-200 px-2 py-1 rounded-full">Fim de Semana</span>
-                          )}
-                        </h3>
-                        <p className="text-sm text-gray-600 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatHoursAsTime(record.total_hours)} trabalhadas
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => toggleExpand(record.id)} className="p-2">
-                        {expandedRecordId === record.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </Button>
-                    </div>
-                    {expandedRecordId === record.id && (
-                      <div className="border-t pt-4 mt-4">
-                        <div className="space-y-3 text-sm">
-                          <div className="flex justify-between"><span>Entrada:</span><span className="font-medium">{record.clock_in || '--:--'}</span></div>
-                          <div className="flex justify-between"><span>Início Almoço:</span><span className="font-medium">{record.lunch_start || '--:--'}</span></div>
-                          <div className="flex justify-between"><span>Fim Almoço:</span><span className="font-medium">{record.lunch_end || '--:--'}</span></div>
-                          <div className="flex justify-between"><span>Saída:</span><span className="font-medium">{record.clock_out || '--:--'}</span></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-6 text-center text-gray-600 text-base">Nenhum registro encontrado para o período selecionado.</div>
-            )}
-          </div>
-        )}
+          ) : (
+            <div className="p-6 text-center text-gray-600">
+              <CalendarIcon className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+              <p className="text-base">Selecione um período para visualizar os registros.</p>
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Dialog de detalhes do dia (mobile friendly) */}
-      <Dialog open={dayDialogOpen} onOpenChange={setDayDialogOpen}>
-        <DialogContent className="sm:max-w-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl">
-              {dialogDate ? format(dialogDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : ''}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-            {dialogDate ? (
-              (() => {
-                const key = format(dialogDate, 'yyyy-MM-dd');
-                const items = recordsByDate.get(key) || [];
-                if (items.length === 0) {
-                  return <div className="text-base text-gray-500">Sem registros neste dia.</div>;
-                }
-                return (
-                  <div className="space-y-4">
-                    {items.map((record) => (
-                      <div key={record.id} className="p-4 border-2 border-gray-200 rounded-xl bg-gray-50">
-                        <div className="space-y-3">
-                          <div className="flex justify-between text-base">
-                            <span>Entrada:</span>
-                            <span className="font-medium">{record.clock_in || '--:--'}</span>
-                          </div>
-                          <div className="flex justify-between text-base">
-                            <span>Início Almoço:</span>
-                            <span className="font-medium">{record.lunch_start || '--:--'}</span>
-                          </div>
-                          <div className="flex justify-between text-base">
-                            <span>Fim Almoço:</span>
-                            <span className="font-medium">{record.lunch_end || '--:--'}</span>
-                          </div>
-                          <div className="flex justify-between text-base">
-                            <span>Saída:</span>
-                            <span className="font-medium">{record.clock_out || '--:--'}</span>
-                          </div>
-                          <div className="border-t pt-3">
-                            <div className="flex justify-between text-base font-semibold">
-                              <span>Total:</span>
-                              <span className="text-blue-600">{formatHoursAsTime(record.total_hours)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
