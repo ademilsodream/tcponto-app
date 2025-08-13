@@ -417,12 +417,12 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
 
       const baseRequest = {
         employee_id: user.id,
+        employee_name: profile?.name || user.email || 'Usuário',
         date: format(selectedDate, 'yyyy-MM-dd'),
         reason: editForm.reason,
         status: 'pending',
-        location_details: locationDetailsForEdit,
-        department_id: profile?.department_id,
-        job_function_id: profile?.job_function_id,
+        location: locationDetailsForEdit,
+        location_name: selectedLocationDetails.name,
       };
 
       // Criar solicitações para cada campo alterado
@@ -433,8 +433,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
         if (newValue && newValue !== currentValue) {
           requests.push({
             ...baseRequest,
-            field_name: dbField,
-            current_value: currentValue,
+            field: dbField,
+            old_value: currentValue,
             new_value: newValue,
           });
         }
