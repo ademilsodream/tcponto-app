@@ -93,7 +93,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({ onUp
         console.error('Erro no upload:', uploadError);
         toast({
           title: "Erro no upload",
-          description: "Falha ao fazer upload do arquivo.",
+          description: `Falha ao fazer upload do arquivo: ${uploadError.message}`,
           variant: "destructive"
         });
         return;
@@ -113,7 +113,7 @@ export const DocumentUploadDialog: React.FC<DocumentUploadDialogProps> = ({ onUp
           file_size: selectedFile.size.toString(),
           uploaded_by: user.id,
           is_read: false
-        });
+        } as any);
 
       if (dbError) {
         console.error('Erro ao salvar no banco:', dbError);
