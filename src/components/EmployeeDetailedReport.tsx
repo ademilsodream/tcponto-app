@@ -369,23 +369,28 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                               </span>
                             )}
                           </h3>
-                          <div className="flex items-center gap-4 mt-2">
-                            {hasRecords ? (
-                              <>
-                                <p className="text-sm text-gray-600 flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  <span className="font-medium">{formatHoursAsTime(dayTotals?.total || 0)}</span> trabalhadas
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  <span className="font-medium">{dayRecords.length}</span> registro(s)
-                                </p>
-                              </>
-                            ) : (
-                              <p className="text-sm text-gray-500">
-                                {dayInfo.isWeekend ? 'Sem trabalho' : 'Sem registros'}
+                                                  <div className="flex items-center gap-4 mt-2">
+                          {hasRecords ? (
+                            <>
+                              <p className="text-sm text-gray-600 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span className="font-medium">{formatHoursAsTime(dayTotals?.total || 0)}</span> trabalhadas
                               </p>
-                            )}
-                          </div>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">{dayRecords.length}</span> registro(s)
+                              </p>
+                              {dayTotals && dayTotals.overtime > 0 && (
+                                <p className="text-sm text-orange-600 flex items-center gap-1">
+                                  <span className="font-medium">{formatHoursAsTime(dayTotals.overtime)}</span> extras
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-500">
+                              {dayInfo.isWeekend ? 'Sem trabalho' : 'Sem registros'}
+                            </p>
+                          )}
+                        </div>
                         </div>
                         
                         {hasRecords && (
@@ -441,44 +446,7 @@ const EmployeeDetailedReport: React.FC<EmployeeDetailedReportProps> = ({ onBack 
                 })}
               </div>
               
-              {/* Resumo de horas extras */}
-              {allDaysInPeriod.length > 0 && (
-                <div className="mt-6 p-4 bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg">
-                  <h4 className="text-lg font-semibold text-orange-800 mb-3 flex items-center gap-2">
-                    <Clock className="w-5 h-5" />
-                    Resumo de Horas Extras
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">
-                        {formatHoursAsTime(
-                          Array.from(totalsByDate.values()).reduce((sum, day) => sum + day.overtime, 0)
-                        )}
-                      </div>
-                      <div className="text-orange-700 font-medium">Total de Horas Extras</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {formatHoursAsTime(
-                          Array.from(totalsByDate.values()).reduce((sum, day) => sum + day.normal, 0)
-                        )}
-                      </div>
-                      <div className="text-blue-700 font-medium">Total de Horas Normais</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-gray-800">
-                        {formatHoursAsTime(
-                          Array.from(totalsByDate.values()).reduce((sum, day) => sum + day.total, 0)
-                        )}
-                      </div>
-                      <div className="text-gray-700 font-medium">Total Geral</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs text-orange-600 text-center">
-                    * Horas extras calculadas considerando jornada de {systemSettings?.jornada_padrao_horas || 8}h + tolerância de {systemSettings?.shift_tolerance_minutes || 15}min
-                  </div>
-                </div>
-              )}
+              
             </>
           ) : (
             <div className="p-6 text-center text-gray-600">
