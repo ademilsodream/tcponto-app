@@ -34,6 +34,22 @@ const Login = () => {
     if (savedRememberMe === 'true') {
       setRememberMe(true);
     }
+    // Adiciona scroll automático ao focar nos inputs (mobile)
+    const handleFocus = (e: Event) => {
+      const target = e.target as HTMLElement;
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 200);
+    };
+    const inputs = document.querySelectorAll('input');
+    inputs.forEach((input) => {
+      input.addEventListener('focus', handleFocus);
+    });
+    return () => {
+      inputs.forEach((input) => {
+        input.removeEventListener('focus', handleFocus);
+      });
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,8 +103,8 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#021B40] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="overflow-auto min-h-screen h-screen w-full bg-[#021B40] flex flex-col justify-center p-4">
+      <div className="w-full max-w-md flex-1 flex flex-col justify-center mx-auto">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center mb-4">
             <img 
