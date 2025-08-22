@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, AlertTriangle, Clock, Save, Edit3, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subDays, isAfter, isBefore, subMonths, isWithinInterval, addMonths, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
@@ -19,6 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 interface AdjustPreviousDaysProps {
@@ -59,7 +65,10 @@ interface BlockedPeriod {
   id: string;
   start_date: string;
   end_date: string;
-  reason: string;
+  name: string;
+  description: string;
+  created_at: string;
+  created_by: string;
 }
 
 interface LocationDetailsForEdit {
@@ -96,8 +105,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [allowedLocations, setAllowedLocations] = useState<AllowedLocation[]>([]);
-  const [blockedPeriods, setBlockedPeriods] = useState<BlockedPeriod[]>([]);
+  const [blockedPeriods, setBlockedPeriods] = useState<any[]>([]);
   const [editedDates, setEditedDates] = useState<Set<string>>(new Set());
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const { user, profile } = useOptimizedAuth();
@@ -228,6 +238,9 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           has_been_edited: false
         });
       }
+      
+      // Abrir modal após carregar os dados
+      setIsModalOpen(true);
     } catch (error) {
       console.error('Erro ao carregar registro:', error);
       toast({
@@ -342,6 +355,20 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedDate(undefined);
+    setTimeRecord(null);
+    setEditForm({
+      clock_in: '',
+      lunch_start: '',
+      lunch_end: '',
+      clock_out: '',
+      reason: '',
+      locationName: ''
+    });
   };
 
   const handleSubmitEdit = async () => {
@@ -467,17 +494,8 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
       // Recarregar datas disponíveis para atualizar o estado
       await loadAvailableDates();
       
-      // Limpar formulário
-      setEditForm({
-        clock_in: '',
-        lunch_start: '',
-        lunch_end: '',
-        clock_out: '',
-        reason: '',
-        locationName: ''
-      });
-      setSelectedDate(undefined);
-      setTimeRecord(null);
+      // Fechar modal e limpar formulário
+      handleCloseModal();
 
     } catch (error) {
       console.error('Erro ao enviar solicitação:', error);
@@ -616,13 +634,24 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
           </div>
         </div>
 
-        {/* Formulário de Edição */}
-        {selectedDate && timeRecord ? (
-          <div className="bg-white rounded-xl shadow-sm border p-4">
-            <div className="text-lg font-medium mb-4 flex items-center gap-2">
-              <Edit3 className="w-5 h-5" /> Editar {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
-            </div>
+        {/* Instruções */}
+        <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
+          <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <p className="text-base">Selecione um dia no calendário para editar os registros</p>
+        </div>
+      </div>
 
+      {/* Modal de Edição */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit3 className="w-5 h-5" /> 
+              Editar {selectedDate ? format(selectedDate, 'dd/MM/yyyy', { locale: ptBR }) : ''}
+            </DialogTitle>
+          </DialogHeader>
+
+          {timeRecord && (
             <div className="space-y-6">
               <div>
                 <Label htmlFor="location" className="text-base font-medium">Obra *</Label>
@@ -723,46 +752,51 @@ const AdjustPreviousDays: React.FC<AdjustPreviousDaysProps> = ({ onBack }) => {
                 />
               </div>
 
-              <Button
-                onClick={handleSubmitEdit}
-                className="w-full h-14 text-lg font-semibold"
-                disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
-              >
-                {submitting ? (
-                  <>
-                    <Clock className="w-5 h-5 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-5 h-5 mr-2" />
-                    Enviar Solicitação
-                  </>
-                )}
-              </Button>
+              {timeRecord && allowedLocations.length === 0 && (
+                <Alert variant="destructive" className="border-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  <AlertDescription className="text-base">
+                    Nenhuma obra ativa encontrada. Não é possível solicitar edição sem selecionar uma obra.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleCloseModal}
+                  className="flex-1 h-12"
+                  disabled={submitting}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSubmitEdit}
+                  className="flex-1 h-12 text-base font-semibold"
+                  disabled={submitting || !editForm.reason.trim() || !editForm.locationName || allowedLocations.length === 0 || !hasAnyTimeChanged}
+                >
+                  {submitting ? (
+                    <>
+                      <Clock className="w-5 h-5 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5 mr-2" />
+                      Enviar
+                    </>
+                  )}
+                </Button>
+              </div>
 
               <p className="text-sm text-gray-500 text-center">
                 * A solicitação será enviada para aprovação do RH.
                 Você será notificado quando for processada.
               </p>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl shadow-sm border p-8 text-center text-gray-500">
-            <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-base">Selecione um dia no calendário para editar os registros</p>
-          </div>
-        )}
-
-        {selectedDate && timeRecord && allowedLocations.length === 0 && (
-          <Alert variant="destructive" className="border-2">
-            <AlertTriangle className="h-5 w-5" />
-            <AlertDescription className="text-base">
-              Nenhuma obra ativa encontrada. Não é possível solicitar edição sem selecionar uma obra.
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
