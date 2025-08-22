@@ -379,17 +379,16 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
                       <SelectValue placeholder="Selecione o gênero" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="M">Masculino</SelectItem>
-                      <SelectItem value="F">Feminino</SelectItem>
-                      <SelectItem value="O">Outro</SelectItem>
+                      <SelectItem value="masculino">Masculino</SelectItem>
+                      <SelectItem value="feminino">Feminino</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                    <span className="text-gray-900">
-                      {profile.gender === 'M' ? 'Masculino' : profile.gender === 'F' ? 'Feminino' : profile.gender === 'O' ? 'Outro' : 'Não informado'}
-                    </span>
-                  </div>
+                                     <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                     <span className="text-gray-900">
+                       {profile.gender === 'masculino' ? 'Masculino' : profile.gender === 'feminino' ? 'Feminino' : 'Não informado'}
+                     </span>
+                   </div>
                 )}
               </div>
 

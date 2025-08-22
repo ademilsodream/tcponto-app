@@ -1,8 +1,7 @@
 -- Migração para adicionar suporte a foto de perfil
 -- Execute este script no Supabase Studio > SQL Editor
 
--- 1. Verificar se o campo photo já existe na tabela profiles
--- O campo 'photo' já existe na tabela profiles conforme a estrutura fornecida
+-- 1. O campo 'photo' já existe na tabela profiles conforme a estrutura fornecida
 
 -- 2. Criar bucket de storage para avatars
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
