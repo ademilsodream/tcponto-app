@@ -18,8 +18,15 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
 
   const handleLogout = async () => {
     try {
+      localStorage.clear();
+      sessionStorage.clear();
       const { supabase } = await import('@/integrations/supabase/client');
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
     } catch (error) {
       console.error('Erro ao fazer logout:', error);
     }
@@ -41,9 +48,6 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 w-full">
-      {/* Drawer/Menu fixo no topo esquerdo */}
-      <EmployeeDrawer activeScreen={'timeRegistration'} onScreenChange={handleScreenChange} />
-
       {/* Aviso de sessão */}
       <SessionWarning
         isVisible={sessionWarning}
@@ -51,10 +55,13 @@ const EmployeeLayout: React.FC<EmployeeLayoutProps> = ({ children }) => {
         onDismiss={dismissSessionWarning}
       />
 
-      <header className="bg-white shadow-sm border-b w-full">
+      <header className="bg-white shadow-sm border-b w-full relative">
         <div className="w-full px-4 py-4">
           <div className="grid grid-cols-3 items-center w-full">
-            <div></div>
+            <div className="flex items-center">
+              {/* Drawer/Menu fixo no header */}
+              <EmployeeDrawer activeScreen={'timeRegistration'} onScreenChange={handleScreenChange} />
+            </div>
             
             <div className="flex items-center justify-center space-x-3">
               <img 
