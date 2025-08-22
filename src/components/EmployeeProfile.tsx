@@ -37,6 +37,8 @@ interface ProfileData {
   job_function_id: string | null;
   shift_id: string | null;
   photo?: string | null;
+  departments?: { id: string; name: string } | null;
+  job_functions?: { id: string; name: string } | null;
 }
 
 const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
@@ -79,7 +81,9 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
           department_id,
           job_function_id,
           shift_id,
-          photo
+          photo,
+          departments:department_id(id, name),
+          job_functions:job_function_id(id, name)
         `)
         .eq('id', user.id)
         .single();
@@ -530,12 +534,30 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
             <CardTitle className="text-lg font-semibold">Dados Profissionais</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data de Admissão</Label>
                 <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
                   <span className="text-gray-900">
                     {profile.admission_date ? format(new Date(profile.admission_date), 'dd/MM/yyyy', { locale: ptBR }) : 'Não informado'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Departamento</Label>
+                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                  <span className="text-gray-900">
+                    {profile.departments?.name || 'Não informado'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Função</Label>
+                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                  <span className="text-gray-900">
+                    {profile.job_functions?.name || 'Não informado'}
                   </span>
                 </div>
               </div>
