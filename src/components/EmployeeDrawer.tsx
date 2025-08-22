@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Drawer, DrawerContent, DrawerTrigger, DrawerClose } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
-import { Menu, Clock, BarChart3, FileText, Edit, LogOut, Loader2, Folder, DollarSign } from 'lucide-react';
+import { Menu, Clock, BarChart3, FileText, Edit, LogOut, Loader2, Folder, DollarSign, User } from 'lucide-react';
 import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -48,6 +48,7 @@ const EmployeeDrawer: React.FC<EmployeeDrawerProps> = ({ activeScreen, onScreenC
     { key: 'vacationRequest', label: 'Férias', icon: FileText, path: '/vacation-request' },
     { key: 'documents', label: 'Documentos', icon: Folder, path: '/documents' },
     { key: 'salaryAdvance', label: 'Vale Salarial', icon: DollarSign, path: '/salary-advance' },
+    { key: 'profile', label: 'Meu Perfil', icon: User, path: '/profile' },
   ] as const;
 
   // Derivar active pela rota atual se não houver prop
