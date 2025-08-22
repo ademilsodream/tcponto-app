@@ -280,9 +280,48 @@ const UnifiedTimeRegistration: React.FC = () => {
         {/* Anúncios */}
         {user && <AnnouncementNotification userId={user.id} />}
         
+        {/* Primeiro Card - Botões, Funcionário, Data/Hora, Mapa */}
         <div className="w-full bg-white/90 rounded-xl shadow-sm">
-          <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={420} />
           <div className="px-4 py-4">
+            {/* Botões no topo */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <Button 
+                onClick={handleTimeRegistration} 
+                disabled={buttonDisabled} 
+                size="lg" 
+                className="h-16 text-lg font-semibold"
+              >
+                {isRegistering ? 'Registrando...' : 'Registrar'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={calibrateForCurrentLocation} 
+                className="h-16 text-lg"
+              >
+                Calibrar GPS
+              </Button>
+            </div>
+            
+            {/* Nome do funcionário */}
+            <div className="mb-3">
+              <div className="uppercase text-xs text-gray-500 font-medium">Funcionário</div>
+              <div className="text-base font-semibold text-gray-900">{profile?.name || user?.email}</div>
+            </div>
+            
+            {/* Data e hora */}
+            <div className="mb-4">
+              <div className="text-base text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
+              <div className="text-3xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
+            </div>
+            
+            {/* Cooldown */}
+            {remainingCooldown !== null && (
+              <div className="mb-4 text-center text-sm text-gray-600">
+                Aguarde {formatRemaining(remainingCooldown)} para novo registro
+              </div>
+            )}
+            
+            {/* Status GPS */}
             <UnifiedGPSStatus
               loading={loading || loadingLocations}
               error={error}
@@ -300,45 +339,14 @@ const UnifiedTimeRegistration: React.FC = () => {
               showCalibrate={false}
               showStatus={false}
             />
-            <div className="mt-3">
-              <div className="text-base text-gray-600">{format(new Date(), "EEE, dd MMM yyyy", { locale: ptBR })}</div>
-              <div className="text-3xl font-bold tracking-wide mt-1">{format(new Date(), 'HH:mm:ss')}</div>
-              <div className="grid grid-cols-2 gap-3 text-sm text-gray-600 mt-3">
-                <div>
-                  <div className="uppercase text-xs text-gray-500 font-medium">Funcionário</div>
-                  <div className="text-base">{profile?.name || user?.email}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Linha de botões lado a lado */}
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button 
-                onClick={handleTimeRegistration} 
-                disabled={buttonDisabled} 
-                size="lg" 
-                className="h-16 text-lg font-semibold"
-              >
-                {isRegistering ? 'Registrando...' : 'Registrar'}
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={calibrateForCurrentLocation} 
-                className="h-16 text-lg"
-              >
-                Calibrar GPS
-              </Button>
-            </div>
-            {remainingCooldown !== null && (
-              <div className="mt-3 text-center text-sm text-gray-600">
-                Aguarde {formatRemaining(remainingCooldown)} para novo registro
-              </div>
-            )}
           </div>
+          
+          {/* Mapa */}
+          <LocationMap latitude={location?.latitude ?? 0} longitude={location?.longitude ?? 0} height={420} />
         </div>
-
-        {/* Trilha abaixo - largura total sem borda */}
-        <div className="px-0 py-3">
+ 
+        {/* Segundo Card - Linha dos registros */}
+        <div className="w-full bg-white/90 rounded-xl shadow-sm p-4">
           <TimeRegistrationProgress timeRecord={lastRegistration as any} />
         </div>
       </div>
