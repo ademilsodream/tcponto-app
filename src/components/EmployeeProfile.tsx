@@ -461,13 +461,6 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
               </div>
 
               <div className="space-y-2">
-                <Label>Código do Funcionário</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">{profile.employee_code || 'Não informado'}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
                 <Label>NIF</Label>
                 <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
                   <span className="text-gray-900">{profile.nif || 'Não informado'}</span>
@@ -487,36 +480,6 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
                   <span className="text-gray-900">
                     {profile.admission_date ? format(new Date(profile.admission_date), 'dd/MM/yyyy', { locale: ptBR }) : 'Não informado'}
                   </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Função</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">{profile.role}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Taxa Horária</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">€{profile.hourly_rate.toFixed(2)}/h</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Taxa de Horas Extras</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">
-                    {profile.overtime_rate ? `€${profile.overtime_rate.toFixed(2)}/h` : 'Não informado'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">{profile.status || 'Não informado'}</span>
                 </div>
               </div>
             </div>
