@@ -48,6 +48,7 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
   const [editForm, setEditForm] = useState<Partial<ProfileData>>({});
   const { user, profile: authProfile, refreshProfile } = useOptimizedAuth();
   const { toast } = useToast();
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
 
   // Carregar dados completos do perfil
   const loadProfile = async () => {
@@ -88,12 +89,15 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
       setProfile(data);
       setEditForm({
         name: data.name,
+        email: data.email,
         phone: data.phone,
         address: data.address,
         city: data.city,
         postal_code: data.postal_code,
         birth_date: data.birth_date,
         gender: data.gender,
+        nif: data.nif,
+        niss: data.niss,
       });
     } catch (error) {
       console.error('Erro ao carregar perfil:', error);
@@ -123,16 +127,34 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
 
     try {
       setIsSaving(true);
+
+      // Se o email foi alterado, usar a edge function
+      if (editForm.email && editForm.email !== profile?.email) {
+        setIsUpdatingEmail(true);
+        
+        const { data, error: emailError } = await supabase.functions.invoke('update-user-email', {
+          body: { newEmail: editForm.email },
+        });
+
+        if (emailError) throw emailError;
+        
+        setIsUpdatingEmail(false);
+      }
+
+      // Atualizar outros campos do perfil
       const { error } = await supabase
         .from('profiles')
         .update({
           name: editForm.name,
+          email: editForm.email,
           phone: editForm.phone,
           address: editForm.address,
           city: editForm.city,
           postal_code: editForm.postal_code,
           birth_date: editForm.birth_date,
           gender: editForm.gender,
+          nif: editForm.nif,
+          niss: editForm.niss,
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
@@ -156,18 +178,22 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
       });
     } finally {
       setIsSaving(false);
+      setIsUpdatingEmail(false);
     }
   };
 
   const handleCancelEdit = () => {
     setEditForm({
       name: profile?.name,
+      email: profile?.email,
       phone: profile?.phone,
       address: profile?.address,
       city: profile?.city,
       postal_code: profile?.postal_code,
       birth_date: profile?.birth_date,
       gender: profile?.gender,
+      nif: profile?.nif,
+      niss: profile?.niss,
     });
     setIsEditing(false);
   };
@@ -312,7 +338,7 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
           </CardContent>
         </Card>
 
-        {/* Dados Pessoais */}
+                {/* Dados Pessoais */}
         <Card className="w-full bg-white/90 rounded-xl shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Dados Pessoais</CardTitle>
@@ -331,6 +357,24 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
                 ) : (
                   <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
                     <span className="text-gray-900">{profile.name}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                {isEditing ? (
+                  <Input
+                    id="email"
+                    type="email"
+                    value={editForm.email || ''}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className="h-12 text-base"
+                    placeholder="Email"
+                  />
+                ) : (
+                  <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                    <span className="text-gray-900">{profile.email}</span>
                   </div>
                 )}
               </div>
@@ -384,11 +428,45 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
                     </SelectContent>
                   </Select>
                 ) : (
-                                     <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                     <span className="text-gray-900">
-                       {profile.gender === 'masculino' ? 'Masculino' : profile.gender === 'feminino' ? 'Feminino' : 'Não informado'}
-                     </span>
-                   </div>
+                  <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                    <span className="text-gray-900">
+                      {profile.gender === 'masculino' ? 'Masculino' : profile.gender === 'feminino' ? 'Feminino' : 'Não informado'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="nif">NIF</Label>
+                {isEditing ? (
+                  <Input
+                    id="nif"
+                    value={editForm.nif || ''}
+                    onChange={(e) => handleInputChange('nif', e.target.value)}
+                    className="h-12 text-base"
+                    placeholder="NIF"
+                  />
+                ) : (
+                  <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                    <span className="text-gray-900">{profile.nif || 'Não informado'}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="niss">NISS</Label>
+                {isEditing ? (
+                  <Input
+                    id="niss"
+                    value={editForm.niss || ''}
+                    onChange={(e) => handleInputChange('niss', e.target.value)}
+                    className="h-12 text-base"
+                    placeholder="NISS"
+                  />
+                ) : (
+                  <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
+                    <span className="text-gray-900">{profile.niss || 'Não informado'}</span>
+                  </div>
                 )}
               </div>
 
@@ -452,28 +530,7 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
             <CardTitle className="text-lg font-semibold">Dados Profissionais</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">{profile.email}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>NIF</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">{profile.nif || 'Não informado'}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>NISS</Label>
-                <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
-                  <span className="text-gray-900">{profile.niss || 'Não informado'}</span>
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <Label>Data de Admissão</Label>
                 <div className="h-12 px-3 py-2 bg-gray-50 rounded-md flex items-center">
@@ -491,10 +548,15 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
           <div className="flex gap-3">
             <Button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isUpdatingEmail}
               className="flex-1 h-12 text-base font-semibold"
             >
-              {isSaving ? (
+              {isUpdatingEmail ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Atualizando email...
+                </>
+              ) : isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Salvando...
