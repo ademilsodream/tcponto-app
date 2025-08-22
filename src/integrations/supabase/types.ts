@@ -932,7 +932,7 @@ export type Database = {
         Row: {
           address: string | null
           admission_date: string | null
-          avatar_url: string | null
+          photo: string | null
           birth_date: string | null
           can_access_tcobras: boolean
           can_register_time: boolean
@@ -961,7 +961,7 @@ export type Database = {
         Insert: {
           address?: string | null
           admission_date?: string | null
-          avatar_url?: string | null
+          photo?: string | null
           birth_date?: string | null
           can_access_tcobras?: boolean
           can_register_time?: boolean
@@ -990,7 +990,7 @@ export type Database = {
         Update: {
           address?: string | null
           admission_date?: string | null
-          avatar_url?: string | null
+          photo?: string | null
           birth_date?: string | null
           can_access_tcobras?: boolean
           can_register_time?: boolean

@@ -36,7 +36,7 @@ interface ProfileData {
   department_id: string | null;
   job_function_id: string | null;
   shift_id: string | null;
-  avatar_url?: string | null;
+  photo?: string | null;
 }
 
 const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
@@ -78,7 +78,7 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
           department_id,
           job_function_id,
           shift_id,
-          avatar_url
+          photo
         `)
         .eq('id', user.id)
         .single();
@@ -197,7 +197,7 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
-          avatar_url: publicUrl,
+          photo: publicUrl,
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
@@ -278,17 +278,17 @@ const EmployeeProfile: React.FC<EmployeeProfileProps> = ({ onBack }) => {
           <CardContent className="p-6">
             <div className="flex flex-col items-center space-y-4">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                  {profile.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt="Foto de perfil"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User className="w-12 h-12 text-gray-400" />
-                  )}
-                </div>
+                                 <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                   {profile.photo ? (
+                     <img
+                       src={profile.photo}
+                       alt="Foto de perfil"
+                       className="w-full h-full object-cover"
+                     />
+                   ) : (
+                     <User className="w-12 h-12 text-gray-400" />
+                   )}
+                 </div>
                 {isEditing && (
                   <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 transition-colors">
                     <Camera className="w-4 h-4" />
