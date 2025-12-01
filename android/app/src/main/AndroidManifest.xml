@@ -55,7 +55,6 @@
     <!-- Permissões de localização (críticas para o sistema de ponto) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Permissões para notificações push -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
