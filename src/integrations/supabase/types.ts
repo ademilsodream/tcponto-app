@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -189,7 +189,7 @@ export type Database = {
           changed_fields: string[] | null
           created_at: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           metadata: Json | null
           new_values: Json | null
           old_values: Json | null
@@ -206,7 +206,7 @@ export type Database = {
           changed_fields?: string[] | null
           created_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           new_values?: Json | null
           old_values?: Json | null
@@ -223,7 +223,7 @@ export type Database = {
           changed_fields?: string[] | null
           created_at?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           metadata?: Json | null
           new_values?: Json | null
           old_values?: Json | null
@@ -448,6 +448,57 @@ export type Database = {
           total_overtime_hours?: number | null
           updated_at?: string | null
           year?: number
+        }
+        Relationships: []
+      }
+      employee_balance_history: {
+        Row: {
+          accumulated_balance: number
+          balance_difference: number
+          balance_type: string
+          calculated_amount: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          employee_id: string
+          id: string
+          paid_amount: number
+          period_end: string
+          period_start: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accumulated_balance?: number
+          balance_difference?: number
+          balance_type: string
+          calculated_amount?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id: string
+          id?: string
+          paid_amount?: number
+          period_end: string
+          period_start: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accumulated_balance?: number
+          balance_difference?: number
+          balance_type?: string
+          calculated_amount?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          employee_id?: string
+          id?: string
+          paid_amount?: number
+          period_end?: string
+          period_start?: string
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -705,6 +756,66 @@ export type Database = {
           },
         ]
       }
+      hourly_rates_history: {
+        Row: {
+          change_reason: string | null
+          changed_by: string | null
+          created_at: string | null
+          effective_date: string
+          employee_id: string
+          hourly_rate: number
+          id: string
+          overtime_rate: number
+        }
+        Insert: {
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          effective_date?: string
+          employee_id: string
+          hourly_rate?: number
+          id?: string
+          overtime_rate?: number
+        }
+        Update: {
+          change_reason?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          effective_date?: string
+          employee_id?: string
+          hourly_rate?: number
+          id?: string
+          overtime_rate?: number
+        }
+        Relationships: []
+      }
+      hourly_rates_history_security_log: {
+        Row: {
+          attempted_at: string | null
+          attempted_by: string | null
+          attempted_operation: string
+          blocked_reason: string
+          id: string
+          target_record_id: string | null
+        }
+        Insert: {
+          attempted_at?: string | null
+          attempted_by?: string | null
+          attempted_operation: string
+          blocked_reason: string
+          id?: string
+          target_record_id?: string | null
+        }
+        Update: {
+          attempted_at?: string | null
+          attempted_by?: string | null
+          attempted_operation?: string
+          blocked_reason?: string
+          id?: string
+          target_record_id?: string | null
+        }
+        Relationships: []
+      }
       job_functions: {
         Row: {
           created_at: string
@@ -731,6 +842,52 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      location_employee_restrictions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          location_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          location_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          location_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_employee_restrictions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_employee_restrictions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_employee_restrictions_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "allowed_locations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mapbox_settings: {
         Row: {
@@ -802,6 +959,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      monthly_reconciliation: {
+        Row: {
+          calculated_allowances: number
+          calculated_overtime: number
+          calculated_total: number
+          created_at: string
+          deducted_salary_advance: number
+          employee_id: string
+          id: string
+          month: number
+          paid_allowances: number
+          paid_overtime: number
+          paid_total: number
+          pending_allowances: number
+          pending_overtime: number
+          reconciled_at: string | null
+          reconciled_by: string | null
+          status: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          calculated_allowances?: number
+          calculated_overtime?: number
+          calculated_total?: number
+          created_at?: string
+          deducted_salary_advance?: number
+          employee_id: string
+          id?: string
+          month: number
+          paid_allowances?: number
+          paid_overtime?: number
+          paid_total?: number
+          pending_allowances?: number
+          pending_overtime?: number
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          status?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          calculated_allowances?: number
+          calculated_overtime?: number
+          calculated_total?: number
+          created_at?: string
+          deducted_salary_advance?: number
+          employee_id?: string
+          id?: string
+          month?: number
+          paid_allowances?: number
+          paid_overtime?: number
+          paid_total?: number
+          pending_allowances?: number
+          pending_overtime?: number
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          status?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      national_holidays: {
+        Row: {
+          created_at: string
+          date: string
+          description: string
+          id: string
+          is_mandatory: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          description: string
+          id?: string
+          is_mandatory?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          is_mandatory?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
       notification_logs: {
         Row: {
@@ -898,6 +1145,132 @@ export type Database = {
           },
         ]
       }
+      overtime_pending_history: {
+        Row: {
+          created_at: string
+          employee_id: string
+          hourly_rate: number
+          id: string
+          metadata: Json | null
+          original_period_end: string
+          original_period_start: string
+          overtime_hours: number
+          overtime_value: number
+          paid_amount: number
+          paid_at: string | null
+          paid_hours: number
+          status: string
+          transferred_to_period_end: string | null
+          transferred_to_period_start: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          hourly_rate: number
+          id?: string
+          metadata?: Json | null
+          original_period_end: string
+          original_period_start: string
+          overtime_hours: number
+          overtime_value: number
+          paid_amount?: number
+          paid_at?: string | null
+          paid_hours?: number
+          status?: string
+          transferred_to_period_end?: string | null
+          transferred_to_period_start?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          hourly_rate?: number
+          id?: string
+          metadata?: Json | null
+          original_period_end?: string
+          original_period_start?: string
+          overtime_hours?: number
+          overtime_value?: number
+          paid_amount?: number
+          paid_at?: string | null
+          paid_hours?: number
+          status?: string
+          transferred_to_period_end?: string | null
+          transferred_to_period_start?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_history: {
+        Row: {
+          amount_paid: number
+          amount_pending: number
+          created_at: string
+          created_by: string | null
+          deduct_salary_advance: boolean
+          description: string | null
+          employee_id: string
+          id: string
+          pay_allowances: boolean
+          pay_overtime_hours: boolean
+          payment_date: string | null
+          payroll_period_end: string
+          payroll_period_start: string
+          total_payroll_value: number
+          updated_at: string
+        }
+        Insert: {
+          amount_paid?: number
+          amount_pending?: number
+          created_at?: string
+          created_by?: string | null
+          deduct_salary_advance?: boolean
+          description?: string | null
+          employee_id: string
+          id?: string
+          pay_allowances?: boolean
+          pay_overtime_hours?: boolean
+          payment_date?: string | null
+          payroll_period_end: string
+          payroll_period_start: string
+          total_payroll_value: number
+          updated_at?: string
+        }
+        Update: {
+          amount_paid?: number
+          amount_pending?: number
+          created_at?: string
+          created_by?: string | null
+          deduct_salary_advance?: boolean
+          description?: string | null
+          employee_id?: string
+          id?: string
+          pay_allowances?: boolean
+          pay_overtime_hours?: boolean
+          payment_date?: string | null
+          payroll_period_end?: string
+          payroll_period_start?: string
+          total_payroll_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_history_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payroll_calculation_settings: {
         Row: {
           applies_to: string
@@ -928,30 +1301,148 @@ export type Database = {
         }
         Relationships: []
       }
+      payroll_overtime_settings: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          month: number
+          pay_overtime_hours: boolean
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month: number
+          pay_overtime_hours?: boolean
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          month?: number
+          pay_overtime_hours?: boolean
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_overtime_settings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_transfers: {
+        Row: {
+          amount: number
+          auto_generated: boolean | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          employee_id: string
+          id: string
+          original_period_end: string | null
+          original_period_start: string | null
+          overtime_hours: number | null
+          pending_item_id: string | null
+          source_period_end: string
+          source_period_start: string
+          target_period_end: string
+          target_period_start: string
+          transfer_subtype: string | null
+          transfer_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          auto_generated?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          employee_id: string
+          id?: string
+          original_period_end?: string | null
+          original_period_start?: string | null
+          overtime_hours?: number | null
+          pending_item_id?: string | null
+          source_period_end: string
+          source_period_start: string
+          target_period_end: string
+          target_period_start: string
+          transfer_subtype?: string | null
+          transfer_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          auto_generated?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          employee_id?: string
+          id?: string
+          original_period_end?: string | null
+          original_period_start?: string | null
+          overtime_hours?: number | null
+          pending_item_id?: string | null
+          source_period_end?: string
+          source_period_start?: string
+          target_period_end?: string
+          target_period_start?: string
+          transfer_subtype?: string | null
+          transfer_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_transfers_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
           admission_date: string | null
-          photo: string | null
           birth_date: string | null
           can_access_tcobras: boolean
           can_register_time: boolean
           city: string | null
+          contratado: boolean | null
           created_at: string
           department_id: string | null
           email: string
           employee_code: string | null
           gender: string | null
           hourly_rate: number
+          iban: string | null
           id: string
           job_function_id: string | null
           name: string
           nif: string | null
           niss: string | null
+          nome_seguradora_acidente: string | null
+          nome_seguradora_contratado: string | null
+          numero_apolice_acidente: string | null
+          numero_apolice_contratado: string | null
           overtime_rate: number | null
+          periodo_acidente_fim: string | null
+          periodo_acidente_inicio: string | null
           phone: string | null
+          photo: string | null
           postal_code: string | null
           role: string
+          seguro_contracidentes: boolean | null
           shift_id: string | null
           status: Database["public"]["Enums"]["employee_status"] | null
           termination_date: string | null
@@ -961,26 +1452,35 @@ export type Database = {
         Insert: {
           address?: string | null
           admission_date?: string | null
-          photo?: string | null
           birth_date?: string | null
           can_access_tcobras?: boolean
           can_register_time?: boolean
           city?: string | null
+          contratado?: boolean | null
           created_at?: string
           department_id?: string | null
           email: string
           employee_code?: string | null
           gender?: string | null
           hourly_rate?: number
+          iban?: string | null
           id: string
           job_function_id?: string | null
           name: string
           nif?: string | null
           niss?: string | null
+          nome_seguradora_acidente?: string | null
+          nome_seguradora_contratado?: string | null
+          numero_apolice_acidente?: string | null
+          numero_apolice_contratado?: string | null
           overtime_rate?: number | null
+          periodo_acidente_fim?: string | null
+          periodo_acidente_inicio?: string | null
           phone?: string | null
+          photo?: string | null
           postal_code?: string | null
           role?: string
+          seguro_contracidentes?: boolean | null
           shift_id?: string | null
           status?: Database["public"]["Enums"]["employee_status"] | null
           termination_date?: string | null
@@ -990,26 +1490,35 @@ export type Database = {
         Update: {
           address?: string | null
           admission_date?: string | null
-          photo?: string | null
           birth_date?: string | null
           can_access_tcobras?: boolean
           can_register_time?: boolean
           city?: string | null
+          contratado?: boolean | null
           created_at?: string
           department_id?: string | null
           email?: string
           employee_code?: string | null
           gender?: string | null
           hourly_rate?: number
+          iban?: string | null
           id?: string
           job_function_id?: string | null
           name?: string
           nif?: string | null
           niss?: string | null
+          nome_seguradora_acidente?: string | null
+          nome_seguradora_contratado?: string | null
+          numero_apolice_acidente?: string | null
+          numero_apolice_contratado?: string | null
           overtime_rate?: number | null
+          periodo_acidente_fim?: string | null
+          periodo_acidente_inicio?: string | null
           phone?: string | null
+          photo?: string | null
           postal_code?: string | null
           role?: string
+          seguro_contracidentes?: boolean | null
           shift_id?: string | null
           status?: Database["public"]["Enums"]["employee_status"] | null
           termination_date?: string | null
@@ -1343,6 +1852,30 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_sessions: {
         Row: {
           api_key_id: string | null
@@ -1655,101 +2188,177 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      calculate_monthly_analytics: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      apply_balance_to_payment: {
+        Args: { p_employee_id: string; p_payment_amount: number }
+        Returns: {
+          balance_applied: number
+          final_payment_amount: number
+          remaining_balance: number
+        }[]
       }
-      check_excessive_overtime: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      calculate_monthly_analytics: { Args: never; Returns: undefined }
+      calculate_monthly_pending_items: {
+        Args: { target_month: number; target_year: number }
+        Returns: {
+          employee_id: string
+          pending_allowances: number
+          pending_overtime_hours: number
+          pending_overtime_value: number
+          pending_salary_advance: number
+        }[]
       }
-      check_incomplete_records: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      calculate_period_pending_items: {
+        Args: { end_date: string; start_date: string }
+        Returns: {
+          employee_id: string
+          pending_allowances: number
+          pending_overtime_hours: number
+          pending_overtime_value: number
+          pending_salary_advance: number
+        }[]
       }
-      cleanup_expired_sessions: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      check_email_availability: { Args: { check_email: string }; Returns: Json }
+      check_excessive_overtime: { Args: never; Returns: undefined }
+      check_incomplete_records: { Args: never; Returns: undefined }
+      cleanup_expired_sessions: { Args: never; Returns: undefined }
+      cleanup_orphan_users: { Args: never; Returns: Json }
       count_working_days_elapsed: {
-        Args: { target_year: number; target_month: number }
+        Args: { target_month: number; target_year: number }
         Returns: number
       }
       count_working_days_in_month: {
-        Args: { target_year: number; target_month: number }
+        Args: { target_month: number; target_year: number }
         Returns: number
       }
-      expire_old_hour_bank_hours: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      create_or_update_employee_balance: {
+        Args: {
+          p_calculated_amount: number
+          p_description?: string
+          p_employee_id: string
+          p_paid_amount: number
+          p_period_end: string
+          p_period_start: string
+        }
+        Returns: string
       }
+      expire_old_hour_bank_hours: { Args: never; Returns: undefined }
       get_audit_logs: {
         Args: {
-          p_table_name?: string
-          p_record_id?: string
-          p_start_date?: string
           p_end_date?: string
           p_limit?: number
+          p_record_id?: string
+          p_start_date?: string
+          p_table_name?: string
         }
         Returns: {
+          changed_fields: string[]
+          created_at: string
           id: string
-          table_name: string
+          new_values: Json
+          old_values: Json
           operation: string
           record_id: string
-          old_values: Json
-          new_values: Json
-          changed_fields: string[]
+          table_name: string
           user_email: string
           user_role: string
-          created_at: string
         }[]
       }
       get_audit_statistics: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
+          deletes: number
+          inserts: number
+          last_activity: string
           table_name: string
           total_operations: number
-          inserts: number
           updates: number
-          deletes: number
-          last_activity: string
         }[]
       }
-      get_current_user_role: {
-        Args: Record<PropertyKey, never>
-        Returns: string
+      get_current_user_role: { Args: never; Returns: string }
+      get_employee_accumulated_balance: {
+        Args: { p_employee_id: string }
+        Returns: number
       }
-      is_admin: {
-        Args: Record<PropertyKey, never>
+      get_employee_balances_with_names: {
+        Args: never
+        Returns: {
+          accumulated_balance: number
+          balance_type: string
+          employee_id: string
+          employee_name: string
+          id: string
+          last_updated: string
+        }[]
+      }
+      get_hourly_rate_at_date: {
+        Args: { employee_uuid: string; target_date: string }
+        Returns: {
+          hourly_rate: number
+          overtime_rate: number
+        }[]
+      }
+      get_national_holidays_by_year: {
+        Args: { target_year: number }
+        Returns: {
+          date: string
+          description: string
+          id: string
+          is_mandatory: boolean
+        }[]
+      }
+      get_payroll_overtime_setting: {
+        Args: { target_month: number; target_year: number }
         Returns: boolean
       }
-      is_admin_user: {
-        Args: Record<PropertyKey, never>
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
         Returns: boolean
       }
-      is_month_closed: {
-        Args: { check_date: string }
-        Returns: boolean
+      is_admin: { Args: never; Returns: boolean }
+      is_admin_user: { Args: never; Returns: boolean }
+      is_month_closed: { Args: { check_date: string }; Returns: boolean }
+      is_national_holiday: { Args: { check_date: string }; Returns: boolean }
+      process_automatic_transfers: {
+        Args: {
+          from_month: number
+          from_year: number
+          to_month: number
+          to_year: number
+        }
+        Returns: undefined
       }
       process_hour_bank: {
         Args: {
           p_employee_id: string
           p_time_record_id: string
-          p_worked_hours: number
           p_work_date: string
+          p_worked_hours: number
         }
         Returns: undefined
       }
       send_scheduled_push_notifications: {
-        Args: { notification_type: string; check_time: string }
+        Args: { check_time: string; notification_type: string }
         Returns: undefined
       }
-      update_monthly_expected_hours: {
-        Args: Record<PropertyKey, never>
+      set_payroll_overtime_setting: {
+        Args: {
+          pay_overtime: boolean
+          target_month: number
+          target_year: number
+        }
         Returns: undefined
       }
+      update_monthly_expected_hours: { Args: never; Returns: undefined }
     }
     Enums: {
+      app_role: "admin" | "super_admin" | "user"
       employee_status: "active" | "inactive"
     }
     CompositeTypes: {
@@ -1878,6 +2487,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "super_admin", "user"],
       employee_status: ["active", "inactive"],
     },
   },

@@ -10,20 +10,39 @@ interface AllowedButtons {
   clock_out: boolean;
 }
 
+interface ShiftScheduleData {
+  start_time: string | null;
+  break_start_time: string | null;
+  break_end_time: string | null;
+  end_time: string | null;
+}
+
+interface ShiftTolerances {
+  early_tolerance_minutes: number;
+  late_tolerance_minutes: number;
+  break_tolerance_minutes: number;
+}
+
 export const useWorkShiftValidation = () => {
   const { user } = useOptimizedAuth();
   const [hasShift, setHasShift] = useState<boolean>(false);
-  const [canRegisterPoint, setCanRegisterPoint] = useState<boolean>(true);
   const [currentShiftMessage, setCurrentShiftMessage] = useState<string>('');
   const [loading, setLoading] = useState(true);
-  const [allowedButtons, setAllowedButtons] = useState<AllowedButtons>({
+  const [shiftSchedule, setShiftSchedule] = useState<ShiftScheduleData | null>(null);
+  const [shiftTolerances, setShiftTolerances] = useState<ShiftTolerances>({
+    early_tolerance_minutes: 15,
+    late_tolerance_minutes: 15,
+    break_tolerance_minutes: 15
+  });
+
+  // Botões sempre habilitados - a tolerância agora é usada apenas para ajuste de horário
+  const allowedButtons: AllowedButtons = {
     clock_in: true,
     lunch_start: true,
     lunch_end: true,
     clock_out: true
-  });
-  const [nextButtonAvailable, setNextButtonAvailable] = useState<boolean>(false);
-  const [timeUntilNext, setTimeUntilNext] = useState<number>(0);
+  };
+  const canRegisterPoint = true;
 
   useEffect(() => {
     const loadShiftData = async () => {
@@ -42,14 +61,8 @@ export const useWorkShiftValidation = () => {
         if (profileError && profileError.code !== 'PGRST116') {
           console.warn('Erro ao buscar perfil:', profileError);
           setHasShift(false);
-          setCanRegisterPoint(true);
           setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setAllowedButtons({
-            clock_in: true,
-            lunch_start: true,
-            lunch_end: true,
-            clock_out: true
-          });
+          setShiftSchedule(null);
           setLoading(false);
           return;
         }
@@ -58,14 +71,8 @@ export const useWorkShiftValidation = () => {
         if (!profileData?.shift_id) {
           console.log('👤 Usuário sem turno - modo livre');
           setHasShift(false);
-          setCanRegisterPoint(true);
           setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setAllowedButtons({
-            clock_in: true,
-            lunch_start: true,
-            lunch_end: true,
-            clock_out: true
-          });
+          setShiftSchedule(null);
           setLoading(false);
           return;
         }
@@ -81,17 +88,18 @@ export const useWorkShiftValidation = () => {
         if (shiftError) {
           console.warn('Turno não encontrado ou inativo - modo livre');
           setHasShift(false);
-          setCanRegisterPoint(true);
           setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setAllowedButtons({
-            clock_in: true,
-            lunch_start: true,
-            lunch_end: true,
-            clock_out: true
-          });
+          setShiftSchedule(null);
           setLoading(false);
           return;
         }
+
+        // Salvar tolerâncias do turno
+        setShiftTolerances({
+          early_tolerance_minutes: shiftData.early_tolerance_minutes || 15,
+          late_tolerance_minutes: shiftData.late_tolerance_minutes || 15,
+          break_tolerance_minutes: shiftData.break_tolerance_minutes || 15
+        });
 
         // 3. Buscar horários do turno
         const { data: schedulesData, error: schedulesError } = await supabase
@@ -103,110 +111,43 @@ export const useWorkShiftValidation = () => {
         if (schedulesError || !schedulesData?.length) {
           console.warn('Horários não encontrados - modo livre');
           setHasShift(false);
-          setCanRegisterPoint(true);
           setCurrentShiftMessage('Modo livre - sem restrições de horário');
-          setAllowedButtons({
-            clock_in: true,
-            lunch_start: true,
-            lunch_end: true,
-            clock_out: true
-          });
+          setShiftSchedule(null);
           setLoading(false);
           return;
         }
 
-        // 4. Validar janelas de registro
+        // 4. Salvar horários do turno
         setHasShift(true);
         
         const now = new Date();
         const dayOfWeek = now.getDay();
-        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         
         const todaySchedule = schedulesData.find((s: any) => s.day_of_week === dayOfWeek);
         
         if (!todaySchedule) {
-          setCanRegisterPoint(false);
           setCurrentShiftMessage('Nenhum horário configurado para hoje');
-          setAllowedButtons({
-            clock_in: false,
-            lunch_start: false,
-            lunch_end: false,
-            clock_out: false
-          });
+          setShiftSchedule(null);
           setLoading(false);
           return;
         }
 
-        // Calcular janelas com tolerância
-        const tolerance = shiftData.early_tolerance_minutes || 15;
-        const windows = [
-          { time: todaySchedule.start_time, type: 'clock_in', label: 'Entrada' },
-          { time: todaySchedule.break_start_time, type: 'lunch_start', label: 'Início do Almoço' },
-          { time: todaySchedule.break_end_time, type: 'lunch_end', label: 'Fim do Almoço' },
-          { time: todaySchedule.end_time, type: 'clock_out', label: 'Saída' }
-        ].filter(w => w.time);
+        // Salvar o schedule do dia
+        setShiftSchedule({
+          start_time: todaySchedule.start_time,
+          break_start_time: todaySchedule.break_start_time,
+          break_end_time: todaySchedule.break_end_time,
+          end_time: todaySchedule.end_time
+        });
 
-        let inWindow = false;
-        let message = '';
-        let nextWindow = null;
-        let currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-        
-        // Reset allowed buttons
-        const newAllowedButtons = {
-          clock_in: false,
-          lunch_start: false,
-          lunch_end: false,
-          clock_out: false
-        };
-
-        for (const window of windows) {
-          const [h, m] = window.time.split(':').map(Number);
-          const windowMinutes = h * 60 + m;
-          const startWindow = windowMinutes - tolerance;
-          const endWindow = windowMinutes + tolerance;
-
-          if (currentMinutes >= startWindow && currentMinutes <= endWindow) {
-            inWindow = true;
-            newAllowedButtons[window.type as keyof AllowedButtons] = true;
-            const startTime = `${String(Math.floor(startWindow / 60)).padStart(2, '0')}:${String(startWindow % 60).padStart(2, '0')}`;
-            const endTime = `${String(Math.floor(endWindow / 60)).padStart(2, '0')}:${String(endWindow % 60).padStart(2, '0')}`;
-            message = `Janela de ${window.label} ativa (${startTime} - ${endTime})`;
-            break;
-          }
-
-          // Find next available window
-          if (!nextWindow && windowMinutes > currentMinutes) {
-            nextWindow = {
-              ...window,
-              windowMinutes: windowMinutes - tolerance,
-              minutesUntil: (windowMinutes - tolerance) - currentMinutes
-            };
-          }
-        }
-
-        setCanRegisterPoint(inWindow);
-        setAllowedButtons(newAllowedButtons);
-        setCurrentShiftMessage(inWindow ? message : 'Fora das janelas de registro permitidas');
-        
-        if (nextWindow) {
-          setNextButtonAvailable(true);
-          setTimeUntilNext(nextWindow.minutesUntil);
-        } else {
-          setNextButtonAvailable(false);
-          setTimeUntilNext(0);
-        }
+        setCurrentShiftMessage(`Turno: ${shiftData.name}`);
+        setLoading(false);
 
       } catch (err) {
         console.warn('Erro na validação de turno - modo livre:', err);
         setHasShift(false);
-        setCanRegisterPoint(true);
         setCurrentShiftMessage('Modo livre - sem restrições de horário');
-        setAllowedButtons({
-          clock_in: true,
-          lunch_start: true,
-          lunch_end: true,
-          clock_out: true
-        });
+        setShiftSchedule(null);
       } finally {
         setLoading(false);
       }
@@ -224,8 +165,8 @@ export const useWorkShiftValidation = () => {
     currentShiftMessage, 
     loading, 
     hasShift, 
-    allowedButtons, 
-    nextButtonAvailable, 
-    timeUntilNext 
+    allowedButtons,
+    shiftSchedule,
+    shiftTolerances
   };
 };

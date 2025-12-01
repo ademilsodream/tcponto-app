@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { LogIn, Coffee, LogOut, AlertCircle } from 'lucide-react';
+import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useUnreadAnnouncements } from '@/hooks/useUnreadAnnouncements';
-import AnnouncementNotification from '@/components/AnnouncementNotification';
-import AnnouncementModal from '@/components/AnnouncementModal';
+import { AnnouncementNotification } from '@/components/AnnouncementNotification';
 import { TimeRegistrationHeader } from './TimeRegistrationHeader';
 import { ShiftValidationInfo } from './ShiftValidationInfo';
 import { TimeRegistrationButtons } from './TimeRegistrationButtons';
@@ -21,8 +21,6 @@ import { supabase } from '@/integrations/supabase/client';
 const TimeRegistration = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any>(null);
-  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
 
   const {
     timeRecord,
@@ -48,26 +46,14 @@ const TimeRegistration = () => {
     setEditReason
   } = useTimeRegistrationLogic();
 
-  const { unreadAnnouncements, markAsRead } = useUnreadAnnouncements();
+  const { user } = useOptimizedAuth();
+  const { announcements, unreadCount } = useUnreadAnnouncements(user?.id || '');
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const handleAnnouncementClick = (announcement: any) => {
-    setSelectedAnnouncement(announcement);
-    setIsAnnouncementModalOpen(true);
-  };
-
-  const handleCloseAnnouncementModal = () => {
-    setIsAnnouncementModalOpen(false);
-    setSelectedAnnouncement(null);
-  };
-
-  const handleMarkAnnouncementAsRead = (announcementId: string) => {
-    markAsRead(announcementId);
-  };
 
   const handleEditRequest = (field: 'clock_in' | 'lunch_start' | 'lunch_end' | 'clock_out', value: string) => {
     setEditField(field);
@@ -108,26 +94,24 @@ const TimeRegistration = () => {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
       <div className="p-4 space-y-4">
         <TimeRegistrationHeader currentTime={currentTime} />
-        <ShiftValidationInfo currentShiftMessage={shiftValidation.currentShiftMessage} nextButtonAvailable={shiftValidation.nextButtonAvailable} timeUntilNext={shiftValidation.timeUntilNext} />
+        <ShiftValidationInfo currentShiftMessage={shiftValidation.currentShiftMessage} />
         <TimeRegistrationProgress timeRecord={timeRecord} onEditRequest={handleEditRequest} />
         <TimeRegistrationButtons
           nextAction={nextAction}
           onTimeAction={handleTimeAction}
           isRegistrationButtonDisabled={isRegistrationButtonDisabled}
           submitting={submitting}
-          shiftValidation={{ allowedButtons: shiftValidation.allowedButtons, timeUntilNext: shiftValidation.timeUntilNext }}
+          shiftValidation={{ allowedButtons: shiftValidation.allowedButtons }}
           remainingCooldown={remainingCooldown}
           formatRemainingTime={formatRemainingTime}
         />
         {!nextAction && <CompletionMessage />}
       </div>
 
-      {unreadAnnouncements.length > 0 ? (
+      {user && (
         <div className="w-full px-4 pb-4">
-          <AnnouncementNotification announcements={unreadAnnouncements} onAnnouncementClick={handleAnnouncementClick} />
+          <AnnouncementNotification userId={user.id} />
         </div>
-      ) : (
-        <div className="w-full px-4 pb-4 text-center text-gray-500 text-sm"></div>
       )}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -180,7 +164,7 @@ const TimeRegistration = () => {
         </DialogContent>
       </Dialog>
 
-      <AnnouncementModal announcement={selectedAnnouncement} isOpen={isAnnouncementModalOpen} onClose={handleCloseAnnouncementModal} onMarkAsRead={handleMarkAnnouncementAsRead} />
+      
     </div>
   );
 };

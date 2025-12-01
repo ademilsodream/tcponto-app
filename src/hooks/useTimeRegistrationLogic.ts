@@ -5,6 +5,7 @@ import { useOptimizedAuth } from '@/contexts/OptimizedAuthContext';
 import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 import { validateLocationForTimeRecord } from '@/utils/locationValidation';
 import { reverseGeocode } from '@/utils/geocoding';
+import { calculateAdjustedTime } from '@/utils/calculateAdjustedTime';
 
 import { AdvancedLocationSystem } from '@/utils/advancedLocationSystem';
 import { useAdvancedLocationSystem } from './useAdvancedLocationSystem';
@@ -299,15 +300,6 @@ export const useTimeRegistrationLogic = () => {
         return;
     }
 
-    if (!shiftValidation.allowedButtons[action]) {
-      toast({
-        title: "Fora do Horário",
-        description: shiftValidation.currentShiftMessage || "Este registro não está disponível no momento.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
       setSubmitting(true);
       
@@ -321,7 +313,39 @@ export const useTimeRegistrationLogic = () => {
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
-      const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      
+      // Determinar horário com ajuste automático baseado no turno
+      let currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      
+      // Se tem turno definido, aplicar ajuste de horário baseado na tolerância
+      if (shiftValidation.hasShift && shiftValidation.shiftSchedule) {
+        const schedule = shiftValidation.shiftSchedule;
+        const tolerances = shiftValidation.shiftTolerances;
+        
+        // Determinar qual horário oficial e tolerância usar baseado na ação
+        let scheduleTime: string | null = null;
+        let tolerance = 15;
+        
+        if (action === 'clock_in' && schedule.start_time) {
+          scheduleTime = schedule.start_time;
+          tolerance = tolerances.early_tolerance_minutes;
+        } else if (action === 'lunch_start' && schedule.break_start_time) {
+          scheduleTime = schedule.break_start_time;
+          tolerance = tolerances.break_tolerance_minutes;
+        } else if (action === 'lunch_end' && schedule.break_end_time) {
+          scheduleTime = schedule.break_end_time;
+          tolerance = tolerances.break_tolerance_minutes;
+        } else if (action === 'clock_out' && schedule.end_time) {
+          scheduleTime = schedule.end_time;
+          tolerance = tolerances.late_tolerance_minutes;
+        }
+        
+        // Se há horário oficial, calcular ajuste
+        if (scheduleTime) {
+          currentTime = calculateAdjustedTime(now, scheduleTime, tolerance);
+          console.log(`🕐 Ajuste de horário: ${now.toTimeString().split(' ')[0].substring(0, 5)} → ${currentTime} (oficial: ${scheduleTime}, tolerância: ${tolerance}min)`);
+        }
+      }
 
       let updateData: any = {
         [action]: currentTime,
@@ -639,8 +663,7 @@ export const useTimeRegistrationLogic = () => {
   const nextAction = getNextAction();
 
   const isRegistrationButtonDisabled = submitting || 
-    (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
-    (nextAction && !shiftValidation.allowedButtons[nextAction as keyof typeof shiftValidation.allowedButtons]);
+    (cooldownEndTime !== null && cooldownEndTime > Date.now());
 
   return {
     timeRecord,

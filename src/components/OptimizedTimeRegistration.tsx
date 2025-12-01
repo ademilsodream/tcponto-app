@@ -25,6 +25,7 @@ import {
   timeRecordsCache,
   TIME_RECORDS_CACHE_DURATION
 } from '../utils/timeRegistrationUtils';
+import { calculateAdjustedTime } from '@/utils/calculateAdjustedTime';
 import { TimeRecord, TimeRecordKey, LocationDetails, LocationsData } from '../types/timeRegistration';
 
 const OptimizedTimeRegistrationComponent = React.memo(() => {
@@ -53,7 +54,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
     isLowAccuracy
   } = useEnhancedLocation();
   
-  const { canRegisterPoint, currentShiftMessage, loading: shiftLoading, hasShift } = useWorkShiftValidation();
+  const shiftValidation = useWorkShiftValidation();
   const { toast } = useToast();
 
   // Memoização de valores computados
@@ -281,7 +282,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const handleTimeAction = useCallback(async (action: TimeRecordKey) => {
     if (!user || submitting) return;
 
-    if (hasShift && timeRecord?.[action]) {
+    if (shiftValidation.hasShift && timeRecord?.[action]) {
       toast({
         title: "Já registrado",
         description: `${action === 'clock_in' ? 'Entrada' : action === 'lunch_start' ? 'Início do Almoço' : action === 'lunch_end' ? 'Fim do Almoço' : 'Saída'} já foi registrado hoje`,
@@ -290,7 +291,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       return;
     }
 
-    if (hasShift && !canRegisterPoint) {
+    if (shiftValidation.hasShift && !shiftValidation.canRegisterPoint) {
       toast({
         title: "Horário não permitido",
         description: "O registro de ponto está restrito aos horários do seu turno de trabalho",
@@ -389,7 +390,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       await processTimeRegistration(action, simpleLocationResult);
     }
 
-  }, [user, submitting, timeRecord, allowedLocations, validateLocationRequest, location, canRegisterPoint, hasShift, cooldownEndTime, toast, isLowAccuracy, startCalibration]);
+  }, [user, submitting, timeRecord, allowedLocations, validateLocationRequest, location, shiftValidation.canRegisterPoint, shiftValidation.hasShift, cooldownEndTime, toast, isLowAccuracy, startCalibration]);
 
   // Função para processar registro com dados aprimorados
   const processTimeRegistration = async (action: TimeRecordKey, locationValidationResult: any) => {
@@ -398,9 +399,43 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       
       let currentTimeString: string;
       
-      if (hasShift) {
-        currentTimeString = format(now, 'HH:mm:ss');
-        console.log('📝 Modo TURNO - registrando horário atual (implementar horário oficial):', currentTimeString);
+      // Se tem turno definido, aplicar ajuste de horário baseado na tolerância
+      if (shiftValidation.hasShift && shiftValidation.hasShift && shiftValidation.shiftSchedule) {
+        const schedule = shiftValidation.shiftSchedule;
+        const tolerances = shiftValidation.shiftTolerances;
+        
+        // Determinar qual horário oficial e tolerância usar baseado na ação
+        let scheduleTime: string | null = null;
+        let tolerance = 15;
+        
+        if (action === 'clock_in' && schedule.start_time) {
+          scheduleTime = schedule.start_time;
+          tolerance = tolerances.early_tolerance_minutes;
+        } else if (action === 'lunch_start' && schedule.break_start_time) {
+          scheduleTime = schedule.break_start_time;
+          tolerance = tolerances.break_tolerance_minutes;
+        } else if (action === 'lunch_end' && schedule.break_end_time) {
+          scheduleTime = schedule.break_end_time;
+          tolerance = tolerances.break_tolerance_minutes;
+        } else if (action === 'clock_out' && schedule.end_time) {
+          scheduleTime = schedule.end_time;
+          tolerance = tolerances.late_tolerance_minutes;
+        }
+        
+        // Se há horário oficial, calcular ajuste
+        if (scheduleTime) {
+          const adjustedTime = calculateAdjustedTime(now, scheduleTime, tolerance);
+          currentTimeString = adjustedTime + ':00'; // Adiciona segundos
+          console.log('📝 Modo TURNO com ajuste:', {
+            horaReal: format(now, 'HH:mm:ss'),
+            horaAjustada: currentTimeString,
+            horaOficial: scheduleTime,
+            tolerancia: tolerance
+          });
+        } else {
+          currentTimeString = format(now, 'HH:mm:ss');
+          console.log('📝 Modo TURNO - registrando horário atual (sem horário oficial para', action, '):', currentTimeString);
+        }
       } else {
         currentTimeString = format(now, 'HH:mm:ss');
         console.log('📝 Modo LIVRE - registrando horário atual:', currentTimeString);
@@ -447,12 +482,9 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
       localStorage.setItem('timeRegistrationCooldown', newCooldownEndTime.toString());
 
       try {
+        const { PushNotificationService } = await import('@/services/PushNotificationService');
         const pushService = PushNotificationService.getInstance();
-        await pushService.sendNotification({
-          userId: user!.id,
-          title: 'Ponto Registrado',
-          body: `${action === 'clock_in' ? 'Entrada' : action === 'lunch_start' ? 'Início do Almoço' : action === 'lunch_end' ? 'Fim do Almoço' : 'Saída'} registrado às ${currentTimeString.slice(0, 5)}`
-        });
+        await pushService.testNotification(user!.id);
       } catch (pushError) {
         console.warn('Erro ao enviar notificação push:', pushError);
       }
@@ -560,11 +592,11 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
   const isRegistrationButtonDisabled = useMemo(() => {
     return submitting || 
            (cooldownEndTime !== null && cooldownEndTime > Date.now()) ||
-           shiftLoading ||
-           (hasShift && !canRegisterPoint) ||
+           shiftValidation.loading ||
+           (shiftValidation.hasShift && !shiftValidation.canRegisterPoint) ||
            locationLoading ||
            calibration.isCalibrating;
-  }, [submitting, cooldownEndTime, shiftLoading, hasShift, canRegisterPoint, locationLoading, calibration.isCalibrating]);
+  }, [submitting, cooldownEndTime, shiftValidation.loading, shiftValidation.hasShift, shiftValidation.canRegisterPoint, locationLoading, calibration.isCalibrating]);
 
   const isInCooldown = useMemo(() => {
     return cooldownEndTime !== null && remainingCooldown !== null && remainingCooldown > 0;
@@ -616,7 +648,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
         currentTime={currentTime}
         greeting={greeting}
         userDisplayName={userDisplayName}
-        currentShiftMessage={currentShiftMessage}
+        currentShiftMessage={shiftValidation.currentShiftMessage}
       />
 
       <GPSStatus
@@ -658,7 +690,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Registrando...
                   </>
-                ) : (hasShift && !canRegisterPoint) ? (
+                ) : (shiftValidation.hasShift && !shiftValidation.canRegisterPoint) ? (
                   'Fora do horário permitido'
                 ) : isInCooldown ? (
                   'Aguarde...'
@@ -678,7 +710,7 @@ const OptimizedTimeRegistrationComponent = React.memo(() => {
                 </div>
               )}
 
-              {hasShift && !canRegisterPoint && !shiftLoading && (
+              {shiftValidation.hasShift && !shiftValidation.canRegisterPoint && !shiftValidation.loading && (
                 <div className="text-center text-sm mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <div className="text-red-800 font-medium mb-1">
                     🚫 Registro restrito

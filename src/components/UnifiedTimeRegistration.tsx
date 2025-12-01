@@ -12,10 +12,12 @@ import { ptBR } from 'date-fns/locale';
 import { TimeRegistration } from '@/types/timeRegistration';
 import { AllowedLocation } from '@/types/index';
 import { reverseGeocode } from '@/utils/geocoding';
+import { calculateAdjustedTime } from '@/utils/calculateAdjustedTime';
 import { TimeRegistrationProgress } from './TimeRegistrationProgress';
 import LocationMap from './LocationMap';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AnnouncementNotification } from './AnnouncementNotification';
+import { useWorkShiftValidation } from '@/hooks/useWorkShiftValidation';
 
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutos
 
@@ -63,6 +65,7 @@ const UnifiedTimeRegistration: React.FC = () => {
   const [remainingCooldown, setRemainingCooldown] = useState<number | null>(null);
   const { user, profile } = useOptimizedAuth();
   const { toast } = useToast();
+  const shiftValidation = useWorkShiftValidation();
 
   const isRemote = profile?.use_location_tracking === false;
 
@@ -220,8 +223,38 @@ const UnifiedTimeRegistration: React.FC = () => {
         [action]: entry,
       };
 
-      // Valor do campo de tempo
-      const actionTime = now.toTimeString().split(' ')[0];
+      // Valor do campo de tempo com ajuste automático baseado no turno
+      let actionTime = now.toTimeString().split(' ')[0].substring(0, 5);
+      
+      // Se tem turno definido, aplicar ajuste de horário baseado na tolerância
+      if (shiftValidation.hasShift && shiftValidation.shiftSchedule) {
+        const schedule = shiftValidation.shiftSchedule;
+        const tolerances = shiftValidation.shiftTolerances;
+        
+        // Determinar qual horário oficial e tolerância usar baseado na ação
+        let scheduleTime: string | null = null;
+        let tolerance = 15;
+        
+        if (action === 'clock_in' && schedule.start_time) {
+          scheduleTime = schedule.start_time;
+          tolerance = tolerances.early_tolerance_minutes;
+        } else if (action === 'lunch_start' && schedule.break_start_time) {
+          scheduleTime = schedule.break_start_time;
+          tolerance = tolerances.break_tolerance_minutes;
+        } else if (action === 'lunch_end' && schedule.break_end_time) {
+          scheduleTime = schedule.break_end_time;
+          tolerance = tolerances.break_tolerance_minutes;
+        } else if (action === 'clock_out' && schedule.end_time) {
+          scheduleTime = schedule.end_time;
+          tolerance = tolerances.late_tolerance_minutes;
+        }
+        
+        // Se há horário oficial, calcular ajuste
+        if (scheduleTime) {
+          actionTime = calculateAdjustedTime(now, scheduleTime, tolerance);
+          console.log(`🕐 Ajuste de horário: ${now.toTimeString().split(' ')[0].substring(0, 5)} → ${actionTime} (oficial: ${scheduleTime}, tolerância: ${tolerance}min)`);
+        }
+      }
 
       if (existing?.id) {
         // UPDATE
