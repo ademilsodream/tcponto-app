@@ -38,8 +38,12 @@ export const useUnreadAnnouncements = (userId: string) => {
           return;
         }
 
-        setAnnouncements(data || []);
-        setUnreadCount(data?.length || 0);
+        const validatedData = (data || []).map(item => ({
+          ...item,
+          priority: (item.priority as 'low' | 'normal' | 'high' | 'urgent') || 'normal'
+        }));
+        setAnnouncements(validatedData);
+        setUnreadCount(validatedData.length);
       } catch (error) {
         console.error('Error loading unread announcements:', error);
       } finally {

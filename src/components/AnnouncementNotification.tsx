@@ -73,7 +73,11 @@ export const AnnouncementNotification: React.FC<AnnouncementNotificationProps> =
           return;
         }
 
-        setAnnouncements(data || []);
+        const validatedData = (data || []).map(item => ({
+          ...item,
+          priority: (item.priority as 'low' | 'normal' | 'high' | 'urgent') || 'normal'
+        }));
+        setAnnouncements(validatedData);
       } catch (error) {
         console.error('Error loading announcements:', error);
       } finally {
